@@ -31,7 +31,7 @@ export default function Topbar({ active, collapsed, mac, chatOpen, editRequest, 
   return (
     <header
       className={
-        'relative h-topbar flex items-center gap-2.5 px-3.5 transition-[background] duration-[250ms] [-webkit-app-region:drag] ' +
+        'relative h-topbar flex items-center gap-2.5 px-3.5 border-b border-border transition-[background] duration-[250ms] [-webkit-app-region:drag] ' +
         (onLight ? 'on-light ' : '') +
         (collapsed && mac ? 'pl-[82px]' : '')
       }

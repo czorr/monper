@@ -1,5 +1,11 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { BrowserState, MonperApi } from '../shared/types'
+import type { ChatContext, BrowserState, ChatMessage, MonperApi } from '../shared/types'
+
+function sub(channel: string, cb: (...a: unknown[]) => void): () => void {
+  const handler = (_e: unknown, ...args: unknown[]): void => cb(...args)
+  ipcRenderer.on(channel, handler)
+  return () => { ipcRenderer.removeListener(channel, handler) }
+}
 
 const api: MonperApi = {
   platform: process.platform,
@@ -26,7 +32,16 @@ const api: MonperApi = {
     const handler = (): void => cb()
     ipcRenderer.on('page:pointerdown', handler)
     return () => { ipcRenderer.removeListener('page:pointerdown', handler) }
-  }
+  },
+  getChatContext: () => ipcRenderer.invoke('chat:context') as Promise<ChatContext>,
+  onChatContext: (cb: (ctx: ChatContext) => void) => sub('chat:contextChanged', (c) => cb(c as ChatContext)),
+  setModel: (id: string) => ipcRenderer.send('chat:setModel', id),
+  setEffort: (e) => ipcRenderer.send('chat:setEffort', e),
+  chatSend: (messages: ChatMessage[]) => { ipcRenderer.invoke('chat:send', messages) },
+  chatCancel: () => ipcRenderer.send('chat:cancel'),
+  onChatToken: (cb: (text: string) => void) => sub('chat:token', (t) => cb(t as string)),
+  onChatDone: (cb: () => void) => sub('chat:done', () => cb()),
+  onChatError: (cb: (m: string) => void) => sub('chat:error', (m) => cb(m as string))
 }
 
 contextBridge.exposeInMainWorld('monper', api)

@@ -1,8 +1,10 @@
 import { join } from 'path'
 import { app, BrowserWindow, WebContentsView, ipcMain, session, shell } from 'electron'
 import type { IpcMainEvent } from 'electron'
-import type { BrowserState, Bookmark } from '../shared/types'
+import type { BrowserState, Bookmark, ChatMessage, ProviderKind } from '../shared/types'
 import { initBookmarks, listBookmarks, isBookmarked, addBookmark, removeBookmark, toggleBookmark } from './bookmarks'
+import { initAI, listProviders, addProvider, removeProvider, setActive as setActiveProvider, setModel, setEffort, getChatContext, getActiveProvider } from './ai/store'
+import { streamChat } from './ai/chat'
 
 const SIDEBAR_WIDTH = 240
 const CHAT_WIDTH = 380 // panel de chat derecho (debe coincidir con --spacing-panel en CSS)
@@ -298,6 +300,54 @@ ipcMain.handle('ui:clearData', async (e) => {
   return true
 })
 
+// ---- Proveedores de IA (gestión desde la página de Settings, sender-validada) ----
+function notifyChatContext(): void { win?.webContents.send('chat:contextChanged', getChatContext()) }
+ipcMain.handle('providers:list', (e) => (isInternalSender(e.senderFrame?.url) ? listProviders() : []))
+ipcMain.handle('providers:add', (e, input: { label: string; kind: ProviderKind; baseUrl?: string }, apiKey: string) => {
+  if (!isInternalSender(e.senderFrame?.url)) { console.warn('[providers:add] denegado, sender:', e.senderFrame?.url); return listProviders() }
+  try { addProvider(input, apiKey) } catch (err) { console.error('[providers:add] falló:', err) }
+  notifyChatContext()
+  return listProviders()
+})
+ipcMain.handle('providers:remove', (e, id: string) => {
+  if (!isInternalSender(e.senderFrame?.url)) return []
+  removeProvider(id)
+  notifyChatContext()
+  return listProviders()
+})
+ipcMain.handle('providers:setActive', (e, id: string) => {
+  if (!isInternalSender(e.senderFrame?.url)) return []
+  setActiveProvider(id)
+  notifyChatContext()
+  return listProviders()
+})
+// El chrome (composer) pide el contexto del chat: proveedor activo + modelos + modelo elegido
+ipcMain.handle('chat:context', () => getChatContext())
+ipcMain.on('chat:setModel', (_e, id: string) => setModel(id))
+ipcMain.on('chat:setEffort', (_e, e: 'low' | 'medium' | 'high') => setEffort(e))
+
+// ---- Chat en streaming (desde el ChatPanel del chrome) ----
+let chatAbort: AbortController | null = null
+ipcMain.on('chat:cancel', () => { chatAbort?.abort() })
+ipcMain.handle('chat:send', async (_e, messages: ChatMessage[]) => {
+  const active = getActiveProvider()
+  if (!active) { win?.webContents.send('chat:error', 'No hay proveedor de IA conectado. Conéctalo en Settings.'); return }
+  chatAbort?.abort()
+  chatAbort = new AbortController()
+  const send = (ch: string, payload?: unknown) => win?.webContents.send(ch, payload)
+  try {
+    await streamChat(active.provider, active.key, active.model, active.effort, messages, {
+      onDelta: (t) => send('chat:token', t),
+      onError: (m) => send('chat:error', m)
+    }, chatAbort.signal)
+    send('chat:done')
+  } catch (err) {
+    if (!(err instanceof Error && err.name === 'AbortError')) {
+      send('chat:error', err instanceof Error ? err.message : String(err))
+    }
+  }
+})
+
 // DEV: cicla materiales de vibrancy en vivo (⌘⌥V) para calibrar en tu macOS.
 const VIBRANCY_MATERIALS = ['under-window', 'sidebar', 'hud', 'fullscreen-ui', 'menu', 'popover', 'content', 'header', 'window', 'selection'] as const
 let vibrancyIdx = 0
@@ -312,6 +362,7 @@ ipcMain.on('ui:cycleVibrancy', () => {
 app.whenReady().then(() => {
   session.fromPartition(PARTITION)
   initBookmarks()
+  initAI()
   createWindow()
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })
 })

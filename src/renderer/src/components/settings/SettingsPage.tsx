@@ -1,87 +1,143 @@
-import { useEffect, useState, type JSX, type ReactNode } from 'react'
-import type { Bookmark } from '@shared/types'
+import { useState, type JSX } from 'react'
+import IconSparkles from '~icons/tabler/sparkles'
+import IconSettings from '~icons/tabler/settings'
+import IconShield from '~icons/tabler/shield-lock'
+import IconInfo from '~icons/tabler/info-circle'
+import IconUser from '~icons/tabler/user'
+import ProvidersSection from './ProvidersSection'
+import { Card, Group, Row, Pill } from './ui'
 
 const { monperTab } = window
 
-function Section({ title, children }: { title: string; children: ReactNode }): JSX.Element {
-  return (
-    <section className="mb-8">
-      <h2 className="text-[13px] font-semibold text-text-faint uppercase tracking-wide mb-3">{title}</h2>
-      <div className="rounded-xl border border-white/8 bg-white/[0.03] divide-y divide-white/[0.06]">{children}</div>
-    </section>
-  )
-}
+type Cat = 'general' | 'ai' | 'privacy' | 'about'
 
-function Row({ label, desc, children }: { label: string; desc?: string; children?: ReactNode }): JSX.Element {
+const NAV: { id: Cat; label: string; icon: JSX.Element }[] = [
+  { id: 'general', label: 'General', icon: <IconSettings /> },
+  { id: 'ai', label: 'AI', icon: <IconSparkles /> },
+  { id: 'privacy', label: 'Privacy', icon: <IconShield /> },
+  { id: 'about', label: 'About', icon: <IconInfo /> }
+]
+
+export default function SettingsPage(): JSX.Element {
+  const [cat, setCat] = useState<Cat>('ai')
+
   return (
-    <div className="flex items-center gap-4 px-4 py-3.5">
-      <div className="flex-1 min-w-0">
-        <div className="text-[14px] text-text">{label}</div>
-        {desc && <div className="text-[12.5px] text-text-dim mt-0.5">{desc}</div>}
-      </div>
-      {children}
+    <div className="h-full flex bg-bg text-text">
+      {/* Sub-nav de settings */}
+      <nav className="w-[230px] shrink-0 border-r border-white/[0.06] px-3 py-6 overflow-y-auto [&::-webkit-scrollbar]:w-0">
+        <div className="px-2 mb-2 text-[12px] font-medium text-text-faint">Settings</div>
+        {NAV.map((n) => (
+          <button
+            key={n.id}
+            onClick={() => setCat(n.id)}
+            className={
+              'flex items-center gap-2.5 w-full h-9 px-2.5 rounded-lg text-[14px] text-left transition-colors [&>svg]:w-[18px] [&>svg]:h-[18px] ' +
+              (cat === n.id ? 'bg-white/[0.08] text-text' : 'text-text-dim hover:bg-white/[0.04] hover:text-text')
+            }
+          >
+            {n.icon}
+            {n.label}
+          </button>
+        ))}
+      </nav>
+
+      {/* Contenido */}
+      <main className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-0">
+        <div className="max-w-[680px] mx-auto px-8 py-12">
+          {cat === 'ai' && <AIPage />}
+          {cat === 'general' && <GeneralPage />}
+          {cat === 'privacy' && <PrivacyPage />}
+          {cat === 'about' && <AboutPage />}
+        </div>
+      </main>
     </div>
   )
 }
 
-export default function SettingsPage(): JSX.Element {
-  const [bookmarks, setBookmarks] = useState<Bookmark[]>([])
+function AIPage(): JSX.Element {
+  return (
+    <>
+      <h1 className="text-[30px] font-semibold tracking-tight mb-9">AI</h1>
+      <ProvidersSection />
+      <Group title="Chat settings">
+        <Card>
+          <Row label="Modelo por defecto" desc="El último proveedor usado se convierte en el default">
+            <Pill>Proveedor activo</Pill>
+          </Row>
+          <Row label="Comportamiento de seguimiento" desc="Encolar mensajes mientras el agente corre, o corregir en caliente">
+            <Pill>Queue ⌄</Pill>
+          </Row>
+        </Card>
+      </Group>
+    </>
+  )
+}
+
+function GeneralPage(): JSX.Element {
+  return (
+    <>
+      <h1 className="text-[30px] font-semibold tracking-tight mb-9">General</h1>
+      <Group title="Perfil">
+        <Card>
+          <Row
+            icon={<IconUser />}
+            label="Luis Carlos Zorrilla"
+            desc="lc@luiszorrilla.com"
+          />
+        </Card>
+      </Group>
+      <Group title="Navegación">
+        <Card>
+          <Row label="Página de inicio" desc="Se abre al crear una pestaña nueva"><Pill>New tab</Pill></Row>
+          <Row label="Buscador" desc="Motor de búsqueda del omnibox"><Pill>Google ⌄</Pill></Row>
+        </Card>
+      </Group>
+    </>
+  )
+}
+
+function PrivacyPage(): JSX.Element {
   const [clearing, setClearing] = useState(false)
   const [cleared, setCleared] = useState(false)
-
-  useEffect(() => {
-    monperTab.getBookmarks().then(setBookmarks)
-    return monperTab.onBookmarks(setBookmarks)
-  }, [])
-
-  const clearData = async (): Promise<void> => {
+  const clear = async (): Promise<void> => {
     if (!confirm('¿Borrar cookies, almacenamiento y caché de este perfil? Cerrarás sesión en todos los sitios.')) return
     setClearing(true)
     const ok = await monperTab.clearBrowsingData()
-    setClearing(false)
-    setCleared(ok)
+    setClearing(false); setCleared(ok)
     if (ok) setTimeout(() => setCleared(false), 3000)
   }
-
   return (
-    <div className="min-h-full bg-bg text-text overflow-y-auto">
-      <div className="max-w-[640px] mx-auto px-8 py-14">
-        <h1 className="text-[28px] font-semibold tracking-tight mb-10">Settings</h1>
-
-        <Section title="Perfil">
-          <Row label="Luis Carlos Zorrilla" desc="lc@luiszorrilla.com">
-            <div className="w-9 h-9 rounded-full grid place-items-center text-[12px] font-semibold text-text bg-[linear-gradient(135deg,#4a4a52,#2c2c31)]">
-              LC
-            </div>
-          </Row>
-        </Section>
-
-        <Section title="Inteligencia Artificial">
-          <Row label="Proveedores de IA" desc="Conecta Claude, ChatGPT, Grok o un endpoint OpenAI-compatible">
-            <span className="text-[12px] text-text-faint px-2 py-1 rounded-md bg-white/[0.06]">Próximamente</span>
-          </Row>
-        </Section>
-
-        <Section title="Marcadores">
-          <Row label="Marcadores guardados" desc={`${bookmarks.length} en este perfil`} />
-        </Section>
-
-        <Section title="Privacidad">
+    <>
+      <h1 className="text-[30px] font-semibold tracking-tight mb-9">Privacy</h1>
+      <Group title="Datos">
+        <Card>
           <Row label="Borrar datos de navegación" desc="Cookies, almacenamiento local y caché del perfil">
             <button
-              onClick={clearData}
+              onClick={clear}
               disabled={clearing}
               className="text-[13px] font-medium px-3.5 py-2 rounded-lg bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-colors disabled:opacity-50"
             >
               {clearing ? 'Borrando…' : cleared ? 'Listo ✓' : 'Borrar'}
             </button>
           </Row>
-        </Section>
+        </Card>
+      </Group>
+    </>
+  )
+}
 
-        <Section title="Acerca de">
-          <Row label="Monper" desc="Navegador agéntico · v0.1.0" />
-        </Section>
-      </div>
-    </div>
+function AboutPage(): JSX.Element {
+  return (
+    <>
+      <h1 className="text-[30px] font-semibold tracking-tight mb-9">About</h1>
+      <Group title="Aplicación">
+        <Card>
+          <Row label="Monper" desc="Navegador agéntico" />
+          <Row label="Versión">
+            <span className="text-[13px] text-text-dim tabular-nums">0.1.0</span>
+          </Row>
+        </Card>
+      </Group>
+    </>
   )
 }

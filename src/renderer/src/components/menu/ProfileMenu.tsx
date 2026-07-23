@@ -55,19 +55,19 @@ export default function ProfileMenu({ anchor, onClose }: Props): JSX.Element {
       <div className="fixed inset-0 z-40" onPointerDown={onClose} />
 
       <div
-        className="fixed z-50 w-56 p-1.5 rounded-xl border border-white/10 bg-[#1b1b1f] shadow-2xl shadow-black/50"
+        className="fixed z-50 w-60 py-1.5 rounded-xl border border-border bg-[#1c1c20]/95 shadow-2xl shadow-black/50 overflow-hidden"
         style={{ left: anchor.left, top: anchor.bottom + 6 }}
         onPointerDown={(e) => e.stopPropagation()}
       >
         <MenuLabel>Profiles</MenuLabel>
 
         <button
-          className="flex items-center gap-2.5 h-[34px] px-2.5 rounded-lg text-text w-full text-left hover:bg-bg-hover"
+          className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-[13.5px] text-text text-left hover:bg-white/[0.05]"
           onClick={() => act('switch-profile')}
         >
           <Avatar initials="LC" size="sm" />
           <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap">Luis Carlos Zorrilla</span>
-          <span className="text-text-faint text-[13px] flex items-center gap-2 shrink-0 [&>svg]:w-[15px] [&>svg]:h-[15px]">
+          <span className="text-[12px] text-text-faint flex items-center gap-2 shrink-0 [&>svg]:w-3.5 [&>svg]:h-3.5">
             <IconCheck />
             <IconDots />
           </span>

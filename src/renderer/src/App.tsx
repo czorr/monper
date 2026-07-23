@@ -42,6 +42,13 @@ export default function App(): JSX.Element {
     return () => window.removeEventListener('keydown', onKey)
   }, [state.activeId])
 
+  // Acciones del menú nativo que tocan estado del renderer (sidebar / chat / editar URL).
+  useEffect(() => monper.onMenuAction((action) => {
+    if (action === 'toggle-sidebar') setCollapsed((c) => !c)
+    else if (action === 'toggle-chat') setChatOpen((c) => !c)
+    else if (action === 'edit-url') setEditRequest((n) => n + 1)
+  }), [])
+
   return (
     <>
       <Sidebar

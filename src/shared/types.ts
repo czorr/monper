@@ -98,6 +98,18 @@ export interface ChatStep {
   image?: string
 }
 
+/** Una sugerencia del autocompletado del omnibox / new tab */
+export interface Suggestion {
+  kind: 'history' | 'bookmark' | 'search' | 'url'
+  /** Texto principal a mostrar */
+  title: string
+  /** URL a la que navegar al elegir (para search: la búsqueda de Google) */
+  url: string
+  /** Subtexto (dominio, "Buscar en Google", etc.) */
+  detail?: string
+  favicon?: string | null
+}
+
 export interface BrowserState {
   activeId: number | null
   tabs: TabInfo[]
@@ -152,6 +164,10 @@ export interface MonperApi {
   onChatError: (cb: (message: string) => void) => () => void
   // ---- Vault (ventana nativa flotante) ----
   openVault: (anchor: MenuAnchor) => void
+  // ---- Menú nativo → acciones de estado del renderer ----
+  onMenuAction: (cb: (action: string) => void) => () => void
+  // ---- Autocompletado del omnibox ----
+  suggest: (query: string) => Promise<Suggestion[]>
 }
 
 /** API expuesta a la ventana nativa del vault */
@@ -179,6 +195,8 @@ export interface MonperTabApi {
   vaultList: () => Promise<VaultItemMeta[]>
   vaultAdd: (type: VaultItemType, label: string, data: Record<string, string>, secret: string) => Promise<VaultItemMeta[]>
   vaultRemove: (id: string) => Promise<VaultItemMeta[]>
+  // ---- Autocompletado del omnibox / new tab ----
+  suggest: (query: string) => Promise<Suggestion[]>
 }
 
 declare global {

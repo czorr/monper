@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { Bookmark, MonperTabApi } from '../shared/types'
+import type { Bookmark, MonperTabApi, Suggestion } from '../shared/types'
 
 const api: MonperTabApi = {
   navigate: (url) => ipcRenderer.send('tab:navigate', url),
@@ -18,7 +18,8 @@ const api: MonperTabApi = {
   setActiveProvider: (id) => ipcRenderer.invoke('providers:setActive', id),
   vaultList: () => ipcRenderer.invoke('vault:list'),
   vaultAdd: (type, label, data, secret) => ipcRenderer.invoke('vault:add', type, label, data, secret),
-  vaultRemove: (id) => ipcRenderer.invoke('vault:remove', id)
+  vaultRemove: (id) => ipcRenderer.invoke('vault:remove', id),
+  suggest: (query) => ipcRenderer.invoke('omni:suggest', query) as Promise<Suggestion[]>
 }
 
 contextBridge.exposeInMainWorld('monperTab', api)

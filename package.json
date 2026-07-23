@@ -1,5 +1,6 @@
 {
   "name": "monper",
+  "productName": "Monper",
   "version": "0.1.0",
   "description": "Monper — un navegador agéntico de escritorio",
   "main": "./out/main/index.js",

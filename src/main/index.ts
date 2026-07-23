@@ -1,12 +1,17 @@
 import { join } from 'path'
-import { app, BrowserWindow, WebContentsView, ipcMain, session, shell } from 'electron'
+import { app, BrowserWindow, Menu, WebContentsView, ipcMain, session, shell } from 'electron'
+import type { MenuItemConstructorOptions } from 'electron'
 import type { IpcMainEvent } from 'electron'
 import type { BrowserState, Bookmark, ChatMessage, MenuAnchor, ProviderKind } from '../shared/types'
 import { initBookmarks, listBookmarks, isBookmarked, addBookmark, removeBookmark, toggleBookmark } from './bookmarks'
 import { initAI, listProviders, addProvider, removeProvider, setActive as setActiveProvider, setModel, setEffort, getChatContext, getActiveProvider } from './ai/store'
 import { runMastra } from './agent/mastra'
+import { initHistory, recordVisit, updateMeta } from './history'
+import { initWindowState, initialBounds, shouldMaximize, trackWindow } from './windowState'
+import { suggest } from './suggest'
 import * as vault from './vault/store'
 import type { VaultItemType } from '../shared/vault'
+import appIcon from '../renderer/src/assets/icon.png?asset'
 
 const SIDEBAR_WIDTH = 240
 const CHAT_WIDTH = 380 // panel de chat derecho (debe coincidir con --spacing-panel en CSS)
@@ -14,6 +19,10 @@ const TOPBAR_HEIGHT = 52
 const CONTENT_RADIUS = 16 // debe coincidir con rounded-t[l/r] en Content.tsx
 const PARTITION = 'persist:monper'
 const isMac = process.platform === 'darwin'
+
+// Nombre de la app: debe fijarse ANTES de whenReady para que el menú de macOS
+// y el dock muestren "Monper" en vez de "Electron" (dev incluido).
+app.setName('Monper')
 
 // Páginas internas servidas por nuestro propio renderer (new-tab, settings…).
 const RENDERER_URL_EARLY = process.env['ELECTRON_RENDERER_URL']
@@ -165,10 +174,10 @@ function createTab(url = newtabUrl(), activate = true): number {
     sampleTopColor(t)
     refresh()
   })
-  wc.on('did-navigate', (_e, u) => { t.url = u; refresh() }) // sólo main-frame
+  wc.on('did-navigate', (_e, u) => { t.url = u; recordVisit(u, t.title, t.favicon); refresh() }) // sólo main-frame
   wc.on('did-navigate-in-page', (_e, u, isMainFrame) => { if (isMainFrame) { t.url = u; refresh() } })
-  wc.on('page-title-updated', (_e, title) => { t.title = title; pushState() })
-  wc.on('page-favicon-updated', (_e, icons) => { t.favicon = icons?.[0] || null; pushState() })
+  wc.on('page-title-updated', (_e, title) => { t.title = title; updateMeta(t.url, title); pushState() })
+  wc.on('page-favicon-updated', (_e, icons) => { t.favicon = icons?.[0] || null; updateMeta(t.url, undefined, t.favicon); pushState() })
   wc.on('did-change-theme-color', (_e, color) => { t.themeColor = color; pushState() })
   wc.setWindowOpenHandler(({ url: u }) => { createTab(u); return { action: 'deny' } })
 
@@ -209,10 +218,90 @@ function normalizeUrl(raw: string): string | null {
   return 'https://www.google.com/search?q=' + encodeURIComponent(url)
 }
 
+// WebContents de la pestaña activa (para acciones de navegación del menú).
+function activeWc() {
+  return activeId != null ? tabs.get(activeId)?.view.webContents : undefined
+}
+// Envía una acción al renderer del chrome (toggles de estado: sidebar / chat / URL).
+function menuAction(action: string): void {
+  win?.webContents.send('menu:action', action)
+}
+
+function buildAppMenu(): void {
+  const appMenu: MenuItemConstructorOptions = {
+    label: 'Monper',
+    submenu: [
+      { role: 'about', label: 'Acerca de Monper' },
+      { type: 'separator' },
+      { label: 'Ajustes…', accelerator: 'CmdOrCtrl+,', click: openSettings },
+      { type: 'separator' },
+      { role: 'services' },
+      { type: 'separator' },
+      { role: 'hide', label: 'Ocultar Monper' },
+      { role: 'hideOthers', label: 'Ocultar otros' },
+      { role: 'unhide', label: 'Mostrar todo' },
+      { type: 'separator' },
+      { role: 'quit', label: 'Salir de Monper' }
+    ]
+  }
+
+  const fileMenu: MenuItemConstructorOptions = {
+    label: 'Archivo',
+    submenu: [
+      { label: 'Nueva pestaña', accelerator: 'CmdOrCtrl+T', click: () => createTab() },
+      { label: 'Cerrar pestaña', accelerator: 'CmdOrCtrl+W', click: () => { if (activeId != null) closeTab(activeId) } },
+      { type: 'separator' },
+      { label: 'Editar URL', accelerator: 'CmdOrCtrl+L', click: () => menuAction('edit-url') }
+    ]
+  }
+
+  const editMenu: MenuItemConstructorOptions = {
+    label: 'Editar',
+    submenu: [
+      { role: 'undo', label: 'Deshacer' },
+      { role: 'redo', label: 'Rehacer' },
+      { type: 'separator' },
+      { role: 'cut', label: 'Cortar' },
+      { role: 'copy', label: 'Copiar' },
+      { role: 'paste', label: 'Pegar' },
+      { role: 'selectAll', label: 'Seleccionar todo' }
+    ]
+  }
+
+  const viewMenu: MenuItemConstructorOptions = {
+    label: 'Ver',
+    submenu: [
+      { label: 'Recargar', accelerator: 'CmdOrCtrl+R', click: () => activeWc()?.reload() },
+      { label: 'Atrás', accelerator: 'CmdOrCtrl+[', click: () => { const wc = activeWc(); if (wc?.navigationHistory.canGoBack()) wc.navigationHistory.goBack() } },
+      { label: 'Adelante', accelerator: 'CmdOrCtrl+]', click: () => { const wc = activeWc(); if (wc?.navigationHistory.canGoForward()) wc.navigationHistory.goForward() } },
+      { type: 'separator' },
+      { label: 'Mostrar/ocultar sidebar', accelerator: 'CmdOrCtrl+S', click: () => menuAction('toggle-sidebar') },
+      { label: 'Ask Monper', accelerator: 'CmdOrCtrl+J', click: () => menuAction('toggle-chat') },
+      { type: 'separator' },
+      { role: 'togglefullscreen', label: 'Pantalla completa' },
+      { role: 'toggleDevTools', label: 'Herramientas de desarrollo' }
+    ]
+  }
+
+  const windowMenu: MenuItemConstructorOptions = {
+    label: 'Ventana',
+    role: 'windowMenu'
+  }
+
+  const template: MenuItemConstructorOptions[] = isMac
+    ? [appMenu, fileMenu, editMenu, viewMenu, windowMenu]
+    : [fileMenu, editMenu, viewMenu, windowMenu]
+
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template))
+}
+
 function createWindow() {
   win = new BrowserWindow({
-    width: 1440 + SIDEBAR_WIDTH,
-    height: 900 + TOPBAR_HEIGHT,
+    // Tamaño/posición recordados de la sesión anterior (o default centrado).
+    ...initialBounds(1440 + SIDEBAR_WIDTH, 900 + TOPBAR_HEIGHT),
+    minWidth: 720,
+    minHeight: 480,
+    show: false,
     // Fondo transparente en mac para que la vibrancy nativa se vea a través del
     // sidebar (que es HTML transparente). Compatible con el semáforo nativo
     // porque ya no usamos setWindowButtonVisibility(false).
@@ -221,12 +310,16 @@ function createWindow() {
       : { backgroundColor: '#111114' }),
     titleBarStyle: isMac ? 'hiddenInset' : 'default',
     trafficLightPosition: isMac ? { x: 15, y: 17 } : undefined,
+    ...(isMac ? {} : { icon: appIcon }),
     webPreferences: { preload: join(__dirname, '../preload/index.js'), contextIsolation: true, sandbox: false }
   })
 
-  if (isMac) {
-    win.once('ready-to-show', () => win!.setVibrancy('under-window'))
-  }
+  if (shouldMaximize()) win.maximize()
+  win.once('ready-to-show', () => {
+    if (isMac) win!.setVibrancy('under-window')
+    win!.show()
+  })
+  trackWindow(win)
 
   loadRenderer(win, 'index')
   win.on('resize', layoutActive)
@@ -289,10 +382,19 @@ ipcMain.on('ui:devtools', () => {
   if (wc) wc.isDevToolsOpened() ? wc.closeDevTools() : wc.openDevTools({ mode: 'detach' })
 })
 ipcMain.on('ui:downloads', () => { shell.openPath(app.getPath('downloads')) })
-ipcMain.on('ui:settings', () => {
+function openSettings(): void {
   // Si ya hay una pestaña de settings, actívala; si no, ábrela.
   for (const [id, t] of tabs) if (t.url.includes('/settings.html')) { setActive(id); return }
   createTab(internalUrl('settings'))
+}
+ipcMain.on('ui:settings', openSettings)
+
+// Autocompletado del omnibox / new tab. Cancela la búsqueda anterior en cada tecla.
+let suggestAbort: AbortController | null = null
+ipcMain.handle('omni:suggest', async (_e, query: string) => {
+  suggestAbort?.abort()
+  suggestAbort = new AbortController()
+  try { return await suggest(query, suggestAbort.signal) } catch { return [] }
 })
 ipcMain.handle('ui:clearData', async (e) => {
   if (!isInternalSender(e.senderFrame?.url)) return false
@@ -427,8 +529,20 @@ ipcMain.on('ui:cycleVibrancy', () => {
 })
 
 app.whenReady().then(() => {
+  // En dev muestra nuestro icono en el dock (mac) en vez del de Electron.
+  if (isMac && app.dock) app.dock.setIcon(appIcon)
+  // Panel "Acerca de Monper" con nuestra info en vez de la de Electron.
+  app.setAboutPanelOptions({
+    applicationName: 'Monper',
+    applicationVersion: app.getVersion(),
+    copyright: '© 2026 Monper',
+    credits: 'Un navegador agéntico de escritorio'
+  })
+  buildAppMenu()
   session.fromPartition(PARTITION)
   initBookmarks()
+  initHistory()
+  initWindowState()
   vault.initVault()
   initAI()
   createWindow()

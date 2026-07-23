@@ -1,5 +1,7 @@
 import { Agent } from '@mastra/core/agent'
 import { createTool } from '@mastra/core/tools'
+import { createAnthropic } from '@ai-sdk/anthropic'
+import { createOpenAI } from '@ai-sdk/openai'
 import { z } from 'zod'
 import type { WebContents } from 'electron'
 import type { AIProvider, ChatMessage, ChatStep } from '../../shared/types'
@@ -43,16 +45,16 @@ PERSISTENCIA (muy importante): no te detengas hasta COMPLETAR la tarea que te pi
 Para acciones IRREVERSIBLES o sensibles (comprar, pagar, enviar dinero, borrar cuentas), primero explica qué harás y pide confirmación. Publicar un comentario/respuesta que el usuario te pidió explícitamente SÍ puedes ejecutarlo.
 No inventes datos ni credenciales. Cuando termines, responde en texto claro.`
 
-// Router de modelos nativo de Mastra: no importamos @ai-sdk directamente.
-function modelConfig(provider: AIProvider, key: string, model: string): {
-  providerId: string; modelId: string; apiKey: string; url?: string
-} {
-  return {
-    providerId: provider.kind === 'anthropic' ? 'anthropic' : 'openai',
-    modelId: model,
-    apiKey: key,
-    url: provider.baseUrl
+// Construimos una instancia real del provider de @ai-sdk (v6). Es importante para VISIÓN:
+// los tool-results con imagen usan `{type:'media'}` y solo un provider v6 real dispara la
+// conversión media→image-data de Mastra; el router por-string la omite y la imagen llega vacía
+// (Mastra issue #17876). Por eso NO usamos { providerId, modelId }.
+function buildModel(provider: AIProvider, key: string, model: string) {
+  const base = provider.baseUrl ? { baseURL: provider.baseUrl } : {}
+  if (provider.kind === 'anthropic') {
+    return createAnthropic({ apiKey: key, ...base })(model)
   }
+  return createOpenAI({ apiKey: key, ...base })(model)
 }
 
 // Envuelve un handler de tool: nunca lanza; devuelve { error } para que el modelo reaccione y reintente.
@@ -201,7 +203,7 @@ export function buildAgent(provider: AIProvider, key: string, model: string, ctr
     id: 'monper-agent',
     name: 'Monper',
     instructions: SYSTEM,
-    model: modelConfig(provider, key, model),
+    model: buildModel(provider, key, model),
     tools: buildTools(ctrl)
   })
 }

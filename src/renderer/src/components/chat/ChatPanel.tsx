@@ -91,7 +91,7 @@ export default function ChatPanel({ open, onClose }: Props): JSX.Element {
     history.push({ role: 'user', content: text })
 
     setRunning(true)
-    setMessages((ms) => [...ms, { role: 'user', text }, { role: 'assistant', parts: [], streaming: true }])
+    setMessages((ms) => [...ms, { role: 'user', text }, { role: 'assistant', parts: [], streaming: true, at: Date.now() }])
     scrollToEnd()
     monper.chatSend(history)
   }
@@ -114,7 +114,7 @@ export default function ChatPanel({ open, onClose }: Props): JSX.Element {
         {messages.length === 0 ? (
           <EmptyState />
         ) : (
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col selectable">
             {messages.map((m, i) =>
               m.role === 'user' ? <UserBubble key={i} text={m.text ?? ''} /> : <AssistantTurn key={i} msg={m} />
             )}

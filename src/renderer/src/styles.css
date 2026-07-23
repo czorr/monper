@@ -30,6 +30,8 @@
     appearance: none; -webkit-appearance: none;
   }
   svg { display: block; }
+  /* El chrome no es seleccionable, pero el contenido marcado como .selectable sí (chat). */
+  .selectable, .selectable * { user-select: text; -webkit-user-select: text; cursor: auto; }
 }
 
 /*

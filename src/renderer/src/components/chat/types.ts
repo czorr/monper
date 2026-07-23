@@ -27,4 +27,6 @@ export interface Msg {
   /** Secuencia intercalada de texto y acciones para el asistente */
   parts?: Part[]
   streaming?: boolean
+  /** Momento de creación (ms epoch), para el timestamp relativo */
+  at?: number
 }

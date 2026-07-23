@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(npm --version)",
-      "WebFetch(domain:docs.aside.com)"
+      "WebFetch(domain:docs.aside.com)",
+      "Bash(npx tsc *)",
+      "Bash(pnpm run *)"
     ]
   }
 }

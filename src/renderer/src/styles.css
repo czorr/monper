@@ -33,6 +33,21 @@
   svg { display: block; }
   /* El chrome no es seleccionable, pero el contenido marcado como .selectable sí (chat). */
   .selectable, .selectable * { user-select: text; -webkit-user-select: text; cursor: auto; }
+
+  /* Scrollbar minimalista: delgada, sutil, sin flechas ni track. */
+  * { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.18) transparent; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.16);
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.28); background-clip: padding-box; }
+  ::-webkit-scrollbar-corner { background: transparent; }
+  .on-light * { scrollbar-color: rgba(0, 0, 0, 0.22) transparent; }
+  .on-light ::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.2); background-clip: padding-box; }
 }
 
 /*

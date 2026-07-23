@@ -3,6 +3,7 @@ import type { ChatContext } from '@shared/types'
 import IconSparkles from '~icons/tabler/sparkles'
 import IconChevronDown from '~icons/tabler/chevron-down'
 import IconCheck from '~icons/tabler/check'
+import ProviderIcon from '@renderer/components/ui/ProviderIcon'
 
 interface Props {
   ctx: ChatContext
@@ -25,6 +26,7 @@ export default function ModelSelector({ ctx, onPick, onConnect }: Props): JSX.El
     )
   }
 
+  const kind = ctx.provider.kind
   const current = ctx.models.find((m) => m.id === ctx.model)?.name ?? ctx.model
 
   return (
@@ -33,7 +35,7 @@ export default function ModelSelector({ ctx, onPick, onConnect }: Props): JSX.El
         onClick={() => setOpen((v) => !v)}
         className="flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-[12.5px] text-text-dim hover:text-text hover:bg-white/[0.06] transition-colors"
       >
-        <IconSparkles className="w-4 h-4" />
+        <ProviderIcon kind={kind} className="w-3.5 h-3.5" />
         {current}
         <IconChevronDown className="w-3.5 h-3.5 opacity-70" />
       </button>
@@ -49,7 +51,7 @@ export default function ModelSelector({ ctx, onPick, onConnect }: Props): JSX.El
                 onClick={() => { onPick(m.id); setOpen(false) }}
                 className="flex items-center gap-2 w-full h-8 px-2 rounded-lg text-[13px] text-text text-left hover:bg-white/[0.08]"
               >
-                <IconSparkles className="w-4 h-4 text-text-dim" />
+                <ProviderIcon kind={kind} className="w-3.5 h-3.5 text-text-dim" />
                 <span className="flex-1">{m.name}</span>
                 {m.id === ctx.model && <IconCheck className="w-4 h-4 text-text" />}
               </button>

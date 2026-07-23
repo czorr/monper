@@ -1,10 +1,9 @@
 import { useEffect, useState, type JSX } from 'react'
 import type { ProviderInfo, ProviderKind } from '@shared/types'
-import IconSparkles from '~icons/tabler/sparkles'
-import IconBolt from '~icons/tabler/bolt'
 import IconPlus from '~icons/tabler/plus'
 import IconX from '~icons/tabler/x'
 import { Group, Card } from './ui'
+import ProviderIcon from '@renderer/components/ui/ProviderIcon'
 
 const { monperTab } = window
 
@@ -25,7 +24,7 @@ export default function ProvidersSection(): JSX.Element {
         {providers.map((p) => (
           <div key={p.id} className="group flex items-center gap-3.5 px-4 py-3.5">
             <span className="w-9 h-9 rounded-xl grid place-items-center bg-white/[0.06] text-text-dim shrink-0 [&>svg]:w-[18px] [&>svg]:h-[18px]">
-              {p.kind === 'anthropic' ? <IconSparkles /> : <IconBolt />}
+              <ProviderIcon kind={p.kind} />
             </span>
             <div className="flex-1 min-w-0">
               <div className="text-[14px] text-text leading-tight">{p.label}</div>
@@ -95,8 +94,9 @@ function ConnectForm({ onDone }: { onDone: (next: ProviderInfo[]) => void }): JS
           <button
             key={k}
             onClick={() => setKind(k)}
-            className={'px-3.5 h-8 rounded-lg text-[13px] transition-colors ' + (kind === k ? 'bg-white/[0.10] text-text' : 'text-text-dim hover:text-text')}
+            className={'flex items-center gap-2 px-3.5 h-8 rounded-lg text-[13px] transition-colors [&>svg]:w-4 [&>svg]:h-4 ' + (kind === k ? 'bg-white/[0.10] text-text' : 'text-text-dim hover:text-text')}
           >
+            <ProviderIcon kind={k} />
             {k === 'anthropic' ? 'Claude' : 'OpenAI-compatible'}
           </button>
         ))}

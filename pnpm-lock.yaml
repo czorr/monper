@@ -45,6 +45,9 @@ importers:
       '@electron-toolkit/utils':
         specifier: ^4.0.0
         version: 4.0.0(electron@33.4.11)
+      '@iconify-json/simple-icons':
+        specifier: ^1.2.91
+        version: 1.2.91
       '@iconify-json/tabler':
         specifier: ^1.2.37
         version: 1.2.37
@@ -436,6 +439,9 @@ packages:
     engines: {node: '>=18.14.1'}
     peerDependencies:
       hono: ^4
+
+  '@iconify-json/simple-icons@1.2.91':
+    resolution: {integrity: sha512-plQJHZxzpkIXaeYjJF0Sc9nkzYF32EDX9olx7j1hcKYFaiTrQXbcngZmvzuV0pG6uZPU3ZuA/GIsgxSHOm6jrQ==}
 
   '@iconify-json/tabler@1.2.37':
     resolution: {integrity: sha512-tXc0jGhrxec6eTKxMI9We/r3cEItyU5dG8ngDOEKsL36a6+/xwk4sR7PIZROVajzxmvyUBsn659adDIfcswiUw==}
@@ -2844,6 +2850,10 @@ snapshots:
   '@hono/node-server@1.19.14(hono@4.12.31)':
     dependencies:
       hono: 4.12.31
+
+  '@iconify-json/simple-icons@1.2.91':
+    dependencies:
+      '@iconify/types': 2.0.0
 
   '@iconify-json/tabler@1.2.37':
     dependencies:

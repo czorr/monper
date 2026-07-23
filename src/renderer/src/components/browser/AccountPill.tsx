@@ -12,7 +12,7 @@ export default function AccountPill({ initials, name, onOpen }: Props): JSX.Elem
   return (
     <button
       onClick={(e) => onOpen((e.currentTarget as HTMLElement).getBoundingClientRect())}
-      className="flex-1 min-w-0 flex items-center gap-0.5 py-1.5 px-2 rounded-lg hover:bg-bg-hover [-webkit-app-region:no-drag]"
+      className="flex items-center gap-0.5 py-1.5 px-2 rounded-lg hover:bg-bg-hover [-webkit-app-region:no-drag] w-min"
     >
       <div className="flex items-center gap-2">
         <Avatar initials={initials} />

@@ -26,14 +26,16 @@ export default function Sidebar({ state, collapsed, onOpenMenu, onCollapse, onNe
     <aside className={`group fixed inset-y-0 left-0 w-sidebar flex flex-col pb-3 px-2.5 ${collapsed ? 'hidden' : ''}`}>
       <div className="h-11 shrink-0 relative [-webkit-app-region:drag]" />
 
-      <div className="flex items-center gap-1 pt-1 pr-1 pb-3.5 pl-0 [-webkit-app-region:drag]">
+      <div className="flex items-center justify-between gap-1 p-1 pb-3.5 pl-0 [-webkit-app-region:drag]">
         <AccountPill initials="LC" name="Luis Carlos" onOpen={onOpenMenu} />
-        <IconButton variant="subtle" title="Colapsar sidebar (⌘S)" onClick={onCollapse}>
-          <SidebarIcon />
-        </IconButton>
-        <IconButton variant="subtle" title="Nueva pestaña (⌘T)" onClick={onNewTab}>
-          <PlusIcon />
-        </IconButton>
+        <div className="flex items-center gap-1">
+          <IconButton size="sm" title="Colapsar sidebar (⌘S)" onClick={onCollapse}>
+            <SidebarIcon />
+          </IconButton>
+          <IconButton size="sm" title="Nueva pestaña (⌘T)" onClick={onNewTab}>
+            <PlusIcon />
+          </IconButton>
+        </div>
       </div>
 
       <SectionLabel label="Tabs" action={{ label: 'Clear', title: 'Cerrar todas menos la activa', onClick: closeOthers }} />

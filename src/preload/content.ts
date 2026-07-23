@@ -15,7 +15,10 @@ const api: MonperTabApi = {
   listProviders: () => ipcRenderer.invoke('providers:list'),
   addProvider: (input, apiKey) => ipcRenderer.invoke('providers:add', input, apiKey),
   removeProvider: (id) => ipcRenderer.invoke('providers:remove', id),
-  setActiveProvider: (id) => ipcRenderer.invoke('providers:setActive', id)
+  setActiveProvider: (id) => ipcRenderer.invoke('providers:setActive', id),
+  vaultList: () => ipcRenderer.invoke('vault:list'),
+  vaultAdd: (type, label, data, secret) => ipcRenderer.invoke('vault:add', type, label, data, secret),
+  vaultRemove: (id) => ipcRenderer.invoke('vault:remove', id)
 }
 
 contextBridge.exposeInMainWorld('monperTab', api)

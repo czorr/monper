@@ -68,6 +68,7 @@ export default function App(): JSX.Element {
           onGo={(url) => monper.go(url)}
           onToggleBookmark={() => monper.toggleBookmark()}
           onToggleChat={() => setChatOpen((c) => !c)}
+          onOpenVault={(r) => monper.openVault({ x: r.left, y: r.top, width: r.width, height: r.height })}
         />
       </Content>
       <ChatPanel open={chatOpen} onClose={() => setChatOpen(false)} />

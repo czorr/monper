@@ -5,6 +5,7 @@ import { IconButton } from '@renderer/components/ui'
 import UrlBar from './UrlBar'
 import { SidebarIcon, BackIcon, ForwardIcon, ReloadIcon, StarIcon } from '@renderer/lib/icons'
 import IconSparkles from '~icons/tabler/sparkles'
+import IconLock from '~icons/tabler/lock'
 
 interface Props {
   active: ActiveInfo | null
@@ -19,11 +20,12 @@ interface Props {
   onGo: (url: string) => void
   onToggleBookmark: () => void
   onToggleChat: () => void
+  onOpenVault: (rect: DOMRect) => void
 }
 
 const navBtns = 'flex gap-0.5 [-webkit-app-region:no-drag]'
 
-export default function Topbar({ active, collapsed, mac, chatOpen, editRequest, onExpand, onBack, onForward, onReload, onGo, onToggleBookmark, onToggleChat }: Props): JSX.Element {
+export default function Topbar({ active, collapsed, mac, chatOpen, editRequest, onExpand, onBack, onForward, onReload, onGo, onToggleBookmark, onToggleChat, onOpenVault }: Props): JSX.Element {
   const pageColor = active?.pageColor || '#111114'
   const onLight = luminance(pageColor) > 0.5
   const canBookmark = !!active?.url // vacío en la new-tab page
@@ -55,6 +57,13 @@ export default function Topbar({ active, collapsed, mac, chatOpen, editRequest, 
           onClick={onToggleBookmark}
         >
           <StarIcon filled={active?.bookmarked} />
+        </IconButton>
+
+        <IconButton
+          title="Vault"
+          onClick={(e) => onOpenVault((e.currentTarget as HTMLElement).getBoundingClientRect())}
+        >
+          <IconLock />
         </IconButton>
 
         <button

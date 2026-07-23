@@ -26,7 +26,8 @@ export default defineConfig({
         external: ['electron'],
         input: {
           index: resolve(__dirname, 'src/preload/index.ts'),
-          content: resolve(__dirname, 'src/preload/content.ts')
+          content: resolve(__dirname, 'src/preload/content.ts'),
+          vaultwin: resolve(__dirname, 'src/preload/vaultwin.ts')
         },
         output: cjsOutput
       }
@@ -45,7 +46,8 @@ export default defineConfig({
         input: {
           index: resolve(__dirname, 'src/renderer/index.html'),
           newtab: resolve(__dirname, 'src/renderer/newtab.html'),
-          settings: resolve(__dirname, 'src/renderer/settings.html')
+          settings: resolve(__dirname, 'src/renderer/settings.html'),
+          vault: resolve(__dirname, 'src/renderer/vault.html')
         }
       }
     },

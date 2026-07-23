@@ -1,3 +1,5 @@
+import type { VaultItemMeta, VaultItemType } from './vault'
+
 export interface TabInfo {
   id: number
   url: string
@@ -127,6 +129,15 @@ export interface MonperApi {
   onChatToken: (cb: (text: string) => void) => () => void
   onChatDone: (cb: () => void) => () => void
   onChatError: (cb: (message: string) => void) => () => void
+  // ---- Vault (ventana nativa flotante) ----
+  openVault: (anchor: MenuAnchor) => void
+}
+
+/** API expuesta a la ventana nativa del vault */
+export interface VaultWinApi {
+  onItems: (cb: (items: VaultItemMeta[]) => void) => void
+  close: () => void
+  manage: () => void
 }
 
 /** API expuesta a las páginas internas de contenido (new-tab page) */
@@ -143,11 +154,16 @@ export interface MonperTabApi {
   addProvider: (input: { label: string; kind: ProviderKind; baseUrl?: string }, apiKey: string) => Promise<ProviderInfo[]>
   removeProvider: (id: string) => Promise<ProviderInfo[]>
   setActiveProvider: (id: string) => Promise<ProviderInfo[]>
+  // ---- Vault (gestión desde Settings) ----
+  vaultList: () => Promise<VaultItemMeta[]>
+  vaultAdd: (type: VaultItemType, label: string, data: Record<string, string>, secret: string) => Promise<VaultItemMeta[]>
+  vaultRemove: (id: string) => Promise<VaultItemMeta[]>
 }
 
 declare global {
   interface Window {
     monper: MonperApi
     monperTab: MonperTabApi
+    vaultwin: VaultWinApi
   }
 }

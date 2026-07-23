@@ -41,7 +41,8 @@ const api: MonperApi = {
   chatCancel: () => ipcRenderer.send('chat:cancel'),
   onChatToken: (cb: (text: string) => void) => sub('chat:token', (t) => cb(t as string)),
   onChatDone: (cb: () => void) => sub('chat:done', () => cb()),
-  onChatError: (cb: (m: string) => void) => sub('chat:error', (m) => cb(m as string))
+  onChatError: (cb: (m: string) => void) => sub('chat:error', (m) => cb(m as string)),
+  openVault: (anchor) => ipcRenderer.send('vault:open', anchor)
 }
 
 contextBridge.exposeInMainWorld('monper', api)

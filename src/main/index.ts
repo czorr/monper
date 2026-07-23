@@ -1,10 +1,12 @@
 import { join } from 'path'
 import { app, BrowserWindow, WebContentsView, ipcMain, session, shell } from 'electron'
 import type { IpcMainEvent } from 'electron'
-import type { BrowserState, Bookmark, ChatMessage, ProviderKind } from '../shared/types'
+import type { BrowserState, Bookmark, ChatMessage, MenuAnchor, ProviderKind } from '../shared/types'
 import { initBookmarks, listBookmarks, isBookmarked, addBookmark, removeBookmark, toggleBookmark } from './bookmarks'
 import { initAI, listProviders, addProvider, removeProvider, setActive as setActiveProvider, setModel, setEffort, getChatContext, getActiveProvider } from './ai/store'
 import { streamChat } from './ai/chat'
+import * as vault from './vault/store'
+import type { VaultItemType } from '../shared/vault'
 
 const SIDEBAR_WIDTH = 240
 const CHAT_WIDTH = 380 // panel de chat derecho (debe coincidir con --spacing-panel en CSS)
@@ -300,25 +302,76 @@ ipcMain.handle('ui:clearData', async (e) => {
   return true
 })
 
+// ---- Vault ----
+// Ventana nativa flotante, creada una vez y reutilizada (abrir = posicionar + show).
+let vaultWin: BrowserWindow | null = null
+const VAULT_W = 320
+const VAULT_H = 380
+function ensureVaultWin(): BrowserWindow {
+  if (vaultWin && !vaultWin.isDestroyed()) return vaultWin
+  vaultWin = new BrowserWindow({
+    parent: win!, width: VAULT_W, height: VAULT_H, show: false,
+    frame: false, resizable: false, movable: false, minimizable: false, maximizable: false,
+    fullscreenable: false, hasShadow: true, roundedCorners: true, backgroundColor: '#1b1b1f',
+    webPreferences: { preload: join(__dirname, '../preload/vaultwin.js'), contextIsolation: true, sandbox: false }
+  })
+  if (RENDERER_URL) vaultWin.loadURL(`${RENDERER_URL}/vault.html`)
+  else vaultWin.loadFile(join(__dirname, '../renderer/vault.html'))
+  vaultWin.on('blur', () => { if (vaultWin && !vaultWin.isDestroyed()) vaultWin.hide() })
+  return vaultWin
+}
+
+function notifyVault(): void {
+  win?.webContents.send('vault:changed', vault.list())
+  if (vaultWin && !vaultWin.isDestroyed() && vaultWin.isVisible()) vaultWin.webContents.send('vault:items', vault.list())
+}
+
+ipcMain.handle('vault:list', () => vault.list())
+ipcMain.handle('vault:add', (e, type: VaultItemType, label: string, data: Record<string, string>, secret: string) => {
+  if (!isInternalSender(e.senderFrame?.url)) return vault.list()
+  vault.add(type, label, data, secret); notifyVault(); notifyChatContext()
+  return vault.list()
+})
+ipcMain.handle('vault:remove', (e, id: string) => {
+  if (!isInternalSender(e.senderFrame?.url)) return vault.list()
+  vault.remove(id); notifyVault(); notifyChatContext()
+  return vault.list()
+})
+ipcMain.on('vault:open', (_e, anchor: MenuAnchor) => {
+  const w = ensureVaultWin()
+  const cb = win!.getContentBounds()
+  const x = Math.round(cb.x + (anchor?.x ?? 0) + (anchor?.width ?? 0) - VAULT_W)
+  const y = Math.round(cb.y + (anchor?.y ?? 0) + (anchor?.height ?? 0) + 6)
+  w.setBounds({ x: Math.max(cb.x + 8, x), y, width: VAULT_W, height: VAULT_H })
+  w.webContents.send('vault:items', vault.list())
+  w.show(); w.focus()
+})
+ipcMain.on('vault:closeWindow', () => { if (vaultWin && !vaultWin.isDestroyed()) vaultWin.hide() })
+ipcMain.on('vault:manage', () => {
+  if (vaultWin && !vaultWin.isDestroyed()) vaultWin.hide()
+  for (const [id, t] of tabs) if (t.url.includes('/settings.html')) { setActive(id); return }
+  createTab(internalUrl('settings'))
+})
+
 // ---- Proveedores de IA (gestión desde la página de Settings, sender-validada) ----
 function notifyChatContext(): void { win?.webContents.send('chat:contextChanged', getChatContext()) }
 ipcMain.handle('providers:list', (e) => (isInternalSender(e.senderFrame?.url) ? listProviders() : []))
 ipcMain.handle('providers:add', (e, input: { label: string; kind: ProviderKind; baseUrl?: string }, apiKey: string) => {
   if (!isInternalSender(e.senderFrame?.url)) { console.warn('[providers:add] denegado, sender:', e.senderFrame?.url); return listProviders() }
   try { addProvider(input, apiKey) } catch (err) { console.error('[providers:add] falló:', err) }
-  notifyChatContext()
+  notifyChatContext(); notifyVault()
   return listProviders()
 })
 ipcMain.handle('providers:remove', (e, id: string) => {
   if (!isInternalSender(e.senderFrame?.url)) return []
   removeProvider(id)
-  notifyChatContext()
+  notifyChatContext(); notifyVault()
   return listProviders()
 })
 ipcMain.handle('providers:setActive', (e, id: string) => {
   if (!isInternalSender(e.senderFrame?.url)) return []
   setActiveProvider(id)
-  notifyChatContext()
+  notifyChatContext(); notifyVault()
   return listProviders()
 })
 // El chrome (composer) pide el contexto del chat: proveedor activo + modelos + modelo elegido
@@ -362,6 +415,7 @@ ipcMain.on('ui:cycleVibrancy', () => {
 app.whenReady().then(() => {
   session.fromPartition(PARTITION)
   initBookmarks()
+  vault.initVault()
   initAI()
   createWindow()
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })

@@ -17,6 +17,10 @@ const api: MonperApi = {
     return () => { ipcRenderer.removeListener('state:update', handler) }
   },
   toggleBookmark: () => ipcRenderer.send('bookmarks:toggle'),
+  openDevtools: () => ipcRenderer.send('ui:devtools'),
+  openDownloads: () => ipcRenderer.send('ui:downloads'),
+  openSettings: () => ipcRenderer.send('ui:settings'),
+  cycleVibrancy: () => ipcRenderer.send('ui:cycleVibrancy'),
   onPagePointerDown: (cb: () => void) => {
     const handler = (): void => cb()
     ipcRenderer.on('page:pointerdown', handler)

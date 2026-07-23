@@ -1,5 +1,5 @@
 import { join } from 'path'
-import { app, BrowserWindow, WebContentsView, ipcMain, session } from 'electron'
+import { app, BrowserWindow, WebContentsView, ipcMain, session, shell } from 'electron'
 import type { IpcMainEvent } from 'electron'
 import type { BrowserState, Bookmark } from '../shared/types'
 import { initBookmarks, listBookmarks, isBookmarked, addBookmark, removeBookmark, toggleBookmark } from './bookmarks'
@@ -10,17 +10,26 @@ const CONTENT_RADIUS = 11 // debe coincidir con #content.expanded en styles.css
 const PARTITION = 'persist:monper'
 const isMac = process.platform === 'darwin'
 
-// La new-tab page es una página interna servida por nuestro propio renderer.
+// Páginas internas servidas por nuestro propio renderer (new-tab, settings…).
 const RENDERER_URL_EARLY = process.env['ELECTRON_RENDERER_URL']
+const INTERNAL_PAGES = ['newtab', 'settings'] as const
+function internalUrl(page: (typeof INTERNAL_PAGES)[number]): string {
+  return RENDERER_URL_EARLY
+    ? `${RENDERER_URL_EARLY}/${page}.html`
+    : `file://${join(__dirname, `../renderer/${page}.html`)}`
+}
 function newtabUrl(): string {
-  return RENDERER_URL_EARLY ? `${RENDERER_URL_EARLY}/newtab.html` : `file://${join(__dirname, '../renderer/newtab.html')}`
+  return internalUrl('newtab')
 }
 function isNewtab(url: string): boolean {
   return url.includes('/newtab.html')
 }
-/** Sólo las páginas internas pueden leer/escribir bookmarks vía IPC */
+function isInternal(url: string): boolean {
+  return INTERNAL_PAGES.some((p) => url.includes(`/${p}.html`))
+}
+/** Sólo las páginas internas pueden leer/escribir datos privados vía IPC */
 function isInternalSender(url: string | undefined): boolean {
-  return !!url && isNewtab(url)
+  return !!url && isInternal(url)
 }
 
 interface Tab {
@@ -96,7 +105,7 @@ function animateLayout() {
 function pushState() {
   if (!win || win.isDestroyed()) return
   const t = activeId != null ? tabs.get(activeId) : null
-  const displayUrl = (u: string) => (isNewtab(u) ? '' : u)
+  const displayUrl = (u: string) => (isInternal(u) ? '' : u)
   const state: BrowserState = {
     activeId,
     tabs: [...tabs.entries()].map(([id, tb]) => ({
@@ -195,10 +204,11 @@ function createWindow() {
   win = new BrowserWindow({
     width: 1440 + SIDEBAR_WIDTH,
     height: 900 + TOPBAR_HEIGHT,
-    // En mac NO ponemos fondo transparente: rompe el render del semáforo nativo.
-    // La vibrancy se ve igual porque el HTML del sidebar es transparente.
+    // Fondo transparente en mac para que la vibrancy nativa se vea a través del
+    // sidebar (que es HTML transparente). Compatible con el semáforo nativo
+    // porque ya no usamos setWindowButtonVisibility(false).
     ...(isMac
-      ? { vibrancy: 'sidebar' as const, visualEffectState: 'active' as const }
+      ? { vibrancy: 'under-window' as const, visualEffectState: 'active' as const, backgroundColor: '#00000000' }
       : { backgroundColor: '#111114' }),
     titleBarStyle: isMac ? 'hiddenInset' : 'default',
     trafficLightPosition: isMac ? { x: 15, y: 17 } : undefined,
@@ -206,7 +216,7 @@ function createWindow() {
   })
 
   if (isMac) {
-    win.once('ready-to-show', () => win!.setVibrancy('sidebar'))
+    win.once('ready-to-show', () => win!.setVibrancy('under-window'))
   }
 
   loadRenderer(win, 'index')
@@ -261,6 +271,37 @@ ipcMain.on('bookmarks:toggle', () => {
 
 // Reenvía la interacción con la página al chrome, para cerrar el menú de perfil.
 ipcMain.on('tab:pointerdown', () => { if (win && !win.isDestroyed()) win.webContents.send('page:pointerdown') })
+
+// Acciones del menú de perfil
+ipcMain.on('ui:devtools', () => {
+  const t = activeId != null ? tabs.get(activeId) : null
+  const wc = t?.view.webContents
+  if (wc) wc.isDevToolsOpened() ? wc.closeDevTools() : wc.openDevTools({ mode: 'detach' })
+})
+ipcMain.on('ui:downloads', () => { shell.openPath(app.getPath('downloads')) })
+ipcMain.on('ui:settings', () => {
+  // Si ya hay una pestaña de settings, actívala; si no, ábrela.
+  for (const [id, t] of tabs) if (t.url.includes('/settings.html')) { setActive(id); return }
+  createTab(internalUrl('settings'))
+})
+ipcMain.handle('ui:clearData', async (e) => {
+  if (!isInternalSender(e.senderFrame?.url)) return false
+  const ses = session.fromPartition(PARTITION)
+  await ses.clearStorageData()
+  await ses.clearCache()
+  return true
+})
+
+// DEV: cicla materiales de vibrancy en vivo (⌘⌥V) para calibrar en tu macOS.
+const VIBRANCY_MATERIALS = ['under-window', 'sidebar', 'hud', 'fullscreen-ui', 'menu', 'popover', 'content', 'header', 'window', 'selection'] as const
+let vibrancyIdx = 0
+ipcMain.on('ui:cycleVibrancy', () => {
+  if (!win || !isMac) return
+  vibrancyIdx = (vibrancyIdx + 1) % VIBRANCY_MATERIALS.length
+  const mat = VIBRANCY_MATERIALS[vibrancyIdx]
+  win.setVibrancy(mat)
+  console.log('[vibrancy]', mat)
+})
 
 app.whenReady().then(() => {
   session.fromPartition(PARTITION)

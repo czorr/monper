@@ -53,6 +53,11 @@ export interface MonperApi {
   setCollapsed: (v: boolean) => void
   onState: (cb: (state: BrowserState) => void) => () => void
   toggleBookmark: () => void
+  openDevtools: () => void
+  openDownloads: () => void
+  openSettings: () => void
+  /** DEV: cicla materiales de vibrancy en vivo (⌘⌥V) */
+  cycleVibrancy: () => void
   /** Notifica cuando el usuario interactúa con la página (para cerrar overlays) */
   onPagePointerDown: (cb: () => void) => () => void
 }
@@ -64,6 +69,8 @@ export interface MonperTabApi {
   addBookmark: (b: Omit<Bookmark, 'id'>) => void
   removeBookmark: (id: string) => void
   onBookmarks: (cb: (bookmarks: Bookmark[]) => void) => () => void
+  /** Borra datos de navegación (cookies, storage, cache) del perfil */
+  clearBrowsingData: () => Promise<boolean>
 }
 
 declare global {

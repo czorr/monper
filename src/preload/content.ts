@@ -10,7 +10,8 @@ const api: MonperTabApi = {
     const handler = (_e: unknown, list: Bookmark[]) => cb(list)
     ipcRenderer.on('bookmarks:changed', handler)
     return () => { ipcRenderer.removeListener('bookmarks:changed', handler) }
-  }
+  },
+  clearBrowsingData: () => ipcRenderer.invoke('ui:clearData')
 }
 
 contextBridge.exposeInMainWorld('monperTab', api)

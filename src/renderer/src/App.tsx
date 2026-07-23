@@ -27,6 +27,7 @@ export default function App(): JSX.Element {
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       if (!(e.metaKey || e.ctrlKey)) return
+      if (e.altKey && (e.key === 'v' || e.key === '√')) { e.preventDefault(); monper.cycleVibrancy(); return }
       if (e.key === 's') { e.preventDefault(); setCollapsed((c) => !c) }
       else if (e.key === 't') { e.preventDefault(); monper.newTab() }
       else if (e.key === 'w') { e.preventDefault(); if (state.activeId != null) monper.closeTab(state.activeId) }

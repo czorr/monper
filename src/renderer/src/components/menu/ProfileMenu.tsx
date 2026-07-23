@@ -30,7 +30,22 @@ export default function ProfileMenu({ anchor, onClose }: Props): JSX.Element {
   }, [onClose])
 
   const act = (action: string): void => {
-    if (action === 'new-tab' || action === 'bookmarks') monper.newTab()
+    switch (action) {
+      case 'new-tab':
+      case 'bookmarks':
+        monper.newTab()
+        break
+      case 'settings':
+        monper.openSettings()
+        break
+      case 'developers':
+        monper.openDevtools()
+        break
+      case 'downloads':
+        monper.openDownloads()
+        break
+      // TODO (features aún no construidas): new-profile, switch-profile, extensions, history, incognito
+    }
     onClose()
   }
 
@@ -40,7 +55,7 @@ export default function ProfileMenu({ anchor, onClose }: Props): JSX.Element {
       <div className="fixed inset-0 z-40" onPointerDown={onClose} />
 
       <div
-        className="fixed z-50 w-56 p-1.5 rounded-xl border border-white/10 bg-[#1b1b1f]/85 backdrop-blur-xl shadow-2xl shadow-black/50"
+        className="fixed z-50 w-56 p-1.5 rounded-xl border border-white/10 bg-[#1b1b1f] shadow-2xl shadow-black/50"
         style={{ left: anchor.left, top: anchor.bottom + 6 }}
         onPointerDown={(e) => e.stopPropagation()}
       >

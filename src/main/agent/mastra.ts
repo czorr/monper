@@ -11,7 +11,20 @@ const MAX_STEPS = 40
 interface Emit {
   token: (t: string) => void
   step: (s: ChatStep) => void
+  stepImage: (dataUrl: string) => void
   error: (m: string) => void
+}
+
+/** Info de una pestaña para el agente */
+export interface TabSummary { id: number; title: string; url: string; active: boolean }
+
+/** Control del navegador que el main expone al agente (pestaña activa + gestión de pestañas). */
+export interface BrowserControl {
+  getWc: () => WebContents | undefined
+  listTabs: () => TabSummary[]
+  openTab: (url: string) => number
+  switchTab: (id: number) => boolean
+  closeTab: (id: number) => boolean
 }
 
 const SYSTEM = `Eres Monper, un agente que opera el navegador del usuario para cumplir su tarea.
@@ -20,7 +33,10 @@ Refiere los elementos por su número "ref" del último read_page.
 
 PERSISTENCIA (muy importante): no te detengas hasta COMPLETAR la tarea que te pidieron. Trabajas de forma autónoma; no devuelvas el control a mitad de camino para "preguntar si continúo".
 - Si una herramienta devuelve { error } o no encuentras el elemento esperado: NO te rindas. Vuelve a leer con read_page, haz scroll para cargar contenido diferido (comentarios, listas infinitas suelen requerir varios scroll), y reintenta con otra estrategia.
-- Muchos elementos (cajas de comentario, botones) aparecen solo tras hacer scroll hasta ellos y esperar a que carguen: haz read_page de nuevo después de cada scroll.
+- Muchos elementos (cajas de comentario, botones) aparecen solo tras hacer scroll hasta ellos y esperar a que carguen: usa wait_for (por texto o selector) tras un scroll o navegación, y luego read_page de nuevo.
+- Herramientas disponibles además de las básicas: wait_for (esperar contenido diferido), press_key (enter/escape/tab/flechas + modificadores), hover (revelar menús), select_option (dropdowns nativos), history (atrás/adelante/recargar).
+- Pestañas: list_tabs (ver todas), open_tab (abrir una nueva con una URL), switch_tab (cambiar a una por id), close_tab (cerrar una por id). Úsalas para trabajar en varias páginas.
+- Visión: si read_page no captura un elemento (canvas, mapas, PDFs, UIs complejas), usa screenshot para VER la página y luego click_at con las coordenadas del elemento. Es tu último recurso cuando no hay un ref utilizable.
 - Reintenta una acción fallida hasta 3 veces con enfoques distintos antes de considerarla bloqueada.
 - Solo termina cuando (a) la tarea está hecha, o (b) tras reintentos reales sigue bloqueada; en ese caso explica CLARAMENTE qué intentaste y por qué no se pudo. Nunca termines en silencio.
 
@@ -44,10 +60,10 @@ function safe<T>(fn: () => Promise<T>): Promise<T | { error: string }> {
   return fn().catch((e) => ({ error: e instanceof Error ? e.message : String(e) }))
 }
 
-// Las page-ops como tools de Mastra (Zod). Reciben el WebContents activo por closure.
-function buildTools(getWc: () => WebContents | undefined) {
+// Las page-ops como tools de Mastra (Zod). Operan sobre la pestaña activa vía BrowserControl.
+function buildTools(ctrl: BrowserControl) {
   const wc = (): WebContents => {
-    const w = getWc()
+    const w = ctrl.getWc()
     if (!w) throw new Error('No hay pestaña activa.')
     return w
   }
@@ -118,17 +134,75 @@ function buildTools(getWc: () => WebContents | undefined) {
       description: 'Navegación de historial de la pestaña: back (atrás), forward (adelante) o reload (recargar).',
       inputSchema: z.object({ action: z.enum(['back', 'forward', 'reload']) }),
       execute: async ({ action }) => safe(() => page.history(wc(), action))
+    }),
+    list_tabs: createTool({
+      id: 'list_tabs',
+      description: 'Lista todas las pestañas abiertas con su id, título, URL y cuál está activa.',
+      inputSchema: z.object({}),
+      execute: async () => {
+        const tabs = ctrl.listTabs()
+        if (!tabs.length) return 'No hay pestañas abiertas.'
+        return tabs.map((t) => `${t.active ? '➤' : ' '} [${t.id}] ${t.title || '(sin título)'} — ${t.url}`).join('\n')
+      }
+    }),
+    open_tab: createTool({
+      id: 'open_tab',
+      description: 'Abre una nueva pestaña con la URL dada y la activa. Devuelve el id de la pestaña.',
+      inputSchema: z.object({ url: z.string() }),
+      execute: async ({ url }) => safe(async () => {
+        let u = url.trim()
+        if (!/^https?:\/\//i.test(u)) u = 'https://' + u
+        const id = ctrl.openTab(u)
+        await new Promise((r) => setTimeout(r, 600))
+        return `Pestaña ${id} abierta en ${u}.`
+      })
+    }),
+    switch_tab: createTool({
+      id: 'switch_tab',
+      description: 'Cambia a la pestaña con ese id (la vuelve activa).',
+      inputSchema: z.object({ id: z.number().int() }),
+      execute: async ({ id }) => (ctrl.switchTab(id) ? `Cambiado a la pestaña ${id}.` : `ERROR: no existe la pestaña ${id}.`)
+    }),
+    close_tab: createTool({
+      id: 'close_tab',
+      description: 'Cierra la pestaña con ese id.',
+      inputSchema: z.object({ id: z.number().int() }),
+      execute: async ({ id }) => (ctrl.closeTab(id) ? `Pestaña ${id} cerrada.` : `ERROR: no existe la pestaña ${id}.`)
+    }),
+    screenshot: createTool({
+      id: 'screenshot',
+      description: 'Captura la pantalla de la página activa para VERLA (visión). Úsalo cuando read_page no baste; luego usa click_at con coordenadas.',
+      inputSchema: z.object({}),
+      execute: async () => safe(() => page.screenshot(wc())),
+      // Entrega la imagen al modelo como contenido multimodal (texto + media).
+      toModelOutput: (out: unknown) => {
+        const o = out as page.MediaResult | { error: string }
+        if ('error' in o) return { type: 'text', value: `ERROR: ${o.error}` }
+        return {
+          type: 'content',
+          value: [
+            { type: 'text', text: o.text },
+            { type: 'media', data: o.data, mediaType: o.mediaType }
+          ]
+        }
+      }
+    }),
+    click_at: createTool({
+      id: 'click_at',
+      description: 'Click en coordenadas absolutas del viewport (px CSS), estimadas a partir de un screenshot previo. Úsalo solo cuando no hay un ref utilizable.',
+      inputSchema: z.object({ x: z.number(), y: z.number() }),
+      execute: async ({ x, y }) => safe(() => page.clickAt(wc(), x, y))
     })
   }
 }
 
-export function buildAgent(provider: AIProvider, key: string, model: string, getWc: () => WebContents | undefined): Agent {
+export function buildAgent(provider: AIProvider, key: string, model: string, ctrl: BrowserControl): Agent {
   return new Agent({
     id: 'monper-agent',
     name: 'Monper',
     instructions: SYSTEM,
     model: modelConfig(provider, key, model),
-    tools: buildTools(getWc)
+    tools: buildTools(ctrl)
   })
 }
 
@@ -143,6 +217,17 @@ function describe(toolName: string, args: unknown): ChatStep {
     case 'click': return { state: 'working', label: `Click en el elemento ${a.ref}`, kind: 'click' }
     case 'type': return { state: 'composing', label: 'Escribiendo', kind: 'type' }
     case 'scroll': return { state: 'working', label: `Scroll ${a.direction}`, kind: 'scroll' }
+    case 'wait_for': return { state: 'searching', label: `Esperando ${a.text ? `"${a.text}"` : a.selector ?? 'contenido'}`, kind: 'wait' }
+    case 'press_key': return { state: 'working', label: `Tecla ${a.key}`, kind: 'press' }
+    case 'hover': return { state: 'working', label: `Hover en el elemento ${a.ref}`, kind: 'hover' }
+    case 'select_option': return { state: 'composing', label: `Eligiendo "${a.value}"`, kind: 'select' }
+    case 'history': return { state: 'searching', label: `Historial: ${a.action}`, kind: 'history' }
+    case 'list_tabs': return { state: 'listening', label: 'Viendo las pestañas', kind: 'tab' }
+    case 'open_tab': return { state: 'searching', label: `Abriendo ${host(String(a.url ?? ''))}`, kind: 'tab', favicon: faviconFor(host(String(a.url ?? ''))) }
+    case 'switch_tab': return { state: 'working', label: `Cambiando a la pestaña ${a.id}`, kind: 'tab' }
+    case 'close_tab': return { state: 'working', label: `Cerrando la pestaña ${a.id}`, kind: 'tab' }
+    case 'screenshot': return { state: 'searching', label: 'Mirando la pantalla', kind: 'screenshot' }
+    case 'click_at': return { state: 'working', label: `Click en (${a.x}, ${a.y})`, kind: 'click' }
     default: return { state: 'working', label: toolName, kind: 'generic' }
   }
 }
@@ -156,9 +241,9 @@ function faviconFor(h: string): string | undefined {
 /** Corre el agente Mastra en streaming, emitiendo tokens (texto) y steps (tool-calls). */
 export async function runMastra(opts: {
   provider: AIProvider; key: string; model: string
-  messages: ChatMessage[]; getWc: () => WebContents | undefined; emit: Emit; signal: AbortSignal
+  messages: ChatMessage[]; control: BrowserControl; emit: Emit; signal: AbortSignal
 }): Promise<void> {
-  const agent = buildAgent(opts.provider, opts.key, opts.model, opts.getWc)
+  const agent = buildAgent(opts.provider, opts.key, opts.model, opts.control)
   // {role, content:string} es un ModelMessage válido; la unión de Mastra es demasiado estricta para inferirlo.
   // maxSteps: el default de Mastra es 5 (corta la tarea a mitad); subimos para dejar completar flujos largos.
   const out = await agent.stream(opts.messages as Parameters<typeof agent.stream>[0], { maxSteps: MAX_STEPS })
@@ -167,6 +252,11 @@ export async function runMastra(opts: {
     if (opts.signal.aborted) return
     if (chunk.type === 'text-delta') { gotText = true; opts.emit.token(chunk.payload.text) }
     else if (chunk.type === 'tool-call') opts.emit.step(describe(chunk.payload.toolName, chunk.payload.args))
+    else if (chunk.type === 'tool-result' && chunk.payload.toolName === 'screenshot') {
+      // Adjunta la captura al step de screenshot para renderizarla en el chat.
+      const r = chunk.payload.result as page.MediaResult | { error: string } | undefined
+      if (r && !('error' in r) && r.data) opts.emit.stepImage(`data:${r.mediaType};base64,${r.data}`)
+    }
   }
   // El agente se detuvo sin dar una respuesta (típicamente al topar maxSteps): no dejes el turno mudo.
   if (!gotText && !opts.signal.aborted) {

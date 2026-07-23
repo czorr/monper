@@ -389,14 +389,21 @@ ipcMain.handle('chat:send', async (_e, messages: ChatMessage[]) => {
   chatAbort = new AbortController()
   const send = (ch: string, payload?: unknown): void => { win?.webContents.send(ch, payload) }
   try {
-    // Agente Mastra con herramientas: opera la pestaña activa (anthropic y openai).
+    // Agente Mastra con herramientas: opera la pestaña activa + gestión de pestañas (anthropic y openai).
     await runMastra({
       provider: active.provider, key: active.key, model: active.model,
       messages, signal: chatAbort.signal,
-      getWc: () => (activeId != null ? tabs.get(activeId)?.view.webContents : undefined),
+      control: {
+        getWc: () => (activeId != null ? tabs.get(activeId)?.view.webContents : undefined),
+        listTabs: () => [...tabs.entries()].map(([id, t]) => ({ id, title: t.title, url: t.url, active: id === activeId })),
+        openTab: (url) => createTab(url, true),
+        switchTab: (id) => { if (!tabs.has(id)) return false; setActive(id); return true },
+        closeTab: (id) => { if (!tabs.has(id)) return false; closeTab(id); return true }
+      },
       emit: {
         token: (tok) => send('chat:token', tok),
         step: (s) => send('chat:step', s),
+        stepImage: (d) => send('chat:stepImage', d),
         error: (m) => send('chat:error', m)
       }
     })

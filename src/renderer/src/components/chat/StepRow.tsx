@@ -8,6 +8,13 @@ import IconClick from '~icons/tabler/click'
 import IconKeyboard from '~icons/tabler/keyboard'
 import IconArrowsDown from '~icons/tabler/arrows-down'
 import IconPointCheck from '~icons/tabler/circle-check'
+import IconHourglass from '~icons/tabler/hourglass-low'
+import IconKey from '~icons/tabler/keyboard-show'
+import IconPointer from '~icons/tabler/pointer'
+import IconSelect from '~icons/tabler/select'
+import IconHistory from '~icons/tabler/history'
+import IconLayoutColumns from '~icons/tabler/layout-columns'
+import IconCamera from '~icons/tabler/camera'
 
 const KIND_ICON: Record<StepKind, typeof IconWorld> = {
   navigate: IconWorld,
@@ -15,6 +22,13 @@ const KIND_ICON: Record<StepKind, typeof IconWorld> = {
   click: IconClick,
   type: IconKeyboard,
   scroll: IconArrowsDown,
+  wait: IconHourglass,
+  press: IconKey,
+  hover: IconPointer,
+  select: IconSelect,
+  history: IconHistory,
+  tab: IconLayoutColumns,
+  screenshot: IconCamera,
   generic: IconPointCheck
 }
 
@@ -38,11 +52,20 @@ function StepIcon({ step }: { step: ChatStep }): JSX.Element {
 /** Una fila de paso: orb animado si está activo, icono/favicon si está completado. */
 export default function StepRow({ step, active }: { step: ChatStep; active: boolean }): JSX.Element {
   return (
-    <div className="flex items-center gap-2.5">
-      <span className="w-5 h-5 shrink-0 grid place-items-center">
-        {active ? <ThinkingOrb state={step.state as OrbState} size={20} theme="dark" /> : <StepIcon step={step} />}
-      </span>
-      <span className={active ? 'text-[13px] text-text' : 'text-[13px] text-text-dim'}>{step.label}</span>
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center gap-2.5">
+        <span className="w-5 h-5 shrink-0 grid place-items-center">
+          {active ? <ThinkingOrb state={step.state as OrbState} size={20} theme="dark" /> : <StepIcon step={step} />}
+        </span>
+        <span className={active ? 'text-[13px] text-text' : 'text-[13px] text-text-dim'}>{step.label}</span>
+      </div>
+      {step.image && (
+        <img
+          src={step.image}
+          alt="captura de pantalla"
+          className="ml-[30px] max-w-full h-auto aspect-auto rounded-lg border border-white/10"
+        />
+      )}
     </div>
   )
 }

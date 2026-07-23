@@ -174,6 +174,38 @@ export async function selectOption(wc: WebContents, ref: number, value: string):
   return `Seleccionado "${value}" en ref=${ref}.`
 }
 
+/** Resultado con imagen para el modelo (visión). */
+export interface MediaResult {
+  text: string
+  data: string // base64
+  mediaType: string
+}
+
+/** Captura la pantalla de la página activa, redimensionada al tamaño lógico del viewport (px CSS). */
+export async function screenshot(wc: WebContents): Promise<MediaResult> {
+  const vp = (await wc.executeJavaScript('({ w: innerWidth, h: innerHeight })', true)) as { w: number; h: number }
+  const img = await wc.capturePage()
+  // Redimensiona a px CSS para que las coordenadas que estime el modelo coincidan con click_at.
+  const resized = img.resize({ width: vp.w, height: vp.h })
+  return {
+    text: `Captura del viewport (${vp.w}×${vp.h} px). Usa click_at con coordenadas dentro de ese rango.`,
+    data: resized.toPNG().toString('base64'),
+    mediaType: 'image/png'
+  }
+}
+
+/** Click en coordenadas absolutas del viewport (px CSS), para cuando no hay un ref utilizable. */
+export async function clickAt(wc: WebContents, x: number, y: number): Promise<string> {
+  const px = Math.round(x)
+  const py = Math.round(y)
+  await sleep(80)
+  wc.sendInputEvent({ type: 'mouseMove', x: px, y: py })
+  wc.sendInputEvent({ type: 'mouseDown', x: px, y: py, button: 'left', clickCount: 1 })
+  wc.sendInputEvent({ type: 'mouseUp', x: px, y: py, button: 'left', clickCount: 1 })
+  await sleep(400)
+  return `Click en (${px}, ${py}).`
+}
+
 /** Navegación de historial de la pestaña. */
 export async function history(wc: WebContents, action: 'back' | 'forward' | 'reload'): Promise<string> {
   const nav = wc.navigationHistory

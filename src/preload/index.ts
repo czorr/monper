@@ -41,6 +41,7 @@ const api: MonperApi = {
   chatCancel: () => ipcRenderer.send('chat:cancel'),
   onChatToken: (cb: (text: string) => void) => sub('chat:token', (t) => cb(t as string)),
   onChatStep: (cb) => sub('chat:step', (s) => cb(s as never)),
+  onChatStepImage: (cb: (dataUrl: string) => void) => sub('chat:stepImage', (d) => cb(d as string)),
   onChatDone: (cb: () => void) => sub('chat:done', () => cb()),
   onChatError: (cb: (m: string) => void) => sub('chat:error', (m) => cb(m as string)),
   openVault: (anchor) => ipcRenderer.send('vault:open', anchor)

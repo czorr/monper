@@ -81,7 +81,10 @@ export interface ChatMessage {
 }
 
 /** Tipo de acción de un paso, para elegir su icono en el chat */
-export type StepKind = 'navigate' | 'read' | 'click' | 'type' | 'scroll' | 'generic'
+export type StepKind =
+  | 'navigate' | 'read' | 'click' | 'type' | 'scroll'
+  | 'wait' | 'press' | 'hover' | 'select' | 'history'
+  | 'tab' | 'screenshot' | 'generic'
 
 /** Un paso del agente (acción con herramienta) mostrado en el chat */
 export interface ChatStep {
@@ -91,6 +94,8 @@ export interface ChatStep {
   kind?: StepKind
   /** URL de favicon (para pasos de navegación) */
   favicon?: string
+  /** Imagen resultante del paso, como data URL (para screenshots) */
+  image?: string
 }
 
 export interface BrowserState {
@@ -141,6 +146,8 @@ export interface MonperApi {
   chatCancel: () => void
   onChatToken: (cb: (text: string) => void) => () => void
   onChatStep: (cb: (step: ChatStep) => void) => () => void
+  /** Adjunta una imagen (data URL) al último paso emitido (p. ej. screenshot) */
+  onChatStepImage: (cb: (dataUrl: string) => void) => () => void
   onChatDone: (cb: () => void) => () => void
   onChatError: (cb: (message: string) => void) => () => void
   // ---- Vault (ventana nativa flotante) ----

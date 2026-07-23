@@ -57,15 +57,26 @@ export default function ChatPanel({ open, onClose }: Props): JSX.Element {
   }
   const pushPart = (m: Msg, part: Part): Msg => ({ ...m, parts: [...(m.parts ?? []), part] })
 
+  // Adjunta una imagen al último step (el screenshot recién ejecutado).
+  const attachImage = (m: Msg, dataUrl: string): Msg => {
+    const parts = [...(m.parts ?? [])]
+    for (let i = parts.length - 1; i >= 0; i--) {
+      const p = parts[i]
+      if (p.type === 'step') { parts[i] = { ...p, step: { ...p.step, image: dataUrl } }; break }
+    }
+    return { ...m, parts }
+  }
+
   useEffect(() => {
     const offToken = monper.onChatToken((t) => patchLast((m) => appendToken(m, t)))
     const offStep = monper.onChatStep((s) => patchLast((m) => pushPart(m, { type: 'step', step: s })))
+    const offStepImg = monper.onChatStepImage((d) => patchLast((m) => attachImage(m, d)))
     const offDone = monper.onChatDone(() => { patchLast((m) => ({ ...m, streaming: false })); setRunning(false) })
     const offErr = monper.onChatError((msg) => {
       patchLast((m) => ({ ...pushPart(m, { type: 'text', text: msg, error: true }), streaming: false }))
       setRunning(false)
     })
-    return () => { offToken(); offStep(); offDone(); offErr() }
+    return () => { offToken(); offStep(); offStepImg(); offDone(); offErr() }
   }, [])
 
   // Texto plano de un mensaje (usuario: text; asistente: concatena sus partes de texto).

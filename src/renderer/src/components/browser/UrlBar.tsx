@@ -57,7 +57,7 @@ export default function UrlBar({ active, editRequest, onGo }: Props): JSX.Elemen
             className="w-full h-8 rounded-[9px] text-text text-[13px] px-3 text-left outline-none border border-border bg-bg-elev placeholder:text-text-faint select-text"
           />
           {ac.open && (
-            <div className="absolute z-50 top-full left-0 right-0 mt-1.5 rounded-xl border border-border bg-[#1c1c20]/95 shadow-2xl shadow-black/50 overflow-hidden">
+            <div className="absolute z-50 top-full left-0 right-0 mt-2 rounded-2xl border border-white/10 bg-[#1c1c20]/95 shadow-2xl shadow-black/50 overflow-hidden">
               <SuggestionList items={ac.items} active={ac.active} onHover={ac.setActive} onChoose={choose} />
             </div>
           )}

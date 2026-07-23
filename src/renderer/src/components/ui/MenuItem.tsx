@@ -5,7 +5,7 @@ export function MenuLabel({ children }: { children: ReactNode }): JSX.Element {
 }
 
 export function MenuDivider(): JSX.Element {
-  return <div className="h-px bg-border my-1.5" />
+  return <div className="h-px bg-white/10 my-1.5" />
 }
 
 interface MenuItemProps {

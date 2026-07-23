@@ -55,7 +55,7 @@ export default function ProfileMenu({ anchor, onClose }: Props): JSX.Element {
       <div className="fixed inset-0 z-40" onPointerDown={onClose} />
 
       <div
-        className="fixed z-50 w-60 py-1.5 rounded-xl border border-border bg-[#1c1c20]/95 shadow-2xl shadow-black/50 overflow-hidden"
+        className="fixed z-50 w-60 py-1.5 rounded-2xl border border-white/10 bg-[#1c1c20]/95 shadow-2xl shadow-black/50 overflow-hidden"
         style={{ left: anchor.left, top: anchor.bottom + 6 }}
         onPointerDown={(e) => e.stopPropagation()}
       >

@@ -16,7 +16,7 @@ import appIcon from '../renderer/src/assets/icon.png?asset'
 const SIDEBAR_WIDTH = 240
 const CHAT_WIDTH = 380 // panel de chat derecho (debe coincidir con --spacing-panel en CSS)
 const TOPBAR_HEIGHT = 52
-const CONTENT_RADIUS = 16 // debe coincidir con rounded-t[l/r] en Content.tsx
+const CONTENT_RADIUS = 32 // debe coincidir con rounded-t[l/r] en Content.tsx
 const PARTITION = 'persist:monper'
 const isMac = process.platform === 'darwin'
 
@@ -144,10 +144,12 @@ function sampleTopColor(t: Tab): void {
   t.view.webContents.executeJavaScript(`(() => {
     const transparent = (c) => !c || c === 'transparent' || c === 'rgba(0, 0, 0, 0)';
     const bgOf = (el) => { const c = getComputedStyle(el).backgroundColor; return transparent(c) ? null : c; };
-    // color del elemento en el borde superior-centro, subiendo hasta un fondo opaco
-    let el = document.elementFromPoint(Math.floor(innerWidth / 2), 3);
-    while (el) { const c = bgOf(el); if (c) return c; el = el.parentElement; }
-    return bgOf(document.body) || bgOf(document.documentElement) || '#ffffff';
+    // Muestrea el color en la esquina superior-izquierda (donde está la muesca del
+    // redondeado nativo), subiendo hasta un fondo opaco. Así la franja que rellena
+    // esa muesca coincide y el borde superior del page view se ve recto.
+    const colorAt = (x, y) => { let el = document.elementFromPoint(x, y); while (el) { const c = bgOf(el); if (c) return c; el = el.parentElement; } return null; };
+    return colorAt(6, 6) || colorAt(Math.floor(innerWidth / 2), 3)
+      || bgOf(document.body) || bgOf(document.documentElement) || '#ffffff';
   })()`, true).then((c: string) => { t.pageBg = c; pushState() }).catch(() => {})
 }
 

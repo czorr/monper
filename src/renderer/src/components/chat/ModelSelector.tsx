@@ -41,7 +41,7 @@ export default function ModelSelector({ ctx, onPick, onConnect }: Props): JSX.El
       {open && (
         <>
           <div className="fixed inset-0 z-40" onPointerDown={() => setOpen(false)} />
-          <div className="absolute z-50 bottom-full left-0 mb-1.5 w-52 p-1.5 rounded-xl border border-border bg-[#1c1c20]/95 shadow-2xl shadow-black/50">
+          <div className="absolute z-50 bottom-full left-0 mb-1.5 w-52 p-1.5 rounded-2xl border border-white/10 bg-[#1c1c20]/95 shadow-2xl shadow-black/50">
             <div className="px-2 py-1 text-[11px] text-text-faint">{ctx.provider.label}</div>
             {ctx.models.map((m) => (
               <button

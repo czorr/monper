@@ -21,15 +21,15 @@ interface Props {
 export default function Content({ leftInset, rightInset, pageColor, children }: Props): JSX.Element {
   const cls = [
     'fixed top-0 bottom-0 overflow-hidden transition-[left,right] duration-[180ms] ease-[cubic-bezier(0.33,1,0.68,1)]',
-    leftInset ? 'left-sidebar rounded-tl-[16px]' : 'left-0',
-    rightInset ? 'right-panel rounded-tr-[16px]' : 'right-0'
+    leftInset ? 'left-sidebar rounded-tl-[32px]' : 'left-0',
+    rightInset ? 'right-panel rounded-tr-[32px]' : 'right-0'
   ].join(' ')
 
   return (
     <div className={cls}>
       {children}
       {(leftInset || rightInset) && (
-        <div className="absolute left-0 right-0 top-topbar h-4 pointer-events-none" style={{ background: pageColor }} />
+        <div className="absolute left-0 right-0 top-topbar h-8 pointer-events-none" style={{ background: pageColor }} />
       )}
     </div>
   )

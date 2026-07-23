@@ -27,7 +27,7 @@ export default function EffortSelector({ effort, onPick }: Props): JSX.Element {
       {open && (
         <>
           <div className="fixed inset-0 z-40" onPointerDown={() => setOpen(false)} />
-          <div className="absolute z-50 bottom-full left-0 mb-1.5 w-36 p-1.5 rounded-xl border border-border bg-[#1c1c20]/95 shadow-2xl shadow-black/50">
+          <div className="absolute z-50 bottom-full left-0 mb-1.5 w-36 p-1.5 rounded-2xl border border-white/10 bg-[#1c1c20]/95 shadow-2xl shadow-black/50">
             {EFFORTS.map((e) => (
               <button
                 key={e.id}

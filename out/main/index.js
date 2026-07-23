@@ -148,11 +148,24 @@ function pushState() {
 			canBack: t.canBack,
 			canForward: t.canForward,
 			loading: t.loading,
-			pageColor: t.themeColor || t.pageBg,
+			pageColor: t.pageBg || t.themeColor,
 			bookmarked: isBookmarked(t.url)
 		} : null
 	};
 	win.webContents.send("state:update", state);
+}
+function sampleTopColor(t) {
+	t.view.webContents.executeJavaScript(`(() => {
+    const transparent = (c) => !c || c === 'transparent' || c === 'rgba(0, 0, 0, 0)';
+    const bgOf = (el) => { const c = getComputedStyle(el).backgroundColor; return transparent(c) ? null : c; };
+    // color del elemento en el borde superior-centro, subiendo hasta un fondo opaco
+    let el = document.elementFromPoint(Math.floor(innerWidth / 2), 3);
+    while (el) { const c = bgOf(el); if (c) return c; el = el.parentElement; }
+    return bgOf(document.body) || bgOf(document.documentElement) || '#ffffff';
+  })()`, true).then((c) => {
+		t.pageBg = c;
+		pushState();
+	}).catch(() => {});
 }
 function createTab(url = newtabUrl(), activate = true) {
 	const id = nextId++;
@@ -188,13 +201,7 @@ function createTab(url = newtabUrl(), activate = true) {
 	});
 	wc.on("did-stop-loading", () => {
 		t.loading = false;
-		wc.executeJavaScript(`(() => {
-      const pick = (el) => { const c = getComputedStyle(el).backgroundColor; return c && c !== 'rgba(0, 0, 0, 0)' && c !== 'transparent' ? c : null; };
-      return pick(document.body) || pick(document.documentElement) || '#ffffff';
-    })()`, true).then((c) => {
-			t.pageBg = c;
-			pushState();
-		}).catch(() => {});
+		sampleTopColor(t);
 		refresh();
 	});
 	wc.on("did-navigate", (_e, u) => {

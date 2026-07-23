@@ -16,7 +16,7 @@ export default function AccountPill({ initials, name, onOpen }: Props): JSX.Elem
     >
       <div className="flex items-center gap-2">
         <Avatar initials={initials} />
-        <span className="flex-1 text-[14px] font-semibold overflow-hidden text-ellipsis whitespace-nowrap tracking-[-0.1px]">
+        <span className="flex-1 text-[15px] font-semibold overflow-hidden text-ellipsis whitespace-nowrap tracking-[-0.1px]">
           {name}
         </span>
       </div>

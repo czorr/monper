@@ -11,7 +11,7 @@ interface Props {
 }
 
 const rowBase =
-  'group/tab flex items-center gap-2.5 w-full py-1.5 px-2 rounded-lg text-left text-[14px] min-h-[30px]'
+  'group/tab flex items-center gap-2.5 w-full py-1.5 px-2 rounded-lg text-left text-[15px] min-h-[30px]'
 
 export default function TabRow({ tab, active, onSelect, onClose }: Props): JSX.Element {
   const state = active
@@ -36,7 +36,7 @@ export default function TabRow({ tab, active, onSelect, onClose }: Props): JSX.E
         <span className="w-4 h-4 shrink-0 rounded bg-bg-elev" />
       )}
 
-      <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[14px] tracking-[-0.08px]">
+      <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[15px] tracking-[-0.08px]">
         {tab.title || domainOf(tab.url) || 'New tab'}
       </span>
 

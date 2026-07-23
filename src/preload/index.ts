@@ -11,10 +11,6 @@ const api: MonperApi = {
   forward: () => ipcRenderer.invoke('nav:forward'),
   reload: () => ipcRenderer.invoke('nav:reload'),
   setCollapsed: (v) => ipcRenderer.invoke('ui:collapse', v),
-  winClose: () => ipcRenderer.send('win:close'),
-  winMinimize: () => ipcRenderer.send('win:minimize'),
-  winZoom: () => ipcRenderer.send('win:zoom'),
-  onWinFocus: (cb) => { ipcRenderer.on('win:focus', (_e, f: boolean) => cb(f)) },
   onState: (cb: (state: BrowserState) => void) => {
     const handler = (_e: unknown, state: BrowserState) => cb(state)
     ipcRenderer.on('state:update', handler)
@@ -23,6 +19,7 @@ const api: MonperApi = {
   openMenu: (anchor: MenuAnchor) => ipcRenderer.invoke('menu:open', anchor),
   menuAction: (action: MenuActionName) => ipcRenderer.send('menu:action', action),
   closeMenu: () => ipcRenderer.send('menu:close'),
+  resizeMenu: (height) => ipcRenderer.send('menu:resize', height),
   toggleBookmark: () => ipcRenderer.send('bookmarks:toggle')
 }
 

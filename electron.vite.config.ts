@@ -2,6 +2,7 @@ import { resolve } from 'path'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import Icons from 'unplugin-icons/vite'
 
 // main y preload en CommonJS: así `require('electron')` resuelve al módulo
 // integrado del runtime y no al wrapper npm (que rompe bajo ESM).
@@ -42,6 +43,6 @@ export default defineConfig({
         }
       }
     },
-    plugins: [react(), tailwindcss()]
+    plugins: [react(), tailwindcss(), Icons({ compiler: 'jsx', jsx: 'react' })]
   }
 })

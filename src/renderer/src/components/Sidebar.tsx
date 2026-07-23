@@ -1,6 +1,5 @@
 import type { JSX } from 'react'
 import type { BrowserState } from '../../../shared/types'
-import TrafficLights from './TrafficLights'
 import AccountPill from './AccountPill'
 import TabList from './TabList'
 import { IconButton, SectionLabel } from './ui'
@@ -20,9 +19,7 @@ export default function Sidebar({ state, onOpenMenu, onCollapse, onNewTab, onSel
 
   return (
     <aside id="sidebar">
-      <div className="drag-region">
-        <TrafficLights />
-      </div>
+      <div className="drag-region" />
 
       <div className="account">
         <AccountPill initials="LC" name="Luis Carlos" onOpen={onOpenMenu} />

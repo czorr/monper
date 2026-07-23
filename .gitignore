@@ -1,4 +1,26 @@
+# Dependencias
 node_modules/
-.env
+
+# Build output (electron-vite)
+out/
 dist/
+dist-electron/
+
+# Entorno / secretos
+.env
+.env.*
+!.env.example
+
+# Logs
 *.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+.idea/

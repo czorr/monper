@@ -51,14 +51,11 @@ export interface MonperApi {
   forward: () => void
   reload: () => void
   setCollapsed: (v: boolean) => void
-  winClose: () => void
-  winMinimize: () => void
-  winZoom: () => void
-  onWinFocus: (cb: (focused: boolean) => void) => void
   onState: (cb: (state: BrowserState) => void) => () => void
   openMenu: (anchor: MenuAnchor) => void
   menuAction: (action: MenuActionName) => void
   closeMenu: () => void
+  resizeMenu: (height: number) => void
   toggleBookmark: () => void
 }
 

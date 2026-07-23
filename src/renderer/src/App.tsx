@@ -1,6 +1,7 @@
 import { useEffect, useState, type JSX } from 'react'
 import type { BrowserState } from '../../shared/types'
 import Sidebar from './components/Sidebar'
+import Content from './components/Content'
 import Topbar from './components/Topbar'
 
 const EMPTY: BrowserState = { activeId: null, tabs: [], active: null }
@@ -14,7 +15,6 @@ export default function App(): JSX.Element {
   // Suscripción al estado del navegador + foco de ventana
   useEffect(() => {
     const off = monper.onState(setState)
-    monper.onWinFocus((f) => document.body.classList.toggle('win-blurred', !f))
     if (monper.platform === 'darwin') document.body.classList.add('mac')
     return off
   }, [])
@@ -49,17 +49,19 @@ export default function App(): JSX.Element {
         onSelectTab={(id) => monper.selectTab(id)}
         onCloseTab={(id) => monper.closeTab(id)}
       />
-      <Topbar
-        active={state.active}
-        collapsed={collapsed}
-        editRequest={editRequest}
-        onExpand={() => setCollapsed(false)}
-        onBack={() => monper.back()}
-        onForward={() => monper.forward()}
-        onReload={() => monper.reload()}
-        onGo={(url) => monper.go(url)}
-        onToggleBookmark={() => monper.toggleBookmark()}
-      />
+      <Content expanded={!collapsed} pageColor={state.active?.pageColor || '#111114'}>
+        <Topbar
+          active={state.active}
+          collapsed={collapsed}
+          editRequest={editRequest}
+          onExpand={() => setCollapsed(false)}
+          onBack={() => monper.back()}
+          onForward={() => monper.forward()}
+          onReload={() => monper.reload()}
+          onGo={(url) => monper.go(url)}
+          onToggleBookmark={() => monper.toggleBookmark()}
+        />
+      </Content>
     </>
   )
 }

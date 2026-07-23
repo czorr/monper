@@ -1,6 +1,7 @@
 import { useEffect, useState, type JSX } from 'react'
 import type { Bookmark } from '../../shared/types'
 import BookmarkCard from './components/BookmarkCard'
+import IconSearch from '~icons/tabler/search'
 
 const { monperTab } = window
 
@@ -32,7 +33,7 @@ export default function NewTabPage(): JSX.Element {
 
       <form onSubmit={submit} className="w-full max-w-[560px] mb-14">
         <div className="flex items-center gap-3 h-12 px-5 rounded-2xl bg-white/[0.06] border border-white/10 focus-within:border-white/25 transition-colors">
-          <svg width="17" height="17" viewBox="0 0 17 17" className="text-text-faint shrink-0"><circle cx="7.5" cy="7.5" r="5" fill="none" stroke="currentColor" strokeWidth="1.4" /><path d="M11.5 11.5 15 15" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" /></svg>
+          <IconSearch className="text-text-faint shrink-0 w-[18px] h-[18px]" />
           <input
             autoFocus
             value={query}

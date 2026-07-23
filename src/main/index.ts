@@ -6,6 +6,7 @@ import { initBookmarks, listBookmarks, isBookmarked, addBookmark, removeBookmark
 
 const SIDEBAR_WIDTH = 240
 const TOPBAR_HEIGHT = 52
+const CONTENT_RADIUS = 11 // debe coincidir con #content.expanded en styles.css
 const PARTITION = 'persist:monper'
 const isMac = process.platform === 'darwin'
 
@@ -55,7 +56,12 @@ function contentBounds() {
 
 function layoutActive() {
   const t = activeId != null ? tabs.get(activeId) : null
-  if (t) t.view.setBounds(contentBounds())
+  if (!t) return
+  t.view.setBounds(contentBounds())
+  // Redondea las esquinas de la página nativa cuando el sidebar está expandido.
+  if (typeof t.view.setBorderRadius === 'function') {
+    t.view.setBorderRadius(sidebarCollapsed ? 0 : CONTENT_RADIUS)
+  }
 }
 
 function pushState() {
@@ -112,8 +118,8 @@ function createTab(url = newtabUrl(), activate = true): number {
     sampleTopColor(t)
     refresh()
   })
-  wc.on('did-navigate', (_e, u) => { t.url = u; refresh() })
-  wc.on('did-navigate-in-page', (_e, u) => { t.url = u; refresh() })
+  wc.on('did-navigate', (_e, u) => { t.url = u; refresh() }) // sólo main-frame
+  wc.on('did-navigate-in-page', (_e, u, isMainFrame) => { if (isMainFrame) { t.url = u; refresh() } })
   wc.on('page-title-updated', (_e, title) => { t.title = title; pushState() })
   wc.on('page-favicon-updated', (_e, icons) => { t.favicon = icons?.[0] || null; pushState() })
   wc.on('did-change-theme-color', (_e, color) => { t.themeColor = color; pushState() })
@@ -160,17 +166,18 @@ function createWindow() {
   win = new BrowserWindow({
     width: 1440 + SIDEBAR_WIDTH,
     height: 900 + TOPBAR_HEIGHT,
-    backgroundColor: isMac ? '#00000000' : '#111114',
-    ...(isMac ? { vibrancy: 'sidebar' as const, visualEffectState: 'active' as const } : {}),
-    titleBarStyle: isMac ? 'hidden' : 'default',
+    // En mac NO ponemos fondo transparente: rompe el render del semáforo nativo.
+    // La vibrancy se ve igual porque el HTML del sidebar es transparente.
+    ...(isMac
+      ? { vibrancy: 'sidebar' as const, visualEffectState: 'active' as const }
+      : { backgroundColor: '#111114' }),
+    titleBarStyle: isMac ? 'hiddenInset' : 'default',
+    trafficLightPosition: isMac ? { x: 15, y: 17 } : undefined,
     webPreferences: { preload: join(__dirname, '../preload/index.js'), contextIsolation: true, sandbox: false }
   })
 
   if (isMac) {
-    win.setWindowButtonVisibility(false)
     win.once('ready-to-show', () => win!.setVibrancy('sidebar'))
-    win.on('focus', () => win!.webContents.send('win:focus', true))
-    win.on('blur', () => win!.webContents.send('win:focus', false))
   }
 
   loadRenderer(win, 'index')
@@ -223,32 +230,32 @@ ipcMain.on('bookmarks:toggle', () => {
   broadcastBookmarks()
 })
 
-ipcMain.on('win:close', () => win?.close())
-ipcMain.on('win:minimize', () => win?.minimize())
-ipcMain.on('win:zoom', () => { if (win) win.isMaximized() ? win.unmaximize() : win.maximize() })
-
 // ---- Menú de perfil (ventana hija con vibrancy nativa) ----
 let menuWin: BrowserWindow | null = null
+const MENU_W = 300
 function openProfileMenu(anchor: MenuAnchor) {
   if (menuWin && !menuWin.isDestroyed()) { menuWin.close(); return }
   const cb = win!.getContentBounds()
   const x = Math.round(cb.x + (anchor?.x ?? 8))
   const y = Math.round(cb.y + (anchor?.y ?? 40) + (anchor?.height ?? 24) + 6)
   menuWin = new BrowserWindow({
-    parent: win!, x, y, width: 300, height: 508,
+    parent: win!, x, y, width: MENU_W, height: 420,
     frame: false, resizable: false, movable: false, minimizable: false, maximizable: false,
     fullscreenable: false, hasShadow: true, roundedCorners: true, show: false,
     backgroundColor: '#00000000',
-    ...(isMac ? { vibrancy: 'menu' as const, visualEffectState: 'active' as const } : {}),
+    ...(isMac ? { vibrancy: 'sidebar' as const, visualEffectState: 'active' as const } : {}),
     webPreferences: { preload: join(__dirname, '../preload/index.js'), contextIsolation: true, sandbox: false }
   })
   loadRenderer(menuWin, 'menu')
-  menuWin.once('ready-to-show', () => { menuWin!.show(); if (isMac) menuWin!.setVibrancy('menu') })
+  menuWin.once('ready-to-show', () => { menuWin!.show(); if (isMac) menuWin!.setVibrancy('sidebar') })
   menuWin.on('blur', () => { if (menuWin && !menuWin.isDestroyed()) menuWin.close() })
   menuWin.on('closed', () => { menuWin = null })
 }
 ipcMain.handle('menu:open', (_e, anchor: MenuAnchor) => openProfileMenu(anchor))
 ipcMain.on('menu:close', () => { if (menuWin && !menuWin.isDestroyed()) menuWin.close() })
+ipcMain.on('menu:resize', (_e, height: number) => {
+  if (menuWin && !menuWin.isDestroyed()) menuWin.setContentSize(MENU_W, Math.max(80, Math.round(height)))
+})
 ipcMain.on('menu:action', (_e, action: string) => {
   if (menuWin && !menuWin.isDestroyed()) menuWin.close()
   if (action === 'new-tab' || action === 'bookmarks') createTab()

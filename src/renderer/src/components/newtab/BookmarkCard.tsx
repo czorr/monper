@@ -1,6 +1,6 @@
 import type { JSX } from 'react'
-import type { Bookmark } from '../../../shared/types'
-import { domainOf } from '../util'
+import type { Bookmark } from '@shared/types'
+import { domainOf } from '@renderer/lib/dom'
 import IconX from '~icons/tabler/x'
 
 interface Props {

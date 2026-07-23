@@ -1,6 +1,6 @@
 import { useEffect, useState, type JSX } from 'react'
-import type { Bookmark } from '../../shared/types'
-import BookmarkCard from './components/BookmarkCard'
+import type { Bookmark } from '@shared/types'
+import BookmarkCard from './BookmarkCard'
 import IconSearch from '~icons/tabler/search'
 
 const { monperTab } = window

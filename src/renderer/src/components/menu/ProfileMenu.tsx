@@ -1,5 +1,5 @@
 import { useEffect, type JSX } from 'react'
-import { Avatar, MenuLabel, MenuDivider, MenuItem } from './components/ui'
+import { Avatar, MenuLabel, MenuDivider, MenuItem } from '@renderer/components/ui'
 import IconChevronRight from '~icons/tabler/chevron-right'
 import IconCheck from '~icons/tabler/check'
 import IconDots from '~icons/tabler/dots'
@@ -40,13 +40,16 @@ export default function ProfileMenu(): JSX.Element {
   }, [])
 
   return (
-    <div id="menu-root">
+    <div id="menu-root" className="p-1.5 overflow-hidden">
       <MenuLabel>Profiles</MenuLabel>
 
-      <button className="m-item" onClick={() => monper.menuAction('switch-profile')}>
+      <button
+        className="flex items-center gap-2.5 h-[34px] px-2.5 rounded-lg text-text w-full text-left hover:bg-bg-hover"
+        onClick={() => monper.menuAction('switch-profile')}
+      >
         <Avatar initials="LC" size="sm" />
-        <span className="name">Luis Carlos Zorrilla</span>
-        <span className="meta">
+        <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap">Luis Carlos Zorrilla</span>
+        <span className="text-text-faint text-[13px] flex items-center gap-2 shrink-0 [&>svg]:w-[15px] [&>svg]:h-[15px]">
           <IconCheck />
           <IconDots />
         </span>

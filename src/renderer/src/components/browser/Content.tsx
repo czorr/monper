@@ -20,9 +20,17 @@ interface Props {
  */
 export default function Content({ expanded, pageColor, children }: Props): JSX.Element {
   return (
-    <div id="content" className={expanded ? 'expanded' : undefined}>
+    <div
+      className={
+        'fixed top-0 right-0 bottom-0 overflow-hidden transition-[left] duration-[180ms] ' +
+        (expanded ? 'left-sidebar rounded-tl-[11px]' : 'left-0')
+      }
+    >
       {children}
-      {expanded && <div className="content-seam" style={{ background: pageColor }} />}
+      {/* franja que rellena las muescas superiores de la vista nativa (ver comentario arriba) */}
+      {expanded && (
+        <div className="absolute left-0 right-0 top-topbar h-3 pointer-events-none" style={{ background: pageColor }} />
+      )}
     </div>
   )
 }

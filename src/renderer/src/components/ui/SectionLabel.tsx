@@ -7,10 +7,14 @@ interface Props {
 
 export default function SectionLabel({ label, action }: Props): JSX.Element {
   return (
-    <div className="section-label">
+    <div className="flex items-center justify-between py-1.5 px-2 pt-2.5 text-[11px] font-semibold text-text-faint tracking-[0.1px]">
       <span>{label}</span>
       {action && (
-        <button className="text-btn" title={action.title} onClick={action.onClick}>
+        <button
+          className="text-[11px] text-text-faint py-0.5 px-1.5 rounded opacity-0 transition-opacity duration-150 group-hover:opacity-100 hover:bg-bg-hover hover:text-text-dim"
+          title={action.title}
+          onClick={action.onClick}
+        >
           {action.label}
         </button>
       )}

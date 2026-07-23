@@ -1,29 +1,22 @@
 import { useEffect, useState, type JSX } from 'react'
-import type { BrowserState } from '../../shared/types'
-import Sidebar from './components/Sidebar'
-import Content from './components/Content'
-import Topbar from './components/Topbar'
+import type { BrowserState } from '@shared/types'
+import Sidebar from '@renderer/components/browser/Sidebar'
+import Content from '@renderer/components/browser/Content'
+import Topbar from '@renderer/components/browser/Topbar'
 
 const EMPTY: BrowserState = { activeId: null, tabs: [], active: null }
 const { monper } = window
+const isMac = monper.platform === 'darwin'
 
 export default function App(): JSX.Element {
   const [state, setState] = useState<BrowserState>(EMPTY)
   const [collapsed, setCollapsed] = useState(false)
   const [editRequest, setEditRequest] = useState(0)
 
-  // Suscripción al estado del navegador + foco de ventana
-  useEffect(() => {
-    const off = monper.onState(setState)
-    if (monper.platform === 'darwin') document.body.classList.add('mac')
-    return off
-  }, [])
+  useEffect(() => monper.onState(setState), [])
 
-  // Colapsar/expandir → clase en body + aviso al main
-  useEffect(() => {
-    document.body.classList.toggle('collapsed', collapsed)
-    monper.setCollapsed(collapsed)
-  }, [collapsed])
+  // Colapsar/expandir → aviso al main para reposicionar la vista nativa
+  useEffect(() => { monper.setCollapsed(collapsed) }, [collapsed])
 
   // Atajos de teclado
   useEffect(() => {
@@ -43,6 +36,7 @@ export default function App(): JSX.Element {
     <>
       <Sidebar
         state={state}
+        collapsed={collapsed}
         onOpenMenu={(r) => monper.openMenu({ x: r.left, y: r.top, width: r.width, height: r.height })}
         onCollapse={() => setCollapsed(true)}
         onNewTab={() => monper.newTab()}
@@ -53,6 +47,7 @@ export default function App(): JSX.Element {
         <Topbar
           active={state.active}
           collapsed={collapsed}
+          mac={isMac}
           editRequest={editRequest}
           onExpand={() => setCollapsed(false)}
           onBack={() => monper.back()}

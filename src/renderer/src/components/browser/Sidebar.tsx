@@ -1,12 +1,13 @@
 import type { JSX } from 'react'
-import type { BrowserState } from '../../../shared/types'
+import type { BrowserState } from '@shared/types'
 import AccountPill from './AccountPill'
 import TabList from './TabList'
-import { IconButton, SectionLabel } from './ui'
-import { PlusIcon, SidebarIcon } from './Icons'
+import { IconButton, SectionLabel } from '@renderer/components/ui'
+import { PlusIcon, SidebarIcon } from '@renderer/lib/icons'
 
 interface Props {
   state: BrowserState
+  collapsed: boolean
   onOpenMenu: (rect: DOMRect) => void
   onCollapse: () => void
   onNewTab: () => void
@@ -14,14 +15,18 @@ interface Props {
   onCloseTab: (id: number) => void
 }
 
-export default function Sidebar({ state, onOpenMenu, onCollapse, onNewTab, onSelectTab, onCloseTab }: Props): JSX.Element {
+const newRowClass =
+  'flex items-center gap-2.5 w-full py-1.5 px-2 rounded-lg text-text-faint text-left text-[14px] ' +
+  'min-h-[30px] hover:bg-bg-hover hover:text-text [&>svg]:opacity-80 [&>svg]:w-[15px] [&>svg]:h-[15px]'
+
+export default function Sidebar({ state, collapsed, onOpenMenu, onCollapse, onNewTab, onSelectTab, onCloseTab }: Props): JSX.Element {
   const closeOthers = (): void => state.tabs.forEach((t) => t.id !== state.activeId && onCloseTab(t.id))
 
   return (
-    <aside id="sidebar">
-      <div className="drag-region" />
+    <aside className={`group fixed inset-y-0 left-0 w-sidebar flex flex-col pb-3 px-2.5 ${collapsed ? 'hidden' : ''}`}>
+      <div className="h-11 shrink-0 relative [-webkit-app-region:drag]" />
 
-      <div className="account">
+      <div className="flex items-center gap-1 pt-1 pr-1 pb-3.5 pl-0 [-webkit-app-region:drag]">
         <AccountPill initials="LC" name="Luis Carlos" onOpen={onOpenMenu} />
         <IconButton variant="subtle" title="Colapsar sidebar (⌘S)" onClick={onCollapse}>
           <SidebarIcon />
@@ -33,7 +38,7 @@ export default function Sidebar({ state, onOpenMenu, onCollapse, onNewTab, onSel
 
       <SectionLabel label="Tabs" action={{ label: 'Clear', title: 'Cerrar todas menos la activa', onClick: closeOthers }} />
 
-      <button className="row new-row" onClick={onNewTab}>
+      <button className={newRowClass} onClick={onNewTab}>
         <PlusIcon />
         <span>New tab</span>
       </button>

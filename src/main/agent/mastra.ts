@@ -2,12 +2,12 @@ import { Agent } from '@mastra/core/agent'
 import { createTool } from '@mastra/core/tools'
 import { z } from 'zod'
 import type { WebContents } from 'electron'
-import type { AIProvider, ChatMessage } from '../../shared/types'
+import type { AIProvider, ChatMessage, ChatStep } from '../../shared/types'
 import * as page from './page'
 
 interface Emit {
   token: (t: string) => void
-  step: (s: { state: string; label: string }) => void
+  step: (s: ChatStep) => void
   error: (m: string) => void
 }
 
@@ -80,19 +80,25 @@ export function buildAgent(provider: AIProvider, key: string, model: string, get
   })
 }
 
-function describe(toolName: string, args: unknown): { state: string; label: string } {
+function describe(toolName: string, args: unknown): ChatStep {
   const a = (args ?? {}) as Record<string, unknown>
   switch (toolName) {
-    case 'read_page': return { state: 'listening', label: 'Leyendo la página' }
-    case 'navigate': return { state: 'searching', label: `Navegando a ${host(String(a.url ?? ''))}` }
-    case 'click': return { state: 'working', label: `Click en el elemento ${a.ref}` }
-    case 'type': return { state: 'composing', label: 'Escribiendo' }
-    case 'scroll': return { state: 'working', label: `Scroll ${a.direction}` }
-    default: return { state: 'working', label: toolName }
+    case 'read_page': return { state: 'listening', label: 'Leyendo la página', kind: 'read' }
+    case 'navigate': {
+      const h = host(String(a.url ?? ''))
+      return { state: 'searching', label: `Navegando a ${h}`, kind: 'navigate', favicon: faviconFor(h) }
+    }
+    case 'click': return { state: 'working', label: `Click en el elemento ${a.ref}`, kind: 'click' }
+    case 'type': return { state: 'composing', label: 'Escribiendo', kind: 'type' }
+    case 'scroll': return { state: 'working', label: `Scroll ${a.direction}`, kind: 'scroll' }
+    default: return { state: 'working', label: toolName, kind: 'generic' }
   }
 }
 function host(u: string): string {
   try { return new URL(/^https?:/.test(u) ? u : 'https://' + u).hostname.replace(/^www\./, '') } catch { return u }
+}
+function faviconFor(h: string): string | undefined {
+  return h ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(h)}&sz=64` : undefined
 }
 
 /** Corre el agente Mastra en streaming, emitiendo tokens (texto) y steps (tool-calls). */

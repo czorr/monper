@@ -80,10 +80,17 @@ export interface ChatMessage {
   content: string
 }
 
+/** Tipo de acción de un paso, para elegir su icono en el chat */
+export type StepKind = 'navigate' | 'read' | 'click' | 'type' | 'scroll' | 'generic'
+
 /** Un paso del agente (acción con herramienta) mostrado en el chat */
 export interface ChatStep {
   state: string // orb state: working | searching | listening | composing | solving | shaping
   label: string
+  /** Acción que representa el paso (define el icono cuando está completado) */
+  kind?: StepKind
+  /** URL de favicon (para pasos de navegación) */
+  favicon?: string
 }
 
 export interface BrowserState {

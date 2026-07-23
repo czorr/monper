@@ -4,7 +4,7 @@ import Sidebar from '@renderer/components/browser/Sidebar'
 import Content from '@renderer/components/browser/Content'
 import Topbar from '@renderer/components/browser/Topbar'
 import ProfileMenu from '@renderer/components/menu/ProfileMenu'
-import ChatPanel from '@renderer/components/chat/ChatPanel'
+import { ChatPanel } from '@renderer/components/chat'
 
 const EMPTY: BrowserState = { activeId: null, tabs: [], active: null }
 const { monper } = window

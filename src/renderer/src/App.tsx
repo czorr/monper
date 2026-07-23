@@ -4,6 +4,7 @@ import Sidebar from '@renderer/components/browser/Sidebar'
 import Content from '@renderer/components/browser/Content'
 import Topbar from '@renderer/components/browser/Topbar'
 import ProfileMenu from '@renderer/components/menu/ProfileMenu'
+import ChatPanel from '@renderer/components/chat/ChatPanel'
 
 const EMPTY: BrowserState = { activeId: null, tabs: [], active: null }
 const { monper } = window
@@ -14,11 +15,13 @@ export default function App(): JSX.Element {
   const [collapsed, setCollapsed] = useState(false)
   const [editRequest, setEditRequest] = useState(0)
   const [menuAnchor, setMenuAnchor] = useState<DOMRect | null>(null)
+  const [chatOpen, setChatOpen] = useState(false)
 
   useEffect(() => monper.onState(setState), [])
 
   // Colapsar/expandir → aviso al main para reposicionar la vista nativa
   useEffect(() => { monper.setCollapsed(collapsed) }, [collapsed])
+  useEffect(() => { monper.setChat(chatOpen) }, [chatOpen])
 
   // Cierra el menú de perfil si se interactúa con la página
   useEffect(() => monper.onPagePointerDown(() => setMenuAnchor(null)), [])
@@ -29,6 +32,7 @@ export default function App(): JSX.Element {
       if (!(e.metaKey || e.ctrlKey)) return
       if (e.altKey && (e.key === 'v' || e.key === '√')) { e.preventDefault(); monper.cycleVibrancy(); return }
       if (e.key === 's') { e.preventDefault(); setCollapsed((c) => !c) }
+      else if (e.key === 'j') { e.preventDefault(); setChatOpen((c) => !c) }
       else if (e.key === 't') { e.preventDefault(); monper.newTab() }
       else if (e.key === 'w') { e.preventDefault(); if (state.activeId != null) monper.closeTab(state.activeId) }
       else if (e.key === 'l') { e.preventDefault(); setEditRequest((n) => n + 1) }
@@ -50,11 +54,12 @@ export default function App(): JSX.Element {
         onCloseTab={(id) => monper.closeTab(id)}
       />
       {menuAnchor && <ProfileMenu anchor={menuAnchor} onClose={() => setMenuAnchor(null)} />}
-      <Content expanded={!collapsed} pageColor={state.active?.pageColor || '#111114'}>
+      <Content leftInset={!collapsed} rightInset={chatOpen} pageColor={state.active?.pageColor || '#111114'}>
         <Topbar
           active={state.active}
           collapsed={collapsed}
           mac={isMac}
+          chatOpen={chatOpen}
           editRequest={editRequest}
           onExpand={() => setCollapsed(false)}
           onBack={() => monper.back()}
@@ -62,8 +67,10 @@ export default function App(): JSX.Element {
           onReload={() => monper.reload()}
           onGo={(url) => monper.go(url)}
           onToggleBookmark={() => monper.toggleBookmark()}
+          onToggleChat={() => setChatOpen((c) => !c)}
         />
       </Content>
+      <ChatPanel open={chatOpen} onClose={() => setChatOpen(false)} />
     </>
   )
 }

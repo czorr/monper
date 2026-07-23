@@ -51,6 +51,7 @@ export interface MonperApi {
   forward: () => void
   reload: () => void
   setCollapsed: (v: boolean) => void
+  setChat: (open: boolean) => void
   onState: (cb: (state: BrowserState) => void) => () => void
   toggleBookmark: () => void
   openDevtools: () => void

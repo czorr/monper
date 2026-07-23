@@ -11,6 +11,7 @@ const api: MonperApi = {
   forward: () => ipcRenderer.invoke('nav:forward'),
   reload: () => ipcRenderer.invoke('nav:reload'),
   setCollapsed: (v) => ipcRenderer.invoke('ui:collapse', v),
+  setChat: (open) => ipcRenderer.invoke('ui:chat', open),
   onState: (cb: (state: BrowserState) => void) => {
     const handler = (_e: unknown, state: BrowserState) => cb(state)
     ipcRenderer.on('state:update', handler)

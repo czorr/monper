@@ -10,6 +10,7 @@
   --color-text-dim: rgba(235, 235, 245, 0.55);
   --color-text-faint: rgba(235, 235, 245, 0.32);
   --spacing-sidebar: 240px;
+  --spacing-panel: 380px;
   --spacing-topbar: 52px;
 }
 

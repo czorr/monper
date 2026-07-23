@@ -1,35 +1,35 @@
 import type { JSX, ReactNode } from 'react'
 
 interface Props {
-  /** true cuando el sidebar está expandido → esquinas redondeadas */
-  expanded: boolean
+  /** sidebar izquierdo expandido → inset y redondeo del lado izquierdo */
+  leftInset: boolean
+  /** panel de chat derecho abierto → inset y redondeo del lado derecho */
+  rightInset: boolean
   /** color seamless de la página, para rellenar la costura con el topbar */
   pageColor: string
   children: ReactNode
 }
 
 /**
- * Área de contenido a la derecha del sidebar: contiene el Topbar (HTML) y,
- * superpuesta, la página nativa (WebContentsView).
+ * Área de contenido entre los sidebars: contiene el Topbar (HTML) y, superpuesta,
+ * la página nativa (WebContentsView).
  *
- * El redondeo nativo (setBorderRadius, en el main) redondea las 4 esquinas por
- * igual. Como sólo queremos las de ABAJO (el topbar da las de arriba), pintamos
- * una franja del color de la página en la costura: la vista nativa se dibuja
- * encima del DOM, así que esa franja sólo asoma por las muescas superiores y
- * las rellena → costura unificada, esquinas inferiores redondeadas.
+ * El redondeo nativo (setBorderRadius, en main) redondea las 4 esquinas por igual;
+ * las de arriba se ocultan con la franja del color de la página (ver abajo). El
+ * topbar (HTML) redondea sus esquinas superiores según qué lado esté abierto.
  */
-export default function Content({ expanded, pageColor, children }: Props): JSX.Element {
+export default function Content({ leftInset, rightInset, pageColor, children }: Props): JSX.Element {
+  const cls = [
+    'fixed top-0 bottom-0 overflow-hidden transition-[left,right] duration-[180ms] ease-[cubic-bezier(0.33,1,0.68,1)]',
+    leftInset ? 'left-sidebar rounded-tl-[16px]' : 'left-0',
+    rightInset ? 'right-panel rounded-tr-[16px]' : 'right-0'
+  ].join(' ')
+
   return (
-    <div
-      className={
-        'fixed top-0 right-0 bottom-0 overflow-hidden transition-[left] duration-[180ms] ease-[cubic-bezier(0.33,1,0.68,1)] ' +
-        (expanded ? 'left-sidebar rounded-tl-[11px]' : 'left-0')
-      }
-    >
+    <div className={cls}>
       {children}
-      {/* franja que rellena las muescas superiores de la vista nativa (ver comentario arriba) */}
-      {expanded && (
-        <div className="absolute left-0 right-0 top-topbar h-3 pointer-events-none" style={{ background: pageColor }} />
+      {(leftInset || rightInset) && (
+        <div className="absolute left-0 right-0 top-topbar h-4 pointer-events-none" style={{ background: pageColor }} />
       )}
     </div>
   )

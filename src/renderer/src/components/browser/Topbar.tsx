@@ -4,11 +4,13 @@ import { luminance } from '@renderer/lib/dom'
 import { IconButton } from '@renderer/components/ui'
 import UrlBar from './UrlBar'
 import { SidebarIcon, BackIcon, ForwardIcon, ReloadIcon, StarIcon } from '@renderer/lib/icons'
+import IconSparkles from '~icons/tabler/sparkles'
 
 interface Props {
   active: ActiveInfo | null
   collapsed: boolean
   mac: boolean
+  chatOpen: boolean
   editRequest: number
   onExpand: () => void
   onBack: () => void
@@ -16,11 +18,12 @@ interface Props {
   onReload: () => void
   onGo: (url: string) => void
   onToggleBookmark: () => void
+  onToggleChat: () => void
 }
 
 const navBtns = 'flex gap-0.5 [-webkit-app-region:no-drag]'
 
-export default function Topbar({ active, collapsed, mac, editRequest, onExpand, onBack, onForward, onReload, onGo, onToggleBookmark }: Props): JSX.Element {
+export default function Topbar({ active, collapsed, mac, chatOpen, editRequest, onExpand, onBack, onForward, onReload, onGo, onToggleBookmark, onToggleChat }: Props): JSX.Element {
   const pageColor = active?.pageColor || '#111114'
   const onLight = luminance(pageColor) > 0.5
   const canBookmark = !!active?.url // vacío en la new-tab page
@@ -53,6 +56,18 @@ export default function Topbar({ active, collapsed, mac, editRequest, onExpand, 
         >
           <StarIcon filled={active?.bookmarked} />
         </IconButton>
+
+        <button
+          onClick={onToggleChat}
+          title="Ask Monper (⌘J)"
+          className={
+            'ml-1 flex items-center gap-1.5 h-8 pl-2.5 pr-3 rounded-full text-[13px] font-medium transition-colors [-webkit-app-region:no-drag] ' +
+            (chatOpen ? 'bg-white/[0.16] text-text' : 'bg-white/[0.08] hover:bg-white/[0.13] text-text-dim hover:text-text')
+          }
+        >
+          <IconSparkles className="w-4 h-4" />
+          Ask Monper
+        </button>
       </div>
     </header>
   )

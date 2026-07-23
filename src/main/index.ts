@@ -5,8 +5,9 @@ import type { BrowserState, Bookmark } from '../shared/types'
 import { initBookmarks, listBookmarks, isBookmarked, addBookmark, removeBookmark, toggleBookmark } from './bookmarks'
 
 const SIDEBAR_WIDTH = 240
+const CHAT_WIDTH = 380 // panel de chat derecho (debe coincidir con --spacing-panel en CSS)
 const TOPBAR_HEIGHT = 52
-const CONTENT_RADIUS = 11 // debe coincidir con #content.expanded en styles.css
+const CONTENT_RADIUS = 16 // debe coincidir con rounded-t[l/r] en Content.tsx
 const PARTITION = 'persist:monper'
 const isMac = process.platform === 'darwin'
 
@@ -49,6 +50,7 @@ const tabs = new Map<number, Tab>()
 let activeId: number | null = null
 let nextId = 1
 let sidebarCollapsed = false
+let chatOpen = false
 
 // Rutas de los renderers (dev usa el server de Vite, prod los archivos build)
 const RENDERER_URL = process.env['ELECTRON_RENDERER_URL']
@@ -60,12 +62,15 @@ function loadRenderer(target: BrowserWindow, page: 'index' | 'menu') {
 function contentBounds() {
   const [w, h] = win!.getContentSize()
   const left = sidebarCollapsed ? 0 : SIDEBAR_WIDTH
-  return { x: left, y: TOPBAR_HEIGHT, width: Math.max(0, w - left), height: Math.max(0, h - TOPBAR_HEIGHT) }
+  const right = chatOpen ? CHAT_WIDTH : 0
+  return { x: left, y: TOPBAR_HEIGHT, width: Math.max(0, w - left - right), height: Math.max(0, h - TOPBAR_HEIGHT) }
 }
 
 function applyRadius(t: Tab) {
   if (typeof t.view.setBorderRadius === 'function') {
-    t.view.setBorderRadius(sidebarCollapsed ? 0 : CONTENT_RADIUS)
+    // Redondea cuando la página está "flotando" (hay sidebar izq y/o panel de chat der).
+    const rounded = !sidebarCollapsed || chatOpen
+    t.view.setBorderRadius(rounded ? CONTENT_RADIUS : 0)
   }
 }
 
@@ -237,6 +242,7 @@ ipcMain.handle('nav:back', () => { const t = activeId != null ? tabs.get(activeI
 ipcMain.handle('nav:forward', () => { const t = activeId != null ? tabs.get(activeId) : null; if (t?.view.webContents.navigationHistory.canGoForward()) t.view.webContents.navigationHistory.goForward() })
 ipcMain.handle('nav:reload', () => { const t = activeId != null ? tabs.get(activeId) : null; t?.view.webContents.reload() })
 ipcMain.handle('ui:collapse', (_e, collapsed: boolean) => { sidebarCollapsed = !!collapsed; animateLayout() })
+ipcMain.handle('ui:chat', (_e, open: boolean) => { chatOpen = !!open; animateLayout() })
 
 // ---- Bookmarks ----
 function broadcastBookmarks(): void {

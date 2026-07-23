@@ -1,7 +1,7 @@
 import { join } from 'path'
 import { app, BrowserWindow, WebContentsView, ipcMain, session } from 'electron'
 import type { IpcMainEvent } from 'electron'
-import type { BrowserState, MenuAnchor, Bookmark } from '../shared/types'
+import type { BrowserState, Bookmark } from '../shared/types'
 import { initBookmarks, listBookmarks, isBookmarked, addBookmark, removeBookmark, toggleBookmark } from './bookmarks'
 
 const SIDEBAR_WIDTH = 240
@@ -54,14 +54,43 @@ function contentBounds() {
   return { x: left, y: TOPBAR_HEIGHT, width: Math.max(0, w - left), height: Math.max(0, h - TOPBAR_HEIGHT) }
 }
 
+function applyRadius(t: Tab) {
+  if (typeof t.view.setBorderRadius === 'function') {
+    t.view.setBorderRadius(sidebarCollapsed ? 0 : CONTENT_RADIUS)
+  }
+}
+
+// Reposiciona la vista activa instantáneamente (resize, cambio de pestaña).
 function layoutActive() {
   const t = activeId != null ? tabs.get(activeId) : null
   if (!t) return
   t.view.setBounds(contentBounds())
-  // Redondea las esquinas de la página nativa cuando el sidebar está expandido.
-  if (typeof t.view.setBorderRadius === 'function') {
-    t.view.setBorderRadius(sidebarCollapsed ? 0 : CONTENT_RADIUS)
-  }
+  applyRadius(t)
+}
+
+// Anima los bounds de la vista nativa en sync con la transición CSS del content
+// (mismo duration/easing) para que topbar y página deslicen como una sola.
+const COLLAPSE_MS = 180
+let collapseAnim: NodeJS.Timeout | null = null
+function animateLayout() {
+  const t = activeId != null ? tabs.get(activeId) : null
+  if (!t) return
+  applyRadius(t)
+  const start = t.view.getBounds()
+  const target = contentBounds()
+  const t0 = Date.now()
+  if (collapseAnim) clearInterval(collapseAnim)
+  collapseAnim = setInterval(() => {
+    const p = Math.min(1, (Date.now() - t0) / COLLAPSE_MS)
+    const e = 1 - Math.pow(1 - p, 3) // easeOutCubic (matchea el cubic-bezier del CSS)
+    t.view.setBounds({
+      x: Math.round(start.x + (target.x - start.x) * e),
+      y: target.y,
+      width: Math.round(start.width + (target.width - start.width) * e),
+      height: target.height
+    })
+    if (p >= 1 && collapseAnim) { clearInterval(collapseAnim); collapseAnim = null }
+  }, 1000 / 60)
 }
 
 function pushState() {
@@ -197,7 +226,7 @@ ipcMain.handle('nav:go', (_e, raw: string) => {
 ipcMain.handle('nav:back', () => { const t = activeId != null ? tabs.get(activeId) : null; if (t?.view.webContents.navigationHistory.canGoBack()) t.view.webContents.navigationHistory.goBack() })
 ipcMain.handle('nav:forward', () => { const t = activeId != null ? tabs.get(activeId) : null; if (t?.view.webContents.navigationHistory.canGoForward()) t.view.webContents.navigationHistory.goForward() })
 ipcMain.handle('nav:reload', () => { const t = activeId != null ? tabs.get(activeId) : null; t?.view.webContents.reload() })
-ipcMain.handle('ui:collapse', (_e, collapsed: boolean) => { sidebarCollapsed = !!collapsed; layoutActive() })
+ipcMain.handle('ui:collapse', (_e, collapsed: boolean) => { sidebarCollapsed = !!collapsed; animateLayout() })
 
 // ---- Bookmarks ----
 function broadcastBookmarks(): void {
@@ -230,36 +259,8 @@ ipcMain.on('bookmarks:toggle', () => {
   broadcastBookmarks()
 })
 
-// ---- Menú de perfil (ventana hija con vibrancy nativa) ----
-let menuWin: BrowserWindow | null = null
-const MENU_W = 300
-function openProfileMenu(anchor: MenuAnchor) {
-  if (menuWin && !menuWin.isDestroyed()) { menuWin.close(); return }
-  const cb = win!.getContentBounds()
-  const x = Math.round(cb.x + (anchor?.x ?? 8))
-  const y = Math.round(cb.y + (anchor?.y ?? 40) + (anchor?.height ?? 24) + 6)
-  menuWin = new BrowserWindow({
-    parent: win!, x, y, width: MENU_W, height: 420,
-    frame: false, resizable: false, movable: false, minimizable: false, maximizable: false,
-    fullscreenable: false, hasShadow: true, roundedCorners: true, show: false,
-    backgroundColor: '#00000000',
-    ...(isMac ? { vibrancy: 'sidebar' as const, visualEffectState: 'active' as const } : {}),
-    webPreferences: { preload: join(__dirname, '../preload/index.js'), contextIsolation: true, sandbox: false }
-  })
-  loadRenderer(menuWin, 'menu')
-  menuWin.once('ready-to-show', () => { menuWin!.show(); if (isMac) menuWin!.setVibrancy('sidebar') })
-  menuWin.on('blur', () => { if (menuWin && !menuWin.isDestroyed()) menuWin.close() })
-  menuWin.on('closed', () => { menuWin = null })
-}
-ipcMain.handle('menu:open', (_e, anchor: MenuAnchor) => openProfileMenu(anchor))
-ipcMain.on('menu:close', () => { if (menuWin && !menuWin.isDestroyed()) menuWin.close() })
-ipcMain.on('menu:resize', (_e, height: number) => {
-  if (menuWin && !menuWin.isDestroyed()) menuWin.setContentSize(MENU_W, Math.max(80, Math.round(height)))
-})
-ipcMain.on('menu:action', (_e, action: string) => {
-  if (menuWin && !menuWin.isDestroyed()) menuWin.close()
-  if (action === 'new-tab' || action === 'bookmarks') createTab()
-})
+// Reenvía la interacción con la página al chrome, para cerrar el menú de perfil.
+ipcMain.on('tab:pointerdown', () => { if (win && !win.isDestroyed()) win.webContents.send('page:pointerdown') })
 
 app.whenReady().then(() => {
   session.fromPartition(PARTITION)

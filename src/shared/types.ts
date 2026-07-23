@@ -52,11 +52,9 @@ export interface MonperApi {
   reload: () => void
   setCollapsed: (v: boolean) => void
   onState: (cb: (state: BrowserState) => void) => () => void
-  openMenu: (anchor: MenuAnchor) => void
-  menuAction: (action: MenuActionName) => void
-  closeMenu: () => void
-  resizeMenu: (height: number) => void
   toggleBookmark: () => void
+  /** Notifica cuando el usuario interactúa con la página (para cerrar overlays) */
+  onPagePointerDown: (cb: () => void) => () => void
 }
 
 /** API expuesta a las páginas internas de contenido (new-tab page) */

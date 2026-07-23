@@ -22,7 +22,7 @@ export default function Content({ expanded, pageColor, children }: Props): JSX.E
   return (
     <div
       className={
-        'fixed top-0 right-0 bottom-0 overflow-hidden transition-[left] duration-[180ms] ' +
+        'fixed top-0 right-0 bottom-0 overflow-hidden transition-[left] duration-[180ms] ease-[cubic-bezier(0.33,1,0.68,1)] ' +
         (expanded ? 'left-sidebar rounded-tl-[11px]' : 'left-0')
       }
     >

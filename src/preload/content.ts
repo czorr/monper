@@ -14,3 +14,6 @@ const api: MonperTabApi = {
 }
 
 contextBridge.exposeInMainWorld('monperTab', api)
+
+// Avisa al chrome cuando se interactúa con la página, para cerrar overlays (menú de perfil).
+window.addEventListener('pointerdown', () => ipcRenderer.send('tab:pointerdown'), true)

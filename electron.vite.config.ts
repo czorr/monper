@@ -44,7 +44,6 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve(__dirname, 'src/renderer/index.html'),
-          menu: resolve(__dirname, 'src/renderer/menu.html'),
           newtab: resolve(__dirname, 'src/renderer/newtab.html')
         }
       }

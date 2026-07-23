@@ -14,62 +14,66 @@ import IconPlus from '~icons/tabler/plus'
 import IconSpy from '~icons/tabler/spy'
 
 const { monper } = window
-
 const Chevron = (): JSX.Element => <IconChevronRight />
 
-const Ic = {
-  newProfile: <IconUserPlus />,
-  bookmarks: <IconBookmark />,
-  downloads: <IconDownload />,
-  extensions: <IconPuzzle />,
-  history: <IconHistory />,
-  developers: <IconCode />,
-  settings: <IconSettings />,
-  newTab: <IconPlus />,
-  incognito: <IconSpy />
+interface Props {
+  /** posición del botón de perfil, para anclar el dropdown debajo */
+  anchor: DOMRect
+  onClose: () => void
 }
 
-export default function ProfileMenu(): JSX.Element {
+export default function ProfileMenu({ anchor, onClose }: Props): JSX.Element {
   useEffect(() => {
-    const onKey = (e: KeyboardEvent): void => { if (e.key === 'Escape') monper.closeMenu() }
+    const onKey = (e: KeyboardEvent): void => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', onKey)
-    // Ajusta la ventana del menú a la altura real del contenido (sin hueco).
-    const root = document.getElementById('menu-root')
-    if (root) monper.resizeMenu(Math.ceil(root.getBoundingClientRect().height))
     return () => window.removeEventListener('keydown', onKey)
-  }, [])
+  }, [onClose])
+
+  const act = (action: string): void => {
+    if (action === 'new-tab' || action === 'bookmarks') monper.newTab()
+    onClose()
+  }
 
   return (
-    <div id="menu-root" className="p-1.5 overflow-hidden">
-      <MenuLabel>Profiles</MenuLabel>
+    <>
+      {/* click-catcher: cierra al hacer click fuera (dentro del chrome) */}
+      <div className="fixed inset-0 z-40" onPointerDown={onClose} />
 
-      <button
-        className="flex items-center gap-2.5 h-[34px] px-2.5 rounded-lg text-text w-full text-left hover:bg-bg-hover"
-        onClick={() => monper.menuAction('switch-profile')}
+      <div
+        className="fixed z-50 w-56 p-1.5 rounded-xl border border-white/10 bg-[#1b1b1f]/85 backdrop-blur-xl shadow-2xl shadow-black/50"
+        style={{ left: anchor.left, top: anchor.bottom + 6 }}
+        onPointerDown={(e) => e.stopPropagation()}
       >
-        <Avatar initials="LC" size="sm" />
-        <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap">Luis Carlos Zorrilla</span>
-        <span className="text-text-faint text-[13px] flex items-center gap-2 shrink-0 [&>svg]:w-[15px] [&>svg]:h-[15px]">
-          <IconCheck />
-          <IconDots />
-        </span>
-      </button>
+        <MenuLabel>Profiles</MenuLabel>
 
-      <MenuItem icon={Ic.newProfile} name="New profile" onClick={() => monper.menuAction('new-profile')} />
+        <button
+          className="flex items-center gap-2.5 h-[34px] px-2.5 rounded-lg text-text w-full text-left hover:bg-bg-hover"
+          onClick={() => act('switch-profile')}
+        >
+          <Avatar initials="LC" size="sm" />
+          <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap">Luis Carlos Zorrilla</span>
+          <span className="text-text-faint text-[13px] flex items-center gap-2 shrink-0 [&>svg]:w-[15px] [&>svg]:h-[15px]">
+            <IconCheck />
+            <IconDots />
+          </span>
+        </button>
 
-      <MenuDivider />
+        <MenuItem icon={<IconUserPlus />} name="New profile" onClick={() => act('new-profile')} />
 
-      <MenuItem icon={Ic.bookmarks} name="Bookmarks" meta={<Chevron />} onClick={() => monper.menuAction('bookmarks')} />
-      <MenuItem icon={Ic.downloads} name="Downloads" meta={<Chevron />} onClick={() => monper.menuAction('downloads')} />
-      <MenuItem icon={Ic.extensions} name="Extensions" meta={<Chevron />} onClick={() => monper.menuAction('extensions')} />
-      <MenuItem icon={Ic.history} name="History" meta={<Chevron />} onClick={() => monper.menuAction('history')} />
-      <MenuItem icon={Ic.developers} name="Developers" meta={<Chevron />} onClick={() => monper.menuAction('developers')} />
-      <MenuItem icon={Ic.settings} name="Settings" meta="⌘," onClick={() => monper.menuAction('settings')} />
+        <MenuDivider />
 
-      <MenuDivider />
+        <MenuItem icon={<IconBookmark />} name="Bookmarks" meta={<Chevron />} onClick={() => act('bookmarks')} />
+        <MenuItem icon={<IconDownload />} name="Downloads" meta={<Chevron />} onClick={() => act('downloads')} />
+        <MenuItem icon={<IconPuzzle />} name="Extensions" meta={<Chevron />} onClick={() => act('extensions')} />
+        <MenuItem icon={<IconHistory />} name="History" meta={<Chevron />} onClick={() => act('history')} />
+        <MenuItem icon={<IconCode />} name="Developers" meta={<Chevron />} onClick={() => act('developers')} />
+        <MenuItem icon={<IconSettings />} name="Settings" meta="⌘," onClick={() => act('settings')} />
 
-      <MenuItem icon={Ic.newTab} name="New Tab" meta="⌘T" onClick={() => monper.menuAction('new-tab')} />
-      <MenuItem icon={Ic.incognito} name="Incognito Window" meta="⇧⌘N" onClick={() => monper.menuAction('incognito')} />
-    </div>
+        <MenuDivider />
+
+        <MenuItem icon={<IconPlus />} name="New Tab" meta="⌘T" onClick={() => act('new-tab')} />
+        <MenuItem icon={<IconSpy />} name="Incognito Window" meta="⇧⌘N" onClick={() => act('incognito')} />
+      </div>
+    </>
   )
 }

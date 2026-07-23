@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { BrowserState, MenuAnchor, MenuActionName, MonperApi } from '../shared/types'
+import type { BrowserState, MonperApi } from '../shared/types'
 
 const api: MonperApi = {
   platform: process.platform,
@@ -16,11 +16,12 @@ const api: MonperApi = {
     ipcRenderer.on('state:update', handler)
     return () => { ipcRenderer.removeListener('state:update', handler) }
   },
-  openMenu: (anchor: MenuAnchor) => ipcRenderer.invoke('menu:open', anchor),
-  menuAction: (action: MenuActionName) => ipcRenderer.send('menu:action', action),
-  closeMenu: () => ipcRenderer.send('menu:close'),
-  resizeMenu: (height) => ipcRenderer.send('menu:resize', height),
-  toggleBookmark: () => ipcRenderer.send('bookmarks:toggle')
+  toggleBookmark: () => ipcRenderer.send('bookmarks:toggle'),
+  onPagePointerDown: (cb: () => void) => {
+    const handler = (): void => cb()
+    ipcRenderer.on('page:pointerdown', handler)
+    return () => { ipcRenderer.removeListener('page:pointerdown', handler) }
+  }
 }
 
 contextBridge.exposeInMainWorld('monper', api)

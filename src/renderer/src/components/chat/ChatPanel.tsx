@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type JSX } from 'react'
 import { ThinkingOrb } from 'thinking-orbs'
-import { EFFORTS, type ChatContext, type ChatMessage, type Effort } from '@shared/types'
+import { EFFORTS, type ChatContext, type ChatMessage, type ChatStep, type Effort } from '@shared/types'
+
+type OrbState = 'working' | 'searching' | 'listening' | 'composing' | 'solving' | 'shaping'
 import IconSparkles from '~icons/tabler/sparkles'
 import IconX from '~icons/tabler/x'
 import IconArrowUp from '~icons/tabler/arrow-up'
@@ -20,6 +22,7 @@ interface Props {
 interface Msg {
   role: 'user' | 'assistant'
   text: string
+  steps?: ChatStep[]
   streaming?: boolean
   error?: boolean
 }
@@ -56,9 +59,10 @@ export default function ChatPanel({ open, onClose }: Props): JSX.Element {
 
   useEffect(() => {
     const offToken = monper.onChatToken((t) => patchLast((m) => ({ ...m, text: m.text + t })))
+    const offStep = monper.onChatStep((s) => patchLast((m) => ({ ...m, steps: [...(m.steps ?? []), s] })))
     const offDone = monper.onChatDone(() => { patchLast((m) => ({ ...m, streaming: false })); setRunning(false) })
     const offErr = monper.onChatError((msg) => { patchLast((m) => ({ ...m, text: msg, error: true, streaming: false })); setRunning(false) })
-    return () => { offToken(); offDone(); offErr() }
+    return () => { offToken(); offStep(); offDone(); offErr() }
   }, [])
 
   const send = (): void => {
@@ -71,7 +75,7 @@ export default function ChatPanel({ open, onClose }: Props): JSX.Element {
 
     setInput('')
     setRunning(true)
-    setMessages((ms) => [...ms, { role: 'user', text }, { role: 'assistant', text: '', streaming: true }])
+    setMessages((ms) => [...ms, { role: 'user', text }, { role: 'assistant', text: '', steps: [], streaming: true }])
     scrollToEnd()
     monper.chatSend(history)
   }
@@ -106,11 +110,31 @@ export default function ChatPanel({ open, onClose }: Props): JSX.Element {
                   {m.text}
                 </div>
               ) : (
-                <div key={i} className="self-start w-full text-[13.5px] leading-relaxed">
-                  {m.streaming && !m.text ? (
-                    <span className="inline-flex"><ThinkingOrb state="working" size={20} theme="dark" /></span>
-                  ) : (
-                    <p className={'whitespace-pre-wrap ' + (m.error ? 'text-red-400' : 'text-text')}>{m.text}</p>
+                <div key={i} className="self-start w-full">
+                  {m.steps && m.steps.length > 0 && (
+                    <div className="flex flex-col gap-1.5 mb-2.5">
+                      {m.steps.map((s, idx) => {
+                        const active = !!m.streaming && !m.text && idx === m.steps!.length - 1
+                        return (
+                          <div key={idx} className="flex items-center gap-2.5">
+                            <span className="w-5 h-5 shrink-0 grid place-items-center">
+                              {active ? (
+                                <ThinkingOrb state={s.state as OrbState} size={20} theme="dark" />
+                              ) : (
+                                <span className="w-1.5 h-1.5 rounded-full bg-text-faint" />
+                              )}
+                            </span>
+                            <span className={active ? 'text-[13px] text-text' : 'text-[13px] text-text-dim'}>{s.label}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                  {m.streaming && !m.text && (!m.steps || m.steps.length === 0) && (
+                    <ThinkingOrb state="working" size={20} theme="dark" />
+                  )}
+                  {m.text && (
+                    <p className={'whitespace-pre-wrap text-[13.5px] leading-relaxed ' + (m.error ? 'text-red-400' : 'text-text')}>{m.text}</p>
                   )}
                 </div>
               )

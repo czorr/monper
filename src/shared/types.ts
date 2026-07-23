@@ -80,6 +80,12 @@ export interface ChatMessage {
   content: string
 }
 
+/** Un paso del agente (acción con herramienta) mostrado en el chat */
+export interface ChatStep {
+  state: string // orb state: working | searching | listening | composing | solving | shaping
+  label: string
+}
+
 export interface BrowserState {
   activeId: number | null
   tabs: TabInfo[]
@@ -127,6 +133,7 @@ export interface MonperApi {
   chatSend: (messages: ChatMessage[]) => void
   chatCancel: () => void
   onChatToken: (cb: (text: string) => void) => () => void
+  onChatStep: (cb: (step: ChatStep) => void) => () => void
   onChatDone: (cb: () => void) => () => void
   onChatError: (cb: (message: string) => void) => () => void
   // ---- Vault (ventana nativa flotante) ----

@@ -4,7 +4,7 @@ import type { IpcMainEvent } from 'electron'
 import type { BrowserState, Bookmark, ChatMessage, MenuAnchor, ProviderKind } from '../shared/types'
 import { initBookmarks, listBookmarks, isBookmarked, addBookmark, removeBookmark, toggleBookmark } from './bookmarks'
 import { initAI, listProviders, addProvider, removeProvider, setActive as setActiveProvider, setModel, setEffort, getChatContext, getActiveProvider } from './ai/store'
-import { streamChat } from './ai/chat'
+import { runMastra } from './agent/mastra'
 import * as vault from './vault/store'
 import type { VaultItemType } from '../shared/vault'
 
@@ -387,12 +387,19 @@ ipcMain.handle('chat:send', async (_e, messages: ChatMessage[]) => {
   if (!active) { win?.webContents.send('chat:error', 'No hay proveedor de IA conectado. Conéctalo en Settings.'); return }
   chatAbort?.abort()
   chatAbort = new AbortController()
-  const send = (ch: string, payload?: unknown) => win?.webContents.send(ch, payload)
+  const send = (ch: string, payload?: unknown): void => { win?.webContents.send(ch, payload) }
   try {
-    await streamChat(active.provider, active.key, active.model, active.effort, messages, {
-      onDelta: (t) => send('chat:token', t),
-      onError: (m) => send('chat:error', m)
-    }, chatAbort.signal)
+    // Agente Mastra con herramientas: opera la pestaña activa (anthropic y openai).
+    await runMastra({
+      provider: active.provider, key: active.key, model: active.model,
+      messages, signal: chatAbort.signal,
+      getWc: () => (activeId != null ? tabs.get(activeId)?.view.webContents : undefined),
+      emit: {
+        token: (tok) => send('chat:token', tok),
+        step: (s) => send('chat:step', s),
+        error: (m) => send('chat:error', m)
+      }
+    })
     send('chat:done')
   } catch (err) {
     if (!(err instanceof Error && err.name === 'AbortError')) {

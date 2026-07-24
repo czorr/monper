@@ -105,6 +105,7 @@ export default function App(): JSX.Element {
           onPeekHide={() => monper.peekMaybeHide()}
           onToggleChat={() => setChatOpen((c) => !c)}
           onOpenVault={(r) => monper.openVault({ x: r.left, y: r.top, width: r.width, height: r.height })}
+          onOpenExtensions={(r) => monper.openExtensions({ x: r.left, y: r.top, width: r.width, height: r.height })}
         />
       </Content>
       {findOpen && <FindBar openRequest={findRequest} onClose={() => setFindOpen(false)} />}

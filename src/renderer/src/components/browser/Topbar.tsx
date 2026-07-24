@@ -8,6 +8,7 @@ import IconLock from '~icons/tabler/lock'
 import IconVolumeOff from '~icons/tabler/volume-off'
 import IconVolume from '~icons/tabler/volume'
 import IconDownload from '~icons/tabler/download'
+import IconPuzzle from '~icons/tabler/puzzle'
 import monperLogo from '@renderer/assets/monper.png'
 
 interface Props {
@@ -25,6 +26,7 @@ interface Props {
   onToggleMute: () => void
   onToggleChat: () => void
   onOpenVault: (rect: DOMRect) => void
+  onOpenExtensions: (rect: DOMRect) => void
   downloads: DownloadsSummary
   onOpenDownloads: () => void
   onPeekShow: (rect: DOMRect) => void
@@ -33,7 +35,7 @@ interface Props {
 
 const navBtns = 'flex gap-0.5 [-webkit-app-region:no-drag]'
 
-export default function Topbar({ active, collapsed, mac, chatOpen, editRequest, onExpand, onBack, onForward, onReload, onGo, onToggleBookmark, onToggleMute, onToggleChat, onOpenVault, downloads, onOpenDownloads, onPeekShow, onPeekHide }: Props): JSX.Element {
+export default function Topbar({ active, collapsed, mac, chatOpen, editRequest, onExpand, onBack, onForward, onReload, onGo, onToggleBookmark, onToggleMute, onToggleChat, onOpenVault, onOpenExtensions, downloads, onOpenDownloads, onPeekShow, onPeekHide }: Props): JSX.Element {
   const pageColor = active?.pageColor || '#111114'
   const onLight = luminance(pageColor) > 0.5
   const canBookmark = !!active?.url // vacío en la new-tab page
@@ -89,6 +91,13 @@ export default function Topbar({ active, collapsed, mac, chatOpen, editRequest, 
           onClick={onToggleBookmark}
         >
           <StarIcon filled={active?.bookmarked} />
+        </IconButton>
+
+        <IconButton
+          title="Extensiones"
+          onClick={(e) => onOpenExtensions((e.currentTarget as HTMLElement).getBoundingClientRect())}
+        >
+          <IconPuzzle />
         </IconButton>
 
         <IconButton

@@ -290,6 +290,8 @@ export interface MonperApi {
   onChatPrefill: (cb: (prompt: string) => void) => () => void
   // ---- Vault (ventana nativa flotante) ----
   openVault: (anchor: MenuAnchor) => void
+  /** Abre el gestor de extensiones (ventana nativa), anclado a su botón del topbar */
+  openExtensions: (anchor: MenuAnchor) => void
   // ---- Menú nativo → acciones de estado del renderer ----
   onMenuAction: (cb: (action: string) => void) => () => void
   // ---- Autocompletado del omnibox ----
@@ -349,6 +351,45 @@ export interface PeekWinApi {
   /** Se dispara cada vez que el peek se muestra (para la animación de entrada). */
   onShown: (cb: () => void) => () => void
   hide: () => void
+}
+
+/** Extensión de Chrome instalada (desempaquetada). */
+export interface ExtensionInfo {
+  /** ruta en disco: es la identidad estable (el id solo existe si está cargada) */
+  path: string
+  id: string
+  name: string
+  version: string
+  description: string
+  /** icono del manifest como data URL */
+  icon: string | null
+  enabled: boolean
+  /** la carpeta ya no existe en disco */
+  missing: boolean
+}
+
+/** Estado que la ventana de extensiones recibe del main. */
+export interface ExtensionsData {
+  items: ExtensionInfo[]
+  /** Si la pestaña activa es una página de extensión de la Chrome Web Store */
+  storeCandidate: { id: string; installed: boolean } | null
+  /** Instalación en curso (para el spinner) */
+  installing: boolean
+}
+
+/** API expuesta a la ventana nativa de extensiones */
+export interface ExtensionsWinApi {
+  onData: (cb: (d: ExtensionsData) => void) => () => void
+  reportHeight: (h: number) => void
+  toggle: (path: string, enabled: boolean) => void
+  remove: (path: string) => void
+  /** Abre la Chrome Web Store en una pestaña nueva */
+  browseStore: () => void
+  /** Instala la extensión de la página actual de la Store */
+  installFromStore: () => void
+  /** Instalar desde una carpeta local (avanzado) */
+  installFromFolder: () => void
+  close: () => void
 }
 
 /** Credencial ofrecida en el quick sign-in (metadata, NUNCA el secreto). */
@@ -430,5 +471,6 @@ declare global {
     profilemenu: ProfileMenuWinApi
     peekbar: PeekWinApi
     signin: SigninWinApi
+    extensionswin: ExtensionsWinApi
   }
 }

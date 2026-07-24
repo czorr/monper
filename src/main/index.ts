@@ -15,6 +15,8 @@ import { initSkills, listSkills, getSkill, toggleSkill, enabledSkills, skillsDir
 import { initProfile, getProfile, setProfile, setAvatar } from './profile'
 import { initDownloads, attachDownloads, listDownloads, activeDownloadCount, cancelDownload, openDownload, showDownload, clearDownloads } from './downloads'
 import { credentialsFor, fillFromVault } from './autofill'
+import { initExtensions, listExtensions, addExtension, setExtensionEnabled, removeExtension as removeExt, installFromStore } from './extensions'
+import { extensionIdFrom } from './crx'
 import { initQuickActions, listQuickActions, saveQuickAction, removeQuickAction, getQuickAction, fillTemplate } from './quickactions'
 import * as vault from './vault/store'
 import type { VaultItemType } from '../shared/vault'
@@ -24,7 +26,7 @@ import appIcon from '../renderer/src/assets/icon.png?asset'
 const SIDEBAR_WIDTH = 240
 const CHAT_WIDTH = 380 // panel de chat derecho (debe coincidir con --spacing-panel en CSS)
 const TOPBAR_HEIGHT = 52
-const CONTENT_RADIUS = 32 // debe coincidir con rounded-t[l/r] en Content.tsx
+const CONTENT_RADIUS = 14 // debe coincidir con rounded-t[l/r] en Content.tsx
 const PARTITION = 'persist:monper'
 const isMac = process.platform === 'darwin'
 
@@ -210,6 +212,8 @@ function pushState() {
   win.webContents.send('state:update', state)
   // El peek renderiza el mismo <Sidebar/> con el mismo preload: recibe el mismo estado.
   if (peekWin && !peekWin.isDestroyed()) peekWin.webContents.send('state:update', state)
+  // La ventana de extensiones detecta si estás en una página de la Store.
+  if (extWin && !extWin.isDestroyed() && extWin.isVisible()) sendExtensions()
 }
 
 /**
@@ -1257,6 +1261,96 @@ function configurePasskeys(): void {
   }
 }
 
+// ---- Extensiones de Chrome (ventana nativa de gestión) ----
+let extWin: BrowserWindow | null = null
+const EXT_W = 320
+const EXT_PAD = 12
+let extAnchor: MenuAnchor | null = null
+let lastExtHeight = 240
+function ensureExtWin(): BrowserWindow {
+  if (extWin && !extWin.isDestroyed()) return extWin
+  extWin = new BrowserWindow({
+    parent: win!, width: EXT_W + EXT_PAD * 2, height: 240, show: false, frame: false, transparent: true,
+    resizable: false, movable: false, minimizable: false, maximizable: false,
+    fullscreenable: false, hasShadow: false, skipTaskbar: true, backgroundColor: '#00000000',
+    webPreferences: { preload: join(__dirname, '../preload/extensionswin.js'), contextIsolation: true, sandbox: false }
+  })
+  extWin.on('blur', () => { if (extWin && !extWin.isDestroyed()) extWin.hide() })
+  extWin.webContents.on('did-finish-load', () => sendExtensions())
+  if (RENDERER_URL) extWin.loadURL(`${RENDERER_URL}/extensions.html`)
+  else extWin.loadFile(join(__dirname, '../renderer/extensions.html'))
+  return extWin
+}
+let extInstalling = false
+function sendExtensions(): void {
+  if (!extWin || extWin.isDestroyed()) return
+  const items = listExtensions()
+  // ¿La pestaña activa es la página de una extensión en la Chrome Web Store?
+  const url = activeId != null ? tabs.get(activeId)?.url ?? '' : ''
+  const isStore = /chromewebstore\.google\.com|chrome\.google\.com\/webstore/.test(url)
+  const id = isStore ? extensionIdFrom(url) : null
+  extWin.webContents.send('extensions:data', {
+    items,
+    storeCandidate: id ? { id, installed: items.some((e) => e.path.endsWith(id)) } : null,
+    installing: extInstalling
+  })
+}
+function placeExtWin(height: number): void {
+  if (!extWin || extWin.isDestroyed() || !extAnchor || !win) return
+  const cb = win.getContentBounds()
+  extWin.setBounds({
+    x: Math.round(cb.x + extAnchor.x + extAnchor.width / 2 - (EXT_W + EXT_PAD * 2) / 2),
+    y: Math.round(cb.y + extAnchor.y + extAnchor.height - 4),
+    width: EXT_W + EXT_PAD * 2, height: Math.max(1, Math.round(height))
+  })
+}
+ipcMain.on('extensions:open', (_e, anchor: MenuAnchor) => {
+  extAnchor = anchor
+  const w = ensureExtWin()
+  sendExtensions()
+  placeExtWin(lastExtHeight) // posiciona antes de mostrar (evita el flash)
+  w.show(); w.focus()
+})
+ipcMain.on('extensions:height', (_e, h: number) => { lastExtHeight = h + EXT_PAD * 2; placeExtWin(lastExtHeight) })
+ipcMain.on('extensions:close', () => { if (extWin && !extWin.isDestroyed()) extWin.hide() })
+ipcMain.on('extensions:toggle', async (_e, path: string, enabled: boolean) => {
+  await setExtensionEnabled(path, enabled)
+  sendExtensions()
+})
+ipcMain.on('extensions:remove', (_e, path: string) => { removeExt(path); sendExtensions() })
+ipcMain.on('extensions:browseStore', () => {
+  createTab('https://chromewebstore.google.com/category/extensions')
+  if (extWin && !extWin.isDestroyed()) extWin.hide()
+})
+ipcMain.on('extensions:installFromStore', async () => {
+  const url = activeId != null ? tabs.get(activeId)?.url ?? '' : ''
+  const parent = extWin && !extWin.isDestroyed() ? extWin : win
+  extInstalling = true; sendExtensions()
+  const r = await installFromStore(url)
+  extInstalling = false; sendExtensions()
+  if (!r.ok && r.error) {
+    dialog.showMessageBox(parent!, {
+      type: 'error', buttons: ['OK'],
+      message: 'No se pudo añadir la extensión',
+      detail: r.error
+    })
+  }
+})
+ipcMain.on('extensions:installFromFolder', async () => {
+  const parent = extWin && !extWin.isDestroyed() ? extWin : win
+  const res = await dialog.showOpenDialog(parent!, {
+    title: 'Elige la carpeta de la extensión',
+    properties: ['openDirectory']
+  })
+  const dir = res.filePaths?.[0]
+  if (!dir) return
+  const r = await addExtension(dir)
+  sendExtensions()
+  if (!r.ok && r.error) {
+    dialog.showMessageBox(parent!, { type: 'error', message: 'No se pudo añadir la extensión', detail: r.error, buttons: ['OK'] })
+  }
+})
+
 // ---- Quick sign-in: "Sign in with…" al detectar un login con credenciales guardadas ----
 let signinWin: BrowserWindow | null = null
 const SIGNIN_W = 360
@@ -1480,6 +1574,8 @@ app.whenReady().then(() => {
   // Descargas: rastreo para el gestor + aviso al agente como steering.
   initDownloads(broadcastDownloads)
   attachDownloads(ses)
+  // Electron no persiste extensiones entre arranques: se recargan aquí.
+  void initExtensions(ses)
   ses.on('will-download', (_e, item) => {
     pushAgentEvent(`Descarga iniciada: ${item.getFilename()} (${item.getURL()})`)
   })

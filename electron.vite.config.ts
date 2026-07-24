@@ -32,7 +32,8 @@ export default defineConfig({
           siteinfo: resolve(__dirname, 'src/preload/siteinfo.ts'),
           profilemenu: resolve(__dirname, 'src/preload/profilemenu.ts'),
           peekbar: resolve(__dirname, 'src/preload/peekbar.ts'),
-          signin: resolve(__dirname, 'src/preload/signin.ts')
+          signin: resolve(__dirname, 'src/preload/signin.ts'),
+          extensionswin: resolve(__dirname, 'src/preload/extensionswin.ts')
         },
         output: cjsOutput
       }
@@ -59,7 +60,8 @@ export default defineConfig({
           siteinfo: resolve(__dirname, 'src/renderer/siteinfo.html'),
           profilemenu: resolve(__dirname, 'src/renderer/profilemenu.html'),
           peekbar: resolve(__dirname, 'src/renderer/peekbar.html'),
-          signin: resolve(__dirname, 'src/renderer/signin.html')
+          signin: resolve(__dirname, 'src/renderer/signin.html'),
+          extensions: resolve(__dirname, 'src/renderer/extensions.html')
         }
       }
     },

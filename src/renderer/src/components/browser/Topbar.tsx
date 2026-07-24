@@ -27,11 +27,13 @@ interface Props {
   onOpenVault: (rect: DOMRect) => void
   downloads: DownloadsSummary
   onOpenDownloads: () => void
+  onPeekShow: (rect: DOMRect) => void
+  onPeekHide: () => void
 }
 
 const navBtns = 'flex gap-0.5 [-webkit-app-region:no-drag]'
 
-export default function Topbar({ active, collapsed, mac, chatOpen, editRequest, onExpand, onBack, onForward, onReload, onGo, onToggleBookmark, onToggleMute, onToggleChat, onOpenVault, downloads, onOpenDownloads }: Props): JSX.Element {
+export default function Topbar({ active, collapsed, mac, chatOpen, editRequest, onExpand, onBack, onForward, onReload, onGo, onToggleBookmark, onToggleMute, onToggleChat, onOpenVault, downloads, onOpenDownloads, onPeekShow, onPeekHide }: Props): JSX.Element {
   const pageColor = active?.pageColor || '#111114'
   const onLight = luminance(pageColor) > 0.5
   const canBookmark = !!active?.url // vacío en la new-tab page
@@ -47,7 +49,14 @@ export default function Topbar({ active, collapsed, mac, chatOpen, editRequest, 
     >
       <div className={navBtns}>
         {collapsed && (
-          <IconButton title="Mostrar sidebar (⌘S)" onClick={onExpand}><SidebarIcon /></IconButton>
+          <IconButton
+            title="Mostrar sidebar (⌘S)"
+            onClick={onExpand}
+            onMouseEnter={(e) => onPeekShow((e.currentTarget as HTMLElement).getBoundingClientRect())}
+            onMouseLeave={onPeekHide}
+          >
+            <SidebarIcon />
+          </IconButton>
         )}
         <IconButton title="Atrás" disabled={!active?.canBack} onClick={onBack}><BackIcon /></IconButton>
         <IconButton title="Adelante" disabled={!active?.canForward} onClick={onForward}><ForwardIcon /></IconButton>

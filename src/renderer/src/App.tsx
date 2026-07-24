@@ -101,6 +101,8 @@ export default function App(): JSX.Element {
           onToggleMute={() => monper.toggleMute()}
           downloads={downloads}
           onOpenDownloads={() => monper.openDownloads()}
+          onPeekShow={(r) => monper.peekShow({ x: r.left, y: r.top, width: r.width, height: r.height })}
+          onPeekHide={() => monper.peekMaybeHide()}
           onToggleChat={() => setChatOpen((c) => !c)}
           onOpenVault={(r) => monper.openVault({ x: r.left, y: r.top, width: r.width, height: r.height })}
         />

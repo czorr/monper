@@ -241,6 +241,9 @@ export interface MonperApi {
   openSiteInfo: (anchor: MenuAnchor) => void
   /** Abre el menú de perfil (ventana nativa), anclado al account pill */
   openProfileMenu: (anchor: MenuAnchor) => void
+  // ---- Peek del sidebar (hover del botón expandir con sidebar colapsado) ----
+  peekShow: (anchor: MenuAnchor) => void
+  peekMaybeHide: () => void
   // ---- Perfil ----
   getProfile: () => Promise<Profile>
   onProfile: (cb: (p: Profile) => void) => () => void
@@ -338,6 +341,24 @@ export const QUICK_ICONS = [
   'bulb', 'world', 'quote', 'code', 'mail', 'search'
 ] as const
 
+/** Datos que el main envía a la ventana del peek. */
+export interface PeekData {
+  tabs: TabInfo[]
+  activeId: number | null
+  bookmarks: Bookmark[]
+  profile: Profile
+}
+
+/** API expuesta a la ventana nativa del "peek" del sidebar */
+export interface PeekWinApi {
+  onState: (cb: (s: PeekData) => void) => () => void
+  reportHeight: (h: number) => void
+  hover: (on: boolean) => void
+  selectTab: (id: number) => void
+  newTab: () => void
+  openBookmark: (id: string) => void
+}
+
 /** API expuesta a la ventana nativa del vault */
 export interface VaultWinApi {
   onItems: (cb: (items: VaultItemMeta[]) => void) => void
@@ -398,5 +419,6 @@ declare global {
     omniwin: OmniWinApi
     siteinfo: SiteInfoWinApi
     profilemenu: ProfileMenuWinApi
+    peekbar: PeekWinApi
   }
 }

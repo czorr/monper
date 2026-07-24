@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync } from 'fs'
 import { app, BrowserWindow, Menu, WebContentsView, clipboard, dialog, ipcMain, nativeImage, net, session, shell } from 'electron'
 import type { MenuItemConstructorOptions } from 'electron'
 import type { IpcMainEvent } from 'electron'
-import type { BrowserState, Bookmark, ChatMessage, MenuAnchor, ProviderKind } from '../shared/types'
+import type { BrowserState, Bookmark, ChatMessage, MenuAnchor, Profile, ProviderKind } from '../shared/types'
 import { initBookmarks, listBookmarks, isBookmarked, addBookmark, removeBookmark, toggleBookmark } from './bookmarks'
 import { initAI, listProviders, addProvider, removeProvider, setActive as setActiveProvider, setModel, setEffort, getChatContext, getActiveProvider } from './ai/store'
 import { runMastra } from './agent/mastra'
@@ -207,6 +207,7 @@ function pushState() {
     controlling: controllingActive()
   }
   win.webContents.send('state:update', state)
+  if (peekWin && !peekWin.isDestroyed() && peekWin.isVisible()) peekWin.webContents.send('peek:state', peekState())
 }
 
 // Muestrea el color visible justo debajo del topbar para fundirlo con la página.
@@ -616,7 +617,7 @@ function createWindow() {
   trackWindow(win)
 
   loadRenderer(win, 'index')
-  win.on('resize', () => { layoutActive(); hideOmni() })
+  win.on('resize', () => { layoutActive(); hideOmni(); if (peekWin && !peekWin.isDestroyed() && peekWin.isVisible()) placePeekWin() })
   win.on('move', hideOmni)
   // ⌘1..9 cuando el foco está en el chrome (no en una página).
   win.webContents.on('before-input-event', (e, input) => {
@@ -628,7 +629,7 @@ function createWindow() {
     if (tabs.size === 0) { if (!restoreSession()) createTab() } else pushState()
     // Pre-carga las ventanas nativas de popups (site-info, menú de perfil) para que
     // abran instantáneo — crearlas en el primer click era lento (2-3 clicks).
-    ensureSiteWin(); ensurePmWin()
+    ensureSiteWin(); ensurePmWin(); ensurePeekWin()
   })
 }
 
@@ -1082,6 +1083,70 @@ ipcMain.on('profilemenu:open', (_e, anchor: MenuAnchor) => {
   w.show(); w.focus()
 })
 ipcMain.on('profilemenu:height', (_e, h: number) => { lastPmHeight = h + PM_PAD * 2; placePmWin(lastPmHeight) })
+
+// ---- Peek del sidebar (hover del botón expandir con el sidebar colapsado) ----
+let peekWin: BrowserWindow | null = null
+const PEEK_W = 250
+const PEEK_MARGIN = 10 // separación del borde/topbar para que se vea flotante
+let peekHideTimer: NodeJS.Timeout | null = null
+function ensurePeekWin(): BrowserWindow {
+  if (peekWin && !peekWin.isDestroyed()) return peekWin
+  peekWin = new BrowserWindow({
+    parent: win!, width: PEEK_W, height: 200, show: false, frame: false, transparent: true,
+    resizable: false, movable: false, minimizable: false, maximizable: false,
+    fullscreenable: false, hasShadow: false, skipTaskbar: true, backgroundColor: '#00000000',
+    webPreferences: { preload: join(__dirname, '../preload/peekbar.js'), contextIsolation: true, sandbox: false }
+  })
+  peekWin.on('blur', hidePeekSoon)
+  if (RENDERER_URL) peekWin.loadURL(`${RENDERER_URL}/peekbar.html`)
+  else peekWin.loadFile(join(__dirname, '../renderer/peekbar.html'))
+  return peekWin
+}
+function peekState(): { tabs: BrowserState['tabs']; activeId: number | null; bookmarks: Bookmark[]; profile: Profile } {
+  const displayUrl = (u: string): string => (isInternal(u) ? '' : u)
+  return {
+    activeId,
+    tabs: [...tabs.entries()].map(([id, tb]) => ({
+      id, url: tb.errorUrl ?? displayUrl(tb.url), title: tb.title || 'Nueva pestaña', favicon: tb.favicon,
+      loading: tb.loading, recording: tb.recording, muted: tb.muted, audible: tb.audible, agent: tb.agent, bookmarkId: tb.bookmarkId
+    })),
+    bookmarks: listBookmarks(),
+    profile: getProfile()
+  }
+}
+function placePeekWin(): void {
+  if (!peekWin || peekWin.isDestroyed() || !win) return
+  const cb = win.getContentBounds()
+  // Del topbar hasta abajo, pegado a la izquierda. El margen "flotante" lo da el padding
+  // del propio panel (CSS); la ventana ocupa desde debajo del topbar hasta el fondo.
+  peekWin.setBounds({
+    x: Math.round(cb.x),
+    y: Math.round(cb.y + TOPBAR_HEIGHT),
+    width: PEEK_W + PEEK_MARGIN * 2,
+    height: Math.max(1, Math.round(cb.height - TOPBAR_HEIGHT))
+  })
+}
+function hidePeek(): void { if (peekHideTimer) { clearTimeout(peekHideTimer); peekHideTimer = null }; if (peekWin && !peekWin.isDestroyed()) peekWin.hide() }
+// Margen amplio para cruzar el hueco entre el botón (topbar) y la ventana del peek.
+function hidePeekSoon(): void { if (peekHideTimer) clearTimeout(peekHideTimer); peekHideTimer = setTimeout(hidePeek, 260) }
+function cancelHidePeek(): void { if (peekHideTimer) { clearTimeout(peekHideTimer); peekHideTimer = null } }
+ipcMain.on('peek:show', () => {
+  cancelHidePeek()
+  if (!sidebarCollapsed) return // solo tiene sentido con el sidebar colapsado
+  const w = ensurePeekWin()
+  w.webContents.send('peek:state', peekState())
+  placePeekWin()
+  w.show() // enfocada: recibe los eventos de hover de forma fiable
+})
+ipcMain.on('peek:maybeHide', hidePeekSoon)
+ipcMain.on('peek:hover', (_e, on: boolean) => { if (on) cancelHidePeek(); else hidePeekSoon() })
+ipcMain.on('peek:select', (_e, id: number) => { if (tabs.has(id)) setActive(id); hidePeek() })
+ipcMain.on('peek:new', () => { createTab(); hidePeek() })
+ipcMain.on('peek:openBookmark', (_e, id: string) => {
+  const b = listBookmarks().find((x) => x.id === id)
+  if (b) { for (const [tid, t] of tabs) { if (t.bookmarkId === id) { setActive(tid); hidePeek(); return } } const nid = createTab(b.url, true); const nt = tabs.get(nid); if (nt) nt.bookmarkId = id }
+  hidePeek()
+})
 ipcMain.on('profilemenu:close', () => { if (pmWin && !pmWin.isDestroyed()) pmWin.hide() })
 ipcMain.on('profilemenu:action', (_e, name: string) => {
   if (pmWin && !pmWin.isDestroyed()) pmWin.hide()

@@ -70,6 +70,8 @@ const api: MonperApi = {
   onChatPrefill: (cb: (p: string) => void) => sub('chat:prefill', (p) => cb(p as string)),
   openVault: (anchor) => ipcRenderer.send('vault:open', anchor),
   openExtensions: (anchor) => ipcRenderer.send('extensions:open', anchor),
+  getPanels: () => ipcRenderer.invoke('ui:panels') as Promise<import('../shared/types').PanelSizes>,
+  setPanel: (which: 'sidebar' | 'chat', width: number) => ipcRenderer.send('ui:setPanel', which, width),
   onMenuAction: (cb: (action: string) => void) => sub('menu:action', (a) => cb(a as string)),
   suggest: (query: string) => ipcRenderer.invoke('omni:suggest', query) as Promise<Suggestion[]>,
   findInPage: (query, opts) => ipcRenderer.send('find:start', query, opts),

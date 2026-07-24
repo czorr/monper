@@ -23,8 +23,12 @@ import type { VaultItemType } from '../shared/vault'
 import type { SiteInfoData, PermKey, PermState } from '../shared/types'
 import appIcon from '../renderer/src/assets/icon.png?asset'
 
-const SIDEBAR_WIDTH = 240
-const CHAT_WIDTH = 380 // panel de chat derecho (debe coincidir con --spacing-panel en CSS)
+// Anchos redimensionables por el usuario (el renderer los aplica a --spacing-sidebar/panel).
+const SIDEBAR_DEFAULT = 240
+const CHAT_DEFAULT = 380
+const PANEL_LIMITS = { sidebarMin: 180, sidebarMax: 420, chatMin: 300, chatMax: 640 }
+let sidebarWidth = SIDEBAR_DEFAULT
+let chatWidth = CHAT_DEFAULT
 const TOPBAR_HEIGHT = 52
 const CONTENT_RADIUS = 14 // debe coincidir con rounded-t[l/r] en Content.tsx
 const PARTITION = 'persist:monper'
@@ -107,8 +111,8 @@ function loadRenderer(target: BrowserWindow, page: 'index' | 'menu') {
 
 function contentBounds() {
   const [w, h] = win!.getContentSize()
-  const left = sidebarCollapsed ? 0 : SIDEBAR_WIDTH
-  const right = chatOpen ? CHAT_WIDTH : 0
+  const left = sidebarCollapsed ? 0 : sidebarWidth
+  const right = chatOpen ? chatWidth : 0
   // Solo si la pestaña activa es la que el agente está controlando, reserva la franja de la leyenda.
   const bottom = controllingActive() ? CONTROLLED_STRIP : 0
   return { x: left, y: TOPBAR_HEIGHT, width: Math.max(0, w - left - right), height: Math.max(0, h - TOPBAR_HEIGHT - bottom) }
@@ -631,7 +635,7 @@ function buildAppMenu(): void {
 function createWindow() {
   win = new BrowserWindow({
     // Tamaño/posición recordados de la sesión anterior (o default centrado).
-    ...initialBounds(1440 + SIDEBAR_WIDTH, 900 + TOPBAR_HEIGHT),
+    ...initialBounds(1440 + SIDEBAR_DEFAULT, 900 + TOPBAR_HEIGHT),
     minWidth: 720,
     minHeight: 480,
     show: false,
@@ -684,6 +688,33 @@ ipcMain.handle('nav:go', (_e, raw: string) => {
 ipcMain.handle('nav:back', () => { const t = activeId != null ? tabs.get(activeId) : null; if (t?.view.webContents.navigationHistory.canGoBack()) t.view.webContents.navigationHistory.goBack() })
 ipcMain.handle('nav:forward', () => { const t = activeId != null ? tabs.get(activeId) : null; if (t?.view.webContents.navigationHistory.canGoForward()) t.view.webContents.navigationHistory.goForward() })
 ipcMain.handle('nav:reload', () => { const t = activeId != null ? tabs.get(activeId) : null; t?.view.webContents.reload() })
+// ---- Anchos de los paneles (redimensionables, persistidos) ----
+function panelsFile(): string { return join(app.getPath('userData'), 'panels.json') }
+function loadPanels(): void {
+  try {
+    const d = JSON.parse(readFileSync(panelsFile(), 'utf-8')) as { sidebar?: number; chat?: number }
+    const L = PANEL_LIMITS
+    if (d.sidebar) sidebarWidth = Math.min(L.sidebarMax, Math.max(L.sidebarMin, Math.round(d.sidebar)))
+    if (d.chat) chatWidth = Math.min(L.chatMax, Math.max(L.chatMin, Math.round(d.chat)))
+  } catch { /* valores por defecto */ }
+}
+let savePanelsTimer: NodeJS.Timeout | null = null
+function savePanels(): void {
+  if (savePanelsTimer) clearTimeout(savePanelsTimer)
+  savePanelsTimer = setTimeout(() => {
+    try { writeFileSync(panelsFile(), JSON.stringify({ sidebar: sidebarWidth, chat: chatWidth })) } catch { /* noop */ }
+  }, 400)
+}
+ipcMain.handle('ui:panels', () => ({ sidebar: sidebarWidth, chat: chatWidth, limits: PANEL_LIMITS }))
+ipcMain.on('ui:setPanel', (_e, which: 'sidebar' | 'chat', width: number) => {
+  const L = PANEL_LIMITS
+  const w = Math.round(width)
+  if (which === 'sidebar') sidebarWidth = Math.min(L.sidebarMax, Math.max(L.sidebarMin, w))
+  else chatWidth = Math.min(L.chatMax, Math.max(L.chatMin, w))
+  layoutTabs() // la vista nativa sigue al arrastre en vivo (sin animación)
+  savePanels()
+})
+
 ipcMain.handle('ui:collapse', (_e, collapsed: boolean) => {
   sidebarCollapsed = !!collapsed
   lastCollapseAt = Date.now() // suprime el hover falso del botón que aparece bajo el cursor
@@ -1585,6 +1616,7 @@ app.whenReady().then(() => {
   initQuickActions()
   initProfile()
   initWindowState()
+  loadPanels()
   vault.initVault()
   initAI()
   createWindow()

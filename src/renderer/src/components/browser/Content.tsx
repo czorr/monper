@@ -10,6 +10,8 @@ interface Props {
   pageColor: string
   /** el agente controla la pestaña activa → leyenda inferior + botón Take over */
   controlling?: boolean
+  /** durante el arrastre del borde: sin transición, para ir en sync con la vista nativa */
+  resizing?: boolean
   onTakeOver?: () => void
   children: ReactNode
 }
@@ -22,9 +24,10 @@ interface Props {
  * las de arriba se ocultan con la franja del color de la página (ver abajo). El
  * topbar (HTML) redondea sus esquinas superiores según qué lado esté abierto.
  */
-export default function Content({ leftInset, rightInset, pageColor, controlling, onTakeOver, children }: Props): JSX.Element {
+export default function Content({ leftInset, rightInset, pageColor, controlling, resizing, onTakeOver, children }: Props): JSX.Element {
   const cls = [
-    'fixed top-0 bottom-0 overflow-hidden transition-[left,right] duration-[180ms] ease-[cubic-bezier(0.33,1,0.68,1)]',
+    'fixed top-0 bottom-0 overflow-hidden',
+    resizing ? '' : 'transition-[left,right] duration-[180ms] ease-[cubic-bezier(0.33,1,0.68,1)]',
     leftInset ? 'left-sidebar rounded-tl-[14px]' : 'left-0',
     rightInset ? 'right-panel rounded-tr-[14px]' : 'right-0'
   ].join(' ')

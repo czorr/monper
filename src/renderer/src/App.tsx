@@ -1,9 +1,10 @@
 import { useEffect, useState, type JSX } from 'react'
-import type { BrowserState, Bookmark, DownloadsSummary, Profile } from '@shared/types'
+import type { BrowserState, Bookmark, DownloadsSummary, PanelSizes, Profile } from '@shared/types'
 import Sidebar from '@renderer/components/browser/Sidebar'
 import Content from '@renderer/components/browser/Content'
 import Topbar from '@renderer/components/browser/Topbar'
 import FindBar from '@renderer/components/browser/FindBar'
+import ResizeHandle from '@renderer/components/browser/ResizeHandle'
 import { ChatPanel } from '@renderer/components/chat'
 
 const EMPTY: BrowserState = { activeId: null, tabs: [], active: null, controlling: false }
@@ -20,12 +21,31 @@ export default function App(): JSX.Element {
   const [downloads, setDownloads] = useState<DownloadsSummary>({ active: 0, total: 0 })
   const [findOpen, setFindOpen] = useState(false)
   const [findRequest, setFindRequest] = useState(0)
+  const [panels, setPanels] = useState<PanelSizes>({
+    sidebar: 240, chat: 380,
+    limits: { sidebarMin: 180, sidebarMax: 420, chatMin: 300, chatMax: 640 }
+  })
+  const [resizing, setResizing] = useState(false)
   const [inject, setInject] = useState<{ text: string; nonce: number } | null>(null)
 
   useEffect(() => monper.onState(setState), [])
   useEffect(() => { monper.getProfile().then(setProfile); return monper.onProfile(setProfile) }, [])
   useEffect(() => { monper.getBookmarks().then(setBookmarks); return monper.onBookmarks(setBookmarks) }, [])
   useEffect(() => { monper.getDownloadsSummary().then(setDownloads); return monper.onDownloadsSummary(setDownloads) }, [])
+  useEffect(() => { monper.getPanels().then(setPanels) }, [])
+
+  // Los anchos viven en las CSS vars que ya usan w-sidebar / left-sidebar / w-panel / right-panel.
+  useEffect(() => {
+    const s = document.documentElement.style
+    s.setProperty('--spacing-sidebar', `${panels.sidebar}px`)
+    s.setProperty('--spacing-panel', `${panels.chat}px`)
+  }, [panels.sidebar, panels.chat])
+
+  const resizePanel = (which: 'sidebar' | 'chat', width: number): void => {
+    setResizing(true)
+    setPanels((p) => ({ ...p, [which]: width }))
+    monper.setPanel(which, width) // el main mueve la vista nativa en vivo
+  }
 
   // Colapsar/expandir → aviso al main para reposicionar la vista nativa
   useEffect(() => { monper.setCollapsed(collapsed) }, [collapsed])
@@ -84,6 +104,7 @@ export default function App(): JSX.Element {
         rightInset={chatOpen}
         pageColor={state.active?.pageColor || '#111114'}
         controlling={state.controlling}
+        resizing={resizing}
         onTakeOver={() => monper.takeOver()}
       >
         <Topbar
@@ -109,7 +130,30 @@ export default function App(): JSX.Element {
         />
       </Content>
       {findOpen && <FindBar openRequest={findRequest} onClose={() => setFindOpen(false)} />}
-      <ChatPanel open={chatOpen} onClose={() => setChatOpen(false)} inject={inject} />
+
+      {/* Bordes arrastrables (con grip centrado) para redimensionar los paneles */}
+      {!collapsed && (
+        <ResizeHandle
+          side="left"
+          width={panels.sidebar}
+          min={panels.limits.sidebarMin}
+          max={panels.limits.sidebarMax}
+          onResize={(w) => resizePanel('sidebar', w)}
+          onEnd={() => setResizing(false)}
+        />
+      )}
+      {chatOpen && (
+        <ResizeHandle
+          side="right"
+          width={panels.chat}
+          min={panels.limits.chatMin}
+          max={panels.limits.chatMax}
+          onResize={(w) => resizePanel('chat', w)}
+          onEnd={() => setResizing(false)}
+        />
+      )}
+
+      <ChatPanel open={chatOpen} onClose={() => setChatOpen(false)} inject={inject} resizing={resizing} />
     </>
   )
 }

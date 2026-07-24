@@ -292,6 +292,9 @@ export interface MonperApi {
   openVault: (anchor: MenuAnchor) => void
   /** Abre el gestor de extensiones (ventana nativa), anclado a su botón del topbar */
   openExtensions: (anchor: MenuAnchor) => void
+  // ---- Anchos de paneles (resize) ----
+  getPanels: () => Promise<PanelSizes>
+  setPanel: (which: 'sidebar' | 'chat', width: number) => void
   // ---- Menú nativo → acciones de estado del renderer ----
   onMenuAction: (cb: (action: string) => void) => () => void
   // ---- Autocompletado del omnibox ----
@@ -351,6 +354,13 @@ export interface PeekWinApi {
   /** Se dispara cada vez que el peek se muestra (para la animación de entrada). */
   onShown: (cb: () => void) => () => void
   hide: () => void
+}
+
+/** Anchos de los paneles laterales (redimensionables por el usuario). */
+export interface PanelSizes {
+  sidebar: number
+  chat: number
+  limits: { sidebarMin: number; sidebarMax: number; chatMin: number; chatMax: number }
 }
 
 /** Extensión de Chrome instalada (desempaquetada). */

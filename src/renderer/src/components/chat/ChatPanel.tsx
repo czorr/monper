@@ -17,9 +17,11 @@ interface Props {
   onClose: () => void
   /** prompt inyectado (p. ej. desde una acción rápida): se envía al cambiar el nonce */
   inject?: { text: string; nonce: number } | null
+  /** durante el arrastre del borde: sin transición (sigue al cursor) */
+  resizing?: boolean
 }
 
-export default function ChatPanel({ open, onClose, inject }: Props): JSX.Element {
+export default function ChatPanel({ open, onClose, inject, resizing }: Props): JSX.Element {
   const [messages, setMessages] = useState<Msg[]>([])
   const [running, setRunning] = useState(false)
   const [ctx, setCtx] = useState<ChatContext>(EMPTY_CTX)
@@ -104,7 +106,7 @@ export default function ChatPanel({ open, onClose, inject }: Props): JSX.Element
     <aside
       className={
         'fixed top-0 right-0 bottom-0 w-panel flex flex-col bg-transparent ' +
-        'transition-transform duration-[180ms] ease-[cubic-bezier(0.33,1,0.68,1)] ' +
+        (resizing ? '' : 'transition-transform duration-[180ms] ease-[cubic-bezier(0.33,1,0.68,1)] ') +
         (open ? 'translate-x-0' : 'translate-x-full')
       }
     >

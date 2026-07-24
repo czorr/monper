@@ -14,27 +14,166 @@ import QuickActionsSection from './QuickActionsSection'
 import RoutinesSection from './RoutinesSection'
 import IconWand from '~icons/tabler/wand'
 import IconClockBolt from '~icons/tabler/clock-bolt'
+import IconPalette from '~icons/tabler/palette'
+import IconCreditCard from '~icons/tabler/credit-card'
+import IconKey from '~icons/tabler/key'
+import IconCode from '~icons/tabler/code'
+import IconFolder from '~icons/tabler/folder'
+import IconBrain from '~icons/tabler/cpu'
+import IconPlug from '~icons/tabler/plug'
+import IconLock from '~icons/tabler/lock-check'
+import IconChart from '~icons/tabler/chart-bar'
+import IconArchive from '~icons/tabler/archive'
+import IconBell from '~icons/tabler/bell'
+import IconPuzzle from '~icons/tabler/puzzle'
+import IconUsers from '~icons/tabler/users'
+import IconMessage from '~icons/tabler/message'
+import IconArrowUpRight from '~icons/tabler/arrow-up-right'
 import { Card, Group, Row, Pill } from './ui'
 
 const { monperTab } = window
 
-type Cat = 'general' | 'account' | 'ai' | 'skills' | 'actions' | 'routines' | 'privacy' | 'about'
+type Cat =
+  | 'general' | 'account' | 'appearance' | 'billing' | 'privacy' | 'password' | 'ai' | 'developers'
+  | 'projects' | 'skills' | 'memory' | 'mcps' | 'permissions' | 'actions' | 'routines'
+  | 'statistics' | 'archived' | 'notifications' | 'about'
 
-const NAV: { id: Cat; label: string; icon: JSX.Element }[] = [
-  { id: 'general', label: 'General', icon: <IconSettings /> },
-  { id: 'account', label: 'Account', icon: <IconUser /> },
-  { id: 'ai', label: 'AI', icon: <IconSparkles /> },
-  { id: 'skills', label: 'Skills', icon: <IconBolt /> },
-  { id: 'actions', label: 'Quick actions', icon: <IconWand /> },
-  { id: 'routines', label: 'Rutinas', icon: <IconClockBolt /> },
-  { id: 'privacy', label: 'Privacy', icon: <IconShield /> },
-  { id: 'about', label: 'About', icon: <IconInfo /> }
+interface NavItem { id: Cat; label: string; icon: JSX.Element; soon?: boolean }
+interface NavGroup { title?: string; items: NavItem[] }
+
+// El nav es también el roadmap: lo que aún no existe queda visible con "Pronto".
+const NAV: NavGroup[] = [
+  {
+    title: 'Settings',
+    items: [
+      { id: 'general', label: 'General', icon: <IconSettings /> },
+      { id: 'account', label: 'Account', icon: <IconUser /> },
+      { id: 'appearance', label: 'Appearance', icon: <IconPalette />, soon: true },
+      { id: 'billing', label: 'Billing', icon: <IconCreditCard />, soon: true },
+      { id: 'privacy', label: 'Privacy', icon: <IconShield /> },
+      { id: 'password', label: 'Password', icon: <IconKey />, soon: true },
+      { id: 'ai', label: 'AI', icon: <IconSparkles /> },
+      { id: 'developers', label: 'Developers', icon: <IconCode />, soon: true },
+      { id: 'about', label: 'About', icon: <IconInfo /> }
+    ]
+  },
+  {
+    title: 'Agent Settings',
+    items: [
+      { id: 'projects', label: 'Projects', icon: <IconFolder />, soon: true },
+      { id: 'skills', label: 'Skills', icon: <IconBolt /> },
+      { id: 'memory', label: 'Memory', icon: <IconBrain />, soon: true },
+      { id: 'mcps', label: 'MCPs', icon: <IconPlug />, soon: true },
+      { id: 'permissions', label: 'Permissions', icon: <IconLock />, soon: true },
+      { id: 'actions', label: 'Quick actions', icon: <IconWand /> },
+      { id: 'routines', label: 'Routines', icon: <IconClockBolt /> },
+      { id: 'statistics', label: 'Statistics', icon: <IconChart />, soon: true },
+      { id: 'archived', label: 'Archived chats', icon: <IconArchive />, soon: true },
+      { id: 'notifications', label: 'Notification Use', icon: <IconBell />, soon: true }
+    ]
+  }
 ]
 
-const CATS: Cat[] = ['general', 'account', 'ai', 'skills', 'privacy', 'about']
+/** Qué será cada sección pendiente: el roadmap, visible dentro del producto. */
+const SOON: Partial<Record<Cat, { title: string; desc: string; bullets: string[] }>> = {
+  appearance: {
+    title: 'Appearance',
+    desc: 'Controla cómo se ve Monper.',
+    bullets: ['Tema claro/oscuro y acentos', 'Densidad de la interfaz', 'Redondeo y material de la ventana']
+  },
+  billing: {
+    title: 'Billing',
+    desc: 'Tu plan y consumo.',
+    bullets: ['Plan y método de pago', 'Consumo de tokens por proveedor', 'Límites de gasto para el agente']
+  },
+  password: {
+    title: 'Password',
+    desc: 'El gestor de contraseñas de Monper, hoy accesible desde el candado del topbar.',
+    bullets: [
+      'Ver y editar credenciales guardadas',
+      'El agente rellena sin ver nunca el secreto',
+      'Importar desde 1Password, Bitwarden o Chrome'
+    ]
+  },
+  developers: {
+    title: 'Developers',
+    desc: 'Herramientas para depurar el navegador y el agente.',
+    bullets: ['Logs del agente y de las tools', 'Inspector del REPL', 'Exportar trazas de una ejecución']
+  },
+  projects: {
+    title: 'Projects',
+    desc: 'Espacios de trabajo con su propio contexto e instrucciones.',
+    bullets: ['Pestañas y chats agrupados por proyecto', 'Instrucciones y skills por proyecto', 'Retomar donde lo dejaste']
+  },
+  memory: {
+    title: 'Memory',
+    desc: 'Memoria semántica de todo lo que lees, local y privada.',
+    bullets: [
+      '“¿Dónde vi ese benchmark?” sobre tu historial',
+      'El agente usa lo que ya leíste como contexto',
+      'Tus páginas guardadas no dan 404 nunca'
+    ]
+  },
+  mcps: {
+    title: 'MCPs',
+    desc: 'Conecta Monper con otras herramientas vía Model Context Protocol.',
+    bullets: [
+      'Usar servidores MCP como tools del agente',
+      'Exponer Monper —con tus sesiones— a Claude, Cursor, etc.',
+      'Permisos por servidor'
+    ]
+  },
+  permissions: {
+    title: 'Permissions',
+    desc: 'Qué puede hacer cada sitio y cada agente.',
+    bullets: ['Cámara, micrófono y ubicación por sitio', 'Acciones que el agente debe confirmar', 'Sitios bloqueados para el agente']
+  },
+  statistics: {
+    title: 'Statistics',
+    desc: 'Qué hizo el agente y cuánto costó.',
+    bullets: ['Ejecuciones, pasos y tokens por día', 'Tareas completadas vs. bloqueadas', 'Sitios donde más falla']
+  },
+  archived: {
+    title: 'Archived chats',
+    desc: 'Historial de conversaciones con el agente.',
+    bullets: ['Buscar en chats pasados', 'Archivar y restaurar', 'Retomar una tarea anterior']
+  },
+  notifications: {
+    title: 'Notification Use',
+    desc: 'Qué te avisa Monper y cómo.',
+    bullets: ['Avisos de rutinas', 'Cuando el agente termina o necesita ayuda', 'Horario sin molestar']
+  }
+}
+
+const ALL_CATS = NAV.flatMap((g) => g.items.map((i) => i.id))
 function initialCat(): Cat {
   const h = window.location.hash.replace(/^#/, '') as Cat
-  return CATS.includes(h) ? h : 'ai'
+  return ALL_CATS.includes(h) ? h : 'ai'
+}
+
+/** Página placeholder que explica qué vendrá en esa sección. */
+function ComingSoon({ cat }: { cat: Cat }): JSX.Element {
+  const s = SOON[cat]
+  if (!s) return <></>
+  return (
+    <>
+      <div className="flex items-center gap-3 mb-3">
+        <h1 className="text-[30px] font-semibold tracking-tight">{s.title}</h1>
+        <span className="px-2 py-1 rounded-md bg-white/[0.08] text-[11.5px] font-medium text-text-dim">Pronto</span>
+      </div>
+      <p className="text-[13.5px] text-text-dim leading-relaxed mb-6">{s.desc}</p>
+      <Card>
+        <div className="p-5 flex flex-col gap-3">
+          {s.bullets.map((b) => (
+            <div key={b} className="flex items-start gap-3 text-[13.5px] text-text-dim">
+              <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-white/25 shrink-0" />
+              {b}
+            </div>
+          ))}
+        </div>
+      </Card>
+    </>
+  )
 }
 
 export default function SettingsPage(): JSX.Element {
@@ -44,20 +183,44 @@ export default function SettingsPage(): JSX.Element {
     <div className="h-full flex bg-bg text-text select-text">
       {/* Sub-nav de settings */}
       <nav className="w-[230px] shrink-0 border-r border-white/[0.06] px-3 py-6 overflow-y-auto [&::-webkit-scrollbar]:w-0">
-        <div className="px-2 mb-2 text-[12px] font-medium text-text-faint">Settings</div>
-        {NAV.map((n) => (
-          <button
-            key={n.id}
-            onClick={() => setCat(n.id)}
-            className={
-              'flex items-center gap-2.5 w-full h-9 px-2.5 rounded-lg text-[14px] text-left transition-colors [&>svg]:w-[18px] [&>svg]:h-[18px] ' +
-              (cat === n.id ? 'bg-white/[0.08] text-text' : 'text-text-dim hover:bg-white/[0.04] hover:text-text')
-            }
-          >
-            {n.icon}
-            {n.label}
-          </button>
+        {NAV.map((group, gi) => (
+          <div key={group.title ?? gi} className={gi > 0 ? 'mt-5 pt-5 border-t border-white/[0.06]' : ''}>
+            {group.title && <div className="px-2 mb-2 text-[12px] font-medium text-text-faint">{group.title}</div>}
+            {group.items.map((n) => (
+              <button
+                key={n.id}
+                onClick={() => setCat(n.id)}
+                className={
+                  'flex items-center gap-2.5 w-full h-9 px-2.5 rounded-lg text-[14px] text-left transition-colors [&>svg]:w-[18px] [&>svg]:h-[18px] [&>svg]:shrink-0 ' +
+                  (cat === n.id ? 'bg-white/[0.08] text-text' : 'text-text-dim hover:bg-white/[0.04] hover:text-text')
+                }
+              >
+                {n.icon}
+                <span className="flex-1 truncate">{n.label}</span>
+                {n.soon && <span className="text-[10px] uppercase tracking-wide text-text-faint shrink-0">Pronto</span>}
+              </button>
+            ))}
+          </div>
         ))}
+
+        {/* Accesos externos */}
+        <div className="mt-5 pt-5 border-t border-white/[0.06]">
+          {[
+            { label: 'Extensions', icon: <IconPuzzle />, onClick: () => monperTab.navigate('https://chromewebstore.google.com/category/extensions') },
+            { label: 'Community', icon: <IconUsers />, onClick: () => monperTab.navigate('https://github.com/czorr/monper') },
+            { label: 'Send feedback', icon: <IconMessage />, onClick: () => monperTab.navigate('https://github.com/czorr/monper/issues/new') }
+          ].map((l) => (
+            <button
+              key={l.label}
+              onClick={l.onClick}
+              className="flex items-center gap-2.5 w-full h-9 px-2.5 rounded-lg text-[14px] text-left text-text-dim hover:bg-white/[0.04] hover:text-text transition-colors [&>svg]:w-[18px] [&>svg]:h-[18px] [&>svg]:shrink-0"
+            >
+              {l.icon}
+              <span className="flex-1 truncate">{l.label}</span>
+              <IconArrowUpRight className="w-3.5 h-3.5 text-text-faint shrink-0" />
+            </button>
+          ))}
+        </div>
       </nav>
 
       {/* Contenido */}
@@ -74,6 +237,7 @@ export default function SettingsPage(): JSX.Element {
               {cat === 'general' && <GeneralPage />}
               {cat === 'privacy' && <PrivacyPage />}
               {cat === 'about' && <AboutPage />}
+              {SOON[cat] && <ComingSoon cat={cat} />}
             </div>
           </div>
         )}

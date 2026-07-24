@@ -43,6 +43,8 @@ const api: MonperApi = {
   toggleMute: (id?: number) => ipcRenderer.send('tab:toggleMute', id),
   openDevtools: () => ipcRenderer.send('ui:devtools'),
   openDownloads: () => ipcRenderer.send('ui:downloads'),
+  onDownloadsSummary: (cb) => sub('downloads:summary', (s) => cb(s as never)),
+  getDownloadsSummary: () => ipcRenderer.invoke('downloads:summary') as Promise<import('../shared/types').DownloadsSummary>,
   openSettings: () => ipcRenderer.send('ui:settings'),
   cycleVibrancy: () => ipcRenderer.send('ui:cycleVibrancy'),
   onPagePointerDown: (cb: () => void) => {

@@ -1,5 +1,5 @@
 import { useEffect, useState, type JSX } from 'react'
-import type { BrowserState, Bookmark, Profile } from '@shared/types'
+import type { BrowserState, Bookmark, DownloadsSummary, Profile } from '@shared/types'
 import Sidebar from '@renderer/components/browser/Sidebar'
 import Content from '@renderer/components/browser/Content'
 import Topbar from '@renderer/components/browser/Topbar'
@@ -16,10 +16,12 @@ export default function App(): JSX.Element {
   const [chatOpen, setChatOpen] = useState(false)
   const [profile, setProfile] = useState<Profile>({ name: 'Tú', initials: '?', avatar: null })
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([])
+  const [downloads, setDownloads] = useState<DownloadsSummary>({ active: 0, total: 0 })
 
   useEffect(() => monper.onState(setState), [])
   useEffect(() => { monper.getProfile().then(setProfile); return monper.onProfile(setProfile) }, [])
   useEffect(() => { monper.getBookmarks().then(setBookmarks); return monper.onBookmarks(setBookmarks) }, [])
+  useEffect(() => { monper.getDownloadsSummary().then(setDownloads); return monper.onDownloadsSummary(setDownloads) }, [])
 
   // Colapsar/expandir → aviso al main para reposicionar la vista nativa
   useEffect(() => { monper.setCollapsed(collapsed) }, [collapsed])
@@ -82,6 +84,8 @@ export default function App(): JSX.Element {
           onGo={(url) => monper.go(url)}
           onToggleBookmark={() => monper.toggleBookmark()}
           onToggleMute={() => monper.toggleMute()}
+          downloads={downloads}
+          onOpenDownloads={() => monper.openDownloads()}
           onToggleChat={() => setChatOpen((c) => !c)}
           onOpenVault={(r) => monper.openVault({ x: r.left, y: r.top, width: r.width, height: r.height })}
         />

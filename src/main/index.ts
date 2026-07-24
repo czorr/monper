@@ -1,6 +1,6 @@
 import { join } from 'path'
 import { readFileSync, writeFileSync } from 'fs'
-import { app, BrowserWindow, Menu, WebContentsView, clipboard, ipcMain, session, shell } from 'electron'
+import { app, BrowserWindow, Menu, WebContentsView, clipboard, ipcMain, session } from 'electron'
 import type { MenuItemConstructorOptions } from 'electron'
 import type { IpcMainEvent } from 'electron'
 import type { BrowserState, Bookmark, ChatMessage, MenuAnchor, ProviderKind } from '../shared/types'
@@ -13,6 +13,7 @@ import { suggest } from './suggest'
 import { initPermissions, attachPermissionHandlers, stateOf, setState, requestedKeys } from './permissions'
 import { initSkills, listSkills, getSkill, toggleSkill, enabledSkills } from './skills'
 import { initProfile, getProfile, setProfile, setAvatar } from './profile'
+import { initDownloads, attachDownloads, listDownloads, activeDownloadCount, cancelDownload, openDownload, showDownload, clearDownloads } from './downloads'
 import * as vault from './vault/store'
 import type { VaultItemType } from '../shared/vault'
 import type { SiteInfoData, PermKey, PermState } from '../shared/types'
@@ -31,7 +32,7 @@ app.setName('Monper')
 
 // Páginas internas servidas por nuestro propio renderer (new-tab, settings…).
 const RENDERER_URL_EARLY = process.env['ELECTRON_RENDERER_URL']
-const INTERNAL_PAGES = ['newtab', 'settings', 'error'] as const
+const INTERNAL_PAGES = ['newtab', 'settings', 'error', 'downloads'] as const
 function internalUrl(page: (typeof INTERNAL_PAGES)[number]): string {
   return RENDERER_URL_EARLY
     ? `${RENDERER_URL_EARLY}/${page}.html`
@@ -123,10 +124,24 @@ function applyRadius(t: Tab) {
  * INSTANTÁNEO — no hay repaint por ocultar/mostrar — y sin sangrado en las esquinas
  * redondeadas: todas se recortan igual y la activa (opaca) tapa a las de atrás.
  */
+// Warm set (LRU): mantenemos vivas y compuestas solo las N pestañas más recientes.
+// Cambiar entre ellas es instantáneo (ya están pintadas); las "frías" se ocultan para
+// que dejen de renderizar (ahorra CPU/GPU/energía). Es la contraparte del keep-alive.
+const WARM_MAX = 8
+const warmOrder: number[] = []
+function touchWarm(id: number): void {
+  const i = warmOrder.indexOf(id)
+  if (i >= 0) warmOrder.splice(i, 1)
+  warmOrder.unshift(id)
+}
+
 function layoutTabs() {
   if (!win || win.isDestroyed()) return
   const cb = contentBounds()
-  for (const [, t] of tabs) {
+  const warm = new Set(warmOrder.slice(0, WARM_MAX))
+  for (const [id, t] of tabs) {
+    // Visible si es la activa o está en el warm set; las demás se ocultan (no renderizan).
+    t.view.setVisible(id === activeId || warm.has(id))
     t.view.setBounds(cb)
     applyRadius(t)
   }
@@ -238,6 +253,7 @@ function createTab(url = newtabUrl(), activate = true, agent = false): number {
   if (typeof view.setBackgroundColor === 'function') view.setBackgroundColor('#ffffff')
   const t: Tab = { view, url, title: '', favicon: null, loading: false, canBack: false, canForward: false, themeColor: null, pageBg: null, recording: false, muted: false, audible: false, agent, bookmarkId: null, errorUrl: null }
   tabs.set(id, t)
+  touchWarm(id) // pestaña recién creada: entra al warm set
   win!.contentView.addChildView(view)
 
   const wc = view.webContents
@@ -313,7 +329,7 @@ function createTab(url = newtabUrl(), activate = true, agent = false): number {
 function setActive(id: number) {
   if (!tabs.has(id)) return
   activeId = id
-  // Todas las vistas siguen vivas; solo traemos la activa al frente → cambio instantáneo.
+  touchWarm(id) // la activa entra/sube en el warm set
   layoutTabs()
   pushState()
   scheduleSaveSession()
@@ -331,6 +347,7 @@ function closeTab(id: number) {
   win!.contentView.removeChildView(t.view)
   t.view.webContents.close()
   tabs.delete(id)
+  const wi = warmOrder.indexOf(id); if (wi >= 0) warmOrder.splice(wi, 1)
   if (activeId === id) {
     const remaining = [...tabs.keys()]
     if (remaining.length) setActive(remaining[remaining.length - 1])
@@ -627,7 +644,23 @@ ipcMain.on('tab:pointerdown', () => { if (win && !win.isDestroyed()) win.webCont
 
 // Acciones del menú de perfil
 ipcMain.on('ui:devtools', () => toggleDevtools())
-ipcMain.on('ui:downloads', () => { shell.openPath(app.getPath('downloads')) })
+// ---- Descargas ----
+function broadcastDownloads(): void {
+  const list = listDownloads()
+  for (const t of tabs.values()) if (t.url.includes('/downloads.html')) t.view.webContents.send('downloads:changed', list)
+  win?.webContents.send('downloads:summary', { active: activeDownloadCount(), total: list.length })
+}
+function openDownloads(): void {
+  for (const [id, t] of tabs) if (t.url.includes('/downloads.html')) { setActive(id); return }
+  createTab(internalUrl('downloads'))
+}
+ipcMain.handle('downloads:list', () => listDownloads())
+ipcMain.handle('downloads:summary', () => ({ active: activeDownloadCount(), total: listDownloads().length }))
+ipcMain.on('downloads:cancel', (_e, id: string) => cancelDownload(id))
+ipcMain.on('downloads:open', (_e, id: string) => openDownload(id))
+ipcMain.on('downloads:show', (_e, id: string) => showDownload(id))
+ipcMain.on('downloads:clear', () => clearDownloads())
+ipcMain.on('ui:downloads', () => openDownloads())
 function openSettings(section?: string): void {
   const hash = section ? `#${section}` : ''
   // Si ya hay una pestaña de settings, actívala (y navega a la sección si se pidió); si no, ábrela.
@@ -881,7 +914,7 @@ ipcMain.on('profilemenu:action', (_e, name: string) => {
     case 'new-tab':
     case 'bookmarks': createTab(); break
     case 'settings': openSettings(); break
-    case 'downloads': shell.openPath(app.getPath('downloads')); break
+    case 'downloads': openDownloads(); break
     case 'developers': toggleDevtools(); break
     // TODO: new-profile, switch-profile, extensions, history, incognito
   }
@@ -1032,7 +1065,9 @@ app.whenReady().then(() => {
       }
     }
   })
-  // Descargas: las notificamos al agente como evento de steering.
+  // Descargas: rastreo para el gestor + aviso al agente como steering.
+  initDownloads(broadcastDownloads)
+  attachDownloads(ses)
   ses.on('will-download', (_e, item) => {
     pushAgentEvent(`Descarga iniciada: ${item.getFilename()} (${item.getURL()})`)
   })

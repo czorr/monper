@@ -1,5 +1,5 @@
 import type { JSX } from 'react'
-import type { ActiveInfo } from '@shared/types'
+import type { ActiveInfo, DownloadsSummary } from '@shared/types'
 import { luminance } from '@renderer/lib/dom'
 import { IconButton } from '@renderer/components/ui'
 import UrlBar from './UrlBar'
@@ -7,6 +7,7 @@ import { SidebarIcon, BackIcon, ForwardIcon, ReloadIcon, StarIcon } from '@rende
 import IconLock from '~icons/tabler/lock'
 import IconVolumeOff from '~icons/tabler/volume-off'
 import IconVolume from '~icons/tabler/volume'
+import IconDownload from '~icons/tabler/download'
 import monperLogo from '@renderer/assets/monper.png'
 
 interface Props {
@@ -24,11 +25,13 @@ interface Props {
   onToggleMute: () => void
   onToggleChat: () => void
   onOpenVault: (rect: DOMRect) => void
+  downloads: DownloadsSummary
+  onOpenDownloads: () => void
 }
 
 const navBtns = 'flex gap-0.5 [-webkit-app-region:no-drag]'
 
-export default function Topbar({ active, collapsed, mac, chatOpen, editRequest, onExpand, onBack, onForward, onReload, onGo, onToggleBookmark, onToggleMute, onToggleChat, onOpenVault }: Props): JSX.Element {
+export default function Topbar({ active, collapsed, mac, chatOpen, editRequest, onExpand, onBack, onForward, onReload, onGo, onToggleBookmark, onToggleMute, onToggleChat, onOpenVault, downloads, onOpenDownloads }: Props): JSX.Element {
   const pageColor = active?.pageColor || '#111114'
   const onLight = luminance(pageColor) > 0.5
   const canBookmark = !!active?.url // vacío en la new-tab page
@@ -57,6 +60,17 @@ export default function Topbar({ active, collapsed, mac, chatOpen, editRequest, 
         {(active?.muted || active?.audible) && (
           <IconButton title={active?.muted ? 'Reactivar sonido' : 'Silenciar sitio'} onClick={onToggleMute}>
             {active?.muted ? <IconVolumeOff /> : <IconVolume />}
+          </IconButton>
+        )}
+
+        {downloads.total > 0 && (
+          <IconButton title="Descargas" onClick={onOpenDownloads}>
+            <span className="relative flex items-center justify-center [&>svg]:w-[18px] [&>svg]:h-[18px]">
+              <IconDownload />
+              {downloads.active > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-emerald-400" />
+              )}
+            </span>
           </IconButton>
         )}
 

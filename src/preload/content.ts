@@ -1,8 +1,18 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { Bookmark, MonperTabApi, Suggestion } from '../shared/types'
+import type { Bookmark, DownloadEntry, MonperTabApi, Suggestion } from '../shared/types'
 
 const api: MonperTabApi = {
   navigate: (url) => ipcRenderer.send('tab:navigate', url),
+  listDownloads: () => ipcRenderer.invoke('downloads:list'),
+  onDownloads: (cb: (list: DownloadEntry[]) => void) => {
+    const handler = (_e: unknown, list: DownloadEntry[]) => cb(list)
+    ipcRenderer.on('downloads:changed', handler)
+    return () => { ipcRenderer.removeListener('downloads:changed', handler) }
+  },
+  cancelDownload: (id) => ipcRenderer.send('downloads:cancel', id),
+  openDownload: (id) => ipcRenderer.send('downloads:open', id),
+  showDownload: (id) => ipcRenderer.send('downloads:show', id),
+  clearDownloads: () => ipcRenderer.send('downloads:clear'),
   getBookmarks: () => ipcRenderer.invoke('bookmarks:list'),
   addBookmark: (b) => ipcRenderer.send('bookmarks:add', b),
   removeBookmark: (id) => ipcRenderer.send('bookmarks:remove', id),

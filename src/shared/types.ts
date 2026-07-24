@@ -259,6 +259,9 @@ export interface MonperApi {
   toggleMute: (id?: number) => void
   openDevtools: () => void
   openDownloads: () => void
+  /** Resumen de descargas (para el icono del topbar) */
+  onDownloadsSummary: (cb: (s: DownloadsSummary) => void) => () => void
+  getDownloadsSummary: () => Promise<DownloadsSummary>
   openSettings: () => void
   /** DEV: cicla materiales de vibrancy en vivo (⌘⌥V) */
   cycleVibrancy: () => void
@@ -287,6 +290,25 @@ export interface MonperApi {
   suggest: (query: string) => Promise<Suggestion[]>
 }
 
+/** Una descarga rastreada por el gestor. */
+export interface DownloadEntry {
+  id: string
+  filename: string
+  url: string
+  savePath: string
+  state: 'progressing' | 'completed' | 'cancelled' | 'interrupted'
+  received: number
+  total: number
+  paused: boolean
+}
+
+export interface DownloadsSummary {
+  /** descargas en curso */
+  active: number
+  /** total en la lista */
+  total: number
+}
+
 /** API expuesta a la ventana nativa del vault */
 export interface VaultWinApi {
   onItems: (cb: (items: VaultItemMeta[]) => void) => void
@@ -297,6 +319,13 @@ export interface VaultWinApi {
 /** API expuesta a las páginas internas de contenido (new-tab page) */
 export interface MonperTabApi {
   navigate: (url: string) => void
+  // ---- Descargas (página interna de downloads) ----
+  listDownloads: () => Promise<DownloadEntry[]>
+  onDownloads: (cb: (list: DownloadEntry[]) => void) => () => void
+  cancelDownload: (id: string) => void
+  openDownload: (id: string) => void
+  showDownload: (id: string) => void
+  clearDownloads: () => void
   getBookmarks: () => Promise<Bookmark[]>
   addBookmark: (b: Omit<Bookmark, 'id'>) => void
   removeBookmark: (id: string) => void

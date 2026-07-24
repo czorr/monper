@@ -3,10 +3,10 @@ import { readFileSync, writeFileSync } from 'fs'
 import { app, BrowserWindow, Menu, WebContentsView, clipboard, dialog, ipcMain, nativeImage, net, screen, session, shell } from 'electron'
 import type { MenuItemConstructorOptions } from 'electron'
 import type { IpcMainEvent } from 'electron'
-import type { BrowserState, Bookmark, ChatMessage, MenuAnchor, Profile, ProviderKind } from '../shared/types'
+import type { BrowserState, Bookmark, ChatMessage, MenuAnchor, ProviderKind } from '../shared/types'
 import { initBookmarks, listBookmarks, isBookmarked, addBookmark, removeBookmark, toggleBookmark } from './bookmarks'
 import { initAI, listProviders, addProvider, removeProvider, setActive as setActiveProvider, setModel, setEffort, getChatContext, getActiveProvider } from './ai/store'
-import { runMastra } from './agent/mastra'
+import { runMastra, errText } from './agent/mastra'
 import { initHistory, recordVisit, updateMeta } from './history'
 import { initWindowState, initialBounds, shouldMaximize, trackWindow } from './windowState'
 import { suggest } from './suggest'
@@ -208,7 +208,8 @@ function pushState() {
     controlling: controllingActive()
   }
   win.webContents.send('state:update', state)
-  if (peekWin && !peekWin.isDestroyed() && peekWin.isVisible()) peekWin.webContents.send('peek:state', peekState())
+  // El peek renderiza el mismo <Sidebar/> con el mismo preload: recibe el mismo estado.
+  if (peekWin && !peekWin.isDestroyed()) peekWin.webContents.send('state:update', state)
 }
 
 /**
@@ -667,10 +668,10 @@ function createWindow() {
 }
 
 // ---- IPC ----
-ipcMain.handle('tabs:new', () => createTab())
+ipcMain.handle('tabs:new', () => { hidePeek(); return createTab() })
 ipcMain.on('tabs:reorder', (_e, orderedIds: number[]) => reorderTabs(orderedIds))
 ipcMain.handle('tabs:close', (_e, id: number) => closeTab(id))
-ipcMain.handle('tabs:select', (_e, id: number) => setActive(id))
+ipcMain.handle('tabs:select', (_e, id: number) => { hidePeek(); setActive(id) })
 ipcMain.handle('nav:go', (_e, raw: string) => {
   const url = normalizeUrl(raw)
   const t = activeId != null ? tabs.get(activeId) : null
@@ -679,7 +680,12 @@ ipcMain.handle('nav:go', (_e, raw: string) => {
 ipcMain.handle('nav:back', () => { const t = activeId != null ? tabs.get(activeId) : null; if (t?.view.webContents.navigationHistory.canGoBack()) t.view.webContents.navigationHistory.goBack() })
 ipcMain.handle('nav:forward', () => { const t = activeId != null ? tabs.get(activeId) : null; if (t?.view.webContents.navigationHistory.canGoForward()) t.view.webContents.navigationHistory.goForward() })
 ipcMain.handle('nav:reload', () => { const t = activeId != null ? tabs.get(activeId) : null; t?.view.webContents.reload() })
-ipcMain.handle('ui:collapse', (_e, collapsed: boolean) => { sidebarCollapsed = !!collapsed; if (!collapsed) hidePeek(); animateLayout() })
+ipcMain.handle('ui:collapse', (_e, collapsed: boolean) => {
+  sidebarCollapsed = !!collapsed
+  lastCollapseAt = Date.now() // suprime el hover falso del botón que aparece bajo el cursor
+  hidePeek()
+  animateLayout()
+})
 ipcMain.handle('ui:chat', (_e, open: boolean) => { chatOpen = !!open; animateLayout() })
 // Al editar la URL, oculta la vista nativa (que se dibuja encima del DOM) para que
 // el dropdown del omnibox sea visible; se restaura al cerrar el editor.
@@ -695,6 +701,7 @@ function broadcastBookmarks(): void {
     if (isNewtab(t.url)) t.view.webContents.send('bookmarks:changed', list)
   }
   win?.webContents.send('bookmarks:changed', list) // sidebar del chrome
+  if (peekWin && !peekWin.isDestroyed()) peekWin.webContents.send('bookmarks:changed', list)
   pushState() // refresca el estado "bookmarked" del chrome
 }
 function navigateActive(raw: string): void {
@@ -716,6 +723,7 @@ ipcMain.on('tab:navigate', (_e: IpcMainEvent, url: string) => navigateActive(url
 ipcMain.on('bookmarks:open', (_e: IpcMainEvent, id: string) => {
   const b = listBookmarks().find((x) => x.id === id)
   if (!b) return
+  hidePeek()
   // Si ya hay una pestaña viva para este bookmark, actívala; si no, crea una ligada a su slot.
   for (const [tid, t] of tabs) if (t.bookmarkId === id) { setActive(tid); return }
   const tabId = createTab(b.url, true)
@@ -856,6 +864,7 @@ ipcMain.on('skills:openFolder', (e) => { if (isInternalSender(e.senderFrame?.url
 function broadcastProfile(): void {
   const p = getProfile()
   win?.webContents.send('profile:changed', p)
+  if (peekWin && !peekWin.isDestroyed()) peekWin.webContents.send('profile:changed', p)
   if (pmWin && !pmWin.isDestroyed()) pmWin.webContents.send('profilemenu:profile', p)
 }
 ipcMain.handle('profile:get', () => getProfile())
@@ -1126,6 +1135,8 @@ const PEEK_GRACE = 240 // coyote time al salir (ms)
 let peekButtonRect: { x: number; y: number; w: number; h: number } | null = null
 let peekPoll: NodeJS.Timeout | null = null
 let peekLastInside = 0
+let peekOpenTimer: NodeJS.Timeout | null = null
+let lastCollapseAt = 0
 function ensurePeekWin(): BrowserWindow {
   if (peekWin && !peekWin.isDestroyed()) return peekWin
   peekWin = new BrowserWindow({
@@ -1138,18 +1149,6 @@ function ensurePeekWin(): BrowserWindow {
   if (RENDERER_URL) peekWin.loadURL(`${RENDERER_URL}/peekbar.html`)
   else peekWin.loadFile(join(__dirname, '../renderer/peekbar.html'))
   return peekWin
-}
-function peekState(): { tabs: BrowserState['tabs']; activeId: number | null; bookmarks: Bookmark[]; profile: Profile } {
-  const displayUrl = (u: string): string => (isInternal(u) ? '' : u)
-  return {
-    activeId,
-    tabs: [...tabs.entries()].map(([id, tb]) => ({
-      id, url: tb.errorUrl ?? displayUrl(tb.url), title: tb.title || 'Nueva pestaña', favicon: tb.favicon,
-      loading: tb.loading, recording: tb.recording, muted: tb.muted, audible: tb.audible, agent: tb.agent, bookmarkId: tb.bookmarkId
-    })),
-    bookmarks: listBookmarks(),
-    profile: getProfile()
-  }
 }
 function placePeekWin(): void {
   if (!peekWin || peekWin.isDestroyed() || !win) return
@@ -1164,8 +1163,12 @@ function placePeekWin(): void {
   })
 }
 function hidePeek(): void {
+  if (peekOpenTimer) { clearTimeout(peekOpenTimer); peekOpenTimer = null }
   if (peekPoll) { clearInterval(peekPoll); peekPoll = null }
-  if (peekWin && !peekWin.isDestroyed()) peekWin.hide()
+  if (!peekWin || peekWin.isDestroyed() || !peekWin.isVisible()) return
+  const hadFocus = peekWin.isFocused()
+  peekWin.hide()
+  if (hadFocus) win?.focus() // devuelve el foco al navegador
 }
 // El cursor está sobre el botón o el panel (con margen para cruzar el hueco entre ambos).
 function cursorNearPeek(px: number, py: number): boolean {
@@ -1185,22 +1188,43 @@ function startPeekPoll(): void {
   peekPoll = setInterval(() => {
     const p = screen.getCursorScreenPoint()
     if (cursorNearPeek(p.x, p.y)) peekLastInside = Date.now()
-    else if (Date.now() - peekLastInside > PEEK_GRACE) hidePeek()
-  }, 80)
+    else if (Date.now() - peekLastInside > PEEK_GRACE) { hidePeek(); return }
+    // Al ENTRAR al panel lo activamos: macOS no entrega mouse-move a ventanas inactivas,
+    // y sin eso el :hover del CSS (close buttons, filas) no funciona. Se muestra inactivo
+    // para no robar el click del botón de expandir, y se activa solo al entrar en él.
+    if (peekWin && !peekWin.isDestroyed() && peekWin.isVisible() && !peekWin.isFocused()) {
+      const b = peekWin.getBounds()
+      if (p.x >= b.x && p.x <= b.x + b.width && p.y >= b.y && p.y <= b.y + b.height) peekWin.focus()
+    }
+  }, 60)
 }
-ipcMain.on('peek:show', (_e, anchor: MenuAnchor) => {
-  if (!sidebarCollapsed) return // solo tiene sentido con el sidebar colapsado
-  const cb = win!.getContentBounds()
-  peekButtonRect = { x: cb.x + anchor.x, y: cb.y + anchor.y, w: anchor.width, h: anchor.height }
+function showPeekNow(): void {
   const w = ensurePeekWin()
-  w.webContents.send('peek:state', peekState())
+  pushState() // refresca el <Sidebar/> del peek con el estado actual
   placePeekWin()
   w.showInactive() // NO roba el foco: el botón de expandir sigue clickeable y sin resaltar items
   w.webContents.send('peek:shown') // dispara la animación de entrada
   startPeekPoll()
+}
+ipcMain.on('peek:show', (_e, anchor: MenuAnchor) => {
+  if (!sidebarCollapsed) return // solo tiene sentido con el sidebar colapsado
+  // Al colapsar, el botón de expandir aparece justo debajo del cursor y dispara un
+  // mouseenter falso: ignoramos el hover inmediatamente después de colapsar.
+  if (Date.now() - lastCollapseAt < 600) return
+  const cb = win!.getContentBounds()
+  peekButtonRect = { x: cb.x + anchor.x, y: cb.y + anchor.y, w: anchor.width, h: anchor.height }
+  if (peekWin && !peekWin.isDestroyed() && peekWin.isVisible()) { startPeekPoll(); return }
+  // Hover intent: solo abrir si el cursor sigue sobre el botón tras un instante.
+  if (peekOpenTimer) clearTimeout(peekOpenTimer)
+  peekOpenTimer = setTimeout(() => {
+    peekOpenTimer = null
+    const r = peekButtonRect
+    if (!r || !sidebarCollapsed) return
+    const p = screen.getCursorScreenPoint()
+    if (p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h) showPeekNow()
+  }, 180)
 })
-ipcMain.on('peek:select', (_e, id: number) => { if (tabs.has(id)) setActive(id); hidePeek() })
-ipcMain.on('peek:new', () => { createTab(); hidePeek() })
+ipcMain.on('peek:hide', hidePeek)
 /**
  * Passkeys (WebAuthn) con el autenticador de plataforma de macOS (Touch ID / Secure Enclave).
  * Sin esto, `isUserVerifyingPlatformAuthenticatorAvailable()` devuelve false y los sitios
@@ -1288,11 +1312,6 @@ ipcMain.on('signin:dismiss', () => {
   hideSignin()
 })
 
-ipcMain.on('peek:openBookmark', (_e, id: string) => {
-  const b = listBookmarks().find((x) => x.id === id)
-  if (b) { for (const [tid, t] of tabs) { if (t.bookmarkId === id) { setActive(tid); hidePeek(); return } } const nid = createTab(b.url, true); const nt = tabs.get(nid); if (nt) nt.bookmarkId = id }
-  hidePeek()
-})
 ipcMain.on('profilemenu:close', () => { if (pmWin && !pmWin.isDestroyed()) pmWin.hide() })
 ipcMain.on('profilemenu:action', (_e, name: string) => {
   if (pmWin && !pmWin.isDestroyed()) pmWin.hide()
@@ -1406,7 +1425,8 @@ ipcMain.handle('chat:send', async (_e, messages: ChatMessage[]) => {
     send('chat:done')
   } catch (err) {
     if (!(err instanceof Error && err.name === 'AbortError')) {
-      send('chat:error', err instanceof Error ? err.message : String(err))
+      console.error('[agent] turno falló:', err)
+      send('chat:error', errText(err))
     }
   } finally {
     setAgentRunning(false)

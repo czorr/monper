@@ -9,7 +9,7 @@ import * as page from './page'
 import { runRepl } from './repl'
 
 /** Tope de iteraciones del agente (Mastra default = 5, demasiado bajo para flujos multi-paso). */
-const MAX_STEPS = 40
+const MAX_STEPS = 60
 
 interface Emit {
   token: (t: string) => void
@@ -79,6 +79,39 @@ function buildModel(provider: AIProvider, key: string, model: string) {
 // Envuelve un handler de tool: nunca lanza; devuelve { error } para que el modelo reaccione y reintente.
 function safe<T>(fn: () => Promise<T>): Promise<T | { error: string }> {
   return fn().catch((e) => ({ error: e instanceof Error ? e.message : String(e) }))
+}
+
+/**
+ * Repara surrogates huérfanos (media pareja UTF-16). Truncar con slice() a la mitad de
+ * un emoji deja un surrogate suelto y el JSON del request se vuelve inválido:
+ * la API responde 400 "no low surrogate in string". Pasa con texto de páginas y
+ * resultados de tools, que sí recortamos.
+ */
+function wellFormed(s: string): string {
+  const f = (s as string & { toWellFormed?: () => string }).toWellFormed
+  if (typeof f === 'function') return f.call(s)
+  return s.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '�')
+}
+/** Aplica wellFormed a todos los strings de una estructura (resultados de tools). */
+function deepClean<T>(v: T): T {
+  if (typeof v === 'string') return wellFormed(v) as unknown as T
+  if (Array.isArray(v)) return v.map(deepClean) as unknown as T
+  if (v && typeof v === 'object') {
+    const out: Record<string, unknown> = {}
+    for (const [k, val] of Object.entries(v as Record<string, unknown>)) out[k] = deepClean(val)
+    return out as unknown as T
+  }
+  return v
+}
+/** Sanea la salida de TODAS las tools en un solo punto (evita el 400 por surrogates). */
+function sanitizeTools<T extends Record<string, unknown>>(tools: T): T {
+  for (const t of Object.values(tools)) {
+    const tool = t as { execute?: (...a: unknown[]) => Promise<unknown> }
+    const orig = tool.execute
+    if (typeof orig !== 'function') continue
+    tool.execute = async (...args: unknown[]) => deepClean(await orig(...args))
+  }
+  return tools
 }
 
 // Las page-ops como tools de Mastra (Zod). Operan sobre la pestaña activa vía BrowserControl.
@@ -293,7 +326,7 @@ function buildTools(ctrl: BrowserControl, settings: SettingsControl, skills: Ski
       }
     })
   }
-  return tools
+  return sanitizeTools(tools)
 }
 
 function skillsSection(skills: SkillDetail[]): string {
@@ -306,7 +339,7 @@ export function buildAgent(provider: AIProvider, key: string, model: string, ctr
   return new Agent({
     id: 'monper-agent',
     name: 'Monper',
-    instructions: SYSTEM + skillsSection(skills),
+    instructions: wellFormed(SYSTEM + skillsSection(skills)), // las skills traen emojis
     model: buildModel(provider, key, model),
     tools: buildTools(ctrl, settings, skills)
   })
@@ -365,7 +398,9 @@ function compactHistory(messages: ChatMessage[], keep = 10): ChatMessage[] {
 
 // Convierte un ChatMessage a ModelMessage. Si el usuario adjuntó imágenes, arma contenido
 // multimodal ({type:'text'} + {type:'image', image: dataUrl}); si no, deja el string tal cual.
-function toModelMessage(m: ChatMessage): { role: string; content: unknown } {
+function toModelMessage(msg: ChatMessage): { role: string; content: unknown } {
+  // Sanea surrogates huérfanos (el historial también se recorta en compactHistory).
+  const m: ChatMessage = { ...msg, content: wellFormed(msg.content ?? '') }
   if (m.role === 'user' && m.attachments?.length) {
     const parts: unknown[] = []
     if (m.content) parts.push({ type: 'text', text: m.content })
@@ -391,18 +426,60 @@ export async function runMastra(opts: {
   const messages = compactHistory(opts.messages).map(toModelMessage)
   const out = await agent.stream(messages as Parameters<typeof agent.stream>[0], { maxSteps: MAX_STEPS })
   let gotText = false
+  let steps = 0
+  let finishReason = ''
+  let streamError = ''
   for await (const chunk of out.fullStream) {
     if (opts.signal.aborted) return
     if (chunk.type === 'text-delta') { gotText = true; opts.emit.token(chunk.payload.text) }
-    else if (chunk.type === 'tool-call') opts.emit.step(describe(chunk.payload.toolName, chunk.payload.args))
+    else if (chunk.type === 'tool-call') { steps++; opts.emit.step(describe(chunk.payload.toolName, chunk.payload.args)) }
     else if (chunk.type === 'tool-result' && chunk.payload.toolName === 'screenshot') {
       // Adjunta la captura al step de screenshot para renderizarla en el chat.
       const r = chunk.payload.result as page.MediaResult | { error: string } | undefined
       if (r && !('error' in r) && r.data) opts.emit.stepImage(`data:${r.mediaType};base64,${r.data}`)
     }
+    // Antes ignorábamos estos chunks y CUALQUIER fallo se reportaba como "límite de pasos".
+    else if (chunk.type === 'error') streamError = errText((chunk.payload as { error?: unknown }).error)
+    else if (chunk.type === 'tool-error') streamError = errText((chunk.payload as { error?: unknown }).error)
+    else if (chunk.type === 'finish') {
+      const r = (chunk.payload as { stepResult?: { reason?: string } }).stepResult?.reason
+      if (r) finishReason = r
+    }
   }
-  // El agente se detuvo sin dar una respuesta (típicamente al topar maxSteps): no dejes el turno mudo.
-  if (!gotText && !opts.signal.aborted) {
-    opts.emit.token('Me detuve antes de completar la tarea (límite de pasos alcanzado). ¿Quieres que continúe?')
+  if (gotText || opts.signal.aborted) return
+  // Sin texto: explica la causa REAL en vez de asumir el límite de pasos.
+  console.log('[agent] turno sin texto —', { steps, finishReason, streamError })
+  if (streamError) { opts.emit.error(streamError); return }
+  if (finishReason === 'length') {
+    opts.emit.token('Me quedé sin espacio de respuesta (límite de tokens). Pídeme algo más acotado o dime que continúe.')
+  } else if (steps >= MAX_STEPS) {
+    opts.emit.token(`Alcancé el límite de ${MAX_STEPS} pasos sin terminar. ¿Quieres que continúe?`)
+  } else {
+    opts.emit.token(`El modelo terminó sin responder${finishReason ? ` (motivo: ${finishReason})` : ''}. Intenta reformular la petición.`)
   }
+}
+
+/** Extrae un mensaje legible de un error del proveedor (SDK, HTTP o anidado). */
+export function errText(e: unknown): string {
+  if (!e) return 'Error desconocido del modelo.'
+  if (typeof e === 'string') return e
+  const o = e as {
+    message?: unknown; name?: unknown; status?: unknown; statusCode?: unknown
+    error?: { message?: unknown }; responseBody?: unknown; cause?: unknown; data?: unknown
+  }
+  const parts: string[] = []
+  const status = o.status ?? o.statusCode
+  if (status != null) parts.push(`HTTP ${String(status)}`)
+  const msg =
+    (typeof o.error?.message === 'string' && o.error.message) ||
+    (e instanceof Error && e.message) ||
+    (typeof o.message === 'string' && o.message) ||
+    ''
+  if (msg) parts.push(msg)
+  // Los SDK suelen traer el detalle útil en el cuerpo de la respuesta.
+  const body = o.responseBody ?? o.data
+  if (body && parts.length < 2) parts.push(typeof body === 'string' ? body.slice(0, 400) : JSON.stringify(body).slice(0, 400))
+  if (!parts.length && o.cause) return errText(o.cause)
+  if (!parts.length) { try { return JSON.stringify(e).slice(0, 500) } catch { return String(e) } }
+  return parts.join(' — ')
 }

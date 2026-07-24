@@ -341,23 +341,14 @@ export const QUICK_ICONS = [
   'bulb', 'world', 'quote', 'code', 'mail', 'search'
 ] as const
 
-/** Datos que el main envía a la ventana del peek. */
-export interface PeekData {
-  tabs: TabInfo[]
-  activeId: number | null
-  bookmarks: Bookmark[]
-  profile: Profile
-}
-
-/** API expuesta a la ventana nativa del "peek" del sidebar */
+/**
+ * API extra de la ventana del "peek" del sidebar. Además de esto, la ventana expone
+ * `window.monper` completo (mismo preload que el chrome) para poder reusar <Sidebar/>.
+ */
 export interface PeekWinApi {
-  onState: (cb: (s: PeekData) => void) => () => void
   /** Se dispara cada vez que el peek se muestra (para la animación de entrada). */
   onShown: (cb: () => void) => () => void
-  hover: (on: boolean) => void
-  selectTab: (id: number) => void
-  newTab: () => void
-  openBookmark: (id: string) => void
+  hide: () => void
 }
 
 /** Credencial ofrecida en el quick sign-in (metadata, NUNCA el secreto). */

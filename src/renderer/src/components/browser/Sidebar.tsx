@@ -20,13 +20,15 @@ interface Props {
   onSelectTab: (id: number) => void
   onCloseTab: (id: number) => void
   onReorderTabs: (ids: number[]) => void
+  /** Variante "peek": se renderiza dentro de una ventana flotante, no fijo a la izquierda. */
+  floating?: boolean
 }
 
 const newRowClass =
   'flex items-center gap-2.5 w-full py-1.5 px-2 rounded-lg text-text-faint text-left text-[15px] ' +
   'min-h-[30px] hover:bg-bg-hover hover:text-text [&>svg]:opacity-80 [&>svg]:w-[15px] [&>svg]:h-[15px]'
 
-export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBookmark, onOpenMenu, onCollapse, onNewTab, onSelectTab, onCloseTab, onReorderTabs }: Props): JSX.Element {
+export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBookmark, onOpenMenu, onCollapse, onNewTab, onSelectTab, onCloseTab, onReorderTabs, floating = false }: Props): JSX.Element {
   // Las pestañas ligadas a un bookmark se muestran en su slot de bookmarks, no en Tabs.
   const userTabs = state.tabs.filter((t) => !t.agent && !t.bookmarkId)
   const agentTabs = state.tabs.filter((t) => t.agent)
@@ -35,13 +37,21 @@ export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBo
   const closeOthers = (): void => userTabs.forEach((t) => t.id !== state.activeId && onCloseTab(t.id))
 
   return (
-    <aside className={`group fixed inset-y-0 left-0 w-sidebar flex flex-col pb-3 px-2.5 ${collapsed ? 'hidden' : ''}`}>
-      {/* Row del semáforo nativo (izquierda) + colapsar (derecha) */}
-      <div className="h-11 shrink-0 flex items-center justify-end [-webkit-app-region:drag]">
-        <IconButton size="sm" title="Colapsar sidebar (⌘S)" onClick={onCollapse}>
-          <SidebarIcon />
-        </IconButton>
-      </div>
+    <aside
+      className={
+        'group flex flex-col pb-3 px-2.5 ' +
+        (floating ? 'h-full w-full pt-2 ' : 'fixed inset-y-0 left-0 w-sidebar ') +
+        (collapsed && !floating ? 'hidden' : '')
+      }
+    >
+      {/* Row del semáforo nativo (izquierda) + colapsar (derecha). En el peek no aplica. */}
+      {!floating && (
+        <div className="h-11 shrink-0 flex items-center justify-end [-webkit-app-region:drag]">
+          <IconButton size="sm" title="Colapsar sidebar (⌘S)" onClick={onCollapse}>
+            <SidebarIcon />
+          </IconButton>
+        </div>
+      )}
 
       <div className="flex items-center justify-between gap-1 pt-1 pr-1 pb-3.5 pl-0 [-webkit-app-region:drag]">
         <AccountPill initials={profile.initials} name={profile.name} avatar={profile.avatar} onOpen={onOpenMenu} />

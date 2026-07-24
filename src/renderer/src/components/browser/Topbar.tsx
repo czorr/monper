@@ -4,8 +4,8 @@ import { luminance } from '@renderer/lib/dom'
 import { IconButton } from '@renderer/components/ui'
 import UrlBar from './UrlBar'
 import { SidebarIcon, BackIcon, ForwardIcon, ReloadIcon, StarIcon } from '@renderer/lib/icons'
-import IconSparkles from '~icons/tabler/sparkles'
 import IconLock from '~icons/tabler/lock'
+import monperLogo from '@renderer/assets/monper.png'
 
 interface Props {
   active: ActiveInfo | null
@@ -74,7 +74,7 @@ export default function Topbar({ active, collapsed, mac, chatOpen, editRequest, 
             (chatOpen ? 'bg-white/[0.16] text-text' : 'bg-white/[0.08] hover:bg-white/[0.13] text-text-dim hover:text-text')
           }
         >
-          <IconSparkles className="w-4 h-4" />
+          <img src={monperLogo} alt="" className="w-4 h-4 object-contain" />
           Ask Monper
         </button>
       </div>

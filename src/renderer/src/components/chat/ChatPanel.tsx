@@ -105,7 +105,6 @@ export default function ChatPanel({ open, onClose }: Props): JSX.Element {
       }
     >
       <header className="h-topbar shrink-0 flex items-center gap-2 px-3 [-webkit-app-region:drag]">
-        <IconSparkles className="w-[17px] h-[17px] text-text-dim" />
         <span className="flex-1 text-[14px] font-semibold tracking-[-0.1px]">Ask Monper</span>
         <IconButton size="sm" title="Cerrar (⌘J)" onClick={onClose}><IconX /></IconButton>
       </header>

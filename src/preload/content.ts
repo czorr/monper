@@ -42,6 +42,16 @@ const api: MonperTabApi = {
   getProfile: () => ipcRenderer.invoke('profile:get'),
   setProfile: (name) => ipcRenderer.invoke('profile:set', name),
   setAvatar: (dataUrl) => ipcRenderer.invoke('profile:setAvatar', dataUrl),
+  listRoutines: () => ipcRenderer.invoke('routines:list'),
+  onRoutines: (cb) => {
+    const h = (_e: unknown, list: unknown): void => cb(list as never)
+    ipcRenderer.on('routines:changed', h)
+    return () => { ipcRenderer.removeListener('routines:changed', h) }
+  },
+  createRoutine: (input) => ipcRenderer.invoke('routines:create', input),
+  toggleRoutine: (id, enabled) => ipcRenderer.send('routines:toggle', id, enabled),
+  removeRoutine: (id) => ipcRenderer.send('routines:remove', id),
+  runRoutine: (id) => ipcRenderer.send('routines:run', id),
   listQuickActions: () => ipcRenderer.invoke('quickactions:list'),
   saveQuickAction: (a) => ipcRenderer.invoke('quickactions:save', a),
   removeQuickAction: (id) => ipcRenderer.invoke('quickactions:remove', id)

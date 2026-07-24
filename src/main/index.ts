@@ -17,6 +17,7 @@ import { initDownloads, attachDownloads, listDownloads, activeDownloadCount, can
 import { credentialsFor, fillFromVault } from './autofill'
 import { initExtensions, listExtensions, addExtension, setExtensionEnabled, removeExtension as removeExt, installFromStore } from './extensions'
 import { extensionIdFrom } from './crx'
+import { initRoutines, listRoutines, createWatchRoutine, setRoutineEnabled, removeRoutine as removeRoutineEntry, runRoutine } from './routines'
 import { initQuickActions, listQuickActions, saveQuickAction, removeQuickAction, getQuickAction, fillTemplate } from './quickactions'
 import * as vault from './vault/store'
 import type { VaultItemType } from '../shared/vault'
@@ -697,6 +698,7 @@ function createWindow() {
     // Pre-carga las ventanas nativas de popups (site-info, menú de perfil) para que
     // abran instantáneo — crearlas en el primer click era lento (2-3 clicks).
     ensureSiteWin(); ensurePmWin(); ensurePeekWin()
+    initRoutines(win!, broadcastRoutines) // scheduler de rutinas (necesita la ventana)
   })
 }
 
@@ -1316,6 +1318,27 @@ function configurePasskeys(): void {
     console.log('[passkeys] No se pudo habilitar Touch ID:', e instanceof Error ? e.message : e)
   }
 }
+
+// ---- Rutinas (vigilar páginas y avisar) ----
+function broadcastRoutines(): void {
+  const list = listRoutines()
+  for (const t of tabs.values()) {
+    if (t.url.includes('/settings.html')) t.view.webContents.send('routines:changed', list)
+  }
+}
+ipcMain.handle('routines:list', (e) => (isInternalSender(e.senderFrame?.url) ? listRoutines() : []))
+ipcMain.handle('routines:create', async (e, input: { url: string; request: string; minutes: number }) => {
+  if (!isInternalSender(e.senderFrame?.url)) return { ok: false, error: 'No permitido.' }
+  try {
+    await createWatchRoutine(input)
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) }
+  }
+})
+ipcMain.on('routines:toggle', (e, id: string, on: boolean) => { if (isInternalSender(e.senderFrame?.url)) setRoutineEnabled(id, on) })
+ipcMain.on('routines:remove', (e, id: string) => { if (isInternalSender(e.senderFrame?.url)) removeRoutineEntry(id) })
+ipcMain.on('routines:run', (e, id: string) => { if (isInternalSender(e.senderFrame?.url)) void runRoutine(id) })
 
 // ---- Extensiones de Chrome (ventana nativa de gestión) ----
 let extWin: BrowserWindow | null = null

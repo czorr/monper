@@ -11,12 +11,14 @@ import IconBolt from '~icons/tabler/bolt'
 import ProvidersSection from './ProvidersSection'
 import SkillsSection from './SkillsSection'
 import QuickActionsSection from './QuickActionsSection'
+import RoutinesSection from './RoutinesSection'
 import IconWand from '~icons/tabler/wand'
+import IconClockBolt from '~icons/tabler/clock-bolt'
 import { Card, Group, Row, Pill } from './ui'
 
 const { monperTab } = window
 
-type Cat = 'general' | 'account' | 'ai' | 'skills' | 'actions' | 'privacy' | 'about'
+type Cat = 'general' | 'account' | 'ai' | 'skills' | 'actions' | 'routines' | 'privacy' | 'about'
 
 const NAV: { id: Cat; label: string; icon: JSX.Element }[] = [
   { id: 'general', label: 'General', icon: <IconSettings /> },
@@ -24,6 +26,7 @@ const NAV: { id: Cat; label: string; icon: JSX.Element }[] = [
   { id: 'ai', label: 'AI', icon: <IconSparkles /> },
   { id: 'skills', label: 'Skills', icon: <IconBolt /> },
   { id: 'actions', label: 'Quick actions', icon: <IconWand /> },
+  { id: 'routines', label: 'Rutinas', icon: <IconClockBolt /> },
   { id: 'privacy', label: 'Privacy', icon: <IconShield /> },
   { id: 'about', label: 'About', icon: <IconInfo /> }
 ]
@@ -66,6 +69,7 @@ export default function SettingsPage(): JSX.Element {
             <div className="max-w-[680px] mx-auto px-8 py-12">
               {cat === 'ai' && <AIPage />}
               {cat === 'actions' && <QuickActionsSection />}
+              {cat === 'routines' && <RoutinesSection />}
               {cat === 'account' && <AccountPage />}
               {cat === 'general' && <GeneralPage />}
               {cat === 'privacy' && <PrivacyPage />}

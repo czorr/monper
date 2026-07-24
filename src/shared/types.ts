@@ -356,6 +356,33 @@ export interface PeekWinApi {
   hide: () => void
 }
 
+/** Condición que dispara la notificación de una rutina. */
+export interface RoutineCondition {
+  op: 'changed' | 'lt' | 'gt' | 'contains' | 'notContains'
+  value?: string
+}
+
+/** Rutina: vigila una página cada X minutos y avisa cuando se cumple la condición. */
+export interface Routine {
+  id: string
+  name: string
+  enabled: boolean
+  url: string
+  /** lo que pidió el usuario en lenguaje natural (se reusa al reparar el extractor) */
+  request: string
+  intervalMinutes: number
+  /**
+   * Snippet del REPL generado UNA vez por el modelo (con `page` de monperwright).
+   * Puede esperar contenido diferido o leer la API interna del sitio, no solo el DOM.
+   */
+  extractor: string
+  condition: RoutineCondition
+  lastRun: number
+  lastValue: string | null
+  lastError: string | null
+  failures: number
+}
+
 /** Anchos de los paneles laterales (redimensionables por el usuario). */
 export interface PanelSizes {
   sidebar: number
@@ -436,6 +463,13 @@ export interface MonperTabApi {
   openDownload: (id: string) => void
   showDownload: (id: string) => void
   clearDownloads: () => void
+  // ---- Rutinas (Settings) ----
+  listRoutines: () => Promise<Routine[]>
+  onRoutines: (cb: (list: Routine[]) => void) => () => void
+  createRoutine: (input: { url: string; request: string; minutes: number }) => Promise<{ ok: boolean; error?: string }>
+  toggleRoutine: (id: string, enabled: boolean) => void
+  removeRoutine: (id: string) => void
+  runRoutine: (id: string) => void
   // ---- Acciones rápidas (Settings) ----
   listQuickActions: () => Promise<QuickAction[]>
   saveQuickAction: (a: QuickAction) => Promise<QuickAction[]>

@@ -335,6 +335,11 @@ function skillsSection(skills: SkillDetail[]): string {
     skills.map((s) => `- ${s.id}: ${s.name} — ${s.description}${s.keywords.length ? ` (keywords: ${s.keywords.join(', ')})` : ''}`).join('\n')
 }
 
+/** Agente sin tools, para preguntas puntuales (p. ej. generar el extractor de una rutina). */
+export function buildOneShotAgent(provider: AIProvider, key: string, model: string, instructions: string): Agent {
+  return new Agent({ id: 'monper-oneshot', name: 'Monper', instructions, model: buildModel(provider, key, model) })
+}
+
 export function buildAgent(provider: AIProvider, key: string, model: string, ctrl: BrowserControl, settings: SettingsControl, skills: SkillDetail[] = []): Agent {
   return new Agent({
     id: 'monper-agent',

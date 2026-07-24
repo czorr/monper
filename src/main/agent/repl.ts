@@ -2,6 +2,7 @@ import type { WebContents } from 'electron'
 // Consumimos la librería desde su fuente: vite la empaqueta y tsc la tipa, sin
 // necesitar dist/ compilado ni publicarla. (Para publicar, se build por separado.)
 import { pageFromWebContents } from '../../../packages/monperwright/src/electron'
+import type { Page } from '../../../packages/monperwright/src'
 import { buildGlobals } from './globals'
 
 // Constructor de funciones async (no expuesto directamente en el runtime).
@@ -38,21 +39,9 @@ export async function runRepl(
     logs.push(args.map(fmt).join(' '))
   }
 
-  // Globals que usan las skills (googleSearch, cua, twitter, gmail, passwordManager…).
-  const globals = buildGlobals(page, wc)
-  const gNames = Object.keys(globals)
-  const gValues = gNames.map((k) => globals[k])
-
-  let fn: (...a: unknown[]) => Promise<unknown>
-  try {
-    fn = new AsyncFunction('page', 'state', 'log', ...gNames, code)
-  } catch (e) {
-    return `ERROR de sintaxis: ${e instanceof Error ? e.message : String(e)}`
-  }
-
   let result: unknown
   try {
-    result = await fn(page, state, log, ...gValues)
+    result = await execInRepl(page, wc, code, { state, log })
   } catch (e) {
     const msg = e instanceof Error ? e.stack || e.message : String(e)
     return `ERROR en ejecución: ${msg}${logs.length ? '\n\nlogs:\n' + logs.join('\n') : ''}`
@@ -62,4 +51,22 @@ export async function runRepl(
   if (logs.length) parts.push('logs:\n' + logs.join('\n'))
   if (result !== undefined) parts.push('result:\n' + fmt(result))
   return parts.join('\n\n') || 'OK (sin valor de retorno).'
+}
+
+/**
+ * Núcleo del REPL: ejecuta `code` con `page` (monperwright), `state`, `log()` y todos
+ * los globals de las skills, y devuelve el valor CRUDO. Lo usan tanto la tool del
+ * agente (runRepl, que formatea) como las rutinas (que necesitan el valor tal cual).
+ */
+export async function execInRepl(
+  page: Page,
+  wc: WebContents,
+  code: string,
+  opts: { state?: Record<string, unknown>; log?: (...a: unknown[]) => void } = {}
+): Promise<unknown> {
+  const globals = buildGlobals(page, wc)
+  const gNames = Object.keys(globals)
+  const gValues = gNames.map((k) => globals[k])
+  const fn = new AsyncFunction('page', 'state', 'log', ...gNames, code)
+  return fn(page, opts.state ?? {}, opts.log ?? ((): void => {}), ...gValues)
 }

@@ -19,7 +19,7 @@ function faviconUrl(b: Bookmark): string {
   return b.favicon || `https://www.google.com/s2/favicons?domain=${encodeURIComponent(hostOf(b.url))}&sz=64`
 }
 
-const rowBase = 'flex items-center gap-2.5 w-full py-1.5 px-2 rounded-lg text-left text-[15px] min-h-[30px]'
+const rowBase = 'flex items-center gap-2.5 w-full py-1.5 px-2 rounded-lg text-left text-[15px] min-h-[30px] outline-none'
 
 function TabItem({ t, active }: { t: TabInfo; active: boolean }): JSX.Element {
   return (
@@ -59,15 +59,22 @@ function Label({ children }: { children: string }): JSX.Element {
 
 function Peek(): JSX.Element {
   const [d, setD] = useState<PeekData>(EMPTY)
+  const [nonce, setNonce] = useState(0)
   useEffect(() => pk.onState(setD), [])
+  useEffect(() => pk.onShown(() => setNonce((n) => n + 1)), [])
 
   const tabs = d.tabs.filter((t) => !t.agent && !t.bookmarkId)
   const liveBookmark = (id: string): TabInfo | undefined => d.tabs.find((t) => t.bookmarkId === id)
 
   return (
     // pl da el margen izquierdo flotante; pb el margen inferior; el panel ocupa toda la altura.
-    <div className="h-full pl-2.5 pr-1 pt-2 pb-2.5" onMouseEnter={() => pk.hover(true)} onMouseLeave={() => pk.hover(false)}>
-      <div className="h-full flex flex-col rounded-2xl border border-white/10 bg-[#1c1c20]/95 backdrop-blur-md shadow-2xl shadow-black/50 p-2 overflow-hidden">
+    // (Mostrar/ocultar lo decide el sondeo de cursor en el main, no eventos de hover.)
+    <div className="h-full pl-2.5 pr-1 pt-2 pb-2.5">
+      <div
+        key={nonce}
+        style={{ animation: 'peek-in 150ms cubic-bezier(0.33,1,0.68,1)' }}
+        className="h-full flex flex-col rounded-2xl border border-white/10 bg-[#1c1c20]/95 backdrop-blur-md shadow-2xl shadow-black/50 p-2 overflow-hidden"
+      >
         {/* Cuenta */}
         <div className="flex items-center gap-2 px-2 py-1.5 mb-1 shrink-0">
           <Avatar initials={d.profile.initials} src={d.profile.avatar} size="sm" />

@@ -352,7 +352,8 @@ export interface PeekData {
 /** API expuesta a la ventana nativa del "peek" del sidebar */
 export interface PeekWinApi {
   onState: (cb: (s: PeekData) => void) => () => void
-  reportHeight: (h: number) => void
+  /** Se dispara cada vez que el peek se muestra (para la animación de entrada). */
+  onShown: (cb: () => void) => () => void
   hover: (on: boolean) => void
   selectTab: (id: number) => void
   newTab: () => void

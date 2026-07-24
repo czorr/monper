@@ -7,7 +7,11 @@ const api: PeekWinApi = {
     ipcRenderer.on('peek:state', h)
     return () => { ipcRenderer.removeListener('peek:state', h) }
   },
-  reportHeight: (h: number) => ipcRenderer.send('peek:height', h),
+  onShown: (cb) => {
+    const h = (): void => cb()
+    ipcRenderer.on('peek:shown', h)
+    return () => { ipcRenderer.removeListener('peek:shown', h) }
+  },
   hover: (on: boolean) => ipcRenderer.send('peek:hover', on),
   selectTab: (id: number) => ipcRenderer.send('peek:select', id),
   newTab: () => ipcRenderer.send('peek:new'),

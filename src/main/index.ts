@@ -1,6 +1,6 @@
 import { join } from 'path'
 import { readFileSync, writeFileSync } from 'fs'
-import { app, BrowserWindow, Menu, WebContentsView, clipboard, dialog, ipcMain, nativeImage, net, session, shell } from 'electron'
+import { app, BrowserWindow, Menu, WebContentsView, clipboard, dialog, ipcMain, nativeImage, net, screen, session, shell } from 'electron'
 import type { MenuItemConstructorOptions } from 'electron'
 import type { IpcMainEvent } from 'electron'
 import type { BrowserState, Bookmark, ChatMessage, MenuAnchor, Profile, ProviderKind } from '../shared/types'
@@ -646,7 +646,7 @@ ipcMain.handle('nav:go', (_e, raw: string) => {
 ipcMain.handle('nav:back', () => { const t = activeId != null ? tabs.get(activeId) : null; if (t?.view.webContents.navigationHistory.canGoBack()) t.view.webContents.navigationHistory.goBack() })
 ipcMain.handle('nav:forward', () => { const t = activeId != null ? tabs.get(activeId) : null; if (t?.view.webContents.navigationHistory.canGoForward()) t.view.webContents.navigationHistory.goForward() })
 ipcMain.handle('nav:reload', () => { const t = activeId != null ? tabs.get(activeId) : null; t?.view.webContents.reload() })
-ipcMain.handle('ui:collapse', (_e, collapsed: boolean) => { sidebarCollapsed = !!collapsed; animateLayout() })
+ipcMain.handle('ui:collapse', (_e, collapsed: boolean) => { sidebarCollapsed = !!collapsed; if (!collapsed) hidePeek(); animateLayout() })
 ipcMain.handle('ui:chat', (_e, open: boolean) => { chatOpen = !!open; animateLayout() })
 // Al editar la URL, oculta la vista nativa (que se dibuja encima del DOM) para que
 // el dropdown del omnibox sea visible; se restaura al cerrar el editor.
@@ -1088,16 +1088,20 @@ ipcMain.on('profilemenu:height', (_e, h: number) => { lastPmHeight = h + PM_PAD 
 let peekWin: BrowserWindow | null = null
 const PEEK_W = 250
 const PEEK_MARGIN = 10 // separación del borde/topbar para que se vea flotante
-let peekHideTimer: NodeJS.Timeout | null = null
+const PEEK_HIT_PAD = 26 // margen de "sigue vivo" alrededor del botón/panel
+const PEEK_GRACE = 240 // coyote time al salir (ms)
+let peekButtonRect: { x: number; y: number; w: number; h: number } | null = null
+let peekPoll: NodeJS.Timeout | null = null
+let peekLastInside = 0
 function ensurePeekWin(): BrowserWindow {
   if (peekWin && !peekWin.isDestroyed()) return peekWin
   peekWin = new BrowserWindow({
     parent: win!, width: PEEK_W, height: 200, show: false, frame: false, transparent: true,
     resizable: false, movable: false, minimizable: false, maximizable: false,
     fullscreenable: false, hasShadow: false, skipTaskbar: true, backgroundColor: '#00000000',
+    acceptFirstMouse: true, // clicks funcionan sin activar la ventana (no roba foco)
     webPreferences: { preload: join(__dirname, '../preload/peekbar.js'), contextIsolation: true, sandbox: false }
   })
-  peekWin.on('blur', hidePeekSoon)
   if (RENDERER_URL) peekWin.loadURL(`${RENDERER_URL}/peekbar.html`)
   else peekWin.loadFile(join(__dirname, '../renderer/peekbar.html'))
   return peekWin
@@ -1126,20 +1130,42 @@ function placePeekWin(): void {
     height: Math.max(1, Math.round(cb.height - TOPBAR_HEIGHT))
   })
 }
-function hidePeek(): void { if (peekHideTimer) { clearTimeout(peekHideTimer); peekHideTimer = null }; if (peekWin && !peekWin.isDestroyed()) peekWin.hide() }
-// Margen amplio para cruzar el hueco entre el botón (topbar) y la ventana del peek.
-function hidePeekSoon(): void { if (peekHideTimer) clearTimeout(peekHideTimer); peekHideTimer = setTimeout(hidePeek, 260) }
-function cancelHidePeek(): void { if (peekHideTimer) { clearTimeout(peekHideTimer); peekHideTimer = null } }
-ipcMain.on('peek:show', () => {
-  cancelHidePeek()
+function hidePeek(): void {
+  if (peekPoll) { clearInterval(peekPoll); peekPoll = null }
+  if (peekWin && !peekWin.isDestroyed()) peekWin.hide()
+}
+// El cursor está sobre el botón o el panel (con margen para cruzar el hueco entre ambos).
+function cursorNearPeek(px: number, py: number): boolean {
+  const pad = PEEK_HIT_PAD
+  if (peekWin && !peekWin.isDestroyed()) {
+    const b = peekWin.getBounds()
+    if (px >= b.x - pad && px <= b.x + b.width + pad && py >= b.y - pad && py <= b.y + b.height + pad) return true
+  }
+  const r = peekButtonRect
+  if (r && px >= r.x - pad && px <= r.x + r.w + pad && py >= r.y - pad && py <= r.y + r.h + pad) return true
+  return false
+}
+// Sondea la posición del cursor (fiable entre 2 ventanas) — coyote time al salir.
+function startPeekPoll(): void {
+  peekLastInside = Date.now()
+  if (peekPoll) clearInterval(peekPoll)
+  peekPoll = setInterval(() => {
+    const p = screen.getCursorScreenPoint()
+    if (cursorNearPeek(p.x, p.y)) peekLastInside = Date.now()
+    else if (Date.now() - peekLastInside > PEEK_GRACE) hidePeek()
+  }, 80)
+}
+ipcMain.on('peek:show', (_e, anchor: MenuAnchor) => {
   if (!sidebarCollapsed) return // solo tiene sentido con el sidebar colapsado
+  const cb = win!.getContentBounds()
+  peekButtonRect = { x: cb.x + anchor.x, y: cb.y + anchor.y, w: anchor.width, h: anchor.height }
   const w = ensurePeekWin()
   w.webContents.send('peek:state', peekState())
   placePeekWin()
-  w.show() // enfocada: recibe los eventos de hover de forma fiable
+  w.showInactive() // NO roba el foco: el botón de expandir sigue clickeable y sin resaltar items
+  w.webContents.send('peek:shown') // dispara la animación de entrada
+  startPeekPoll()
 })
-ipcMain.on('peek:maybeHide', hidePeekSoon)
-ipcMain.on('peek:hover', (_e, on: boolean) => { if (on) cancelHidePeek(); else hidePeekSoon() })
 ipcMain.on('peek:select', (_e, id: number) => { if (tabs.has(id)) setActive(id); hidePeek() })
 ipcMain.on('peek:new', () => { createTab(); hidePeek() })
 ipcMain.on('peek:openBookmark', (_e, id: string) => {

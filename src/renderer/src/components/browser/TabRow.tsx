@@ -2,6 +2,7 @@ import type { JSX } from 'react'
 import type { TabInfo } from '@shared/types'
 import { domainOf } from '@renderer/lib/dom'
 import { CloseIcon } from '@renderer/lib/icons'
+import IconVolumeOff from '~icons/tabler/volume-off'
 import monperLogo from '@renderer/assets/monper.png'
 
 interface Props {
@@ -24,6 +25,7 @@ export default function TabRow({ tab, active, onSelect, onClose }: Props): JSX.E
       className={`${rowBase} ${state}`}
       onClick={() => onSelect(tab.id)}
       onAuxClick={(e) => e.button === 1 && onClose(tab.id)}
+      onContextMenu={(e) => { e.preventDefault(); window.monper.tabContextMenu(tab.id) }}
     >
       {!tab.url ? (
         // Páginas internas (new tab / settings): siempre nuestro iso, aunque tengan favicon default.
@@ -43,6 +45,16 @@ export default function TabRow({ tab, active, onSelect, onClose }: Props): JSX.E
       <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[15px] tracking-[-0.08px]">
         {tab.title || domainOf(tab.url) || 'New tab'}
       </span>
+
+      {tab.muted && (
+        <button
+          title="Reactivar sonido"
+          onClick={(e) => { e.stopPropagation(); window.monper.toggleMute(tab.id) }}
+          className="shrink-0 w-[18px] h-[18px] grid place-items-center rounded-md text-text-faint hover:text-text hover:bg-white/15 [&>svg]:w-[14px] [&>svg]:h-[14px]"
+        >
+          <IconVolumeOff />
+        </button>
+      )}
 
       <div className="w-[18px] h-[18px] shrink-0 relative">
         {/* Punto rojo mientras graba (cámara/mic); se oculta al hover para dar paso al close. */}

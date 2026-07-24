@@ -1,6 +1,5 @@
 import { useState, type JSX } from 'react'
 import type { Bookmark } from '@shared/types'
-import IconX from '~icons/tabler/x'
 import IconWorld from '~icons/tabler/world'
 
 function hostOf(url: string): string {
@@ -13,13 +12,15 @@ function faviconUrl(b: Bookmark): string {
 interface Props {
   bookmark: Bookmark
   onOpen: (id: string) => void
-  onRemove: (id: string) => void
 }
 
-export default function BookmarkRow({ bookmark, onOpen, onRemove }: Props): JSX.Element {
+export default function BookmarkRow({ bookmark, onOpen }: Props): JSX.Element {
   const [broken, setBroken] = useState(false)
   return (
-    <div className="group/bm relative flex items-center">
+    <div
+      className="group/bm relative flex items-center"
+      onContextMenu={(e) => { e.preventDefault(); window.monper.bookmarkContextMenu(bookmark.id) }}
+    >
       <button
         onClick={() => onOpen(bookmark.id)}
         title={bookmark.url}
@@ -36,13 +37,6 @@ export default function BookmarkRow({ bookmark, onOpen, onRemove }: Props): JSX.
           />
         )}
         <span className="truncate">{bookmark.title || hostOf(bookmark.url)}</span>
-      </button>
-      <button
-        onClick={() => onRemove(bookmark.id)}
-        title="Quitar bookmark"
-        className="absolute right-1.5 w-5 h-5 grid place-items-center rounded-md text-text-faint hover:text-text hover:bg-white/[0.1] opacity-0 group-hover/bm:opacity-100 transition-opacity [&>svg]:w-3.5 [&>svg]:h-3.5"
-      >
-        <IconX />
       </button>
     </div>
   )

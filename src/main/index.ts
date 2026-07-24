@@ -1,5 +1,5 @@
 import { join } from 'path'
-import { app, BrowserWindow, Menu, WebContentsView, ipcMain, session, shell } from 'electron'
+import { app, BrowserWindow, Menu, WebContentsView, clipboard, ipcMain, session, shell } from 'electron'
 import type { MenuItemConstructorOptions } from 'electron'
 import type { IpcMainEvent } from 'electron'
 import type { BrowserState, Bookmark, ChatMessage, MenuAnchor, ProviderKind } from '../shared/types'
@@ -30,7 +30,7 @@ app.setName('Monper')
 
 // Páginas internas servidas por nuestro propio renderer (new-tab, settings…).
 const RENDERER_URL_EARLY = process.env['ELECTRON_RENDERER_URL']
-const INTERNAL_PAGES = ['newtab', 'settings'] as const
+const INTERNAL_PAGES = ['newtab', 'settings', 'error'] as const
 function internalUrl(page: (typeof INTERNAL_PAGES)[number]): string {
   return RENDERER_URL_EARLY
     ? `${RENDERER_URL_EARLY}/${page}.html`
@@ -38,6 +38,15 @@ function internalUrl(page: (typeof INTERNAL_PAGES)[number]): string {
 }
 function newtabUrl(): string {
   return internalUrl('newtab')
+}
+function isErrorPage(url: string): boolean {
+  return url.includes('/error.html')
+}
+// Carga nuestra página de error interna en la pestaña, con el detalle del fallo.
+function loadErrorPage(t: Tab, info: { url: string; code: number; desc: string; kind: string }): void {
+  t.errorUrl = info.url
+  const q = new URLSearchParams({ url: info.url, code: String(info.code), desc: info.desc || '', kind: info.kind })
+  t.view.webContents.loadURL(`${internalUrl('error')}?${q.toString()}`)
 }
 function isNewtab(url: string): boolean {
   return url.includes('/newtab.html')
@@ -61,10 +70,16 @@ interface Tab {
   themeColor: string | null
   pageBg: string | null
   recording: boolean
+  /** true si el usuario silenció el audio de la pestaña */
+  muted: boolean
+  /** true mientras la pestaña reproduce audio */
+  audible: boolean
   /** Pestaña operada por el agente (aparece en "Agent tabs" y muestra la leyenda de control). */
   agent: boolean
   /** id del bookmark ligado a esta pestaña (se renderiza en su slot de bookmarks). */
   bookmarkId: string | null
+  /** URL que se intentaba cargar cuando falló (mientras se muestra la página de error). */
+  errorUrl: string | null
 }
 
 // Alto de la franja inferior reservada para la leyenda "Monper is controlling this tab".
@@ -163,12 +178,13 @@ function pushState() {
   const state: BrowserState = {
     activeId,
     tabs: [...tabs.entries()].map(([id, tb]) => ({
-      id, url: displayUrl(tb.url), title: tb.title || 'Nueva pestaña', favicon: tb.favicon, loading: tb.loading, recording: tb.recording, agent: tb.agent, bookmarkId: tb.bookmarkId
+      id, url: tb.errorUrl ?? displayUrl(tb.url), title: tb.title || 'Nueva pestaña', favicon: tb.favicon, loading: tb.loading, recording: tb.recording, muted: tb.muted, audible: tb.audible, agent: tb.agent, bookmarkId: tb.bookmarkId
     })),
     active: t
       ? {
-          url: displayUrl(t.url), title: t.title, canBack: t.canBack, canForward: t.canForward,
-          loading: t.loading, pageColor: t.pageBg || t.themeColor, bookmarked: isBookmarked(t.url)
+          url: t.errorUrl ?? displayUrl(t.url), title: t.title, canBack: t.canBack, canForward: t.canForward,
+          loading: t.loading, pageColor: t.pageBg || t.themeColor, bookmarked: isBookmarked(t.errorUrl ?? t.url),
+          muted: t.muted, audible: t.audible
         }
       : null,
     controlling: controllingActive()
@@ -219,7 +235,7 @@ function createTab(url = newtabUrl(), activate = true, agent = false): number {
   // de pestaña, se ve el fondo de la ventana (gris/escritorio). Blanco = como la mayoría
   // de páginas; se ajusta al color real de la página cuando lo muestreamos.
   if (typeof view.setBackgroundColor === 'function') view.setBackgroundColor('#ffffff')
-  const t: Tab = { view, url, title: '', favicon: null, loading: false, canBack: false, canForward: false, themeColor: null, pageBg: null, recording: false, agent, bookmarkId: null }
+  const t: Tab = { view, url, title: '', favicon: null, loading: false, canBack: false, canForward: false, themeColor: null, pageBg: null, recording: false, muted: false, audible: false, agent, bookmarkId: null, errorUrl: null }
   tabs.set(id, t)
   win!.contentView.addChildView(view)
 
@@ -232,11 +248,27 @@ function createTab(url = newtabUrl(), activate = true, agent = false): number {
     sampleTopColor(t)
     refresh()
   })
-  wc.on('did-navigate', (_e, u) => { t.url = u; t.recording = false; recordVisit(u, t.title, t.favicon); refresh() }) // sólo main-frame
+  wc.on('did-navigate', (_e, u) => { // sólo main-frame
+    t.url = u; t.recording = false
+    // Al navegar a algo que NO es la página de error, limpiamos el estado de error y registramos la visita.
+    if (!isErrorPage(u)) { t.errorUrl = null; if (!isInternal(u)) recordVisit(u, t.title, t.favicon) }
+    refresh()
+  })
   wc.on('did-navigate-in-page', (_e, u, isMainFrame) => { if (isMainFrame) { t.url = u; refresh() } })
   wc.on('page-title-updated', (_e, title) => { t.title = title; updateMeta(t.url, title); pushState() })
   wc.on('page-favicon-updated', (_e, icons) => { t.favicon = icons?.[0] || null; updateMeta(t.url, undefined, t.favicon); pushState() })
   wc.on('did-change-theme-color', (_e, color) => { t.themeColor = color; pushState() })
+  wc.on('audio-state-changed', (e) => { t.audible = e.audible; pushState() })
+  // --- Confiabilidad: fallos de carga (red/DNS/certificado) y crashes → página de error ---
+  wc.on('did-fail-load', (_e, code, desc, validatedURL, isMainFrame) => {
+    if (!isMainFrame || code === -3) return // -3 = ERR_ABORTED (navegación reemplazada): ignorar
+    if (isErrorPage(validatedURL)) return // evita bucles
+    loadErrorPage(t, { url: validatedURL || t.url, code, desc, kind: 'network' })
+  })
+  wc.on('render-process-gone', (_e, details) => {
+    if (details.reason === 'clean-exit') return
+    loadErrorPage(t, { url: t.errorUrl || t.url, code: 0, desc: details.reason, kind: 'crash' })
+  })
   wc.setWindowOpenHandler((details) => {
     const feats = details.features || ''
     // Popups reales (OAuth, pagos…): window.open con dimensiones o disposition new-window
@@ -475,6 +507,63 @@ ipcMain.on('bookmarks:open', (_e: IpcMainEvent, id: string) => {
   const tabId = createTab(b.url, true)
   const t = tabs.get(tabId)
   if (t) { t.bookmarkId = id; pushState() }
+})
+
+function setTabMuted(id: number, muted: boolean): void {
+  const t = tabs.get(id)
+  if (!t) return
+  t.view.webContents.setAudioMuted(muted)
+  t.muted = muted
+  pushState()
+}
+ipcMain.on('tab:toggleMute', (_e: IpcMainEvent, id?: number) => {
+  const tid = id ?? activeId
+  if (tid == null) return
+  const t = tabs.get(tid)
+  if (t) setTabMuted(tid, !t.muted)
+})
+
+// Menú contextual nativo de un bookmark (click derecho en el BookmarkRow).
+ipcMain.on('bookmark:contextMenu', (_e: IpcMainEvent, id: string) => {
+  const b = listBookmarks().find((x) => x.id === id)
+  if (!b || !win) return
+  const template: MenuItemConstructorOptions[] = [
+    { label: 'Abrir', click: () => { for (const [tid, t] of tabs) { if (t.bookmarkId === id) { setActive(tid); return } } const nid = createTab(b.url, true); const nt = tabs.get(nid); if (nt) { nt.bookmarkId = id; pushState() } } },
+    { label: 'Abrir en pestaña nueva', click: () => createTab(b.url) },
+    { label: 'Copiar enlace', click: () => clipboard.writeText(b.url) },
+    { type: 'separator' },
+    { label: 'Quitar de bookmarks', click: () => { removeBookmark(id); broadcastBookmarks() } }
+  ]
+  Menu.buildFromTemplate(template).popup({ window: win })
+})
+
+// Menú contextual nativo de una pestaña (click derecho en el TabRow).
+ipcMain.on('tab:contextMenu', (_e: IpcMainEvent, id: number) => {
+  const t = tabs.get(id)
+  if (!t || !win) return
+  const wc = t.view.webContents
+  const ids = [...tabs.keys()]
+  const below = ids.slice(ids.indexOf(id) + 1)
+  const others = ids.filter((x) => x !== id)
+  const internal = isInternal(t.url)
+  const template: MenuItemConstructorOptions[] = [
+    { label: 'Nueva pestaña', click: () => createTab() },
+    { label: 'Duplicar', enabled: !internal, click: () => createTab(t.url) },
+    { type: 'separator' },
+    { label: 'Recargar', click: () => wc.reload() },
+    {
+      label: isBookmarked(t.url) ? 'Quitar de bookmarks' : 'Agregar a bookmarks',
+      enabled: !internal,
+      click: () => { toggleBookmark(t.url, t.title || t.url, t.favicon); broadcastBookmarks() }
+    },
+    { label: t.muted ? 'Reactivar sonido' : 'Silenciar sitio', click: () => setTabMuted(id, !t.muted) },
+    { label: 'Copiar enlace', enabled: !internal, click: () => clipboard.writeText(t.url) },
+    { type: 'separator' },
+    { label: 'Cerrar', click: () => closeTab(id) },
+    { label: 'Cerrar otras', enabled: others.length > 0, click: () => others.forEach(closeTab) },
+    { label: 'Cerrar las de abajo', enabled: below.length > 0, click: () => below.forEach(closeTab) }
+  ]
+  Menu.buildFromTemplate(template).popup({ window: win })
 })
 ipcMain.on('bookmarks:toggle', () => {
   const t = activeId != null ? tabs.get(activeId) : null
@@ -885,9 +974,12 @@ app.whenReady().then(() => {
     ? 'Macintosh; Intel Mac OS X 10_15_7'
     : process.platform === 'win32' ? 'Windows NT 10.0; Win64; x64' : 'X11; Linux x86_64'
   ses.setUserAgent(`Mozilla/5.0 (${platformUA}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${process.versions.chrome} Safari/537.36`)
-  attachPermissionHandlers(ses, (wc, active) => {
-    for (const tb of tabs.values()) {
-      if (tb.view.webContents === wc) { tb.recording = active; pushState(); break }
+  attachPermissionHandlers(ses, {
+    getWindow: () => win,
+    onMedia: (wc, active) => {
+      for (const tb of tabs.values()) {
+        if (tb.view.webContents === wc) { tb.recording = active; pushState(); break }
+      }
     }
   })
   // Descargas: las notificamos al agente como evento de steering.

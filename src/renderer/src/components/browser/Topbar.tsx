@@ -5,6 +5,8 @@ import { IconButton } from '@renderer/components/ui'
 import UrlBar from './UrlBar'
 import { SidebarIcon, BackIcon, ForwardIcon, ReloadIcon, StarIcon } from '@renderer/lib/icons'
 import IconLock from '~icons/tabler/lock'
+import IconVolumeOff from '~icons/tabler/volume-off'
+import IconVolume from '~icons/tabler/volume'
 import monperLogo from '@renderer/assets/monper.png'
 
 interface Props {
@@ -19,13 +21,14 @@ interface Props {
   onReload: () => void
   onGo: (url: string) => void
   onToggleBookmark: () => void
+  onToggleMute: () => void
   onToggleChat: () => void
   onOpenVault: (rect: DOMRect) => void
 }
 
 const navBtns = 'flex gap-0.5 [-webkit-app-region:no-drag]'
 
-export default function Topbar({ active, collapsed, mac, chatOpen, editRequest, onExpand, onBack, onForward, onReload, onGo, onToggleBookmark, onToggleChat, onOpenVault }: Props): JSX.Element {
+export default function Topbar({ active, collapsed, mac, chatOpen, editRequest, onExpand, onBack, onForward, onReload, onGo, onToggleBookmark, onToggleMute, onToggleChat, onOpenVault }: Props): JSX.Element {
   const pageColor = active?.pageColor || '#111114'
   const onLight = luminance(pageColor) > 0.5
   const canBookmark = !!active?.url // vacío en la new-tab page
@@ -51,6 +54,12 @@ export default function Topbar({ active, collapsed, mac, chatOpen, editRequest, 
       <UrlBar active={active} editRequest={editRequest} onGo={onGo} />
 
       <div className={navBtns}>
+        {(active?.muted || active?.audible) && (
+          <IconButton title={active?.muted ? 'Reactivar sonido' : 'Silenciar sitio'} onClick={onToggleMute}>
+            {active?.muted ? <IconVolumeOff /> : <IconVolume />}
+          </IconButton>
+        )}
+
         <IconButton
           title={active?.bookmarked ? 'Quitar bookmark' : 'Guardar bookmark'}
           disabled={!canBookmark}

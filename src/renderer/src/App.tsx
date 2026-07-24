@@ -56,7 +56,6 @@ export default function App(): JSX.Element {
         bookmarks={bookmarks}
         collapsed={collapsed}
         onOpenBookmark={(id) => monper.openBookmark(id)}
-        onRemoveBookmark={(id) => monper.removeBookmark(id)}
         onOpenMenu={(r) => monper.openProfileMenu({ x: r.left, y: r.top, width: r.width, height: r.height })}
         onCollapse={() => setCollapsed(true)}
         onNewTab={() => monper.newTab()}
@@ -82,6 +81,7 @@ export default function App(): JSX.Element {
           onReload={() => monper.reload()}
           onGo={(url) => monper.go(url)}
           onToggleBookmark={() => monper.toggleBookmark()}
+          onToggleMute={() => monper.toggleMute()}
           onToggleChat={() => setChatOpen((c) => !c)}
           onOpenVault={(r) => monper.openVault({ x: r.left, y: r.top, width: r.width, height: r.height })}
         />

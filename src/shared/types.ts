@@ -8,6 +8,10 @@ export interface TabInfo {
   loading: boolean
   /** true mientras el sitio tiene acceso activo a cámara/micrófono */
   recording: boolean
+  /** true si el usuario silenció la pestaña */
+  muted: boolean
+  /** true mientras la pestaña reproduce audio */
+  audible: boolean
   /** true si la pestaña es del agente (creada/controlada por Monper) */
   agent: boolean
   /** id del bookmark al que está ligada esta pestaña (se muestra en su slot de bookmarks) */
@@ -22,6 +26,8 @@ export interface ActiveInfo {
   loading: boolean
   pageColor: string | null
   bookmarked: boolean
+  muted: boolean
+  audible: boolean
 }
 
 export interface Bookmark {
@@ -245,6 +251,12 @@ export interface MonperApi {
   removeBookmark: (id: string) => void
   /** Abre (o reactiva) el bookmark como pestaña ligada a su slot */
   openBookmark: (id: string) => void
+  /** Abre el menú contextual nativo de una pestaña */
+  tabContextMenu: (id: number) => void
+  /** Abre el menú contextual nativo de un bookmark */
+  bookmarkContextMenu: (id: string) => void
+  /** Silencia/reactiva el audio de una pestaña (o la activa si no se da id) */
+  toggleMute: (id?: number) => void
   openDevtools: () => void
   openDownloads: () => void
   openSettings: () => void

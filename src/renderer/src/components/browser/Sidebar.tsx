@@ -14,7 +14,6 @@ interface Props {
   bookmarks: Bookmark[]
   collapsed: boolean
   onOpenBookmark: (url: string) => void
-  onRemoveBookmark: (id: string) => void
   onOpenMenu: (rect: DOMRect) => void
   onCollapse: () => void
   onNewTab: () => void
@@ -26,7 +25,7 @@ const newRowClass =
   'flex items-center gap-2.5 w-full py-1.5 px-2 rounded-lg text-text-faint text-left text-[15px] ' +
   'min-h-[30px] hover:bg-bg-hover hover:text-text [&>svg]:opacity-80 [&>svg]:w-[15px] [&>svg]:h-[15px]'
 
-export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBookmark, onRemoveBookmark, onOpenMenu, onCollapse, onNewTab, onSelectTab, onCloseTab }: Props): JSX.Element {
+export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBookmark, onOpenMenu, onCollapse, onNewTab, onSelectTab, onCloseTab }: Props): JSX.Element {
   // Las pestañas ligadas a un bookmark se muestran en su slot de bookmarks, no en Tabs.
   const userTabs = state.tabs.filter((t) => !t.agent && !t.bookmarkId)
   const agentTabs = state.tabs.filter((t) => t.agent)
@@ -59,7 +58,7 @@ export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBo
               return live ? (
                 <TabRow key={b.id} tab={live} active={live.id === state.activeId} onSelect={onSelectTab} onClose={onCloseTab} />
               ) : (
-                <BookmarkRow key={b.id} bookmark={b} onOpen={onOpenBookmark} onRemove={onRemoveBookmark} />
+                <BookmarkRow key={b.id} bookmark={b} onOpen={onOpenBookmark} />
               )
             })}
           </div>

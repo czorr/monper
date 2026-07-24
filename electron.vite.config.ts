@@ -50,6 +50,7 @@ export default defineConfig({
           index: resolve(__dirname, 'src/renderer/index.html'),
           newtab: resolve(__dirname, 'src/renderer/newtab.html'),
           settings: resolve(__dirname, 'src/renderer/settings.html'),
+          error: resolve(__dirname, 'src/renderer/error.html'),
           vault: resolve(__dirname, 'src/renderer/vault.html'),
           omnibox: resolve(__dirname, 'src/renderer/omnibox.html'),
           siteinfo: resolve(__dirname, 'src/renderer/siteinfo.html'),

@@ -65,6 +65,7 @@ const api: MonperApi = {
   onChatStepImage: (cb: (dataUrl: string) => void) => sub('chat:stepImage', (d) => cb(d as string)),
   onChatDone: (cb: () => void) => sub('chat:done', () => cb()),
   onChatError: (cb: (m: string) => void) => sub('chat:error', (m) => cb(m as string)),
+  onChatPrefill: (cb: (p: string) => void) => sub('chat:prefill', (p) => cb(p as string)),
   openVault: (anchor) => ipcRenderer.send('vault:open', anchor),
   onMenuAction: (cb: (action: string) => void) => sub('menu:action', (a) => cb(a as string)),
   suggest: (query: string) => ipcRenderer.invoke('omni:suggest', query) as Promise<Suggestion[]>,

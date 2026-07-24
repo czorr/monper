@@ -15,9 +15,11 @@ const { monper } = window
 interface Props {
   open: boolean
   onClose: () => void
+  /** prompt inyectado (p. ej. desde una acción rápida): se envía al cambiar el nonce */
+  inject?: { text: string; nonce: number } | null
 }
 
-export default function ChatPanel({ open, onClose }: Props): JSX.Element {
+export default function ChatPanel({ open, onClose, inject }: Props): JSX.Element {
   const [messages, setMessages] = useState<Msg[]>([])
   const [running, setRunning] = useState(false)
   const [ctx, setCtx] = useState<ChatContext>(EMPTY_CTX)
@@ -94,6 +96,9 @@ export default function ChatPanel({ open, onClose }: Props): JSX.Element {
     scrollToEnd()
     monper.chatSend(history)
   }
+
+  // Envía el prompt inyectado (acción rápida) cuando cambia el nonce.
+  useEffect(() => { if (inject?.text) send(inject.text) }, [inject?.nonce])
 
   return (
     <aside

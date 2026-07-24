@@ -20,6 +20,7 @@ export default function App(): JSX.Element {
   const [downloads, setDownloads] = useState<DownloadsSummary>({ active: 0, total: 0 })
   const [findOpen, setFindOpen] = useState(false)
   const [findRequest, setFindRequest] = useState(0)
+  const [inject, setInject] = useState<{ text: string; nonce: number } | null>(null)
 
   useEffect(() => monper.onState(setState), [])
   useEffect(() => { monper.getProfile().then(setProfile); return monper.onProfile(setProfile) }, [])
@@ -56,6 +57,12 @@ export default function App(): JSX.Element {
 
   // Al cambiar de pestaña, cierra la búsqueda (sus resultados eran de la otra página).
   useEffect(() => { setFindOpen(false) }, [state.activeId])
+
+  // Acción rápida desde una página: abre el chat y manda el prompt al agente.
+  useEffect(() => monper.onChatPrefill((prompt) => {
+    setChatOpen(true)
+    setInject({ text: prompt, nonce: Date.now() })
+  }), [])
 
   return (
     <>
@@ -99,7 +106,7 @@ export default function App(): JSX.Element {
         />
       </Content>
       {findOpen && <FindBar openRequest={findRequest} onClose={() => setFindOpen(false)} />}
-      <ChatPanel open={chatOpen} onClose={() => setChatOpen(false)} />
+      <ChatPanel open={chatOpen} onClose={() => setChatOpen(false)} inject={inject} />
     </>
   )
 }

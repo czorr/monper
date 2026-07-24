@@ -283,6 +283,8 @@ export interface MonperApi {
   onChatStepImage: (cb: (dataUrl: string) => void) => () => void
   onChatDone: (cb: () => void) => () => void
   onChatError: (cb: (message: string) => void) => () => void
+  /** El main pide abrir el chat y enviar un prompt (p. ej. desde una acción rápida). */
+  onChatPrefill: (cb: (prompt: string) => void) => () => void
   // ---- Vault (ventana nativa flotante) ----
   openVault: (anchor: MenuAnchor) => void
   // ---- Menú nativo → acciones de estado del renderer ----
@@ -320,6 +322,22 @@ export interface FindResult {
   active: number
 }
 
+/** Acción rápida sobre texto seleccionado: una plantilla de prompt para el agente. */
+export interface QuickAction {
+  id: string
+  name: string
+  /** nombre de un icono de tabler soportado (ver QUICK_ICONS) */
+  icon: string
+  /** plantilla; {{selection}} se reemplaza por el texto seleccionado */
+  template: string
+}
+
+/** Iconos de tabler soportados para las acciones rápidas (deben existir en el mapa inyectado). */
+export const QUICK_ICONS = [
+  'list', 'language', 'sparkles', 'wand', 'message', 'pencil',
+  'bulb', 'world', 'quote', 'code', 'mail', 'search'
+] as const
+
 /** API expuesta a la ventana nativa del vault */
 export interface VaultWinApi {
   onItems: (cb: (items: VaultItemMeta[]) => void) => void
@@ -337,6 +355,10 @@ export interface MonperTabApi {
   openDownload: (id: string) => void
   showDownload: (id: string) => void
   clearDownloads: () => void
+  // ---- Acciones rápidas (Settings) ----
+  listQuickActions: () => Promise<QuickAction[]>
+  saveQuickAction: (a: QuickAction) => Promise<QuickAction[]>
+  removeQuickAction: (id: string) => Promise<QuickAction[]>
   getBookmarks: () => Promise<Bookmark[]>
   addBookmark: (b: Omit<Bookmark, 'id'>) => void
   removeBookmark: (id: string) => void

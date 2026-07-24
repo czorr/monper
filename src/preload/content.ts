@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { Bookmark, DownloadEntry, MonperTabApi, Suggestion } from '../shared/types'
+import { setupSelectionUI } from './selectionUI'
 
 const api: MonperTabApi = {
   navigate: (url) => ipcRenderer.send('tab:navigate', url),
@@ -37,10 +38,16 @@ const api: MonperTabApi = {
   skillsToggle: (id, enabled) => ipcRenderer.invoke('skills:toggle', id, enabled),
   getProfile: () => ipcRenderer.invoke('profile:get'),
   setProfile: (name) => ipcRenderer.invoke('profile:set', name),
-  setAvatar: (dataUrl) => ipcRenderer.invoke('profile:setAvatar', dataUrl)
+  setAvatar: (dataUrl) => ipcRenderer.invoke('profile:setAvatar', dataUrl),
+  listQuickActions: () => ipcRenderer.invoke('quickactions:list'),
+  saveQuickAction: (a) => ipcRenderer.invoke('quickactions:save', a),
+  removeQuickAction: (id) => ipcRenderer.invoke('quickactions:remove', id)
 }
 
 contextBridge.exposeInMainWorld('monperTab', api)
 
 // Avisa al chrome cuando se interactúa con la página, para cerrar overlays (menú de perfil).
 window.addEventListener('pointerdown', () => ipcRenderer.send('tab:pointerdown'), true)
+
+// Icono/menú flotante de acciones rápidas al seleccionar texto.
+setupSelectionUI()

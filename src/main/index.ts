@@ -14,6 +14,7 @@ import { initPermissions, attachPermissionHandlers, stateOf, setState, requested
 import { initSkills, listSkills, getSkill, toggleSkill, enabledSkills } from './skills'
 import { initProfile, getProfile, setProfile, setAvatar } from './profile'
 import { initDownloads, attachDownloads, listDownloads, activeDownloadCount, cancelDownload, openDownload, showDownload, clearDownloads } from './downloads'
+import { initQuickActions, listQuickActions, saveQuickAction, removeQuickAction, getQuickAction, fillTemplate } from './quickactions'
 import * as vault from './vault/store'
 import type { VaultItemType } from '../shared/vault'
 import type { SiteInfoData, PermKey, PermState } from '../shared/types'
@@ -781,6 +782,23 @@ ipcMain.on('find:start', (_e, query: string, opts: { forward: boolean; findNext:
   wc.findInPage(query, { forward: opts.forward, findNext: opts.findNext })
 })
 ipcMain.on('find:stop', () => { activeWc()?.stopFindInPage('clearSelection') })
+
+// ---- Acciones rápidas sobre texto seleccionado ----
+ipcMain.handle('quickactions:list', () => listQuickActions())
+ipcMain.handle('quickactions:save', (e, a) => (isInternalSender(e.senderFrame?.url) ? saveQuickAction(a) : listQuickActions()))
+ipcMain.handle('quickactions:remove', (e, id: string) => (isInternalSender(e.senderFrame?.url) ? removeQuickAction(id) : listQuickActions()))
+// Ejecuta una acción: arma el prompt (plantilla + selección) y lo manda al chat del agente.
+function runAgentPrompt(prompt: string): void {
+  if (!prompt.trim()) return
+  win?.webContents.send('chat:prefill', prompt)
+}
+ipcMain.on('quickaction:run', (_e, id: string, selection: string) => {
+  const a = getQuickAction(id)
+  if (a) runAgentPrompt(fillTemplate(a.template, selection))
+})
+ipcMain.on('quickaction:runFree', (_e, instruction: string, selection: string) => {
+  runAgentPrompt(`${instruction.trim()}\n\n---\n${selection}`)
+})
 function openSettings(section?: string): void {
   const hash = section ? `#${section}` : ''
   // Si ya hay una pestaña de settings, actívala (y navega a la sección si se pidió); si no, ábrela.
@@ -1194,6 +1212,7 @@ app.whenReady().then(() => {
   initBookmarks()
   initHistory()
   initSkills()
+  initQuickActions()
   initProfile()
   initWindowState()
   vault.initVault()

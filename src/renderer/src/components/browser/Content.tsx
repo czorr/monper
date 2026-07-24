@@ -33,7 +33,7 @@ export default function Content({ leftInset, rightInset, pageColor, controlling,
     <div className={cls}>
       {children}
       {(leftInset || rightInset) && (
-        <div className="absolute left-0 right-0 top-topbar h-8 pointer-events-none" style={{ background: pageColor }} />
+        <div className="absolute left-0 right-0 top-topbar h-8 pointer-events-none transition-[background] duration-150" style={{ background: pageColor }} />
       )}
       {controlling && (
         <div className="absolute left-0 right-0 bottom-0 h-10 flex items-center justify-center gap-3 px-4 text-[12.5px] text-text-dim">

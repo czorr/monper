@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type { Bookmark, DownloadEntry, MonperTabApi, Suggestion } from '../shared/types'
 import { setupSelectionUI } from './selectionUI'
 import { setupPasswordCapture } from './passwordCapture'
+import { setupTopColor } from './topColor'
 
 const api: MonperTabApi = {
   navigate: (url) => ipcRenderer.send('tab:navigate', url),
@@ -55,3 +56,5 @@ window.addEventListener('pointerdown', () => ipcRenderer.send('tab:pointerdown')
 setupSelectionUI()
 // Ofrecer guardar credenciales al enviar un login.
 setupPasswordCapture()
+// Color bajo el topbar (se actualiza al hacer scroll) para fundirlo con la página.
+setupTopColor()

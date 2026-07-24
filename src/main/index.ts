@@ -211,26 +211,55 @@ function pushState() {
   if (peekWin && !peekWin.isDestroyed() && peekWin.isVisible()) peekWin.webContents.send('peek:state', peekState())
 }
 
-// Muestrea el color visible justo debajo del topbar para fundirlo con la página.
-function sampleTopColor(t: Tab): void {
-  t.view.webContents.executeJavaScript(`(() => {
-    const transparent = (c) => !c || c === 'transparent' || c === 'rgba(0, 0, 0, 0)';
-    const bgOf = (el) => { const c = getComputedStyle(el).backgroundColor; return transparent(c) ? null : c; };
-    // Muestrea el color en la esquina superior-izquierda (donde está la muesca del
-    // redondeado nativo), subiendo hasta un fondo opaco. Así la franja que rellena
-    // esa muesca coincide y el borde superior del page view se ve recto.
-    const colorAt = (x, y) => { let el = document.elementFromPoint(x, y); while (el) { const c = bgOf(el); if (c) return c; el = el.parentElement; } return null; };
-    return colorAt(6, 6) || colorAt(Math.floor(innerWidth / 2), 3)
-      || bgOf(document.body) || bgOf(document.documentElement) || '#ffffff';
-  })()`, true).then((c: string) => {
-    t.pageBg = c
-    // Alinea el fondo opaco de la vista con el color real de la página: así el frame en
-    // blanco al cambiar de pestaña coincide con la página (sin flash blanco en páginas oscuras).
-    const hex = rgbToHex(c)
-    if (hex && typeof t.view.setBackgroundColor === 'function') t.view.setBackgroundColor(hex)
-    pushState()
-  }).catch(() => {})
+/**
+ * Aplica el color muestreado bajo el topbar. Lo emite el preload de la página
+ * (en la carga y en cada scroll), así el topbar se funde con lo que hay debajo.
+ */
+function applyTopColor(t: Tab, c: string): void {
+  if (!c || t.pageBg === c) return
+  t.pageBg = c
+  // Alinea el fondo opaco de la vista con el color real de la página: así el frame en
+  // blanco al cambiar de pestaña coincide con la página (sin flash blanco en páginas oscuras).
+  const hex = rgbToHex(c)
+  if (hex && typeof t.view.setBackgroundColor === 'function') t.view.setBackgroundColor(hex)
+  pushState()
 }
+/**
+ * Muestrea el color REAL bajo el topbar capturando una franja de 3px del render y
+ * promediándola (resize 1x1). A diferencia de leer CSS, esto ve gradientes, imágenes
+ * y video — que es lo que usan la mayoría de los hero de las páginas.
+ */
+async function sampleTopStrip(t: Tab): Promise<void> {
+  const b = t.view.getBounds()
+  if (b.width < 8 || b.height < 8) return
+  try {
+    const img = await t.view.webContents.capturePage({ x: 0, y: 0, width: b.width, height: 3 })
+    if (img.isEmpty()) return
+    const px = img.resize({ width: 1, height: 1, quality: 'good' }).toBitmap() // BGRA
+    if (px.length < 3) return
+    const hex = `#${[px[2], px[1], px[0]].map((n) => n.toString(16).padStart(2, '0')).join('')}`
+    applyTopColor(t, hex)
+  } catch { /* la vista puede estar oculta o destruida */ }
+}
+// Throttle por pestaña: el scroll dispara mucho; capturamos como máximo cada 100ms.
+const topSampleAt = new WeakMap<Tab, number>()
+const topSamplePending = new WeakSet<Tab>()
+function scheduleTopSample(t: Tab): void {
+  const now = Date.now()
+  const last = topSampleAt.get(t) ?? 0
+  const wait = Math.max(0, 100 - (now - last))
+  if (topSamplePending.has(t)) return
+  topSamplePending.add(t)
+  setTimeout(() => {
+    topSamplePending.delete(t)
+    topSampleAt.set(t, Date.now())
+    void sampleTopStrip(t)
+  }, wait)
+}
+ipcMain.on('page:scrolled', (e) => {
+  const t = [...tabs.values()].find((tb) => tb.view.webContents === e.sender)
+  if (t && t.view.webContents.id === activeWc()?.id) scheduleTopSample(t)
+})
 
 // 'rgb(r, g, b)' / 'rgba(...)' → '#rrggbb' (ignora alpha). Devuelve null si no puede.
 function rgbToHex(c: string): string | null {
@@ -265,7 +294,7 @@ function createTab(url = newtabUrl(), activate = true, agent = false): number {
   wc.on('did-start-loading', () => { t.loading = true; pushState() })
   wc.on('did-stop-loading', () => {
     t.loading = false
-    sampleTopColor(t)
+    scheduleTopSample(t) // color del topbar: se remuestrea también en cada scroll
     refresh()
   })
   wc.on('did-navigate', (_e, u) => { // sólo main-frame
@@ -341,6 +370,8 @@ function setActive(id: number) {
   if (signinTabId != null && signinTabId !== id) hideSignin() // el prompt era de otra pestaña
   activeId = id
   touchWarm(id) // la activa entra/sube en el warm set
+  const at = tabs.get(id)
+  if (at) scheduleTopSample(at) // recolorea el topbar con la pestaña recién activada
   layoutTabs()
   pushState()
   scheduleSaveSession()

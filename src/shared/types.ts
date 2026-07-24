@@ -10,6 +10,8 @@ export interface TabInfo {
   recording: boolean
   /** true si la pestaña es del agente (creada/controlada por Monper) */
   agent: boolean
+  /** id del bookmark al que está ligada esta pestaña (se muestra en su slot de bookmarks) */
+  bookmarkId: string | null
 }
 
 export interface ActiveInfo {
@@ -237,6 +239,12 @@ export interface MonperApi {
   onProfile: (cb: (p: Profile) => void) => () => void
   onState: (cb: (state: BrowserState) => void) => () => void
   toggleBookmark: () => void
+  // ---- Bookmarks (sidebar del chrome) ----
+  getBookmarks: () => Promise<Bookmark[]>
+  onBookmarks: (cb: (bookmarks: Bookmark[]) => void) => () => void
+  removeBookmark: (id: string) => void
+  /** Abre (o reactiva) el bookmark como pestaña ligada a su slot */
+  openBookmark: (id: string) => void
   openDevtools: () => void
   openDownloads: () => void
   openSettings: () => void

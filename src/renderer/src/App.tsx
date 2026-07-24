@@ -1,5 +1,5 @@
 import { useEffect, useState, type JSX } from 'react'
-import type { BrowserState, Profile } from '@shared/types'
+import type { BrowserState, Bookmark, Profile } from '@shared/types'
 import Sidebar from '@renderer/components/browser/Sidebar'
 import Content from '@renderer/components/browser/Content'
 import Topbar from '@renderer/components/browser/Topbar'
@@ -15,9 +15,11 @@ export default function App(): JSX.Element {
   const [editRequest, setEditRequest] = useState(0)
   const [chatOpen, setChatOpen] = useState(false)
   const [profile, setProfile] = useState<Profile>({ name: 'Tú', initials: '?', avatar: null })
+  const [bookmarks, setBookmarks] = useState<Bookmark[]>([])
 
   useEffect(() => monper.onState(setState), [])
   useEffect(() => { monper.getProfile().then(setProfile); return monper.onProfile(setProfile) }, [])
+  useEffect(() => { monper.getBookmarks().then(setBookmarks); return monper.onBookmarks(setBookmarks) }, [])
 
   // Colapsar/expandir → aviso al main para reposicionar la vista nativa
   useEffect(() => { monper.setCollapsed(collapsed) }, [collapsed])
@@ -51,7 +53,10 @@ export default function App(): JSX.Element {
       <Sidebar
         state={state}
         profile={profile}
+        bookmarks={bookmarks}
         collapsed={collapsed}
+        onOpenBookmark={(id) => monper.openBookmark(id)}
+        onRemoveBookmark={(id) => monper.removeBookmark(id)}
         onOpenMenu={(r) => monper.openProfileMenu({ x: r.left, y: r.top, width: r.width, height: r.height })}
         onCollapse={() => setCollapsed(true)}
         onNewTab={() => monper.newTab()}

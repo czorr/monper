@@ -34,6 +34,10 @@ const api: MonperApi = {
     return () => { ipcRenderer.removeListener('state:update', handler) }
   },
   toggleBookmark: () => ipcRenderer.send('bookmarks:toggle'),
+  getBookmarks: () => ipcRenderer.invoke('bookmarks:list') as Promise<import('../shared/types').Bookmark[]>,
+  onBookmarks: (cb) => sub('bookmarks:changed', (l) => cb(l as never)),
+  removeBookmark: (id: string) => ipcRenderer.send('bookmarks:remove', id),
+  openBookmark: (id: string) => ipcRenderer.send('bookmarks:open', id),
   openDevtools: () => ipcRenderer.send('ui:devtools'),
   openDownloads: () => ipcRenderer.send('ui:downloads'),
   openSettings: () => ipcRenderer.send('ui:settings'),

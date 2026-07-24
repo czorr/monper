@@ -63,6 +63,8 @@ interface Tab {
   recording: boolean
   /** Pestaña operada por el agente (aparece en "Agent tabs" y muestra la leyenda de control). */
   agent: boolean
+  /** id del bookmark ligado a esta pestaña (se renderiza en su slot de bookmarks). */
+  bookmarkId: string | null
 }
 
 // Alto de la franja inferior reservada para la leyenda "Monper is controlling this tab".
@@ -139,7 +141,7 @@ function pushState() {
   const state: BrowserState = {
     activeId,
     tabs: [...tabs.entries()].map(([id, tb]) => ({
-      id, url: displayUrl(tb.url), title: tb.title || 'Nueva pestaña', favicon: tb.favicon, loading: tb.loading, recording: tb.recording, agent: tb.agent
+      id, url: displayUrl(tb.url), title: tb.title || 'Nueva pestaña', favicon: tb.favicon, loading: tb.loading, recording: tb.recording, agent: tb.agent, bookmarkId: tb.bookmarkId
     })),
     active: t
       ? {
@@ -176,7 +178,7 @@ function createTab(url = newtabUrl(), activate = true, agent = false): number {
       preload: join(__dirname, '../preload/content.js')
     }
   })
-  const t: Tab = { view, url, title: '', favicon: null, loading: false, canBack: false, canForward: false, themeColor: null, pageBg: null, recording: false, agent }
+  const t: Tab = { view, url, title: '', favicon: null, loading: false, canBack: false, canForward: false, themeColor: null, pageBg: null, recording: false, agent, bookmarkId: null }
   tabs.set(id, t)
   win!.contentView.addChildView(view)
 
@@ -394,6 +396,7 @@ function broadcastBookmarks(): void {
   for (const t of tabs.values()) {
     if (isNewtab(t.url)) t.view.webContents.send('bookmarks:changed', list)
   }
+  win?.webContents.send('bookmarks:changed', list) // sidebar del chrome
   pushState() // refresca el estado "bookmarked" del chrome
 }
 function navigateActive(raw: string): void {
@@ -412,6 +415,15 @@ ipcMain.on('bookmarks:remove', (e: IpcMainEvent, id: string) => {
   removeBookmark(id); broadcastBookmarks()
 })
 ipcMain.on('tab:navigate', (_e: IpcMainEvent, url: string) => navigateActive(url))
+ipcMain.on('bookmarks:open', (_e: IpcMainEvent, id: string) => {
+  const b = listBookmarks().find((x) => x.id === id)
+  if (!b) return
+  // Si ya hay una pestaña viva para este bookmark, actívala; si no, crea una ligada a su slot.
+  for (const [tid, t] of tabs) if (t.bookmarkId === id) { setActive(tid); return }
+  const tabId = createTab(b.url, true)
+  const t = tabs.get(tabId)
+  if (t) { t.bookmarkId = id; pushState() }
+})
 ipcMain.on('bookmarks:toggle', () => {
   const t = activeId != null ? tabs.get(activeId) : null
   if (!t || isNewtab(t.url)) return

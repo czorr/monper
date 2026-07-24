@@ -2,6 +2,7 @@ import type { WebContents } from 'electron'
 // Consumimos la librería desde su fuente: vite la empaqueta y tsc la tipa, sin
 // necesitar dist/ compilado ni publicarla. (Para publicar, se build por separado.)
 import { pageFromWebContents } from '../../../packages/monperwright/src/electron'
+import { buildGlobals } from './globals'
 
 // Constructor de funciones async (no expuesto directamente en el runtime).
 const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor as new (
@@ -37,16 +38,21 @@ export async function runRepl(
     logs.push(args.map(fmt).join(' '))
   }
 
+  // Globals que usan las skills (googleSearch, cua, twitter, gmail, passwordManager…).
+  const globals = buildGlobals(page, wc)
+  const gNames = Object.keys(globals)
+  const gValues = gNames.map((k) => globals[k])
+
   let fn: (...a: unknown[]) => Promise<unknown>
   try {
-    fn = new AsyncFunction('page', 'state', 'log', code)
+    fn = new AsyncFunction('page', 'state', 'log', ...gNames, code)
   } catch (e) {
     return `ERROR de sintaxis: ${e instanceof Error ? e.message : String(e)}`
   }
 
   let result: unknown
   try {
-    result = await fn(page, state, log)
+    result = await fn(page, state, log, ...gValues)
   } catch (e) {
     const msg = e instanceof Error ? e.stack || e.message : String(e)
     return `ERROR en ejecución: ${msg}${logs.length ? '\n\nlogs:\n' + logs.join('\n') : ''}`

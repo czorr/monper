@@ -297,6 +297,18 @@ export class Page {
     return this.transport.eval(js)
   }
 
+  /** Como fetch pero devuelve el JSON parseado sin truncar (para APIs internas de sitios). */
+  async fetchJSON<T = unknown>(url: string, init: Record<string, unknown> = {}): Promise<T> {
+    const js = `(async () => { const r = await fetch(${JSON.stringify(url)}, ${JSON.stringify(init)}); return await r.json(); })()`
+    return this.transport.eval<T>(js)
+  }
+
+  /** Como fetch pero devuelve el texto completo sin truncar (export de Docs/Sheets, etc.). */
+  async fetchText(url: string, init: Record<string, unknown> = {}): Promise<string> {
+    const js = `(async () => { const r = await fetch(${JSON.stringify(url)}, ${JSON.stringify(init)}); return await r.text(); })()`
+    return this.transport.eval<string>(js)
+  }
+
   async scrollBy(dy: number): Promise<void> {
     await this._eval(`(() => { window.scrollBy({ top: ${dy}, behavior: 'instant' }); return true })()`)
   }

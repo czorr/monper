@@ -1,0 +1,50 @@
+{
+  "name": "monperwright",
+  "version": "0.1.0",
+  "description": "Token-efficient, Playwright-shaped browser automation over a pluggable transport (CDP / Electron WebContents). Built for LLM coding agents.",
+  "keywords": [
+    "browser",
+    "automation",
+    "playwright",
+    "agent",
+    "llm",
+    "cdp",
+    "electron",
+    "accessibility"
+  ],
+  "license": "MIT",
+  "author": "Monper",
+  "type": "commonjs",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./electron": {
+      "types": "./dist/electron.d.ts",
+      "default": "./dist/electron.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run clean && npm run build"
+  },
+  "peerDependencies": {
+    "electron": ">=28"
+  },
+  "peerDependenciesMeta": {
+    "electron": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0"
+  }
+}

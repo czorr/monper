@@ -880,11 +880,16 @@ ipcMain.handle('profile:setAvatar', (e, dataUrl: string | null) => {
 })
 
 // Autocompletado del omnibox / new tab. Cancela la búsqueda anterior en cada tecla.
-let suggestAbort: AbortController | null = null
-ipcMain.handle('omni:suggest', async (_e, query: string) => {
-  suggestAbort?.abort()
-  suggestAbort = new AbortController()
-  try { return await suggest(query, suggestAbort.signal) } catch { return [] }
+const suggestAborts = new Map<number, AbortController>()
+ipcMain.handle('omni:suggest', async (e, query: string) => {
+  // Un controller POR EMISOR: antes era uno global y el omnibox del topbar y la
+  // new-tab page se cancelaban mutuamente las sugerencias.
+  const key = e.sender.id
+  suggestAborts.get(key)?.abort()
+  const ctrl = new AbortController()
+  suggestAborts.set(key, ctrl)
+  try { return await suggest(query, ctrl.signal) } catch { return [] }
+  finally { if (suggestAborts.get(key) === ctrl) suggestAborts.delete(key) }
 })
 ipcMain.handle('ui:clearData', async (e) => {
   if (!isInternalSender(e.senderFrame?.url)) return false

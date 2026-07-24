@@ -36,12 +36,20 @@ export function useAutocomplete(suggestFn: SuggestFn, debounceMs = 110): Autocom
     if (!q) { setItems([]); setOpen(false); setActive(-1); return }
     const id = ++reqId.current
     const t = setTimeout(() => {
-      suggestFn(q).then((res) => {
-        if (id !== reqId.current) return // llegó tarde: descarta
-        setItems(res)
-        setOpen(res.length > 0)
-        setActive(-1)
-      })
+      // Sin catch, cualquier fallo del IPC dejaba el autocomplete muerto y en silencio.
+      Promise.resolve()
+        .then(() => suggestFn(q))
+        .then((res) => {
+          if (id !== reqId.current) return // llegó tarde: descarta
+          setItems(res)
+          setOpen(res.length > 0)
+          setActive(-1)
+        })
+        .catch((err) => {
+          if (id !== reqId.current) return
+          console.error('[omnibox] fallo al pedir sugerencias:', err)
+          setItems([]); setOpen(false); setActive(-1)
+        })
     }, debounceMs)
     return () => clearTimeout(t)
   }, [query, suggestFn, debounceMs])

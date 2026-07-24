@@ -30,12 +30,21 @@ function faviconOf(url: string): string {
 }
 
 // Sugerencias de búsqueda de Google (desde el main: sin CSP). Formato firefox: [q, [s1, s2, ...]].
-function googleSuggest(query: string, signal?: AbortSignal): Promise<string[]> {
+function googleSuggest(query: string, signal?: AbortSignal, timeoutMs = 2500): Promise<string[]> {
   return new Promise((resolve) => {
     const url = 'https://suggestqueries.google.com/complete/search?client=firefox&q=' + encodeURIComponent(query)
     const req = net.request(url)
     let body = ''
-    const done = (list: string[]): void => resolve(list)
+    let settled = false
+    // Sin timeout, una petición colgada dejaba la promesa sin resolver PARA SIEMPRE:
+    // suggest() nunca retornaba y el omnibox se quedaba sin sugerencias en silencio.
+    const done = (list: string[]): void => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      resolve(list)
+    }
+    const timer = setTimeout(() => { try { req.abort() } catch { /* noop */ } ; done([]) }, timeoutMs)
     signal?.addEventListener('abort', () => { try { req.abort() } catch { /* noop */ } ; done([]) })
     req.on('response', (res) => {
       res.on('data', (c) => { body += c.toString() })
@@ -45,9 +54,11 @@ function googleSuggest(query: string, signal?: AbortSignal): Promise<string[]> {
           done(Array.isArray(parsed?.[1]) ? parsed[1] : [])
         } catch { done([]) }
       })
+      res.on('error', () => done([]))
     })
     req.on('error', () => done([]))
-    req.end()
+    req.on('abort', () => done([]))
+    try { req.end() } catch { done([]) }
   })
 }
 

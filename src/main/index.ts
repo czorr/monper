@@ -9,8 +9,10 @@ import { runMastra } from './agent/mastra'
 import { initHistory, recordVisit, updateMeta } from './history'
 import { initWindowState, initialBounds, shouldMaximize, trackWindow } from './windowState'
 import { suggest } from './suggest'
+import { initPermissions, attachPermissionHandlers, stateOf, setState, requestedKeys } from './permissions'
 import * as vault from './vault/store'
 import type { VaultItemType } from '../shared/vault'
+import type { SiteInfoData, PermKey, PermState } from '../shared/types'
 import appIcon from '../renderer/src/assets/icon.png?asset'
 
 const SIDEBAR_WIDTH = 240
@@ -56,6 +58,7 @@ interface Tab {
   canForward: boolean
   themeColor: string | null
   pageBg: string | null
+  recording: boolean
 }
 
 let win: BrowserWindow | null = null
@@ -127,7 +130,7 @@ function pushState() {
   const state: BrowserState = {
     activeId,
     tabs: [...tabs.entries()].map(([id, tb]) => ({
-      id, url: displayUrl(tb.url), title: tb.title || 'Nueva pestaña', favicon: tb.favicon, loading: tb.loading
+      id, url: displayUrl(tb.url), title: tb.title || 'Nueva pestaña', favicon: tb.favicon, loading: tb.loading, recording: tb.recording
     })),
     active: t
       ? {
@@ -163,7 +166,7 @@ function createTab(url = newtabUrl(), activate = true): number {
       preload: join(__dirname, '../preload/content.js')
     }
   })
-  const t: Tab = { view, url, title: '', favicon: null, loading: false, canBack: false, canForward: false, themeColor: null, pageBg: null }
+  const t: Tab = { view, url, title: '', favicon: null, loading: false, canBack: false, canForward: false, themeColor: null, pageBg: null, recording: false }
   tabs.set(id, t)
   win!.contentView.addChildView(view)
 
@@ -176,12 +179,30 @@ function createTab(url = newtabUrl(), activate = true): number {
     sampleTopColor(t)
     refresh()
   })
-  wc.on('did-navigate', (_e, u) => { t.url = u; recordVisit(u, t.title, t.favicon); refresh() }) // sólo main-frame
+  wc.on('did-navigate', (_e, u) => { t.url = u; t.recording = false; recordVisit(u, t.title, t.favicon); refresh() }) // sólo main-frame
   wc.on('did-navigate-in-page', (_e, u, isMainFrame) => { if (isMainFrame) { t.url = u; refresh() } })
   wc.on('page-title-updated', (_e, title) => { t.title = title; updateMeta(t.url, title); pushState() })
   wc.on('page-favicon-updated', (_e, icons) => { t.favicon = icons?.[0] || null; updateMeta(t.url, undefined, t.favicon); pushState() })
   wc.on('did-change-theme-color', (_e, color) => { t.themeColor = color; pushState() })
-  wc.setWindowOpenHandler(({ url: u }) => { createTab(u); return { action: 'deny' } })
+  wc.setWindowOpenHandler((details) => {
+    const feats = details.features || ''
+    // Popups reales (OAuth, pagos…): window.open con dimensiones o disposition new-window
+    // → abrir una ventana de verdad (mantiene window.opener/postMessage/window.close).
+    const isPopup = details.disposition === 'new-window' || details.disposition === 'other' || /\b(width|height|popup)\b/i.test(feats)
+    if (isPopup) {
+      return {
+        action: 'allow',
+        overrideBrowserWindowOptions: {
+          width: 500, height: 640, resizable: true, minimizable: true, maximizable: false,
+          fullscreenable: false, autoHideMenuBar: true, title: 'Monper',
+          webPreferences: { partition: PARTITION, contextIsolation: true, sandbox: true }
+        }
+      }
+    }
+    // Links normales (target=_blank) → nueva pestaña.
+    createTab(details.url)
+    return { action: 'deny' }
+  })
 
   wc.loadURL(url)
   if (activate) setActive(id)
@@ -510,6 +531,65 @@ ipcMain.on('omni:hide', hideOmni)
 ipcMain.on('omni:choose', (_e, i: number) => win?.webContents.send('omni:chosen', i))
 ipcMain.on('omni:hover', (_e, i: number) => win?.webContents.send('omni:hovered', i))
 
+// ---- Site info: popup nativo de info/permisos del sitio (anclado al pill del dominio) ----
+function activeUrl(): string {
+  const t = activeId != null ? tabs.get(activeId) : null
+  return t?.url || ''
+}
+function buildSiteInfo(): SiteInfoData {
+  const url = activeUrl()
+  let origin = '', domain = ''
+  try { const u = new URL(url); origin = u.origin; domain = u.hostname.replace(/^www\./, '') } catch { /* noop */ }
+  const internal = isInternal(url) || !origin
+  const secure = /^https:\/\//i.test(url)
+  const permissions = internal ? [] : requestedKeys(origin).map((key) => ({ key, state: stateOf(origin, key) }))
+  return { url, origin, domain, secure, internal, permissions }
+}
+let siteWin: BrowserWindow | null = null
+const SITE_W = 340
+const SITE_PAD = 12
+let siteAnchor: MenuAnchor | null = null
+function ensureSiteWin(): BrowserWindow {
+  if (siteWin && !siteWin.isDestroyed()) return siteWin
+  siteWin = new BrowserWindow({
+    parent: win!, width: SITE_W, height: 240, show: false, frame: false, transparent: true,
+    resizable: false, movable: false, minimizable: false, maximizable: false,
+    fullscreenable: false, hasShadow: false, skipTaskbar: true, backgroundColor: '#00000000',
+    webPreferences: { preload: join(__dirname, '../preload/siteinfo.js'), contextIsolation: true, sandbox: false }
+  })
+  siteWin.on('blur', () => { if (siteWin && !siteWin.isDestroyed()) siteWin.hide() })
+  siteWin.webContents.on('did-finish-load', () => { if (siteWin && !siteWin.isDestroyed()) siteWin.webContents.send('siteinfo:data', buildSiteInfo()) })
+  if (RENDERER_URL) siteWin.loadURL(`${RENDERER_URL}/siteinfo.html`)
+  else siteWin.loadFile(join(__dirname, '../renderer/siteinfo.html'))
+  return siteWin
+}
+function placeSiteWin(height: number): void {
+  if (!siteWin || siteWin.isDestroyed() || !siteAnchor || !win) return
+  const cb = win.getContentBounds()
+  siteWin.setBounds({
+    x: Math.max(cb.x + 4, Math.round(cb.x + siteAnchor.x - SITE_PAD)),
+    y: Math.round(cb.y + siteAnchor.y + siteAnchor.height - 4),
+    width: SITE_W,
+    height: Math.max(1, Math.round(height))
+  })
+}
+ipcMain.on('siteinfo:open', (_e, anchor: MenuAnchor) => {
+  siteAnchor = anchor
+  const w = ensureSiteWin()
+  w.webContents.send('siteinfo:data', buildSiteInfo())
+  w.show(); w.focus()
+})
+ipcMain.on('siteinfo:height', (_e, h: number) => placeSiteWin(h))
+ipcMain.on('siteinfo:toggle', (_e, key: PermKey, state: PermState) => {
+  try { setState(new URL(activeUrl()).origin, key, state) } catch { /* noop */ }
+  if (siteWin && !siteWin.isDestroyed()) siteWin.webContents.send('siteinfo:data', buildSiteInfo())
+})
+ipcMain.on('siteinfo:clear', async () => {
+  try { await session.fromPartition(PARTITION).clearStorageData({ origin: new URL(activeUrl()).origin }) } catch { /* noop */ }
+  if (siteWin && !siteWin.isDestroyed()) siteWin.hide()
+})
+ipcMain.on('siteinfo:close', () => { if (siteWin && !siteWin.isDestroyed()) siteWin.hide() })
+
 // ---- Proveedores de IA (gestión desde la página de Settings, sender-validada) ----
 function notifyChatContext(): void { win?.webContents.send('chat:contextChanged', getChatContext()) }
 ipcMain.handle('providers:list', (e) => (isInternalSender(e.senderFrame?.url) ? listProviders() : []))
@@ -594,7 +674,19 @@ app.whenReady().then(() => {
     credits: 'Un navegador agéntico de escritorio'
   })
   buildAppMenu()
-  session.fromPartition(PARTITION)
+  initPermissions()
+  const ses = session.fromPartition(PARTITION)
+  // UA de Chrome limpia (sin "Electron"/"monper"): apps como Figma rompen y Google
+  // bloquea el login si detectan un navegador embebido.
+  const platformUA = isMac
+    ? 'Macintosh; Intel Mac OS X 10_15_7'
+    : process.platform === 'win32' ? 'Windows NT 10.0; Win64; x64' : 'X11; Linux x86_64'
+  ses.setUserAgent(`Mozilla/5.0 (${platformUA}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${process.versions.chrome} Safari/537.36`)
+  attachPermissionHandlers(ses, (wc, active) => {
+    for (const tb of tabs.values()) {
+      if (tb.view.webContents === wc) { tb.recording = active; pushState(); break }
+    }
+  })
   initBookmarks()
   initHistory()
   initWindowState()

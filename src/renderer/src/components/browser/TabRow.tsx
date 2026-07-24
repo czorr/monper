@@ -40,13 +40,21 @@ export default function TabRow({ tab, active, onSelect, onClose }: Props): JSX.E
         {tab.title || domainOf(tab.url) || 'New tab'}
       </span>
 
-      <button
-        className="w-[18px] h-[18px] grid place-items-center rounded-md text-text-faint shrink-0 opacity-0 group-hover/tab:opacity-100 hover:text-text hover:bg-white/15 [&>svg]:w-[13px] [&>svg]:h-[13px]"
-        title="Cerrar"
-        onClick={(e) => { e.stopPropagation(); onClose(tab.id) }}
-      >
-        <CloseIcon />
-      </button>
+      <div className="w-[18px] h-[18px] shrink-0 relative">
+        {/* Punto rojo mientras graba (cámara/mic); se oculta al hover para dar paso al close. */}
+        {tab.recording && (
+          <span className="absolute inset-0 grid place-items-center pointer-events-none group-hover/tab:opacity-0">
+            <span className="w-2 h-2 rounded-full bg-red-500 ring-2 ring-red-500/30" />
+          </span>
+        )}
+        <button
+          className="absolute inset-0 grid place-items-center rounded-md text-text-faint opacity-0 group-hover/tab:opacity-100 hover:text-text hover:bg-white/15 [&>svg]:w-[13px] [&>svg]:h-[13px]"
+          title="Cerrar"
+          onClick={(e) => { e.stopPropagation(); onClose(tab.id) }}
+        >
+          <CloseIcon />
+        </button>
+      </div>
     </div>
   )
 }

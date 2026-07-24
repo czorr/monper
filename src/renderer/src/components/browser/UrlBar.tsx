@@ -121,16 +121,32 @@ export default function UrlBar({ active, editRequest, onGo }: Props): JSX.Elemen
           onKeyDown={onKeyDown}
           className="w-full h-8 rounded-[9px] text-text text-[13px] px-3 text-left outline-none border border-border bg-bg-elev placeholder:text-text-faint select-text [&::selection]:bg-white/15 [&::selection]:text-text-dim"
         />
+      ) : domain ? (
+        <div className="flex items-center gap-1.5 w-full min-w-0 h-[30px]">
+          {/* Pill del dominio → popup de info/permisos del sitio */}
+          <button
+            onClick={(e) => {
+              const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
+              monper.openSiteInfo({ x: r.left, y: r.top, width: r.width, height: r.height })
+            }}
+            className="flex items-center shrink-0 h-[30px] px-3 rounded-full text-[13px] font-medium text-text bg-bg-elev hover:bg-bg-hover transition-colors whitespace-nowrap tracking-[-0.08px]"
+          >
+            {domain}
+          </button>
+          {/* Título → abre el input */}
+          <button
+            onClick={startEditing}
+            className="flex-1 min-w-0 h-[30px] px-1.5 text-left rounded-lg hover:bg-bg-elev"
+          >
+            <span className="text-text-dim overflow-hidden text-ellipsis whitespace-nowrap tracking-[-0.08px]">{title}</span>
+          </button>
+        </div>
       ) : (
         <button
           onClick={startEditing}
-          className="flex items-center gap-2.5 w-full min-w-0 h-[30px] px-3 rounded-lg text-[13px] text-left hover:bg-bg-elev"
+          className="flex items-center w-full min-w-0 h-[30px] px-3 rounded-lg text-[13px] text-left hover:bg-bg-elev"
         >
-          <span className="text-text font-medium whitespace-nowrap tracking-[-0.08px]">{domain}</span>
-          {title && <span className="w-px h-3.5 bg-border shrink-0" />}
-          {title && (
-            <span className="text-text-dim overflow-hidden text-ellipsis whitespace-nowrap tracking-[-0.08px]">{title}</span>
-          )}
+          <span className="text-text font-medium whitespace-nowrap tracking-[-0.08px]">New tab</span>
         </button>
       )}
     </div>

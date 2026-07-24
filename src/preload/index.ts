@@ -24,6 +24,7 @@ const api: MonperApi = {
   omniHide: () => ipcRenderer.send('omni:hide'),
   onOmniChosen: (cb: (i: number) => void) => sub('omni:chosen', (i) => cb(i as number)),
   onOmniHovered: (cb: (i: number) => void) => sub('omni:hovered', (i) => cb(i as number)),
+  openSiteInfo: (anchor) => ipcRenderer.send('siteinfo:open', anchor),
   onState: (cb: (state: BrowserState) => void) => {
     const handler = (_e: unknown, state: BrowserState) => cb(state)
     ipcRenderer.on('state:update', handler)

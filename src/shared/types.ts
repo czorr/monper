@@ -6,6 +6,8 @@ export interface TabInfo {
   title: string
   favicon: string | null
   loading: boolean
+  /** true mientras el sitio tiene acceso activo a cámara/micrófono */
+  recording: boolean
 }
 
 export interface ActiveInfo {
@@ -116,6 +118,27 @@ export interface BrowserState {
   active: ActiveInfo | null
 }
 
+// ---- Permisos del sitio (cámara, micrófono, etc.) ----
+export type PermKey = 'camera' | 'microphone' | 'geolocation' | 'notifications' | 'clipboard'
+export type PermState = 'granted' | 'denied' | 'ask'
+export interface SitePermission { key: PermKey; state: PermState }
+export interface SiteInfoData {
+  url: string
+  origin: string
+  domain: string
+  secure: boolean
+  internal: boolean
+  permissions: SitePermission[]
+}
+/** API expuesta a la ventana nativa de info del sitio */
+export interface SiteInfoWinApi {
+  onData: (cb: (data: SiteInfoData) => void) => void
+  reportHeight: (h: number) => void
+  toggle: (key: PermKey, state: PermState) => void
+  clearData: () => void
+  close: () => void
+}
+
 /** Rectángulo (coords de la ventana) para posicionar la ventana nativa del omnibox */
 export interface OmniRect { x: number; y: number; width: number; height: number }
 /** Datos que el chrome envía a la ventana nativa del omnibox */
@@ -160,6 +183,8 @@ export interface MonperApi {
   omniHide: () => void
   onOmniChosen: (cb: (index: number) => void) => () => void
   onOmniHovered: (cb: (index: number) => void) => () => void
+  /** Abre el popup nativo de info/permisos del sitio, anclado al pill del dominio */
+  openSiteInfo: (anchor: MenuAnchor) => void
   onState: (cb: (state: BrowserState) => void) => () => void
   toggleBookmark: () => void
   openDevtools: () => void
@@ -226,5 +251,6 @@ declare global {
     monperTab: MonperTabApi
     vaultwin: VaultWinApi
     omniwin: OmniWinApi
+    siteinfo: SiteInfoWinApi
   }
 }

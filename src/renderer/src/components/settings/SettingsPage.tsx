@@ -25,8 +25,14 @@ const NAV: { id: Cat; label: string; icon: JSX.Element }[] = [
   { id: 'about', label: 'About', icon: <IconInfo /> }
 ]
 
+const CATS: Cat[] = ['general', 'account', 'ai', 'skills', 'privacy', 'about']
+function initialCat(): Cat {
+  const h = window.location.hash.replace(/^#/, '') as Cat
+  return CATS.includes(h) ? h : 'ai'
+}
+
 export default function SettingsPage(): JSX.Element {
-  const [cat, setCat] = useState<Cat>('ai')
+  const [cat, setCat] = useState<Cat>(initialCat)
 
   return (
     <div className="h-full flex bg-bg text-text select-text">

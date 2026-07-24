@@ -258,7 +258,7 @@ function buildAppMenu(): void {
     submenu: [
       { role: 'about', label: 'Acerca de Monper' },
       { type: 'separator' },
-      { label: 'Ajustes…', accelerator: 'CmdOrCtrl+,', click: openSettings },
+      { label: 'Ajustes…', accelerator: 'CmdOrCtrl+,', click: () => openSettings() },
       { type: 'separator' },
       { role: 'services' },
       { type: 'separator' },
@@ -419,12 +419,17 @@ ipcMain.on('ui:devtools', () => {
   if (wc) wc.isDevToolsOpened() ? wc.closeDevTools() : wc.openDevTools({ mode: 'detach' })
 })
 ipcMain.on('ui:downloads', () => { shell.openPath(app.getPath('downloads')) })
-function openSettings(): void {
-  // Si ya hay una pestaña de settings, actívala; si no, ábrela.
-  for (const [id, t] of tabs) if (t.url.includes('/settings.html')) { setActive(id); return }
-  createTab(internalUrl('settings'))
+function openSettings(section?: string): void {
+  const hash = section ? `#${section}` : ''
+  // Si ya hay una pestaña de settings, actívala (y navega a la sección si se pidió); si no, ábrela.
+  for (const [id, t] of tabs) if (t.url.includes('/settings.html')) {
+    setActive(id)
+    if (section) t.view.webContents.loadURL(internalUrl('settings') + hash)
+    return
+  }
+  createTab(internalUrl('settings') + hash)
 }
-ipcMain.on('ui:settings', openSettings)
+ipcMain.on('ui:settings', () => openSettings())
 ipcMain.on('ui:openChat', () => win?.webContents.send('menu:action', 'toggle-chat'))
 
 // ---- Skills del agente (gestión desde Settings) ----
@@ -723,6 +728,20 @@ ipcMain.handle('chat:send', async (_e, messages: ChatMessage[]) => {
         openTab: (url) => createTab(url, true),
         switchTab: (id) => { if (!tabs.has(id)) return false; setActive(id); return true },
         closeTab: (id) => { if (!tabs.has(id)) return false; closeTab(id); return true }
+      },
+      settings: {
+        read: () => ({
+          profileName: getProfile().name,
+          skills: listSkills().map((s) => ({ id: s.id, name: s.name, enabled: s.enabled }))
+        }),
+        setProfileName: (name) => { const p = setProfile(name); broadcastProfile(); return p.name },
+        setSkill: (id, on) => {
+          const s = listSkills().find((x) => x.id === id)
+          if (!s) return { ok: false }
+          toggleSkill(id, on)
+          return { ok: true, name: s.name, enabled: on }
+        },
+        openSettings: (section) => openSettings(section)
       },
       emit: {
         token: (tok) => send('chat:token', tok),

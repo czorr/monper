@@ -29,6 +29,14 @@ export interface BrowserControl {
   closeTab: (id: number) => boolean
 }
 
+/** Resumen de settings que el agente puede leer y modificar. */
+export interface SettingsControl {
+  read: () => { profileName: string; skills: { id: string; name: string; enabled: boolean }[] }
+  setProfileName: (name: string) => string
+  setSkill: (id: string, on: boolean) => { ok: boolean; name?: string; enabled?: boolean }
+  openSettings: (section?: string) => void
+}
+
 const SYSTEM = `Eres Monper, un agente que opera el navegador del usuario para cumplir su tarea.
 Observa la página con read_page antes de tu primer click/type y tras cualquier navegación (los "ref" cambian).
 Refiere los elementos por su número "ref" del último read_page.
@@ -38,6 +46,7 @@ PERSISTENCIA (muy importante): no te detengas hasta COMPLETAR la tarea que te pi
 - Muchos elementos (cajas de comentario, botones) aparecen solo tras hacer scroll hasta ellos y esperar a que carguen: usa wait_for (por texto o selector) tras un scroll o navegación, y luego read_page de nuevo.
 - Herramientas disponibles además de las básicas: wait_for (esperar contenido diferido), press_key (enter/escape/tab/flechas + modificadores), hover (revelar menús), select_option (dropdowns nativos), history (atrás/adelante/recargar).
 - Pestañas: list_tabs (ver todas), open_tab (abrir una nueva con una URL), switch_tab (cambiar a una por id), close_tab (cerrar una por id). Úsalas para trabajar en varias páginas.
+- Settings de Monper: get_settings (leer el nombre del perfil y las skills con su estado), set_profile_name (cambiar el nombre del usuario), set_skill (activar/desactivar una skill por id), open_settings (abrir la pantalla de ajustes en una sección: general, account, ai, skills, privacy, about). Un cambio de skill aplica a partir de la próxima ejecución del agente. No manejas claves de API ni borras datos de navegación desde aquí: para eso, dirige al usuario a Settings con open_settings.
 - Visión: si read_page no captura un elemento (canvas, mapas, PDFs, UIs complejas), usa screenshot para VER la página y luego click_at con las coordenadas del elemento. Es tu último recurso cuando no hay un ref utilizable.
 - Reintenta una acción fallida hasta 3 veces con enfoques distintos antes de considerarla bloqueada.
 - Solo termina cuando (a) la tarea está hecha, o (b) tras reintentos reales sigue bloqueada; en ese caso explica CLARAMENTE qué intentaste y por qué no se pudo. Nunca termines en silencio.
@@ -63,7 +72,7 @@ function safe<T>(fn: () => Promise<T>): Promise<T | { error: string }> {
 }
 
 // Las page-ops como tools de Mastra (Zod). Operan sobre la pestaña activa vía BrowserControl.
-function buildTools(ctrl: BrowserControl, skills: SkillDetail[]) {
+function buildTools(ctrl: BrowserControl, settings: SettingsControl, skills: SkillDetail[]) {
   const wc = (): WebContents => {
     const w = ctrl.getWc()
     if (!w) throw new Error('No hay pestaña activa.')
@@ -194,6 +203,49 @@ function buildTools(ctrl: BrowserControl, skills: SkillDetail[]) {
       description: 'Click en coordenadas absolutas del viewport (px CSS), estimadas a partir de un screenshot previo. Úsalo solo cuando no hay un ref utilizable.',
       inputSchema: z.object({ x: z.number(), y: z.number() }),
       execute: async ({ x, y }) => safe(() => page.clickAt(wc(), x, y))
+    }),
+    get_settings: createTool({
+      id: 'get_settings',
+      description: 'Lee los ajustes de Monper: nombre del perfil y las skills disponibles con su estado (activada/desactivada) e id.',
+      inputSchema: z.object({}),
+      execute: async () => {
+        const s = settings.read()
+        const skillLines = s.skills.length
+          ? s.skills.map((k) => `- ${k.id}: ${k.name} — ${k.enabled ? 'activada' : 'desactivada'}`).join('\n')
+          : '(sin skills)'
+        return `Nombre del perfil: ${s.profileName}\nSkills:\n${skillLines}`
+      }
+    }),
+    set_profile_name: createTool({
+      id: 'set_profile_name',
+      description: 'Cambia el nombre del perfil del usuario (se refleja en el sidebar y el menú de perfil).',
+      inputSchema: z.object({ name: z.string().describe('Nuevo nombre (1–60 caracteres)') }),
+      execute: async ({ name }) => safe(async () => {
+        const n = name.trim()
+        if (!n) return { error: 'El nombre no puede estar vacío.' }
+        return `Nombre actualizado a "${settings.setProfileName(n)}".`
+      })
+    }),
+    set_skill: createTool({
+      id: 'set_skill',
+      description: 'Activa o desactiva una skill del agente por su id (usa get_settings para ver los ids). El cambio aplica a partir de la próxima ejecución del agente.',
+      inputSchema: z.object({ id: z.string(), enabled: z.boolean() }),
+      execute: async ({ id, enabled }) => safe(async () => {
+        const r = settings.setSkill(id, enabled)
+        if (!r.ok) return { error: `No existe la skill "${id}".` }
+        return `Skill "${r.name}" ${r.enabled ? 'activada' : 'desactivada'}. Aplica en tu próxima ejecución.`
+      })
+    }),
+    open_settings: createTool({
+      id: 'open_settings',
+      description: 'Abre la pantalla de ajustes de Monper en una sección concreta. Úsalo para dirigir al usuario a algo que no puedes cambiar tú (claves de API, borrar datos, foto de perfil).',
+      inputSchema: z.object({
+        section: z.enum(['general', 'account', 'ai', 'skills', 'privacy', 'about']).optional()
+      }),
+      execute: async ({ section }) => safe(async () => {
+        settings.openSettings(section)
+        return `Ajustes abiertos${section ? ` en la sección "${section}"` : ''}.`
+      })
     })
   }
   // Skills habilitadas: tool para cargar el cuerpo de una skill por id.
@@ -217,13 +269,13 @@ function skillsSection(skills: SkillDetail[]): string {
     skills.map((s) => `- ${s.id}: ${s.name} — ${s.description}${s.keywords.length ? ` (keywords: ${s.keywords.join(', ')})` : ''}`).join('\n')
 }
 
-export function buildAgent(provider: AIProvider, key: string, model: string, ctrl: BrowserControl, skills: SkillDetail[] = []): Agent {
+export function buildAgent(provider: AIProvider, key: string, model: string, ctrl: BrowserControl, settings: SettingsControl, skills: SkillDetail[] = []): Agent {
   return new Agent({
     id: 'monper-agent',
     name: 'Monper',
     instructions: SYSTEM + skillsSection(skills),
     model: buildModel(provider, key, model),
-    tools: buildTools(ctrl, skills)
+    tools: buildTools(ctrl, settings, skills)
   })
 }
 
@@ -250,6 +302,10 @@ function describe(toolName: string, args: unknown): ChatStep {
     case 'screenshot': return { state: 'searching', label: 'Mirando la pantalla', kind: 'screenshot' }
     case 'click_at': return { state: 'working', label: `Click en (${a.x}, ${a.y})`, kind: 'click' }
     case 'use_skill': return { state: 'listening', label: `Usando skill: ${a.id}`, kind: 'read' }
+    case 'get_settings': return { state: 'listening', label: 'Leyendo los ajustes', kind: 'read' }
+    case 'set_profile_name': return { state: 'composing', label: `Cambiando el nombre a "${a.name}"`, kind: 'generic' }
+    case 'set_skill': return { state: 'working', label: `${a.enabled ? 'Activando' : 'Desactivando'} skill ${a.id}`, kind: 'generic' }
+    case 'open_settings': return { state: 'searching', label: `Abriendo ajustes${a.section ? `: ${a.section}` : ''}`, kind: 'navigate' }
     default: return { state: 'working', label: toolName, kind: 'generic' }
   }
 }
@@ -263,9 +319,9 @@ function faviconFor(h: string): string | undefined {
 /** Corre el agente Mastra en streaming, emitiendo tokens (texto) y steps (tool-calls). */
 export async function runMastra(opts: {
   provider: AIProvider; key: string; model: string
-  messages: ChatMessage[]; control: BrowserControl; emit: Emit; signal: AbortSignal; skills?: SkillDetail[]
+  messages: ChatMessage[]; control: BrowserControl; settings: SettingsControl; emit: Emit; signal: AbortSignal; skills?: SkillDetail[]
 }): Promise<void> {
-  const agent = buildAgent(opts.provider, opts.key, opts.model, opts.control, opts.skills ?? [])
+  const agent = buildAgent(opts.provider, opts.key, opts.model, opts.control, opts.settings, opts.skills ?? [])
   // {role, content:string} es un ModelMessage válido; la unión de Mastra es demasiado estricta para inferirlo.
   // maxSteps: el default de Mastra es 5 (corta la tarea a mitad); subimos para dejar completar flujos largos.
   const out = await agent.stream(opts.messages as Parameters<typeof agent.stream>[0], { maxSteps: MAX_STEPS })

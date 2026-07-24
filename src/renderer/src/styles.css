@@ -17,6 +17,11 @@
 
 @layer base {
   * { box-sizing: border-box; margin: 0; padding: 0; }
+  /* Squircle solo en las cajas redondeadas (rounded-md/lg/xl/2xl/[Npx], rounded-t/b, etc.),
+     NO en rounded-full: círculos, pills y toggles deben quedar redondos de verdad.
+     Ojo: valores altos (≥1.6) aplanan tanto que sm/md/lg se ven casi iguales (la curva
+     domina sobre el radio). ~1.2 conserva el smooth pero deja distinguir cada tamaño. */
+  [class*="rounded"]:not([class*="rounded-full"]) { corner-shape: superellipse(1.2); }
   html, body { height: 100%; overflow: hidden; }
   #root { height: 100%; }
   body {

@@ -1,5 +1,6 @@
 import { createRoot } from 'react-dom/client'
-import { useLayoutEffect, useRef, type JSX } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type JSX } from 'react'
+import type { Profile } from '@shared/types'
 import { Avatar, MenuLabel, MenuDivider, MenuItem } from '@renderer/components/ui'
 import IconChevronRight from '~icons/tabler/chevron-right'
 import IconCheck from '~icons/tabler/check'
@@ -20,7 +21,9 @@ const Chevron = (): JSX.Element => <IconChevronRight />
 
 function ProfileMenuWindow(): JSX.Element {
   const boxRef = useRef<HTMLDivElement>(null)
-  useLayoutEffect(() => { if (boxRef.current) pm.reportHeight(Math.ceil(boxRef.current.getBoundingClientRect().height)) }, [])
+  const [profile, setProfile] = useState<Profile>({ name: 'Tú', initials: '?', avatar: null })
+  useEffect(() => pm.onProfile(setProfile), [])
+  useLayoutEffect(() => { if (boxRef.current) pm.reportHeight(Math.ceil(boxRef.current.getBoundingClientRect().height)) }, [profile])
 
   const act = (name: string): void => pm.action(name)
 
@@ -33,8 +36,8 @@ function ProfileMenuWindow(): JSX.Element {
           className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-[13.5px] text-text text-left hover:bg-white/[0.05]"
           onClick={() => act('switch-profile')}
         >
-          <Avatar initials="LC" size="sm" />
-          <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap">Luis Carlos Zorrilla</span>
+          <Avatar initials={profile.initials} src={profile.avatar} size="sm" />
+          <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap">{profile.name}</span>
           <span className="text-[12px] text-text-faint flex items-center gap-2 shrink-0 [&>svg]:w-3.5 [&>svg]:h-3.5">
             <IconCheck />
             <IconDots />

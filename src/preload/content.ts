@@ -24,7 +24,10 @@ const api: MonperTabApi = {
   openChat: () => ipcRenderer.send('ui:openChat'),
   skillsList: () => ipcRenderer.invoke('skills:list'),
   skillsGet: (id) => ipcRenderer.invoke('skills:get', id),
-  skillsToggle: (id, enabled) => ipcRenderer.invoke('skills:toggle', id, enabled)
+  skillsToggle: (id, enabled) => ipcRenderer.invoke('skills:toggle', id, enabled),
+  getProfile: () => ipcRenderer.invoke('profile:get'),
+  setProfile: (name) => ipcRenderer.invoke('profile:set', name),
+  setAvatar: (dataUrl) => ipcRenderer.invoke('profile:setAvatar', dataUrl)
 }
 
 contextBridge.exposeInMainWorld('monperTab', api)

@@ -27,6 +27,14 @@ export interface Bookmark {
   favicon?: string | null
 }
 
+/** Perfil del usuario (editable en Settings → Account) */
+export interface Profile {
+  name: string
+  initials: string
+  /** Foto de avatar como data URL, o null */
+  avatar: string | null
+}
+
 /** Proveedor de IA configurado por el usuario (solo API key + endpoint) */
 export type ProviderKind = 'anthropic' | 'openai'
 export interface AIProvider {
@@ -148,6 +156,7 @@ export interface SiteInfoData {
 }
 /** API expuesta a la ventana nativa del menú de perfil */
 export interface ProfileMenuWinApi {
+  onProfile: (cb: (p: Profile) => void) => void
   reportHeight: (h: number) => void
   action: (name: string) => void
   close: () => void
@@ -210,6 +219,9 @@ export interface MonperApi {
   openSiteInfo: (anchor: MenuAnchor) => void
   /** Abre el menú de perfil (ventana nativa), anclado al account pill */
   openProfileMenu: (anchor: MenuAnchor) => void
+  // ---- Perfil ----
+  getProfile: () => Promise<Profile>
+  onProfile: (cb: (p: Profile) => void) => () => void
   onState: (cb: (state: BrowserState) => void) => () => void
   toggleBookmark: () => void
   openDevtools: () => void
@@ -275,6 +287,10 @@ export interface MonperTabApi {
   skillsList: () => Promise<SkillMeta[]>
   skillsGet: (id: string) => Promise<SkillDetail | null>
   skillsToggle: (id: string, enabled: boolean) => Promise<SkillMeta[]>
+  // ---- Perfil (gestión desde Settings → Account) ----
+  getProfile: () => Promise<Profile>
+  setProfile: (name: string) => Promise<Profile>
+  setAvatar: (dataUrl: string | null) => Promise<Profile>
 }
 
 declare global {

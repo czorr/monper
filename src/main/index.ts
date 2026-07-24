@@ -11,6 +11,7 @@ import { initWindowState, initialBounds, shouldMaximize, trackWindow } from './w
 import { suggest } from './suggest'
 import { initPermissions, attachPermissionHandlers, stateOf, setState, requestedKeys } from './permissions'
 import { initSkills, listSkills, getSkill, toggleSkill, enabledSkills } from './skills'
+import { initProfile, getProfile, setProfile, setAvatar } from './profile'
 import * as vault from './vault/store'
 import type { VaultItemType } from '../shared/vault'
 import type { SiteInfoData, PermKey, PermState } from '../shared/types'
@@ -431,6 +432,24 @@ ipcMain.handle('skills:list', (e) => (isInternalSender(e.senderFrame?.url) ? lis
 ipcMain.handle('skills:get', (e, id: string) => (isInternalSender(e.senderFrame?.url) ? getSkill(id) : null))
 ipcMain.handle('skills:toggle', (e, id: string, on: boolean) => (isInternalSender(e.senderFrame?.url) ? toggleSkill(id, on) : listSkills()))
 
+// ---- Perfil ----
+function broadcastProfile(): void {
+  const p = getProfile()
+  win?.webContents.send('profile:changed', p)
+  if (pmWin && !pmWin.isDestroyed()) pmWin.webContents.send('profilemenu:profile', p)
+}
+ipcMain.handle('profile:get', () => getProfile())
+ipcMain.handle('profile:set', (e, name: string) => {
+  if (!isInternalSender(e.senderFrame?.url)) return getProfile()
+  const p = setProfile(name); broadcastProfile()
+  return p
+})
+ipcMain.handle('profile:setAvatar', (e, dataUrl: string | null) => {
+  if (!isInternalSender(e.senderFrame?.url)) return getProfile()
+  const p = setAvatar(dataUrl); broadcastProfile()
+  return p
+})
+
 // Autocompletado del omnibox / new tab. Cancela la búsqueda anterior en cada tecla.
 let suggestAbort: AbortController | null = null
 ipcMain.handle('omni:suggest', async (_e, query: string) => {
@@ -619,6 +638,7 @@ function ensurePmWin(): BrowserWindow {
     webPreferences: { preload: join(__dirname, '../preload/profilemenu.js'), contextIsolation: true, sandbox: false }
   })
   pmWin.on('blur', () => { if (pmWin && !pmWin.isDestroyed()) pmWin.hide() })
+  pmWin.webContents.on('did-finish-load', () => { if (pmWin && !pmWin.isDestroyed()) pmWin.webContents.send('profilemenu:profile', getProfile()) })
   if (RENDERER_URL) pmWin.loadURL(`${RENDERER_URL}/profilemenu.html`)
   else pmWin.loadFile(join(__dirname, '../renderer/profilemenu.html'))
   return pmWin
@@ -635,6 +655,7 @@ function placePmWin(height: number): void {
 ipcMain.on('profilemenu:open', (_e, anchor: MenuAnchor) => {
   pmAnchor = anchor
   const w = ensurePmWin()
+  w.webContents.send('profilemenu:profile', getProfile())
   placePmWin(lastPmHeight) // posiciona en el anchor antes de mostrar
   w.show(); w.focus()
 })
@@ -756,6 +777,7 @@ app.whenReady().then(() => {
   initBookmarks()
   initHistory()
   initSkills()
+  initProfile()
   initWindowState()
   vault.initVault()
   initAI()

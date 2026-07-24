@@ -26,6 +26,8 @@ const api: MonperApi = {
   onOmniHovered: (cb: (i: number) => void) => sub('omni:hovered', (i) => cb(i as number)),
   openSiteInfo: (anchor) => ipcRenderer.send('siteinfo:open', anchor),
   openProfileMenu: (anchor) => ipcRenderer.send('profilemenu:open', anchor),
+  getProfile: () => ipcRenderer.invoke('profile:get') as Promise<import('../shared/types').Profile>,
+  onProfile: (cb) => sub('profile:changed', (p) => cb(p as never)),
   onState: (cb: (state: BrowserState) => void) => {
     const handler = (_e: unknown, state: BrowserState) => cb(state)
     ipcRenderer.on('state:update', handler)

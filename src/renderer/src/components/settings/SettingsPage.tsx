@@ -1,5 +1,8 @@
-import { useState, type JSX } from 'react'
+import { useEffect, useRef, useState, type JSX } from 'react'
+import type { Profile } from '@shared/types'
+import { Avatar } from '@renderer/components/ui'
 import IconSparkles from '~icons/tabler/sparkles'
+import IconCamera from '~icons/tabler/camera'
 import IconSettings from '~icons/tabler/settings'
 import IconShield from '~icons/tabler/shield-lock'
 import IconInfo from '~icons/tabler/info-circle'
@@ -11,10 +14,11 @@ import { Card, Group, Row, Pill } from './ui'
 
 const { monperTab } = window
 
-type Cat = 'general' | 'ai' | 'skills' | 'privacy' | 'about'
+type Cat = 'general' | 'account' | 'ai' | 'skills' | 'privacy' | 'about'
 
 const NAV: { id: Cat; label: string; icon: JSX.Element }[] = [
   { id: 'general', label: 'General', icon: <IconSettings /> },
+  { id: 'account', label: 'Account', icon: <IconUser /> },
   { id: 'ai', label: 'AI', icon: <IconSparkles /> },
   { id: 'skills', label: 'Skills', icon: <IconBolt /> },
   { id: 'privacy', label: 'Privacy', icon: <IconShield /> },
@@ -52,6 +56,7 @@ export default function SettingsPage(): JSX.Element {
           <div className="h-full overflow-y-auto [&::-webkit-scrollbar]:w-0">
             <div className="max-w-[680px] mx-auto px-8 py-12">
               {cat === 'ai' && <AIPage />}
+              {cat === 'account' && <AccountPage />}
               {cat === 'general' && <GeneralPage />}
               {cat === 'privacy' && <PrivacyPage />}
               {cat === 'about' && <AboutPage />}
@@ -76,6 +81,97 @@ function AIPage(): JSX.Element {
           <Row label="Comportamiento de seguimiento" desc="Encolar mensajes mientras el agente corre, o corregir en caliente">
             <Pill>Queue ⌄</Pill>
           </Row>
+        </Card>
+      </Group>
+    </>
+  )
+}
+
+// Redimensiona una imagen a un cuadrado (cover) y devuelve un data URL JPEG.
+function fileToAvatar(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onerror = reject
+    reader.onload = () => {
+      const img = new Image()
+      img.onerror = reject
+      img.onload = () => {
+        const S = 160
+        const canvas = document.createElement('canvas')
+        canvas.width = S; canvas.height = S
+        const ctx = canvas.getContext('2d')
+        if (!ctx) { reject(new Error('no ctx')); return }
+        const scale = Math.max(S / img.width, S / img.height)
+        const w = img.width * scale, h = img.height * scale
+        ctx.drawImage(img, (S - w) / 2, (S - h) / 2, w, h)
+        resolve(canvas.toDataURL('image/jpeg', 0.85))
+      }
+      img.src = reader.result as string
+    }
+    reader.readAsDataURL(file)
+  })
+}
+
+function AccountPage(): JSX.Element {
+  const [profile, setProfile] = useState<Profile>({ name: '', initials: '?', avatar: null })
+  const [name, setName] = useState('')
+  const [saved, setSaved] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => { monperTab.getProfile().then((p) => { setProfile(p); setName(p.name) }) }, [])
+
+  const dirty = !!name.trim() && name.trim() !== profile.name
+  const save = async (): Promise<void> => {
+    const p = await monperTab.setProfile(name.trim())
+    setProfile(p); setName(p.name); setSaved(true); setTimeout(() => setSaved(false), 1500)
+  }
+  const onPickAvatar = async (e: React.ChangeEvent<HTMLInputElement>): Promise<void> => {
+    const f = e.target.files?.[0]
+    e.target.value = ''
+    if (!f) return
+    try { setProfile(await monperTab.setAvatar(await fileToAvatar(f))) } catch { /* noop */ }
+  }
+  const removeAvatar = async (): Promise<void> => setProfile(await monperTab.setAvatar(null))
+
+  return (
+    <>
+      <h1 className="text-[30px] font-semibold tracking-tight mb-9">Account</h1>
+
+      <div className="flex items-center gap-4 mb-8">
+        <div className="relative group/av cursor-pointer" onClick={() => fileRef.current?.click()}>
+          <Avatar initials={profile.initials} src={profile.avatar} size="lg" />
+          <div className="absolute inset-0 rounded-full grid place-items-center bg-black/50 opacity-0 group-hover/av:opacity-100 transition-opacity [&>svg]:w-5 [&>svg]:h-5 [&>svg]:text-white">
+            <IconCamera />
+          </div>
+        </div>
+        <div>
+          <div className="text-[16px] font-medium">{profile.name || '—'}</div>
+          <div className="flex items-center gap-3 mt-1">
+            <button onClick={() => fileRef.current?.click()} className="text-[13px] text-text-dim hover:text-text transition-colors">Cambiar foto</button>
+            {profile.avatar && <button onClick={removeAvatar} className="text-[13px] text-text-faint hover:text-red-400 transition-colors">Quitar</button>}
+          </div>
+        </div>
+        <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onPickAvatar} />
+      </div>
+
+      <Group title="Nombre">
+        <Card>
+          <div className="p-4 flex flex-col gap-3">
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter' && dirty) save() }}
+              placeholder="Tu nombre"
+              className="w-full h-11 px-4 rounded-xl bg-white/[0.04] border border-white/[0.08] text-[14px] text-text outline-none focus:border-white/25 placeholder:text-text-faint transition-colors"
+            />
+            <button
+              onClick={save}
+              disabled={!dirty && !saved}
+              className="self-start px-4 h-10 rounded-xl bg-white/90 text-black text-[13.5px] font-medium hover:bg-white disabled:opacity-40 disabled:bg-white/20 disabled:text-text transition-colors"
+            >
+              {saved ? 'Guardado ✓' : 'Guardar'}
+            </button>
+          </div>
         </Card>
       </Group>
     </>

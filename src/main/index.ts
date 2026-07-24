@@ -38,6 +38,11 @@ const isMac = process.platform === 'darwin'
 // y el dock muestren "Monper" en vez de "Electron" (dev incluido).
 app.setName('Monper')
 
+// FedCM (el "Continuar con Google" moderno) necesita UI a nivel navegador que Electron
+// NO implementa: sin esto el click no hace absolutamente nada. Al desactivarlo, Google
+// Identity Services cae al flujo clásico de popup, que sí manejamos.
+app.commandLine.appendSwitch('disable-features', 'FedCm,FedCmWithoutWellKnownEnforcement')
+
 // Páginas internas servidas por nuestro propio renderer (new-tab, settings…).
 const RENDERER_URL_EARLY = process.env['ELECTRON_RENDERER_URL']
 const INTERNAL_PAGES = ['newtab', 'settings', 'error', 'downloads'] as const
@@ -51,6 +56,19 @@ function newtabUrl(): string {
 }
 function isErrorPage(url: string): boolean {
   return url.includes('/error.html')
+}
+
+// Proveedores de identidad dedicados: cualquier URL suya abierta con window.open es un login.
+const IDP_HOSTS = /^(accounts\.google\.com|appleid\.apple\.com|login\.microsoftonline\.com|login\.live\.com|auth\.openai\.com|[\w-]+\.auth0\.com|[\w-]+\.okta\.com)$/i
+/** ¿La URL parece un flujo de autenticación (OAuth/SSO)? Debe abrirse como popup real. */
+function isAuthUrl(raw: string): boolean {
+  try {
+    const u = new URL(raw)
+    if (IDP_HOSTS.test(u.hostname)) return true
+    // Para hosts de uso general exigimos que la RUTA sea de auth (github.com/login/oauth/…,
+    // facebook.com/v18.0/dialog/oauth, x.com/i/oauth2/authorize…), y no cualquier /login.
+    return /(^|\/)(oauth2?|authorize|sso|saml2?)(\/|$)/i.test(u.pathname)
+  } catch { return false }
 }
 // Carga nuestra página de error interna en la pestaña, con el detalle del fallo.
 function loadErrorPage(t: Tab, info: { url: string; code: number; desc: string; kind: string }): void {
@@ -333,9 +351,16 @@ function createTab(url = newtabUrl(), activate = true, agent = false): number {
   wc.on('found-in-page', (_e, r) => win?.webContents.send('find:result', { matches: r.matches, active: r.activeMatchOrdinal }))
   wc.setWindowOpenHandler((details) => {
     const feats = details.features || ''
-    // Popups reales (OAuth, pagos…): window.open con dimensiones o disposition new-window
-    // → abrir una ventana de verdad (mantiene window.opener/postMessage/window.close).
-    const isPopup = details.disposition === 'new-window' || details.disposition === 'other' || /\b(width|height|popup)\b/i.test(feats)
+    // Popups reales (OAuth, pagos…) → ventana de verdad, que conserva window.opener /
+    // postMessage / window.close. OJO: muchos flujos hacen window.open(url, 'name') SIN
+    // dimensiones, lo que llega como 'foreground-tab': abrirlo como pestaña rompe el
+    // callback (opener = null) y el login falla en silencio. Por eso miramos la URL.
+    const isPopup =
+      details.disposition === 'new-window' ||
+      details.disposition === 'other' ||
+      /\b(width|height|popup)\b/i.test(feats) ||
+      isAuthUrl(details.url)
+    console.log('[popup]', { url: details.url, disposition: details.disposition, feats, isPopup })
     if (isPopup) {
       pushAgentEvent(`Se abrió una ventana emergente: ${details.url}`)
       return {

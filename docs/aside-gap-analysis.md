@@ -156,16 +156,16 @@ sin volar a ciegas.
 
 ---
 
-## 4. Ruta priorizada
+## 4. Ruta priorizada — estado
 
-1. **REPL `run_js` + mini-wrapper tipo Playwright** sobre nuestro `executeJavaScript`/`sendInputEvent`. (Brecha #1, habilita 3.4 y simplifica el prompt.)
-2. **Snapshot enriquecido / a11y tree** con conteo de tokens. (Calidad de percepción.)
-3. **Captura de red + `replay_request`** para APIs internas. (Velocidad + anti-bot.)
-4. **Compaction** de `read_page`/`screenshot` viejos. (Tareas largas.)
-5. **Señales asíncronas → steering** en `runMastra`. (Robustez.)
-6. **Tabs de fondo 1440×900** aisladas. (Paralelismo + no interrumpir al usuario.)
-7. **Harness de eval** para medir todo lo anterior.
-8. **Recorte del system prompt** una vez el REPL absorba las tools.
+1. ✅ **REPL `run_js` + librería `monperwright`** (paquete publicable en `packages/monperwright`, API tipo Playwright sobre transport intercambiable; adaptador Electron). Tool `run_js` con `page`/`state`/`log`.
+2. ✅ **Snapshot de accesibilidad podado** con role/name/estado/refs (`page.snapshot()` en monperwright).
+3. ✅ **Captura de red + replay** (`page.resourceRequests`, `installNetworkCapture`/`capturedRequests`, `page.fetch` desde el contexto de la página → API interna con cookies del sitio).
+4. ✅ **Compaction** de historial (`compactHistory` en `runMastra`).
+5. ✅ **Señales asíncronas → steering** (popups/descargas → `[EVENTOS DEL NAVEGADOR]` adjunto a las observaciones).
+6. ⬜ **Tabs de fondo 1440×900** aisladas. (Paralelismo + no interrumpir al usuario.) — pendiente
+7. ⬜ **Harness de eval** para medir todo lo anterior. — pendiente
+8. ⬜ **Recorte del system prompt** una vez el REPL absorba las tools. — pendiente
 
 ## 5. Lo que ya tenemos alineado
 - Visión (screenshot + click por coordenadas).

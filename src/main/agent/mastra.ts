@@ -6,6 +6,7 @@ import { z } from 'zod'
 import type { WebContents } from 'electron'
 import type { AIProvider, ChatMessage, ChatStep, SkillDetail } from '../../shared/types'
 import * as page from './page'
+import { runRepl } from './repl'
 
 /** Tope de iteraciones del agente (Mastra default = 5, demasiado bajo para flujos multi-paso). */
 const MAX_STEPS = 40
@@ -27,6 +28,8 @@ export interface BrowserControl {
   openTab: (url: string) => number
   switchTab: (id: number) => boolean
   closeTab: (id: number) => boolean
+  /** Vacía y devuelve eventos asíncronos (popups, descargas…) para dárselos al agente como steering. */
+  drainEvents?: () => string[]
 }
 
 /** Resumen de settings que el agente puede leer y modificar. */
@@ -38,8 +41,13 @@ export interface SettingsControl {
 }
 
 const SYSTEM = `Eres Monper, un agente que opera el navegador del usuario para cumplir su tarea.
-Observa la página con read_page antes de tu primer click/type y tras cualquier navegación (los "ref" cambian).
-Refiere los elementos por su número "ref" del último read_page.
+Tu herramienta principal es run_js: un REPL donde ESCRIBES CÓDIGO JavaScript para operar el navegador con la librería "monperwright" (API con la forma de Playwright). Prefiérela para cualquier tarea no trivial; puedes leer, actuar y decidir en un solo bloque de código, lo que es más eficiente que muchas tools atómicas.
+En run_js tienes disponibles: 'page' (la pestaña activa), 'state' (objeto que PERSISTE entre llamadas a run_js del mismo turno: guarda ahí lo que quieras reusar), y 'log(...)' (para imprimir valores). El código es async: usa await y 'return' para devolver un valor.
+API de 'page' (subset): await page.goto(url); page.snapshotText() (árbol de accesibilidad podado con [ref]); page.click(sel)/fill(sel,val)/type(sel,txt)/press(sel,key)/hover(sel)/selectOption(sel,val); page.clickRef(n)/fillRef(n,val) (usando un [ref] de snapshotText); page.locator(sel).nth(i).click(); page.waitForSelector(sel)/waitForText(txt); page.textContent(sel); page.$$text(sel) (textos de todos los que casan); page.evaluate(fn) (ejecuta una función en la página y devuelve su valor); page.keyboard/page.mouse. Ejemplo: const s = await page.snapshotText(); log(s); await page.clickRef(3); return await page.title();
+Red / APIs internas (para ir mucho más rápido que por la UI): page.resourceRequests({type:'fetch'}) descubre endpoints que la página ya llamó; page.installNetworkCapture() + luego page.capturedRequests() capturan método/URL/status de peticiones futuras; page.fetch(url, init) reproduce una petición DESDE la página (hereda cookies/origin del sitio, indistinguible de sus llamadas) y devuelve status/headers/body. Úsalo para leer datos directo de la API interna en vez de raspar el DOM.
+Si en una observación aparece "[EVENTOS DEL NAVEGADOR]" (popups, descargas), tenlos en cuenta: reacciona a ellos (cerrar/cambiar de pestaña, seguir el popup) según la tarea.
+
+Como alternativa a run_js siguen existiendo tools atómicas. Con ellas: observa con read_page antes de tu primer click/type y tras cualquier navegación (los "ref" cambian) y refiere los elementos por su número "ref" del último read_page.
 
 PERSISTENCIA (muy importante): no te detengas hasta COMPLETAR la tarea que te pidieron. Trabajas de forma autónoma; no devuelvas el control a mitad de camino para "preguntar si continúo".
 - Si una herramienta devuelve { error } o no encuentras el elemento esperado: NO te rindas. Vuelve a leer con read_page, haz scroll para cargar contenido diferido (comentarios, listas infinitas suelen requerir varios scroll), y reintenta con otra estrategia.
@@ -79,12 +87,35 @@ function buildTools(ctrl: BrowserControl, settings: SettingsControl, skills: Ski
     if (!w) throw new Error('No hay pestaña activa.')
     return w
   }
+  // Adjunta eventos asíncronos pendientes (popups, descargas) a una observación como steering.
+  const withEvents = (s: string): string => {
+    const ev = ctrl.drainEvents?.() ?? []
+    return ev.length ? `${s}\n\n[EVENTOS DEL NAVEGADOR]\n${ev.join('\n')}` : s
+  }
+  // Estado del REPL: persiste entre llamadas a run_js dentro de un mismo run del agente.
+  const replState: Record<string, unknown> = {}
   const tools = {
+    run_js: createTool({
+      id: 'run_js',
+      description:
+        'Ejecuta código JavaScript (async) para operar el navegador con la librería monperwright. ' +
+        'Globals: page (pestaña activa, API estilo Playwright), state (persiste entre llamadas de este turno), log(...). ' +
+        'Usa await y return para devolver un valor. Es tu herramienta principal: prefiérela sobre las tools atómicas. ' +
+        'Ej: const s = await page.snapshotText(); log(s); await page.clickRef(2); return await page.title();',
+      inputSchema: z.object({ code: z.string().describe('Código JS async. Tiene page, state y log.') }),
+      execute: async ({ code }) => {
+        const r = await safe(() => runRepl(wc(), code, replState))
+        return typeof r === 'string' ? withEvents(r) : r
+      }
+    }),
     read_page: createTool({
       id: 'read_page',
       description: 'Lee la página activa: URL, título, texto visible y elementos interactivos con su ref.',
       inputSchema: z.object({}),
-      execute: async () => safe(() => page.snapshot(wc()))
+      execute: async () => {
+        const r = await safe(() => page.snapshot(wc()))
+        return typeof r === 'string' ? withEvents(r) : r
+      }
     }),
     navigate: createTool({
       id: 'navigate',
@@ -283,6 +314,7 @@ export function buildAgent(provider: AIProvider, key: string, model: string, ctr
 function describe(toolName: string, args: unknown): ChatStep {
   const a = (args ?? {}) as Record<string, unknown>
   switch (toolName) {
+    case 'run_js': return { state: 'solving', label: 'Ejecutando código', kind: 'generic' }
     case 'read_page': return { state: 'listening', label: 'Leyendo la página', kind: 'read' }
     case 'navigate': {
       const h = host(String(a.url ?? ''))
@@ -317,6 +349,19 @@ function faviconFor(h: string): string | undefined {
   return h ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(h)}&sz=64` : undefined
 }
 
+// Compaction: si la conversación es larga, colapsa los turnos viejos en un resumen
+// determinista y deja los últimos K verbatim. Controla el crecimiento de contexto en
+// tareas/sesiones largas sin una llamada extra al modelo.
+function compactHistory(messages: ChatMessage[], keep = 10): ChatMessage[] {
+  if (messages.length <= keep) return messages
+  const old = messages.slice(0, messages.length - keep)
+  const recent = messages.slice(-keep)
+  const summary = old
+    .map((m) => `${m.role}: ${m.content.replace(/\s+/g, ' ').slice(0, 160)}`)
+    .join('\n')
+  return [{ role: 'user', content: `[Resumen de la conversación previa]\n${summary}` }, ...recent]
+}
+
 // Convierte un ChatMessage a ModelMessage. Si el usuario adjuntó imágenes, arma contenido
 // multimodal ({type:'text'} + {type:'image', image: dataUrl}); si no, deja el string tal cual.
 function toModelMessage(m: ChatMessage): { role: string; content: unknown } {
@@ -342,7 +387,7 @@ export async function runMastra(opts: {
   const agent = buildAgent(opts.provider, opts.key, opts.model, opts.control, opts.settings, opts.skills ?? [])
   // {role, content:string} es un ModelMessage válido; la unión de Mastra es demasiado estricta para inferirlo.
   // maxSteps: el default de Mastra es 5 (corta la tarea a mitad); subimos para dejar completar flujos largos.
-  const messages = opts.messages.map(toModelMessage)
+  const messages = compactHistory(opts.messages).map(toModelMessage)
   const out = await agent.stream(messages as Parameters<typeof agent.stream>[0], { maxSteps: MAX_STEPS })
   let gotText = false
   for await (const chunk of out.fullStream) {

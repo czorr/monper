@@ -192,6 +192,7 @@ function createTab(url = newtabUrl(), activate = true): number {
     // → abrir una ventana de verdad (mantiene window.opener/postMessage/window.close).
     const isPopup = details.disposition === 'new-window' || details.disposition === 'other' || /\b(width|height|popup)\b/i.test(feats)
     if (isPopup) {
+      pushAgentEvent(`Se abrió una ventana emergente: ${details.url}`)
       return {
         action: 'allow',
         overrideBrowserWindowOptions: {
@@ -202,6 +203,7 @@ function createTab(url = newtabUrl(), activate = true): number {
       }
     }
     // Links normales (target=_blank) → nueva pestaña.
+    pushAgentEvent(`Se abrió una pestaña nueva: ${details.url}`)
     createTab(details.url)
     return { action: 'deny' }
   })
@@ -710,11 +712,15 @@ ipcMain.on('chat:setEffort', (_e, e: 'low' | 'medium' | 'high') => setEffort(e))
 
 // ---- Chat en streaming (desde el ChatPanel del chrome) ----
 let chatAbort: AbortController | null = null
+// Cola de eventos asíncronos del navegador (popups, descargas) para steering del agente.
+let agentEvents: string[] = []
+function pushAgentEvent(msg: string): void { if (agentEvents.length < 20) agentEvents.push(msg) }
 ipcMain.on('chat:cancel', () => { chatAbort?.abort() })
 ipcMain.handle('chat:send', async (_e, messages: ChatMessage[]) => {
   const active = getActiveProvider()
   if (!active) { win?.webContents.send('chat:error', 'No hay proveedor de IA conectado. Conéctalo en Settings.'); return }
   chatAbort?.abort()
+  agentEvents = [] // limpia eventos viejos al iniciar un turno
   chatAbort = new AbortController()
   const send = (ch: string, payload?: unknown): void => { win?.webContents.send(ch, payload) }
   try {
@@ -727,7 +733,8 @@ ipcMain.handle('chat:send', async (_e, messages: ChatMessage[]) => {
         listTabs: () => [...tabs.entries()].map(([id, t]) => ({ id, title: t.title, url: t.url, active: id === activeId })),
         openTab: (url) => createTab(url, true),
         switchTab: (id) => { if (!tabs.has(id)) return false; setActive(id); return true },
-        closeTab: (id) => { if (!tabs.has(id)) return false; closeTab(id); return true }
+        closeTab: (id) => { if (!tabs.has(id)) return false; closeTab(id); return true },
+        drainEvents: () => { const e = agentEvents; agentEvents = []; return e }
       },
       settings: {
         read: () => ({
@@ -792,6 +799,10 @@ app.whenReady().then(() => {
     for (const tb of tabs.values()) {
       if (tb.view.webContents === wc) { tb.recording = active; pushState(); break }
     }
+  })
+  // Descargas: las notificamos al agente como evento de steering.
+  ses.on('will-download', (_e, item) => {
+    pushAgentEvent(`Descarga iniciada: ${item.getFilename()} (${item.getURL()})`)
   })
   initBookmarks()
   initHistory()

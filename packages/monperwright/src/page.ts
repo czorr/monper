@@ -228,6 +228,75 @@ export class Page {
     return this.transport.screenshot()
   }
 
+  // ---- Red: descubrir y reusar las APIs internas del sitio ----
+
+  /**
+   * Lista los recursos que la página ya solicitó (via Performance API). Útil
+   * para descubrir endpoints internos sin instrumentar nada — funciona
+   * retroactivamente para toda la carga. Filtra por tipo ('fetch',
+   * 'xmlhttprequest', 'script'…) o por subcadena de URL.
+   */
+  async resourceRequests(filter: { type?: string; contains?: string } = {}): Promise<
+    { url: string; type: string; duration: number }[]
+  > {
+    return this._eval(`performance.getEntriesByType('resource')
+      .map((e) => ({ url: e.name, type: e.initiatorType, duration: Math.round(e.duration) }))
+      .filter((r) => (${JSON.stringify(filter.type ?? null)} == null || r.type === ${JSON.stringify(filter.type ?? null)})
+        && (${JSON.stringify(filter.contains ?? null)} == null || r.url.includes(${JSON.stringify(filter.contains ?? '')})))`)
+  }
+
+  /**
+   * Instala (idempotente) un interceptor de fetch/XHR para capturar método,
+   * URL y status de las peticiones FUTURAS. Llámalo antes de la acción que
+   * dispara la request que te interesa; luego lee con `capturedRequests()`.
+   */
+  async installNetworkCapture(): Promise<void> {
+    await this._eval(`(() => {
+      if (window.__mw_net) return true;
+      window.__mw_net = [];
+      const push = (r) => { window.__mw_net.push(r); if (window.__mw_net.length > 200) window.__mw_net.shift(); };
+      const of = window.fetch;
+      window.fetch = function(...a) {
+        const url = (a[0] && a[0].url) || a[0];
+        const method = (a[1] && a[1].method) || (a[0] && a[0].method) || 'GET';
+        return of.apply(this, a).then((res) => { push({ method, url: String(url), status: res.status, type: 'fetch' }); return res; })
+          .catch((e) => { push({ method, url: String(url), status: 0, type: 'fetch', error: String(e) }); throw e; });
+      };
+      const XO = XMLHttpRequest.prototype.open, XS = XMLHttpRequest.prototype.send;
+      XMLHttpRequest.prototype.open = function(m, u) { this.__mw = { method: m, url: u }; return XO.apply(this, arguments); };
+      XMLHttpRequest.prototype.send = function() {
+        const x = this;
+        this.addEventListener('loadend', () => push({ method: (x.__mw && x.__mw.method) || 'GET', url: String(x.__mw && x.__mw.url), status: x.status, type: 'xhr' }));
+        return XS.apply(this, arguments);
+      };
+      return true;
+    })()`)
+  }
+
+  /** Peticiones capturadas desde `installNetworkCapture()`. */
+  async capturedRequests(): Promise<{ method: string; url: string; status: number; type: string }[]> {
+    return this._eval('window.__mw_net || []')
+  }
+
+  /**
+   * Reproduce una petición DESDE el contexto de la página: hereda cookies,
+   * origin y headers del sitio, así que es indistinguible de sus propias
+   * llamadas. Devuelve status, headers y body (recortado). Este es el atajo
+   * para "reverse-engineerar" la API interna y saltarte la UI.
+   */
+  async fetch(
+    url: string,
+    init: Record<string, unknown> = {}
+  ): Promise<{ status: number; ok: boolean; headers: Record<string, string>; body: string }> {
+    const js = `(async () => {
+      const res = await fetch(${JSON.stringify(url)}, ${JSON.stringify(init)});
+      const headers = {}; res.headers.forEach((v, k) => headers[k] = v);
+      let body = ''; try { body = await res.text(); } catch (e) {}
+      return { status: res.status, ok: res.ok, headers, body: body.slice(0, 8000) };
+    })()`
+    return this.transport.eval(js)
+  }
+
   async scrollBy(dy: number): Promise<void> {
     await this._eval(`(() => { window.scrollBy({ top: ${dy}, behavior: 'instant' }); return true })()`)
   }

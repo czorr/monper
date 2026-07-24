@@ -3,6 +3,7 @@ import { dialog, BrowserWindow } from 'electron'
 import type { Page } from '../../../../packages/monperwright/src'
 import type { VaultItemMeta } from '../../../shared/vault'
 import * as vault from '../../vault/store'
+import { injectFill } from '../../autofill'
 
 // ---- La joya: rellenar credenciales SIN que el agente vea la contraseña ----
 // El REPL (agente) solo llama passwordManager.fill(...). Esta función corre en el MAIN:
@@ -12,29 +13,7 @@ import * as vault from '../../vault/store'
 function originOf(url: string): string { try { return new URL(url).origin } catch { return '' } }
 function hostOf(url: string): string { try { return new URL(url).hostname.replace(/^www\./, '') } catch { return url } }
 
-// Inyecta usuario (no secreto) + contraseña (secreto) en los campos detectados.
-async function injectFill(wc: WebContents, username: string, secret: string): Promise<string[]> {
-  const js = `(() => {
-    const set = (el, val) => {
-      const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
-      const setter = Object.getOwnPropertyDescriptor(proto, 'value').set;
-      setter.call(el, val);
-      el.dispatchEvent(new Event('input', { bubbles: true }));
-      el.dispatchEvent(new Event('change', { bubbles: true }));
-    };
-    const vis = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
-    const filled = [];
-    const pw = Array.from(document.querySelectorAll('input[type=password]')).find(vis);
-    if (pw) { set(pw, ${JSON.stringify(secret)}); filled.push('password'); }
-    const userVal = ${JSON.stringify(username)};
-    if (userVal) {
-      const cands = Array.from(document.querySelectorAll('input[autocomplete=username], input[type=email], input[name*=user i], input[name*=email i], input[id*=user i], input[id*=email i], input[type=text]')).filter(vis);
-      if (cands[0]) { set(cands[0], userVal); filled.push('username'); }
-    }
-    return filled;
-  })()`
-  return wc.executeJavaScript(js, true) as Promise<string[]>
-}
+// El inyector vive en ../../autofill (compartido con el quick sign-in del navegador).
 
 export function makePasswordManager(page: Page, wc: WebContents) {
   const creds = (): VaultItemMeta[] => vault.itemsByType('web-credential')

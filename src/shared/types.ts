@@ -360,6 +360,23 @@ export interface PeekWinApi {
   openBookmark: (id: string) => void
 }
 
+/** Credencial ofrecida en el quick sign-in (metadata, NUNCA el secreto). */
+export interface SigninCredential {
+  id: string
+  label: string
+  username: string
+  origin: string
+}
+
+/** API expuesta a la ventana nativa de "Sign in with…" */
+export interface SigninWinApi {
+  onCredentials: (cb: (list: SigninCredential[]) => void) => () => void
+  reportHeight: (h: number) => void
+  /** Pide al main que rellene con ese ítem del vault (el secreto no pasa por el renderer). */
+  fill: (id: string) => void
+  dismiss: () => void
+}
+
 /** API expuesta a la ventana nativa del vault */
 export interface VaultWinApi {
   onItems: (cb: (items: VaultItemMeta[]) => void) => void
@@ -421,5 +438,6 @@ declare global {
     siteinfo: SiteInfoWinApi
     profilemenu: ProfileMenuWinApi
     peekbar: PeekWinApi
+    signin: SigninWinApi
   }
 }

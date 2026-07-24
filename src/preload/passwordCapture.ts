@@ -29,6 +29,26 @@ export function setupPasswordCapture(): void {
     ipcRenderer.send('vault:capture', f)
   }
 
+  // Detecta un formulario de login visible y avisa al main (para ofrecer el quick sign-in).
+  let announced = false
+  const detect = (): void => {
+    const pw = Array.from(document.querySelectorAll<HTMLInputElement>('input[type=password]')).find((el) => {
+      const r = el.getBoundingClientRect()
+      return r.width > 0 && r.height > 0
+    })
+    const has = !!pw && !pw.value
+    if (has === announced) return
+    announced = has
+    ipcRenderer.send('autofill:loginForm', has)
+  }
+  const scheduleDetect = ((): (() => void) => {
+    let t: ReturnType<typeof setTimeout> | null = null
+    return () => { if (t) clearTimeout(t); t = setTimeout(detect, 350) }
+  })()
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', scheduleDetect)
+  else scheduleDetect()
+  new MutationObserver(scheduleDetect).observe(document.documentElement, { childList: true, subtree: true })
+
   document.addEventListener('submit', send, true)
   window.addEventListener('pagehide', send, true)
   // SPA sin submit real: al hacer click en un botón de login, lee tras un tick.

@@ -14,6 +14,7 @@ import { initPermissions, attachPermissionHandlers, stateOf, setState, requested
 import { initSkills, listSkills, getSkill, toggleSkill, enabledSkills, skillsDir } from './skills'
 import { initProfile, getProfile, setProfile, setAvatar } from './profile'
 import { initDownloads, attachDownloads, listDownloads, activeDownloadCount, cancelDownload, openDownload, showDownload, clearDownloads } from './downloads'
+import { credentialsFor, fillFromVault } from './autofill'
 import { initQuickActions, listQuickActions, saveQuickAction, removeQuickAction, getQuickAction, fillTemplate } from './quickactions'
 import * as vault from './vault/store'
 import type { VaultItemType } from '../shared/vault'
@@ -337,6 +338,7 @@ function createTab(url = newtabUrl(), activate = true, agent = false): number {
 
 function setActive(id: number) {
   if (!tabs.has(id)) return
+  if (signinTabId != null && signinTabId !== id) hideSignin() // el prompt era de otra pestaña
   activeId = id
   touchWarm(id) // la activa entra/sube en el warm set
   layoutTabs()
@@ -1168,6 +1170,66 @@ ipcMain.on('peek:show', (_e, anchor: MenuAnchor) => {
 })
 ipcMain.on('peek:select', (_e, id: number) => { if (tabs.has(id)) setActive(id); hidePeek() })
 ipcMain.on('peek:new', () => { createTab(); hidePeek() })
+// ---- Quick sign-in: "Sign in with…" al detectar un login con credenciales guardadas ----
+let signinWin: BrowserWindow | null = null
+const SIGNIN_W = 360
+const SIGNIN_PAD = 12
+let signinTabId: number | null = null
+let lastSigninHeight = 160
+const signinDismissed = new Set<string>() // orígenes descartados en esta sesión
+function ensureSigninWin(): BrowserWindow {
+  if (signinWin && !signinWin.isDestroyed()) return signinWin
+  signinWin = new BrowserWindow({
+    parent: win!, width: SIGNIN_W + SIGNIN_PAD * 2, height: 200, show: false, frame: false, transparent: true,
+    resizable: false, movable: false, minimizable: false, maximizable: false,
+    fullscreenable: false, hasShadow: false, skipTaskbar: true, backgroundColor: '#00000000',
+    acceptFirstMouse: true,
+    webPreferences: { preload: join(__dirname, '../preload/signin.js'), contextIsolation: true, sandbox: false }
+  })
+  if (RENDERER_URL) signinWin.loadURL(`${RENDERER_URL}/signin.html`)
+  else signinWin.loadFile(join(__dirname, '../renderer/signin.html'))
+  return signinWin
+}
+function placeSigninWin(height: number): void {
+  if (!signinWin || signinWin.isDestroyed() || !win) return
+  const cb = contentBounds()
+  const wb = win.getContentBounds()
+  signinWin.setBounds({
+    x: Math.round(wb.x + cb.x + 16),
+    y: Math.round(wb.y + cb.y + 12),
+    width: SIGNIN_W + SIGNIN_PAD * 2,
+    height: Math.max(1, Math.round(height))
+  })
+}
+function hideSignin(): void { signinTabId = null; if (signinWin && !signinWin.isDestroyed()) signinWin.hide() }
+ipcMain.on('autofill:loginForm', (e, hasForm: boolean) => {
+  const entry = [...tabs.entries()].find(([, t]) => t.view.webContents === e.sender)
+  if (!entry) return
+  const [id, t] = entry
+  if (!hasForm) { if (signinTabId === id) hideSignin(); return }
+  if (id !== activeId) return
+  const origin = ((): string => { try { return new URL(t.url).origin } catch { return '' } })()
+  if (!origin || signinDismissed.has(origin)) return
+  const creds = credentialsFor(origin)
+  if (!creds.length) return
+  const w = ensureSigninWin()
+  signinTabId = id
+  w.webContents.send('signin:credentials', creds)
+  placeSigninWin(lastSigninHeight)
+  w.showInactive() // no roba el foco de la página
+})
+ipcMain.on('signin:height', (_e, h: number) => { lastSigninHeight = h + SIGNIN_PAD * 2; placeSigninWin(lastSigninHeight) })
+ipcMain.on('signin:fill', async (_e, itemId: string) => {
+  const t = signinTabId != null ? tabs.get(signinTabId) : null
+  hideSignin()
+  if (t) await fillFromVault(t.view.webContents, itemId) // el secreto nunca sale del main
+})
+ipcMain.on('signin:dismiss', () => {
+  const t = signinTabId != null ? tabs.get(signinTabId) : null
+  if (t) { try { signinDismissed.add(new URL(t.url).origin) } catch { /* noop */ } }
+  hideSignin()
+})
+
 ipcMain.on('peek:openBookmark', (_e, id: string) => {
   const b = listBookmarks().find((x) => x.id === id)
   if (b) { for (const [tid, t] of tabs) { if (t.bookmarkId === id) { setActive(tid); hidePeek(); return } } const nid = createTab(b.url, true); const nt = tabs.get(nid); if (nt) nt.bookmarkId = id }

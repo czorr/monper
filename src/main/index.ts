@@ -95,21 +95,10 @@ function contentBounds() {
 
 function applyRadius(t: Tab) {
   if (typeof t.view.setBorderRadius === 'function') {
-    // Redondea cuando la página está "flotando" (hay sidebar izq y/o panel de chat der).
+    // Redondea cuando la página "flota" (sidebar izq y/o panel de chat der).
     const rounded = !sidebarCollapsed || chatOpen
     t.view.setBorderRadius(rounded ? CONTENT_RADIUS : 0)
   }
-}
-
-// DevTools acoplados (no en popup): se renderizan en una WebContentsView propia a la derecha.
-let devtoolsView: WebContentsView | null = null
-let devtoolsFor: number | null = null
-const devtoolsOpen = (): boolean => devtoolsView != null && devtoolsFor === activeId
-
-// Bounds de la vista activa: se parte a la izquierda cuando devtools está acoplado.
-function activeViewBounds(cb = contentBounds()) {
-  if (devtoolsOpen()) return { ...cb, width: Math.max(0, Math.round(cb.width * 0.62)) }
-  return cb
 }
 
 /**
@@ -121,17 +110,12 @@ function activeViewBounds(cb = contentBounds()) {
 function layoutTabs() {
   if (!win || win.isDestroyed()) return
   const cb = contentBounds()
-  const ab = activeViewBounds(cb)
-  for (const [id, t] of tabs) {
-    t.view.setBounds(id === activeId ? ab : cb)
+  for (const [, t] of tabs) {
+    t.view.setBounds(cb)
     applyRadius(t)
   }
   const at = activeId != null ? tabs.get(activeId) : null
   if (at) win.contentView.addChildView(at.view) // activa al frente
-  if (devtoolsOpen() && devtoolsView) {
-    devtoolsView.setBounds({ x: ab.x + ab.width, y: cb.y, width: cb.width - ab.width, height: cb.height })
-    win.contentView.addChildView(devtoolsView) // devtools por encima de todo
-  }
 }
 // Alias: llamadas existentes que solo querían recolocar la vista activa.
 function layoutActive() { layoutTabs() }
@@ -163,29 +147,13 @@ function animateLayout() {
   }, 1000 / 60)
 }
 
+// DevTools en su propia ventana (undocked): trae cerrar, redimensionar y reposicionar
+// (dock-side) nativos, y no toca nuestro layout ni el rounding del page view.
 function toggleDevtools(): void {
-  const t = activeId != null ? tabs.get(activeId) : null
-  if (!t) return
-  if (devtoolsFor === activeId && devtoolsView) { closeDevtools(); return }
-  if (devtoolsView) closeDevtools() // estaba abierto en otra pestaña
-  devtoolsView = new WebContentsView()
-  if (typeof devtoolsView.setBackgroundColor === 'function') devtoolsView.setBackgroundColor('#1e1e1e')
-  win!.contentView.addChildView(devtoolsView)
-  t.view.webContents.setDevToolsWebContents(devtoolsView.webContents)
-  t.view.webContents.openDevTools({ mode: 'detach' }) // se dibuja dentro de devtoolsView (acoplado)
-  devtoolsFor = activeId
-  layoutTabs()
-}
-function closeDevtools(): void {
-  const t = devtoolsFor != null ? tabs.get(devtoolsFor) : null
-  try { t?.view.webContents.closeDevTools() } catch { /* noop */ }
-  if (devtoolsView) {
-    win?.contentView.removeChildView(devtoolsView)
-    try { devtoolsView.webContents.close() } catch { /* noop */ }
-  }
-  devtoolsView = null
-  devtoolsFor = null
-  layoutTabs()
+  const wc = activeId != null ? tabs.get(activeId)?.view.webContents : undefined
+  if (!wc) return
+  if (wc.isDevToolsOpened()) wc.closeDevTools()
+  else wc.openDevTools({ mode: 'detach' })
 }
 
 function pushState() {
@@ -310,7 +278,6 @@ function createTab(url = newtabUrl(), activate = true, agent = false): number {
 
 function setActive(id: number) {
   if (!tabs.has(id)) return
-  if (devtoolsFor != null && devtoolsFor !== id) closeDevtools() // devtools era de otra pestaña
   activeId = id
   // Todas las vistas siguen vivas; solo traemos la activa al frente → cambio instantáneo.
   layoutTabs()
@@ -320,7 +287,6 @@ function setActive(id: number) {
 function closeTab(id: number) {
   const t = tabs.get(id)
   if (!t) return
-  if (devtoolsFor === id) closeDevtools()
   win!.contentView.removeChildView(t.view)
   t.view.webContents.close()
   tabs.delete(id)

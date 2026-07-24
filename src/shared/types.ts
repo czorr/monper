@@ -118,6 +118,22 @@ export interface BrowserState {
   active: ActiveInfo | null
 }
 
+// ---- Skills del agente ----
+export interface SkillMeta {
+  id: string
+  name: string
+  description: string
+  keywords: string[]
+  enabled: boolean
+  builtin: boolean
+  author: string
+  updated: string
+}
+export interface SkillDetail extends SkillMeta {
+  /** Cuerpo Markdown del SKILL.md (instrucciones para el agente) */
+  body: string
+}
+
 // ---- Permisos del sitio (cámara, micrófono, etc.) ----
 export type PermKey = 'camera' | 'microphone' | 'geolocation' | 'notifications' | 'clipboard'
 export type PermState = 'granted' | 'denied' | 'ask'
@@ -130,6 +146,13 @@ export interface SiteInfoData {
   internal: boolean
   permissions: SitePermission[]
 }
+/** API expuesta a la ventana nativa del menú de perfil */
+export interface ProfileMenuWinApi {
+  reportHeight: (h: number) => void
+  action: (name: string) => void
+  close: () => void
+}
+
 /** API expuesta a la ventana nativa de info del sitio */
 export interface SiteInfoWinApi {
   onData: (cb: (data: SiteInfoData) => void) => void
@@ -185,6 +208,8 @@ export interface MonperApi {
   onOmniHovered: (cb: (index: number) => void) => () => void
   /** Abre el popup nativo de info/permisos del sitio, anclado al pill del dominio */
   openSiteInfo: (anchor: MenuAnchor) => void
+  /** Abre el menú de perfil (ventana nativa), anclado al account pill */
+  openProfileMenu: (anchor: MenuAnchor) => void
   onState: (cb: (state: BrowserState) => void) => () => void
   toggleBookmark: () => void
   openDevtools: () => void
@@ -243,6 +268,13 @@ export interface MonperTabApi {
   vaultRemove: (id: string) => Promise<VaultItemMeta[]>
   // ---- Autocompletado del omnibox / new tab ----
   suggest: (query: string) => Promise<Suggestion[]>
+  // ---- Acciones del new tab ----
+  openSettings: () => void
+  openChat: () => void
+  // ---- Skills del agente (gestión desde Settings) ----
+  skillsList: () => Promise<SkillMeta[]>
+  skillsGet: (id: string) => Promise<SkillDetail | null>
+  skillsToggle: (id: string, enabled: boolean) => Promise<SkillMeta[]>
 }
 
 declare global {
@@ -252,5 +284,6 @@ declare global {
     vaultwin: VaultWinApi
     omniwin: OmniWinApi
     siteinfo: SiteInfoWinApi
+    profilemenu: ProfileMenuWinApi
   }
 }

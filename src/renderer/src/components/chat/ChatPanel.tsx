@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, type JSX } from 'react'
 import type { ChatContext, ChatMessage, Effort } from '@shared/types'
-import IconSparkles from '~icons/tabler/sparkles'
 import IconX from '~icons/tabler/x'
 import { IconButton } from '@renderer/components/ui'
 import type { Msg, Part } from './types'

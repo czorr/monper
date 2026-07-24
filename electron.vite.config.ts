@@ -29,7 +29,8 @@ export default defineConfig({
           content: resolve(__dirname, 'src/preload/content.ts'),
           vaultwin: resolve(__dirname, 'src/preload/vaultwin.ts'),
           omnibox: resolve(__dirname, 'src/preload/omnibox.ts'),
-          siteinfo: resolve(__dirname, 'src/preload/siteinfo.ts')
+          siteinfo: resolve(__dirname, 'src/preload/siteinfo.ts'),
+          profilemenu: resolve(__dirname, 'src/preload/profilemenu.ts')
         },
         output: cjsOutput
       }
@@ -51,7 +52,8 @@ export default defineConfig({
           settings: resolve(__dirname, 'src/renderer/settings.html'),
           vault: resolve(__dirname, 'src/renderer/vault.html'),
           omnibox: resolve(__dirname, 'src/renderer/omnibox.html'),
-          siteinfo: resolve(__dirname, 'src/renderer/siteinfo.html')
+          siteinfo: resolve(__dirname, 'src/renderer/siteinfo.html'),
+          profilemenu: resolve(__dirname, 'src/renderer/profilemenu.html')
         }
       }
     },

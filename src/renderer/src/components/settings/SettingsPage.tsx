@@ -4,16 +4,19 @@ import IconSettings from '~icons/tabler/settings'
 import IconShield from '~icons/tabler/shield-lock'
 import IconInfo from '~icons/tabler/info-circle'
 import IconUser from '~icons/tabler/user'
+import IconBolt from '~icons/tabler/bolt'
 import ProvidersSection from './ProvidersSection'
+import SkillsSection from './SkillsSection'
 import { Card, Group, Row, Pill } from './ui'
 
 const { monperTab } = window
 
-type Cat = 'general' | 'ai' | 'privacy' | 'about'
+type Cat = 'general' | 'ai' | 'skills' | 'privacy' | 'about'
 
 const NAV: { id: Cat; label: string; icon: JSX.Element }[] = [
   { id: 'general', label: 'General', icon: <IconSettings /> },
   { id: 'ai', label: 'AI', icon: <IconSparkles /> },
+  { id: 'skills', label: 'Skills', icon: <IconBolt /> },
   { id: 'privacy', label: 'Privacy', icon: <IconShield /> },
   { id: 'about', label: 'About', icon: <IconInfo /> }
 ]
@@ -22,7 +25,7 @@ export default function SettingsPage(): JSX.Element {
   const [cat, setCat] = useState<Cat>('ai')
 
   return (
-    <div className="h-full flex bg-bg text-text">
+    <div className="h-full flex bg-bg text-text select-text">
       {/* Sub-nav de settings */}
       <nav className="w-[230px] shrink-0 border-r border-white/[0.06] px-3 py-6 overflow-y-auto [&::-webkit-scrollbar]:w-0">
         <div className="px-2 mb-2 text-[12px] font-medium text-text-faint">Settings</div>
@@ -42,13 +45,19 @@ export default function SettingsPage(): JSX.Element {
       </nav>
 
       {/* Contenido */}
-      <main className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-0">
-        <div className="max-w-[680px] mx-auto px-8 py-12">
-          {cat === 'ai' && <AIPage />}
-          {cat === 'general' && <GeneralPage />}
-          {cat === 'privacy' && <PrivacyPage />}
-          {cat === 'about' && <AboutPage />}
-        </div>
+      <main className="flex-1 overflow-hidden">
+        {cat === 'skills' ? (
+          <SkillsSection />
+        ) : (
+          <div className="h-full overflow-y-auto [&::-webkit-scrollbar]:w-0">
+            <div className="max-w-[680px] mx-auto px-8 py-12">
+              {cat === 'ai' && <AIPage />}
+              {cat === 'general' && <GeneralPage />}
+              {cat === 'privacy' && <PrivacyPage />}
+              {cat === 'about' && <AboutPage />}
+            </div>
+          </div>
+        )}
       </main>
     </div>
   )

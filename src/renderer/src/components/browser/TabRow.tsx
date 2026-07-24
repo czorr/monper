@@ -2,6 +2,7 @@ import type { JSX } from 'react'
 import type { TabInfo } from '@shared/types'
 import { domainOf } from '@renderer/lib/dom'
 import { CloseIcon } from '@renderer/lib/icons'
+import monperLogo from '@renderer/assets/monper.png'
 
 interface Props {
   tab: TabInfo
@@ -24,7 +25,10 @@ export default function TabRow({ tab, active, onSelect, onClose }: Props): JSX.E
       onClick={() => onSelect(tab.id)}
       onAuxClick={(e) => e.button === 1 && onClose(tab.id)}
     >
-      {tab.loading ? (
+      {!tab.url ? (
+        // Páginas internas (new tab / settings): siempre nuestro iso, aunque tengan favicon default.
+        <img src={monperLogo} alt="" className="w-4 h-4 shrink-0 object-contain opacity-80" />
+      ) : tab.loading ? (
         <div className="w-3 h-3 m-0.5 shrink-0 rounded-full border-[1.5px] border-text-faint border-t-text animate-spin" />
       ) : tab.favicon ? (
         <img

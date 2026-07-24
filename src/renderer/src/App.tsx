@@ -3,7 +3,6 @@ import type { BrowserState } from '@shared/types'
 import Sidebar from '@renderer/components/browser/Sidebar'
 import Content from '@renderer/components/browser/Content'
 import Topbar from '@renderer/components/browser/Topbar'
-import ProfileMenu from '@renderer/components/menu/ProfileMenu'
 import { ChatPanel } from '@renderer/components/chat'
 
 const EMPTY: BrowserState = { activeId: null, tabs: [], active: null }
@@ -14,7 +13,6 @@ export default function App(): JSX.Element {
   const [state, setState] = useState<BrowserState>(EMPTY)
   const [collapsed, setCollapsed] = useState(false)
   const [editRequest, setEditRequest] = useState(0)
-  const [menuAnchor, setMenuAnchor] = useState<DOMRect | null>(null)
   const [chatOpen, setChatOpen] = useState(false)
 
   useEffect(() => monper.onState(setState), [])
@@ -22,9 +20,6 @@ export default function App(): JSX.Element {
   // Colapsar/expandir → aviso al main para reposicionar la vista nativa
   useEffect(() => { monper.setCollapsed(collapsed) }, [collapsed])
   useEffect(() => { monper.setChat(chatOpen) }, [chatOpen])
-
-  // Cierra el menú de perfil si se interactúa con la página
-  useEffect(() => monper.onPagePointerDown(() => setMenuAnchor(null)), [])
 
   // Atajos de teclado
   useEffect(() => {
@@ -54,13 +49,12 @@ export default function App(): JSX.Element {
       <Sidebar
         state={state}
         collapsed={collapsed}
-        onOpenMenu={(r) => setMenuAnchor((cur) => (cur ? null : r))}
+        onOpenMenu={(r) => monper.openProfileMenu({ x: r.left, y: r.top, width: r.width, height: r.height })}
         onCollapse={() => setCollapsed(true)}
         onNewTab={() => monper.newTab()}
         onSelectTab={(id) => monper.selectTab(id)}
         onCloseTab={(id) => monper.closeTab(id)}
       />
-      {menuAnchor && <ProfileMenu anchor={menuAnchor} onClose={() => setMenuAnchor(null)} />}
       <Content leftInset={!collapsed} rightInset={chatOpen} pageColor={state.active?.pageColor || '#111114'}>
         <Topbar
           active={state.active}

@@ -10,6 +10,7 @@ import { initHistory, recordVisit, updateMeta } from './history'
 import { initWindowState, initialBounds, shouldMaximize, trackWindow } from './windowState'
 import { suggest } from './suggest'
 import { initPermissions, attachPermissionHandlers, stateOf, setState, requestedKeys } from './permissions'
+import { initSkills, listSkills, getSkill, toggleSkill, enabledSkills } from './skills'
 import * as vault from './vault/store'
 import type { VaultItemType } from '../shared/vault'
 import type { SiteInfoData, PermKey, PermState } from '../shared/types'
@@ -347,7 +348,12 @@ function createWindow() {
   loadRenderer(win, 'index')
   win.on('resize', () => { layoutActive(); hideOmni() })
   win.on('move', hideOmni)
-  win.webContents.on('did-finish-load', () => { if (tabs.size === 0) createTab(); else pushState() })
+  win.webContents.on('did-finish-load', () => {
+    if (tabs.size === 0) createTab(); else pushState()
+    // Pre-carga las ventanas nativas de popups (site-info, menú de perfil) para que
+    // abran instantáneo — crearlas en el primer click era lento (2-3 clicks).
+    ensureSiteWin(); ensurePmWin()
+  })
 }
 
 // ---- IPC ----
@@ -418,6 +424,12 @@ function openSettings(): void {
   createTab(internalUrl('settings'))
 }
 ipcMain.on('ui:settings', openSettings)
+ipcMain.on('ui:openChat', () => win?.webContents.send('menu:action', 'toggle-chat'))
+
+// ---- Skills del agente (gestión desde Settings) ----
+ipcMain.handle('skills:list', (e) => (isInternalSender(e.senderFrame?.url) ? listSkills() : []))
+ipcMain.handle('skills:get', (e, id: string) => (isInternalSender(e.senderFrame?.url) ? getSkill(id) : null))
+ipcMain.handle('skills:toggle', (e, id: string, on: boolean) => (isInternalSender(e.senderFrame?.url) ? toggleSkill(id, on) : listSkills()))
 
 // Autocompletado del omnibox / new tab. Cancela la búsqueda anterior en cada tecla.
 let suggestAbort: AbortController | null = null
@@ -549,6 +561,7 @@ let siteWin: BrowserWindow | null = null
 const SITE_W = 340
 const SITE_PAD = 12
 let siteAnchor: MenuAnchor | null = null
+let lastSiteHeight = 200
 function ensureSiteWin(): BrowserWindow {
   if (siteWin && !siteWin.isDestroyed()) return siteWin
   siteWin = new BrowserWindow({
@@ -577,9 +590,10 @@ ipcMain.on('siteinfo:open', (_e, anchor: MenuAnchor) => {
   siteAnchor = anchor
   const w = ensureSiteWin()
   w.webContents.send('siteinfo:data', buildSiteInfo())
+  placeSiteWin(lastSiteHeight) // posiciona en el anchor antes de mostrar (evita el flash)
   w.show(); w.focus()
 })
-ipcMain.on('siteinfo:height', (_e, h: number) => placeSiteWin(h))
+ipcMain.on('siteinfo:height', (_e, h: number) => { lastSiteHeight = h + SITE_PAD * 2; placeSiteWin(lastSiteHeight) })
 ipcMain.on('siteinfo:toggle', (_e, key: PermKey, state: PermState) => {
   try { setState(new URL(activeUrl()).origin, key, state) } catch { /* noop */ }
   if (siteWin && !siteWin.isDestroyed()) siteWin.webContents.send('siteinfo:data', buildSiteInfo())
@@ -589,6 +603,58 @@ ipcMain.on('siteinfo:clear', async () => {
   if (siteWin && !siteWin.isDestroyed()) siteWin.hide()
 })
 ipcMain.on('siteinfo:close', () => { if (siteWin && !siteWin.isDestroyed()) siteWin.hide() })
+
+// ---- Menú de perfil: ventana nativa (flota sobre la página) ----
+let pmWin: BrowserWindow | null = null
+const PM_W = 264
+const PM_PAD = 12
+let pmAnchor: MenuAnchor | null = null
+let lastPmHeight = 380
+function ensurePmWin(): BrowserWindow {
+  if (pmWin && !pmWin.isDestroyed()) return pmWin
+  pmWin = new BrowserWindow({
+    parent: win!, width: PM_W, height: 200, show: false, frame: false, transparent: true,
+    resizable: false, movable: false, minimizable: false, maximizable: false,
+    fullscreenable: false, hasShadow: false, skipTaskbar: true, backgroundColor: '#00000000',
+    webPreferences: { preload: join(__dirname, '../preload/profilemenu.js'), contextIsolation: true, sandbox: false }
+  })
+  pmWin.on('blur', () => { if (pmWin && !pmWin.isDestroyed()) pmWin.hide() })
+  if (RENDERER_URL) pmWin.loadURL(`${RENDERER_URL}/profilemenu.html`)
+  else pmWin.loadFile(join(__dirname, '../renderer/profilemenu.html'))
+  return pmWin
+}
+function placePmWin(height: number): void {
+  if (!pmWin || pmWin.isDestroyed() || !pmAnchor || !win) return
+  const cb = win.getContentBounds()
+  pmWin.setBounds({
+    x: Math.max(cb.x + 4, Math.round(cb.x + pmAnchor.x - PM_PAD)),
+    y: Math.round(cb.y + pmAnchor.y + pmAnchor.height - 4),
+    width: PM_W, height: Math.max(1, Math.round(height))
+  })
+}
+ipcMain.on('profilemenu:open', (_e, anchor: MenuAnchor) => {
+  pmAnchor = anchor
+  const w = ensurePmWin()
+  placePmWin(lastPmHeight) // posiciona en el anchor antes de mostrar
+  w.show(); w.focus()
+})
+ipcMain.on('profilemenu:height', (_e, h: number) => { lastPmHeight = h + PM_PAD * 2; placePmWin(lastPmHeight) })
+ipcMain.on('profilemenu:close', () => { if (pmWin && !pmWin.isDestroyed()) pmWin.hide() })
+ipcMain.on('profilemenu:action', (_e, name: string) => {
+  if (pmWin && !pmWin.isDestroyed()) pmWin.hide()
+  switch (name) {
+    case 'new-tab':
+    case 'bookmarks': createTab(); break
+    case 'settings': openSettings(); break
+    case 'downloads': shell.openPath(app.getPath('downloads')); break
+    case 'developers': {
+      const wc = activeId != null ? tabs.get(activeId)?.view.webContents : undefined
+      if (wc) wc.isDevToolsOpened() ? wc.closeDevTools() : wc.openDevTools({ mode: 'detach' })
+      break
+    }
+    // TODO: new-profile, switch-profile, extensions, history, incognito
+  }
+})
 
 // ---- Proveedores de IA (gestión desde la página de Settings, sender-validada) ----
 function notifyChatContext(): void { win?.webContents.send('chat:contextChanged', getChatContext()) }
@@ -629,7 +695,7 @@ ipcMain.handle('chat:send', async (_e, messages: ChatMessage[]) => {
     // Agente Mastra con herramientas: opera la pestaña activa + gestión de pestañas (anthropic y openai).
     await runMastra({
       provider: active.provider, key: active.key, model: active.model,
-      messages, signal: chatAbort.signal,
+      messages, signal: chatAbort.signal, skills: enabledSkills(),
       control: {
         getWc: () => (activeId != null ? tabs.get(activeId)?.view.webContents : undefined),
         listTabs: () => [...tabs.entries()].map(([id, t]) => ({ id, title: t.title, url: t.url, active: id === activeId })),
@@ -689,6 +755,7 @@ app.whenReady().then(() => {
   })
   initBookmarks()
   initHistory()
+  initSkills()
   initWindowState()
   vault.initVault()
   initAI()

@@ -4,7 +4,7 @@ import { createAnthropic } from '@ai-sdk/anthropic'
 import { createOpenAI } from '@ai-sdk/openai'
 import { z } from 'zod'
 import type { WebContents } from 'electron'
-import type { AIProvider, ChatMessage, ChatStep } from '../../shared/types'
+import type { AIProvider, ChatMessage, ChatStep, SkillDetail } from '../../shared/types'
 import * as page from './page'
 
 /** Tope de iteraciones del agente (Mastra default = 5, demasiado bajo para flujos multi-paso). */
@@ -63,13 +63,13 @@ function safe<T>(fn: () => Promise<T>): Promise<T | { error: string }> {
 }
 
 // Las page-ops como tools de Mastra (Zod). Operan sobre la pestaña activa vía BrowserControl.
-function buildTools(ctrl: BrowserControl) {
+function buildTools(ctrl: BrowserControl, skills: SkillDetail[]) {
   const wc = (): WebContents => {
     const w = ctrl.getWc()
     if (!w) throw new Error('No hay pestaña activa.')
     return w
   }
-  return {
+  const tools = {
     read_page: createTool({
       id: 'read_page',
       description: 'Lee la página activa: URL, título, texto visible y elementos interactivos con su ref.',
@@ -196,15 +196,34 @@ function buildTools(ctrl: BrowserControl) {
       execute: async ({ x, y }) => safe(() => page.clickAt(wc(), x, y))
     })
   }
+  // Skills habilitadas: tool para cargar el cuerpo de una skill por id.
+  if (skills.length) {
+    ;(tools as Record<string, unknown>).use_skill = createTool({
+      id: 'use_skill',
+      description: 'Carga las instrucciones completas de una skill por su id (de la lista de SKILLS DISPONIBLES) y síguelas.',
+      inputSchema: z.object({ id: z.string() }),
+      execute: async ({ id }) => {
+        const s = skills.find((x) => x.id === id || x.name === id)
+        return s ? s.body : `ERROR: no existe la skill "${id}". Skills: ${skills.map((x) => x.id).join(', ')}.`
+      }
+    })
+  }
+  return tools
 }
 
-export function buildAgent(provider: AIProvider, key: string, model: string, ctrl: BrowserControl): Agent {
+function skillsSection(skills: SkillDetail[]): string {
+  if (!skills.length) return ''
+  return `\n\nSKILLS DISPONIBLES: tienes skills con instrucciones especializadas para ciertas tareas. Cuando la petición encaje con una skill (por su descripción o keywords), invoca la tool use_skill(id) para cargar sus instrucciones completas y síguelas al pie de la letra.\n` +
+    skills.map((s) => `- ${s.id}: ${s.name} — ${s.description}${s.keywords.length ? ` (keywords: ${s.keywords.join(', ')})` : ''}`).join('\n')
+}
+
+export function buildAgent(provider: AIProvider, key: string, model: string, ctrl: BrowserControl, skills: SkillDetail[] = []): Agent {
   return new Agent({
     id: 'monper-agent',
     name: 'Monper',
-    instructions: SYSTEM,
+    instructions: SYSTEM + skillsSection(skills),
     model: buildModel(provider, key, model),
-    tools: buildTools(ctrl)
+    tools: buildTools(ctrl, skills)
   })
 }
 
@@ -230,6 +249,7 @@ function describe(toolName: string, args: unknown): ChatStep {
     case 'close_tab': return { state: 'working', label: `Cerrando la pestaña ${a.id}`, kind: 'tab' }
     case 'screenshot': return { state: 'searching', label: 'Mirando la pantalla', kind: 'screenshot' }
     case 'click_at': return { state: 'working', label: `Click en (${a.x}, ${a.y})`, kind: 'click' }
+    case 'use_skill': return { state: 'listening', label: `Usando skill: ${a.id}`, kind: 'read' }
     default: return { state: 'working', label: toolName, kind: 'generic' }
   }
 }
@@ -243,9 +263,9 @@ function faviconFor(h: string): string | undefined {
 /** Corre el agente Mastra en streaming, emitiendo tokens (texto) y steps (tool-calls). */
 export async function runMastra(opts: {
   provider: AIProvider; key: string; model: string
-  messages: ChatMessage[]; control: BrowserControl; emit: Emit; signal: AbortSignal
+  messages: ChatMessage[]; control: BrowserControl; emit: Emit; signal: AbortSignal; skills?: SkillDetail[]
 }): Promise<void> {
-  const agent = buildAgent(opts.provider, opts.key, opts.model, opts.control)
+  const agent = buildAgent(opts.provider, opts.key, opts.model, opts.control, opts.skills ?? [])
   // {role, content:string} es un ModelMessage válido; la unión de Mastra es demasiado estricta para inferirlo.
   // maxSteps: el default de Mastra es 5 (corta la tarea a mitad); subimos para dejar completar flujos largos.
   const out = await agent.stream(opts.messages as Parameters<typeof agent.stream>[0], { maxSteps: MAX_STEPS })

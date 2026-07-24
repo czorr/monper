@@ -19,7 +19,12 @@ const api: MonperTabApi = {
   vaultList: () => ipcRenderer.invoke('vault:list'),
   vaultAdd: (type, label, data, secret) => ipcRenderer.invoke('vault:add', type, label, data, secret),
   vaultRemove: (id) => ipcRenderer.invoke('vault:remove', id),
-  suggest: (query) => ipcRenderer.invoke('omni:suggest', query) as Promise<Suggestion[]>
+  suggest: (query) => ipcRenderer.invoke('omni:suggest', query) as Promise<Suggestion[]>,
+  openSettings: () => ipcRenderer.send('ui:settings'),
+  openChat: () => ipcRenderer.send('ui:openChat'),
+  skillsList: () => ipcRenderer.invoke('skills:list'),
+  skillsGet: (id) => ipcRenderer.invoke('skills:get', id),
+  skillsToggle: (id, enabled) => ipcRenderer.invoke('skills:toggle', id, enabled)
 }
 
 contextBridge.exposeInMainWorld('monperTab', api)

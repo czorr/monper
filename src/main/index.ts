@@ -101,37 +101,91 @@ function applyRadius(t: Tab) {
   }
 }
 
-// Reposiciona la vista activa instantáneamente (resize, cambio de pestaña).
-function layoutActive() {
-  const t = activeId != null ? tabs.get(activeId) : null
-  if (!t) return
-  t.view.setBounds(contentBounds())
-  applyRadius(t)
+// DevTools acoplados (no en popup): se renderizan en una WebContentsView propia a la derecha.
+let devtoolsView: WebContentsView | null = null
+let devtoolsFor: number | null = null
+const devtoolsOpen = (): boolean => devtoolsView != null && devtoolsFor === activeId
+
+// Bounds de la vista activa: se parte a la izquierda cuando devtools está acoplado.
+function activeViewBounds(cb = contentBounds()) {
+  if (devtoolsOpen()) return { ...cb, width: Math.max(0, Math.round(cb.width * 0.62)) }
+  return cb
 }
 
-// Anima los bounds de la vista nativa en sync con la transición CSS del content
-// (mismo duration/easing) para que topbar y página deslicen como una sola.
+/**
+ * Reposiciona TODAS las vistas al área de contenido y trae la activa al frente.
+ * Mantenerlas todas vivas (mismo rect, fondo opaco) hace el cambio de pestaña
+ * INSTANTÁNEO — no hay repaint por ocultar/mostrar — y sin sangrado en las esquinas
+ * redondeadas: todas se recortan igual y la activa (opaca) tapa a las de atrás.
+ */
+function layoutTabs() {
+  if (!win || win.isDestroyed()) return
+  const cb = contentBounds()
+  const ab = activeViewBounds(cb)
+  for (const [id, t] of tabs) {
+    t.view.setBounds(id === activeId ? ab : cb)
+    applyRadius(t)
+  }
+  const at = activeId != null ? tabs.get(activeId) : null
+  if (at) win.contentView.addChildView(at.view) // activa al frente
+  if (devtoolsOpen() && devtoolsView) {
+    devtoolsView.setBounds({ x: ab.x + ab.width, y: cb.y, width: cb.width - ab.width, height: cb.height })
+    win.contentView.addChildView(devtoolsView) // devtools por encima de todo
+  }
+}
+// Alias: llamadas existentes que solo querían recolocar la vista activa.
+function layoutActive() { layoutTabs() }
+
+// Anima los bounds de TODAS las vistas en sync con la transición CSS del content.
 const COLLAPSE_MS = 180
 let collapseAnim: NodeJS.Timeout | null = null
 function animateLayout() {
-  const t = activeId != null ? tabs.get(activeId) : null
-  if (!t) return
-  applyRadius(t)
-  const start = t.view.getBounds()
+  if (!win || win.isDestroyed() || tabs.size === 0) return
+  for (const t of tabs.values()) applyRadius(t)
+  const starts = new Map([...tabs].map(([id, t]) => [id, t.view.getBounds()]))
   const target = contentBounds()
   const t0 = Date.now()
   if (collapseAnim) clearInterval(collapseAnim)
   collapseAnim = setInterval(() => {
     const p = Math.min(1, (Date.now() - t0) / COLLAPSE_MS)
     const e = 1 - Math.pow(1 - p, 3) // easeOutCubic (matchea el cubic-bezier del CSS)
-    t.view.setBounds({
-      x: Math.round(start.x + (target.x - start.x) * e),
-      y: target.y,
-      width: Math.round(start.width + (target.width - start.width) * e),
-      height: target.height
-    })
-    if (p >= 1 && collapseAnim) { clearInterval(collapseAnim); collapseAnim = null }
+    for (const [id, t] of tabs) {
+      const s = starts.get(id)
+      if (!s) continue
+      t.view.setBounds({
+        x: Math.round(s.x + (target.x - s.x) * e),
+        y: target.y,
+        width: Math.round(s.width + (target.width - s.width) * e),
+        height: target.height
+      })
+    }
+    if (p >= 1 && collapseAnim) { clearInterval(collapseAnim); collapseAnim = null; layoutTabs() }
   }, 1000 / 60)
+}
+
+function toggleDevtools(): void {
+  const t = activeId != null ? tabs.get(activeId) : null
+  if (!t) return
+  if (devtoolsFor === activeId && devtoolsView) { closeDevtools(); return }
+  if (devtoolsView) closeDevtools() // estaba abierto en otra pestaña
+  devtoolsView = new WebContentsView()
+  if (typeof devtoolsView.setBackgroundColor === 'function') devtoolsView.setBackgroundColor('#1e1e1e')
+  win!.contentView.addChildView(devtoolsView)
+  t.view.webContents.setDevToolsWebContents(devtoolsView.webContents)
+  t.view.webContents.openDevTools({ mode: 'detach' }) // se dibuja dentro de devtoolsView (acoplado)
+  devtoolsFor = activeId
+  layoutTabs()
+}
+function closeDevtools(): void {
+  const t = devtoolsFor != null ? tabs.get(devtoolsFor) : null
+  try { t?.view.webContents.closeDevTools() } catch { /* noop */ }
+  if (devtoolsView) {
+    win?.contentView.removeChildView(devtoolsView)
+    try { devtoolsView.webContents.close() } catch { /* noop */ }
+  }
+  devtoolsView = null
+  devtoolsFor = null
+  layoutTabs()
 }
 
 function pushState() {
@@ -165,7 +219,22 @@ function sampleTopColor(t: Tab): void {
     const colorAt = (x, y) => { let el = document.elementFromPoint(x, y); while (el) { const c = bgOf(el); if (c) return c; el = el.parentElement; } return null; };
     return colorAt(6, 6) || colorAt(Math.floor(innerWidth / 2), 3)
       || bgOf(document.body) || bgOf(document.documentElement) || '#ffffff';
-  })()`, true).then((c: string) => { t.pageBg = c; pushState() }).catch(() => {})
+  })()`, true).then((c: string) => {
+    t.pageBg = c
+    // Alinea el fondo opaco de la vista con el color real de la página: así el frame en
+    // blanco al cambiar de pestaña coincide con la página (sin flash blanco en páginas oscuras).
+    const hex = rgbToHex(c)
+    if (hex && typeof t.view.setBackgroundColor === 'function') t.view.setBackgroundColor(hex)
+    pushState()
+  }).catch(() => {})
+}
+
+// 'rgb(r, g, b)' / 'rgba(...)' → '#rrggbb' (ignora alpha). Devuelve null si no puede.
+function rgbToHex(c: string): string | null {
+  const m = c.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i)
+  if (!m) return /^#[0-9a-f]{6}$/i.test(c) ? c : null
+  const h = (n: string): string => Number(n).toString(16).padStart(2, '0')
+  return `#${h(m[1])}${h(m[2])}${h(m[3])}`
 }
 
 function createTab(url = newtabUrl(), activate = true, agent = false): number {
@@ -178,6 +247,10 @@ function createTab(url = newtabUrl(), activate = true, agent = false): number {
       preload: join(__dirname, '../preload/content.js')
     }
   })
+  // Fondo opaco: sin esto la vista es transparente y, en el frame en blanco al cambiar
+  // de pestaña, se ve el fondo de la ventana (gris/escritorio). Blanco = como la mayoría
+  // de páginas; se ajusta al color real de la página cuando lo muestreamos.
+  if (typeof view.setBackgroundColor === 'function') view.setBackgroundColor('#ffffff')
   const t: Tab = { view, url, title: '', favicon: null, loading: false, canBack: false, canForward: false, themeColor: null, pageBg: null, recording: false, agent, bookmarkId: null }
   tabs.set(id, t)
   win!.contentView.addChildView(view)
@@ -218,23 +291,36 @@ function createTab(url = newtabUrl(), activate = true, agent = false): number {
     return { action: 'deny' }
   })
 
+  // Manejo de teclas a nivel de la vista (funciona aunque la página tenga el foco):
+  // F12 / ⌘⌥I / Ctrl+Shift+I alternan las DevTools acopladas.
+  wc.on('before-input-event', (e, input) => {
+    if (input.type !== 'keyDown') return
+    const k = input.key.toLowerCase()
+    const isDevtools = k === 'f12' ||
+      (input.meta && input.alt && k === 'i') ||
+      ((input.control || input.meta) && input.shift && k === 'i')
+    if (isDevtools) { e.preventDefault(); toggleDevtools() }
+  })
+
   wc.loadURL(url)
   if (activate) setActive(id)
-  else pushState()
+  else { layoutTabs(); pushState() } // dimensiona la nueva (queda detrás de la activa)
   return id
 }
 
 function setActive(id: number) {
   if (!tabs.has(id)) return
+  if (devtoolsFor != null && devtoolsFor !== id) closeDevtools() // devtools era de otra pestaña
   activeId = id
-  for (const [tid, t] of tabs) t.view.setVisible(tid === id)
-  layoutActive()
+  // Todas las vistas siguen vivas; solo traemos la activa al frente → cambio instantáneo.
+  layoutTabs()
   pushState()
 }
 
 function closeTab(id: number) {
   const t = tabs.get(id)
   if (!t) return
+  if (devtoolsFor === id) closeDevtools()
   win!.contentView.removeChildView(t.view)
   t.view.webContents.close()
   tabs.delete(id)
@@ -316,7 +402,7 @@ function buildAppMenu(): void {
       { label: 'Ask Monper', accelerator: 'CmdOrCtrl+J', click: () => menuAction('toggle-chat') },
       { type: 'separator' },
       { role: 'togglefullscreen', label: 'Pantalla completa' },
-      { role: 'toggleDevTools', label: 'Herramientas de desarrollo' }
+      { label: 'Herramientas de desarrollo', accelerator: 'F12', click: () => toggleDevtools() }
     ]
   }
 
@@ -435,11 +521,7 @@ ipcMain.on('bookmarks:toggle', () => {
 ipcMain.on('tab:pointerdown', () => { if (win && !win.isDestroyed()) win.webContents.send('page:pointerdown') })
 
 // Acciones del menú de perfil
-ipcMain.on('ui:devtools', () => {
-  const t = activeId != null ? tabs.get(activeId) : null
-  const wc = t?.view.webContents
-  if (wc) wc.isDevToolsOpened() ? wc.closeDevTools() : wc.openDevTools({ mode: 'detach' })
-})
+ipcMain.on('ui:devtools', () => toggleDevtools())
 ipcMain.on('ui:downloads', () => { shell.openPath(app.getPath('downloads')) })
 function openSettings(section?: string): void {
   const hash = section ? `#${section}` : ''
@@ -695,11 +777,7 @@ ipcMain.on('profilemenu:action', (_e, name: string) => {
     case 'bookmarks': createTab(); break
     case 'settings': openSettings(); break
     case 'downloads': shell.openPath(app.getPath('downloads')); break
-    case 'developers': {
-      const wc = activeId != null ? tabs.get(activeId)?.view.webContents : undefined
-      if (wc) wc.isDevToolsOpened() ? wc.closeDevTools() : wc.openDevTools({ mode: 'detach' })
-      break
-    }
+    case 'developers': toggleDevtools(); break
     // TODO: new-profile, switch-profile, extensions, history, incognito
   }
 })

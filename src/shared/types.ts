@@ -222,6 +222,7 @@ export interface MonperApi {
   newTab: () => void
   closeTab: (id: number) => void
   selectTab: (id: number) => void
+  reorderTabs: (ids: number[]) => void
   go: (url: string) => void
   back: () => void
   forward: () => void
@@ -288,6 +289,10 @@ export interface MonperApi {
   onMenuAction: (cb: (action: string) => void) => () => void
   // ---- Autocompletado del omnibox ----
   suggest: (query: string) => Promise<Suggestion[]>
+  // ---- Buscar en página ----
+  findInPage: (query: string, opts: { forward: boolean; findNext: boolean }) => void
+  stopFindInPage: () => void
+  onFindResult: (cb: (r: FindResult) => void) => () => void
 }
 
 /** Una descarga rastreada por el gestor. */
@@ -307,6 +312,12 @@ export interface DownloadsSummary {
   active: number
   /** total en la lista */
   total: number
+}
+
+/** Resultado de buscar-en-página (found-in-page). */
+export interface FindResult {
+  matches: number
+  active: number
 }
 
 /** API expuesta a la ventana nativa del vault */

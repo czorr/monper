@@ -12,6 +12,7 @@ const api: MonperApi = {
   newTab: () => ipcRenderer.invoke('tabs:new'),
   closeTab: (id) => ipcRenderer.invoke('tabs:close', id),
   selectTab: (id) => ipcRenderer.invoke('tabs:select', id),
+  reorderTabs: (ids: number[]) => ipcRenderer.send('tabs:reorder', ids),
   go: (url) => ipcRenderer.invoke('nav:go', url),
   back: () => ipcRenderer.invoke('nav:back'),
   forward: () => ipcRenderer.invoke('nav:forward'),
@@ -66,7 +67,10 @@ const api: MonperApi = {
   onChatError: (cb: (m: string) => void) => sub('chat:error', (m) => cb(m as string)),
   openVault: (anchor) => ipcRenderer.send('vault:open', anchor),
   onMenuAction: (cb: (action: string) => void) => sub('menu:action', (a) => cb(a as string)),
-  suggest: (query: string) => ipcRenderer.invoke('omni:suggest', query) as Promise<Suggestion[]>
+  suggest: (query: string) => ipcRenderer.invoke('omni:suggest', query) as Promise<Suggestion[]>,
+  findInPage: (query, opts) => ipcRenderer.send('find:start', query, opts),
+  stopFindInPage: () => ipcRenderer.send('find:stop'),
+  onFindResult: (cb) => sub('find:result', (r) => cb(r as never))
 }
 
 contextBridge.exposeInMainWorld('monper', api)

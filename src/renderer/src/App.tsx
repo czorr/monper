@@ -3,6 +3,7 @@ import type { BrowserState, Bookmark, DownloadsSummary, Profile } from '@shared/
 import Sidebar from '@renderer/components/browser/Sidebar'
 import Content from '@renderer/components/browser/Content'
 import Topbar from '@renderer/components/browser/Topbar'
+import FindBar from '@renderer/components/browser/FindBar'
 import { ChatPanel } from '@renderer/components/chat'
 
 const EMPTY: BrowserState = { activeId: null, tabs: [], active: null, controlling: false }
@@ -17,6 +18,8 @@ export default function App(): JSX.Element {
   const [profile, setProfile] = useState<Profile>({ name: 'Tú', initials: '?', avatar: null })
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([])
   const [downloads, setDownloads] = useState<DownloadsSummary>({ active: 0, total: 0 })
+  const [findOpen, setFindOpen] = useState(false)
+  const [findRequest, setFindRequest] = useState(0)
 
   useEffect(() => monper.onState(setState), [])
   useEffect(() => { monper.getProfile().then(setProfile); return monper.onProfile(setProfile) }, [])
@@ -48,7 +51,11 @@ export default function App(): JSX.Element {
     if (action === 'toggle-sidebar') setCollapsed((c) => !c)
     else if (action === 'toggle-chat') setChatOpen((c) => !c)
     else if (action === 'edit-url') setEditRequest((n) => n + 1)
+    else if (action === 'find') { setFindOpen(true); setFindRequest((n) => n + 1) }
   }), [])
+
+  // Al cambiar de pestaña, cierra la búsqueda (sus resultados eran de la otra página).
+  useEffect(() => { setFindOpen(false) }, [state.activeId])
 
   return (
     <>
@@ -63,6 +70,7 @@ export default function App(): JSX.Element {
         onNewTab={() => monper.newTab()}
         onSelectTab={(id) => monper.selectTab(id)}
         onCloseTab={(id) => monper.closeTab(id)}
+        onReorderTabs={(ids) => monper.reorderTabs(ids)}
       />
       <Content
         leftInset={!collapsed}
@@ -90,6 +98,7 @@ export default function App(): JSX.Element {
           onOpenVault={(r) => monper.openVault({ x: r.left, y: r.top, width: r.width, height: r.height })}
         />
       </Content>
+      {findOpen && <FindBar openRequest={findRequest} onClose={() => setFindOpen(false)} />}
       <ChatPanel open={chatOpen} onClose={() => setChatOpen(false)} />
     </>
   )

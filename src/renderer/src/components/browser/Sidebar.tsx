@@ -19,13 +19,14 @@ interface Props {
   onNewTab: () => void
   onSelectTab: (id: number) => void
   onCloseTab: (id: number) => void
+  onReorderTabs: (ids: number[]) => void
 }
 
 const newRowClass =
   'flex items-center gap-2.5 w-full py-1.5 px-2 rounded-lg text-text-faint text-left text-[15px] ' +
   'min-h-[30px] hover:bg-bg-hover hover:text-text [&>svg]:opacity-80 [&>svg]:w-[15px] [&>svg]:h-[15px]'
 
-export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBookmark, onOpenMenu, onCollapse, onNewTab, onSelectTab, onCloseTab }: Props): JSX.Element {
+export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBookmark, onOpenMenu, onCollapse, onNewTab, onSelectTab, onCloseTab, onReorderTabs }: Props): JSX.Element {
   // Las pestañas ligadas a un bookmark se muestran en su slot de bookmarks, no en Tabs.
   const userTabs = state.tabs.filter((t) => !t.agent && !t.bookmarkId)
   const agentTabs = state.tabs.filter((t) => t.agent)
@@ -72,7 +73,7 @@ export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBo
         <span>New tab</span>
       </button>
 
-      <TabList tabs={userTabs} activeId={state.activeId} onSelect={onSelectTab} onClose={onCloseTab} />
+      <TabList tabs={userTabs} activeId={state.activeId} onSelect={onSelectTab} onClose={onCloseTab} onReorder={onReorderTabs} />
 
       {agentTabs.length > 0 && (
         <div className="shrink-0 mt-1.5">

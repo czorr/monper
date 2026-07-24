@@ -269,6 +269,7 @@ function createTab(url = newtabUrl(), activate = true, agent = false): number {
     t.url = u; t.recording = false
     // Al navegar a algo que NO es la página de error, limpiamos el estado de error y registramos la visita.
     if (!isErrorPage(u)) { t.errorUrl = null; if (!isInternal(u)) recordVisit(u, t.title, t.favicon) }
+    applyZoom(wc, u) // restaura el zoom recordado para el origen
     refresh()
     scheduleSaveSession()
   })
@@ -287,6 +288,8 @@ function createTab(url = newtabUrl(), activate = true, agent = false): number {
     if (details.reason === 'clean-exit') return
     loadErrorPage(t, { url: t.errorUrl || t.url, code: 0, desc: details.reason, kind: 'crash' })
   })
+  wc.on('context-menu', (_e, params) => showPageContextMenu(wc, params))
+  wc.on('found-in-page', (_e, r) => win?.webContents.send('find:result', { matches: r.matches, active: r.activeMatchOrdinal }))
   wc.setWindowOpenHandler((details) => {
     const feats = details.features || ''
     // Popups reales (OAuth, pagos…): window.open con dimensiones o disposition new-window
@@ -317,7 +320,11 @@ function createTab(url = newtabUrl(), activate = true, agent = false): number {
     const isDevtools = k === 'f12' ||
       (input.meta && input.alt && k === 'i') ||
       ((input.control || input.meta) && input.shift && k === 'i')
-    if (isDevtools) { e.preventDefault(); toggleDevtools() }
+    if (isDevtools) { e.preventDefault(); toggleDevtools(); return }
+    // ⌘1..9 para saltar de pestaña (funciona con el foco en la página).
+    if ((input.meta || input.control) && !input.alt && !input.shift && /^[1-9]$/.test(input.key)) {
+      e.preventDefault(); selectTabByIndex(Number(input.key))
+    }
   })
 
   wc.loadURL(url)
@@ -361,6 +368,74 @@ function closeTab(id: number) {
 function reopenClosedTab(): void {
   const u = closedStack.pop()
   if (u) createTab(u, true)
+}
+
+// ⌘1..8 → n-ésima pestaña; ⌘9 → última (como en Chrome).
+function selectTabByIndex(n: number): void {
+  const ids = [...tabs.keys()]
+  if (!ids.length) return
+  const idx = n >= 9 ? ids.length - 1 : Math.min(n - 1, ids.length - 1)
+  setActive(ids[idx])
+}
+
+// Reordena las pestañas al orden dado (los ids no incluidos quedan al final, en su orden actual).
+function reorderTabs(orderedIds: number[]): void {
+  const seen = new Set<number>()
+  const entries: [number, Tab][] = []
+  for (const id of orderedIds) { const t = tabs.get(id); if (t) { entries.push([id, t]); seen.add(id) } }
+  for (const [id, t] of tabs) if (!seen.has(id)) entries.push([id, t])
+  tabs.clear()
+  for (const [id, t] of entries) tabs.set(id, t)
+  pushState()
+  scheduleSaveSession()
+}
+
+// Menú contextual nativo del contenido de la página (click derecho sobre un enlace,
+// imagen, selección, campo editable, o el fondo).
+function showPageContextMenu(wc: Electron.WebContents, p: Electron.ContextMenuParams): void {
+  if (!win) return
+  const nav = wc.navigationHistory
+  const items: MenuItemConstructorOptions[] = []
+  if (p.linkURL) {
+    items.push(
+      { label: 'Abrir enlace en pestaña nueva', click: () => createTab(p.linkURL) },
+      { label: 'Copiar dirección del enlace', click: () => clipboard.writeText(p.linkURL) },
+      { type: 'separator' }
+    )
+  }
+  if (p.mediaType === 'image' && p.srcURL) {
+    items.push(
+      { label: 'Abrir imagen en pestaña nueva', click: () => createTab(p.srcURL) },
+      { label: 'Copiar dirección de la imagen', click: () => clipboard.writeText(p.srcURL) },
+      { label: 'Guardar imagen', click: () => wc.downloadURL(p.srcURL) },
+      { type: 'separator' }
+    )
+  }
+  if (p.isEditable) {
+    items.push(
+      { role: 'cut', enabled: p.editFlags.canCut },
+      { role: 'copy', enabled: p.editFlags.canCopy },
+      { role: 'paste', enabled: p.editFlags.canPaste },
+      { role: 'selectAll' },
+      { type: 'separator' }
+    )
+  } else if (p.selectionText) {
+    const sel = p.selectionText.trim().slice(0, 40)
+    items.push(
+      { role: 'copy' },
+      { label: `Buscar "${sel}" en Google`, click: () => createTab('https://www.google.com/search?q=' + encodeURIComponent(p.selectionText)) },
+      { type: 'separator' }
+    )
+  }
+  items.push(
+    { label: 'Atrás', enabled: nav.canGoBack(), click: () => nav.goBack() },
+    { label: 'Adelante', enabled: nav.canGoForward(), click: () => nav.goForward() },
+    { label: 'Recargar', click: () => wc.reload() },
+    { type: 'separator' },
+    { label: 'Copiar dirección de la página', click: () => clipboard.writeText(wc.getURL()) },
+    { label: 'Inspeccionar elemento', click: () => wc.inspectElement(p.x, p.y) }
+  )
+  Menu.buildFromTemplate(items).popup({ window: win })
 }
 
 // ---- Restauración de sesión: persistir las pestañas abiertas y reabrirlas al arrancar ----
@@ -409,6 +484,29 @@ function normalizeUrl(raw: string): string | null {
 function activeWc() {
   return activeId != null ? tabs.get(activeId)?.view.webContents : undefined
 }
+
+// ---- Zoom por sitio (recordado por origen) ----
+const ZOOM_STEPS = [-2, -1.5, -1, -0.5, 0, 0.5, 1, 1.5, 2, 2.5, 3]
+const zoomByOrigin = new Map<string, number>()
+function originOfUrl(u: string): string { try { return new URL(u).origin } catch { return '' } }
+function applyZoom(wc: Electron.WebContents, url: string): void {
+  const z = zoomByOrigin.get(originOfUrl(url)) ?? 0
+  wc.setZoomLevel(z)
+}
+function changeZoom(delta: number | 'reset'): void {
+  const t = activeId != null ? tabs.get(activeId) : null
+  if (!t) return
+  const origin = originOfUrl(t.errorUrl ?? t.url)
+  const cur = zoomByOrigin.get(origin) ?? 0
+  let next = 0
+  if (delta !== 'reset') {
+    // Salta al step más cercano en la dirección pedida.
+    const idx = ZOOM_STEPS.reduce((best, v, i) => (Math.abs(v - cur) < Math.abs(ZOOM_STEPS[best] - cur) ? i : best), 0)
+    next = ZOOM_STEPS[Math.min(ZOOM_STEPS.length - 1, Math.max(0, idx + (delta > 0 ? 1 : -1)))]
+  }
+  if (next === 0) zoomByOrigin.delete(origin); else zoomByOrigin.set(origin, next)
+  t.view.webContents.setZoomLevel(next)
+}
 // Envía una acción al renderer del chrome (toggles de estado: sidebar / chat / URL).
 function menuAction(action: string): void {
   win?.webContents.send('menu:action', action)
@@ -452,7 +550,9 @@ function buildAppMenu(): void {
       { role: 'cut', label: 'Cortar' },
       { role: 'copy', label: 'Copiar' },
       { role: 'paste', label: 'Pegar' },
-      { role: 'selectAll', label: 'Seleccionar todo' }
+      { role: 'selectAll', label: 'Seleccionar todo' },
+      { type: 'separator' },
+      { label: 'Buscar en la página', accelerator: 'CmdOrCtrl+F', click: () => menuAction('find') }
     ]
   }
 
@@ -462,6 +562,11 @@ function buildAppMenu(): void {
       { label: 'Recargar', accelerator: 'CmdOrCtrl+R', click: () => activeWc()?.reload() },
       { label: 'Atrás', accelerator: 'CmdOrCtrl+[', click: () => { const wc = activeWc(); if (wc?.navigationHistory.canGoBack()) wc.navigationHistory.goBack() } },
       { label: 'Adelante', accelerator: 'CmdOrCtrl+]', click: () => { const wc = activeWc(); if (wc?.navigationHistory.canGoForward()) wc.navigationHistory.goForward() } },
+      { type: 'separator' },
+      { label: 'Acercar', accelerator: 'CmdOrCtrl+Plus', click: () => changeZoom(1) },
+      { label: 'Acercar', accelerator: 'CmdOrCtrl+=', visible: false, click: () => changeZoom(1) },
+      { label: 'Alejar', accelerator: 'CmdOrCtrl+-', click: () => changeZoom(-1) },
+      { label: 'Zoom normal', accelerator: 'CmdOrCtrl+0', click: () => changeZoom('reset') },
       { type: 'separator' },
       { label: 'Mostrar/ocultar sidebar', accelerator: 'CmdOrCtrl+S', click: () => menuAction('toggle-sidebar') },
       { label: 'Ask Monper', accelerator: 'CmdOrCtrl+J', click: () => menuAction('toggle-chat') },
@@ -512,6 +617,12 @@ function createWindow() {
   loadRenderer(win, 'index')
   win.on('resize', () => { layoutActive(); hideOmni() })
   win.on('move', hideOmni)
+  // ⌘1..9 cuando el foco está en el chrome (no en una página).
+  win.webContents.on('before-input-event', (e, input) => {
+    if (input.type === 'keyDown' && (input.meta || input.control) && !input.alt && !input.shift && /^[1-9]$/.test(input.key)) {
+      e.preventDefault(); selectTabByIndex(Number(input.key))
+    }
+  })
   win.webContents.on('did-finish-load', () => {
     if (tabs.size === 0) { if (!restoreSession()) createTab() } else pushState()
     // Pre-carga las ventanas nativas de popups (site-info, menú de perfil) para que
@@ -522,6 +633,7 @@ function createWindow() {
 
 // ---- IPC ----
 ipcMain.handle('tabs:new', () => createTab())
+ipcMain.on('tabs:reorder', (_e, orderedIds: number[]) => reorderTabs(orderedIds))
 ipcMain.handle('tabs:close', (_e, id: number) => closeTab(id))
 ipcMain.handle('tabs:select', (_e, id: number) => setActive(id))
 ipcMain.handle('nav:go', (_e, raw: string) => {
@@ -661,6 +773,14 @@ ipcMain.on('downloads:open', (_e, id: string) => openDownload(id))
 ipcMain.on('downloads:show', (_e, id: string) => showDownload(id))
 ipcMain.on('downloads:clear', () => clearDownloads())
 ipcMain.on('ui:downloads', () => openDownloads())
+
+// ---- Buscar en página ----
+ipcMain.on('find:start', (_e, query: string, opts: { forward: boolean; findNext: boolean }) => {
+  const wc = activeWc()
+  if (!wc || !query) return
+  wc.findInPage(query, { forward: opts.forward, findNext: opts.findNext })
+})
+ipcMain.on('find:stop', () => { activeWc()?.stopFindInPage('clearSelection') })
 function openSettings(section?: string): void {
   const hash = section ? `#${section}` : ''
   // Si ya hay una pestaña de settings, actívala (y navega a la sección si se pidió); si no, ábrela.

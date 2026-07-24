@@ -53,7 +53,7 @@ export default function NewTabPage(): JSX.Element {
         </div>
         {ac.open && (
           <div className="absolute z-50 top-full left-0 right-0 mt-2 rounded-2xl border border-white/10 bg-[#1c1c20]/95 shadow-2xl shadow-black/50 overflow-hidden">
-            <SuggestionList items={ac.items} active={ac.active} onHover={ac.setActive} onChoose={choose} />
+            <SuggestionList items={ac.items} active={ac.active} query={ac.query} onHover={ac.setActive} onChoose={choose} />
           </div>
         )}
       </div>

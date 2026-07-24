@@ -116,6 +116,19 @@ export interface BrowserState {
   active: ActiveInfo | null
 }
 
+/** Rectángulo (coords de la ventana) para posicionar la ventana nativa del omnibox */
+export interface OmniRect { x: number; y: number; width: number; height: number }
+/** Datos que el chrome envía a la ventana nativa del omnibox */
+export interface OmniData { items: Suggestion[]; active: number; query: string }
+
+/** API expuesta a la ventana nativa del omnibox (dropdown de sugerencias) */
+export interface OmniWinApi {
+  onData: (cb: (data: OmniData) => void) => void
+  reportHeight: (h: number) => void
+  choose: (index: number) => void
+  hover: (index: number) => void
+}
+
 export interface MenuAnchor {
   x: number
   y: number
@@ -139,6 +152,14 @@ export interface MonperApi {
   reload: () => void
   setCollapsed: (v: boolean) => void
   setChat: (open: boolean) => void
+  /** Oculta/muestra la vista nativa al editar la URL (para ver el dropdown del omnibox) */
+  setOmnibox: (open: boolean) => void
+  // ---- Ventana nativa del dropdown del omnibox (flota sobre la página) ----
+  omniShow: (rect: OmniRect, data: OmniData) => void
+  omniUpdate: (data: OmniData) => void
+  omniHide: () => void
+  onOmniChosen: (cb: (index: number) => void) => () => void
+  onOmniHovered: (cb: (index: number) => void) => () => void
   onState: (cb: (state: BrowserState) => void) => () => void
   toggleBookmark: () => void
   openDevtools: () => void
@@ -204,5 +225,6 @@ declare global {
     monper: MonperApi
     monperTab: MonperTabApi
     vaultwin: VaultWinApi
+    omniwin: OmniWinApi
   }
 }

@@ -324,7 +324,8 @@ function createWindow() {
   trackWindow(win)
 
   loadRenderer(win, 'index')
-  win.on('resize', layoutActive)
+  win.on('resize', () => { layoutActive(); hideOmni() })
+  win.on('move', hideOmni)
   win.webContents.on('did-finish-load', () => { if (tabs.size === 0) createTab(); else pushState() })
 }
 
@@ -342,6 +343,12 @@ ipcMain.handle('nav:forward', () => { const t = activeId != null ? tabs.get(acti
 ipcMain.handle('nav:reload', () => { const t = activeId != null ? tabs.get(activeId) : null; t?.view.webContents.reload() })
 ipcMain.handle('ui:collapse', (_e, collapsed: boolean) => { sidebarCollapsed = !!collapsed; animateLayout() })
 ipcMain.handle('ui:chat', (_e, open: boolean) => { chatOpen = !!open; animateLayout() })
+// Al editar la URL, oculta la vista nativa (que se dibuja encima del DOM) para que
+// el dropdown del omnibox sea visible; se restaura al cerrar el editor.
+ipcMain.on('ui:omnibox', (_e, open: boolean) => {
+  const t = activeId != null ? tabs.get(activeId) : null
+  if (t) t.view.setVisible(!open)
+})
 
 // ---- Bookmarks ----
 function broadcastBookmarks(): void {
@@ -456,6 +463,52 @@ ipcMain.on('vault:manage', () => {
   for (const [id, t] of tabs) if (t.url.includes('/settings.html')) { setActive(id); return }
   createTab(internalUrl('settings'))
 })
+
+// ---- Omnibox: ventana nativa del dropdown de sugerencias (flota sobre la página) ----
+// focusable:false → clicks no le roban el foco al input del chrome; la página no se toca.
+let omniWin: BrowserWindow | null = null
+const OMNI_PAD = 12 // padding (p-3) del contenido, para el borde/sombra
+let omniRect: { x: number; y: number; width: number; height: number } | null = null
+let lastOmniData: unknown = null
+function ensureOmniWin(): BrowserWindow {
+  if (omniWin && !omniWin.isDestroyed()) return omniWin
+  omniWin = new BrowserWindow({
+    parent: win!, show: false, frame: false, transparent: true, focusable: false,
+    resizable: false, movable: false, minimizable: false, maximizable: false,
+    fullscreenable: false, hasShadow: false, skipTaskbar: true, backgroundColor: '#00000000',
+    webPreferences: { preload: join(__dirname, '../preload/omnibox.js'), contextIsolation: true, sandbox: false }
+  })
+  // Reenvía los datos actuales cuando el renderer terminó de cargar (primer show).
+  omniWin.webContents.on('did-finish-load', () => {
+    if (lastOmniData && omniWin && !omniWin.isDestroyed()) omniWin.webContents.send('omni:data', lastOmniData)
+  })
+  if (RENDERER_URL) omniWin.loadURL(`${RENDERER_URL}/omnibox.html`)
+  else omniWin.loadFile(join(__dirname, '../renderer/omnibox.html'))
+  return omniWin
+}
+function placeOmni(winHeight: number): void {
+  if (!omniWin || omniWin.isDestroyed() || !omniRect || !win) return
+  const cb = win.getContentBounds()
+  omniWin.setBounds({
+    x: Math.round(cb.x + omniRect.x - OMNI_PAD),
+    y: Math.round(cb.y + omniRect.y + omniRect.height - 2),
+    width: Math.round(omniRect.width + OMNI_PAD * 2),
+    height: Math.max(1, Math.round(winHeight))
+  })
+}
+function hideOmni(): void { if (omniWin && !omniWin.isDestroyed()) omniWin.hide() }
+ipcMain.on('omni:show', (_e, rect: typeof omniRect, data) => {
+  omniRect = rect
+  lastOmniData = data
+  const w = ensureOmniWin()
+  w.webContents.send('omni:data', data)
+  if (!w.isVisible()) w.showInactive()
+})
+ipcMain.on('omni:update', (_e, data) => { lastOmniData = data; if (omniWin && !omniWin.isDestroyed()) omniWin.webContents.send('omni:data', data) })
+ipcMain.on('omni:height', (_e, h: number) => placeOmni(h + OMNI_PAD * 2))
+ipcMain.on('omni:hide', hideOmni)
+ipcMain.on('omni:choose', (_e, i: number) => win?.webContents.send('omni:chosen', i))
+ipcMain.on('omni:hover', (_e, i: number) => win?.webContents.send('omni:hovered', i))
 
 // ---- Proveedores de IA (gestión desde la página de Settings, sender-validada) ----
 function notifyChatContext(): void { win?.webContents.send('chat:contextChanged', getChatContext()) }

@@ -9,6 +9,7 @@ import IconArrowRight from '~icons/tabler/corner-down-left'
 interface Props {
   items: Suggestion[]
   active: number
+  query: string
   onHover: (i: number) => void
   onChoose: (s: Suggestion) => void
 }
@@ -17,18 +18,33 @@ const KIND_ICON = { search: IconSearch, url: IconWorld, history: IconClock, book
 
 function Leading({ s }: { s: Suggestion }): JSX.Element {
   const [broken, setBroken] = useState(false)
-  // Las búsquedas siempre muestran la lupa; el resto, favicon con fallback al icono del tipo.
   if (s.kind !== 'search' && s.favicon && !broken) {
-    return <img src={s.favicon} alt="" className="w-4 h-4 rounded-[3px] object-contain" onError={() => setBroken(true)} />
+    return <img src={s.favicon} alt="" className="w-[18px] h-[18px] rounded-[4px] object-contain" onError={() => setBroken(true)} />
   }
   const Icon = KIND_ICON[s.kind]
-  return <Icon className="w-4 h-4 text-text-faint" />
+  return <Icon className="w-[18px] h-[18px] text-text-faint" />
 }
 
-/** Lista desplegable de sugerencias del omnibox. La posiciona el parent (absolute). */
-export default function SuggestionList({ items, active, onHover, onChoose }: Props): JSX.Element {
+/** Resalta lo que el usuario tecleó (prefijo en negrita); el completado va tenue. */
+function Highlight({ text, query }: { text: string; query: string }): JSX.Element {
+  const q = query.trim()
+  let n = 0
+  const a = text.toLowerCase()
+  const b = q.toLowerCase()
+  while (n < a.length && n < b.length && a[n] === b[n]) n++
+  if (n === 0) return <span className="text-text-dim">{text}</span>
   return (
-    <ul className="py-1.5">
+    <>
+      <span className="font-semibold text-text">{text.slice(0, n)}</span>
+      <span className="text-text-dim">{text.slice(n)}</span>
+    </>
+  )
+}
+
+/** Lista desplegable de sugerencias del omnibox (estilo Arc: full-width, completado en negrita). */
+export default function SuggestionList({ items, active, query, onHover, onChoose }: Props): JSX.Element {
+  return (
+    <ul className="py-2">
       {items.map((s, i) => (
         <li key={s.kind + s.url}>
           <button
@@ -36,20 +52,16 @@ export default function SuggestionList({ items, active, onHover, onChoose }: Pro
             onMouseEnter={() => onHover(i)}
             onMouseDown={(e) => { e.preventDefault(); onChoose(s) }}
             className={
-              'flex items-center gap-3 w-full px-3 py-2 text-left rounded-lg ' +
-              (i === active ? 'bg-white/[0.08]' : 'hover:bg-white/[0.05]')
+              'flex items-center gap-3.5 w-full px-4 py-2.5 text-left ' +
+              (i === active ? 'bg-white/[0.07]' : 'hover:bg-white/[0.04]')
             }
           >
-            <span className="w-4 h-4 shrink-0 grid place-items-center"><Leading s={s} /></span>
-            <span className="flex-1 min-w-0 text-[13.5px] text-text overflow-hidden text-ellipsis whitespace-nowrap">
-              {s.title}
+            <span className="w-[18px] h-[18px] shrink-0 grid place-items-center"><Leading s={s} /></span>
+            <span className="flex-1 min-w-0 text-[14px] overflow-hidden text-ellipsis whitespace-nowrap">
+              <Highlight text={s.title} query={query} />
+              {s.detail && <span className="ml-2 text-[13px] text-text-faint">{s.detail}</span>}
             </span>
-            {s.detail && (
-              <span className="shrink-0 text-[12px] text-text-faint overflow-hidden text-ellipsis whitespace-nowrap max-w-[45%]">
-                {s.detail}
-              </span>
-            )}
-            {i === active && <IconArrowRight className="w-3.5 h-3.5 text-text-faint shrink-0" />}
+            {i === active && <IconArrowRight className="w-4 h-4 text-text-faint shrink-0" />}
           </button>
         </li>
       ))}

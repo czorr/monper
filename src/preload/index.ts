@@ -18,6 +18,12 @@ const api: MonperApi = {
   reload: () => ipcRenderer.invoke('nav:reload'),
   setCollapsed: (v) => ipcRenderer.invoke('ui:collapse', v),
   setChat: (open) => ipcRenderer.invoke('ui:chat', open),
+  setOmnibox: (open) => ipcRenderer.send('ui:omnibox', open),
+  omniShow: (rect, data) => ipcRenderer.send('omni:show', rect, data),
+  omniUpdate: (data) => ipcRenderer.send('omni:update', data),
+  omniHide: () => ipcRenderer.send('omni:hide'),
+  onOmniChosen: (cb: (i: number) => void) => sub('omni:chosen', (i) => cb(i as number)),
+  onOmniHovered: (cb: (i: number) => void) => sub('omni:hovered', (i) => cb(i as number)),
   onState: (cb: (state: BrowserState) => void) => {
     const handler = (_e: unknown, state: BrowserState) => cb(state)
     ipcRenderer.on('state:update', handler)

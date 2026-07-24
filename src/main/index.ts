@@ -1,4 +1,5 @@
 import { join } from 'path'
+import { readFileSync, writeFileSync } from 'fs'
 import { app, BrowserWindow, Menu, WebContentsView, clipboard, ipcMain, session, shell } from 'electron'
 import type { MenuItemConstructorOptions } from 'electron'
 import type { IpcMainEvent } from 'electron'
@@ -253,6 +254,7 @@ function createTab(url = newtabUrl(), activate = true, agent = false): number {
     // Al navegar a algo que NO es la página de error, limpiamos el estado de error y registramos la visita.
     if (!isErrorPage(u)) { t.errorUrl = null; if (!isInternal(u)) recordVisit(u, t.title, t.favicon) }
     refresh()
+    scheduleSaveSession()
   })
   wc.on('did-navigate-in-page', (_e, u, isMainFrame) => { if (isMainFrame) { t.url = u; refresh() } })
   wc.on('page-title-updated', (_e, title) => { t.title = title; updateMeta(t.url, title); pushState() })
@@ -314,11 +316,18 @@ function setActive(id: number) {
   // Todas las vistas siguen vivas; solo traemos la activa al frente → cambio instantáneo.
   layoutTabs()
   pushState()
+  scheduleSaveSession()
 }
+
+// Pila de URLs de pestañas cerradas recientemente (para ⌘⇧T).
+const closedStack: string[] = []
 
 function closeTab(id: number) {
   const t = tabs.get(id)
   if (!t) return
+  // Recuerda la URL para poder reabrirla (solo http(s), no agent tabs).
+  const u = t.errorUrl ?? t.url
+  if (!t.agent && /^https?:\/\//i.test(u)) { closedStack.push(u); if (closedStack.length > 25) closedStack.shift() }
   win!.contentView.removeChildView(t.view)
   t.view.webContents.close()
   tabs.delete(id)
@@ -329,6 +338,46 @@ function closeTab(id: number) {
   } else {
     pushState()
   }
+  scheduleSaveSession()
+}
+
+function reopenClosedTab(): void {
+  const u = closedStack.pop()
+  if (u) createTab(u, true)
+}
+
+// ---- Restauración de sesión: persistir las pestañas abiertas y reabrirlas al arrancar ----
+function sessionFile(): string { return join(app.getPath('userData'), 'session.json') }
+let saveSessionTimer: NodeJS.Timeout | null = null
+
+function collectSession(): { urls: string[]; activeIndex: number } {
+  const urls: string[] = []
+  let activeIndex = 0
+  for (const [id, t] of tabs) {
+    if (t.agent) continue // las pestañas del agente no se persisten
+    const u = t.errorUrl ?? t.url
+    if (!/^https?:\/\//i.test(u)) continue // solo http(s); las internas se re-crean como new tab
+    if (id === activeId) activeIndex = urls.length
+    urls.push(u)
+  }
+  return { urls, activeIndex }
+}
+function saveSessionNow(): void {
+  try { writeFileSync(sessionFile(), JSON.stringify(collectSession())) } catch { /* noop */ }
+}
+function scheduleSaveSession(): void {
+  if (saveSessionTimer) clearTimeout(saveSessionTimer)
+  saveSessionTimer = setTimeout(saveSessionNow, 800)
+}
+function restoreSession(): boolean {
+  let data: { urls: string[]; activeIndex: number }
+  try { data = JSON.parse(readFileSync(sessionFile(), 'utf-8')) } catch { return false }
+  if (!Array.isArray(data.urls) || data.urls.length === 0) return false
+  for (const u of data.urls) createTab(u, false)
+  const ids = [...tabs.keys()]
+  const target = ids[Math.min(Math.max(0, data.activeIndex ?? 0), ids.length - 1)]
+  if (target != null) setActive(target)
+  return true
 }
 
 function normalizeUrl(raw: string): string | null {
@@ -370,6 +419,7 @@ function buildAppMenu(): void {
     label: 'Archivo',
     submenu: [
       { label: 'Nueva pestaña', accelerator: 'CmdOrCtrl+T', click: () => createTab() },
+      { label: 'Reabrir pestaña cerrada', accelerator: 'CmdOrCtrl+Shift+T', click: () => reopenClosedTab() },
       { label: 'Cerrar pestaña', accelerator: 'CmdOrCtrl+W', click: () => { if (activeId != null) closeTab(activeId) } },
       { type: 'separator' },
       { label: 'Editar URL', accelerator: 'CmdOrCtrl+L', click: () => menuAction('edit-url') }
@@ -446,7 +496,7 @@ function createWindow() {
   win.on('resize', () => { layoutActive(); hideOmni() })
   win.on('move', hideOmni)
   win.webContents.on('did-finish-load', () => {
-    if (tabs.size === 0) createTab(); else pushState()
+    if (tabs.size === 0) { if (!restoreSession()) createTab() } else pushState()
     // Pre-carga las ventanas nativas de popups (site-info, menú de perfil) para que
     // abran instantáneo — crearlas en el primer click era lento (2-3 clicks).
     ensureSiteWin(); ensurePmWin()
@@ -996,4 +1046,5 @@ app.whenReady().then(() => {
   createWindow()
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })
 })
+app.on('before-quit', () => saveSessionNow())
 app.on('window-all-closed', () => { if (!isMac) app.quit() })

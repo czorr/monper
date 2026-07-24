@@ -5,7 +5,7 @@ import Content from '@renderer/components/browser/Content'
 import Topbar from '@renderer/components/browser/Topbar'
 import { ChatPanel } from '@renderer/components/chat'
 
-const EMPTY: BrowserState = { activeId: null, tabs: [], active: null }
+const EMPTY: BrowserState = { activeId: null, tabs: [], active: null, controlling: false }
 const { monper } = window
 const isMac = monper.platform === 'darwin'
 
@@ -58,7 +58,13 @@ export default function App(): JSX.Element {
         onSelectTab={(id) => monper.selectTab(id)}
         onCloseTab={(id) => monper.closeTab(id)}
       />
-      <Content leftInset={!collapsed} rightInset={chatOpen} pageColor={state.active?.pageColor || '#111114'}>
+      <Content
+        leftInset={!collapsed}
+        rightInset={chatOpen}
+        pageColor={state.active?.pageColor || '#111114'}
+        controlling={state.controlling}
+        onTakeOver={() => monper.takeOver()}
+      >
         <Topbar
           active={state.active}
           collapsed={collapsed}

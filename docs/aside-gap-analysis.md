@@ -163,7 +163,7 @@ sin volar a ciegas.
 3. ✅ **Captura de red + replay** (`page.resourceRequests`, `installNetworkCapture`/`capturedRequests`, `page.fetch` desde el contexto de la página → API interna con cookies del sitio).
 4. ✅ **Compaction** de historial (`compactHistory` en `runMastra`).
 5. ✅ **Señales asíncronas → steering** (popups/descargas → `[EVENTOS DEL NAVEGADOR]` adjunto a las observaciones).
-6. ⬜ **Tabs de fondo 1440×900** aisladas. (Paralelismo + no interrumpir al usuario.) — pendiente
+6. 🟡 **Agent tabs** — hecho: sección "Agent tabs" en el sidebar (tabs propias del agente), leyenda inferior "Monper is controlling this tab" + botón **Take over** (aborta el agente) mientras controla la pestaña activa (franja reservada en la vista nativa). Pendiente: render **offscreen 1440×900** de verdad para que no roben foco al usuario.
 7. ⬜ **Harness de eval** para medir todo lo anterior. — pendiente
 8. ⬜ **Recorte del system prompt** una vez el REPL absorba las tools. — pendiente
 

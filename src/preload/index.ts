@@ -49,6 +49,7 @@ const api: MonperApi = {
   setEffort: (e) => ipcRenderer.send('chat:setEffort', e),
   chatSend: (messages: ChatMessage[]) => { ipcRenderer.invoke('chat:send', messages) },
   chatCancel: () => ipcRenderer.send('chat:cancel'),
+  takeOver: () => ipcRenderer.send('agent:takeOver'),
   onChatToken: (cb: (text: string) => void) => sub('chat:token', (t) => cb(t as string)),
   onChatStep: (cb) => sub('chat:step', (s) => cb(s as never)),
   onChatStepImage: (cb: (dataUrl: string) => void) => sub('chat:stepImage', (d) => cb(d as string)),

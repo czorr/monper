@@ -8,6 +8,8 @@ export interface TabInfo {
   loading: boolean
   /** true mientras el sitio tiene acceso activo a cámara/micrófono */
   recording: boolean
+  /** true si la pestaña es del agente (creada/controlada por Monper) */
+  agent: boolean
 }
 
 export interface ActiveInfo {
@@ -133,6 +135,8 @@ export interface BrowserState {
   activeId: number | null
   tabs: TabInfo[]
   active: ActiveInfo | null
+  /** El agente está operando la pestaña activa ahora mismo (muestra la leyenda de control). */
+  controlling: boolean
 }
 
 // ---- Skills del agente ----
@@ -248,6 +252,7 @@ export interface MonperApi {
   setEffort: (effort: Effort) => void
   chatSend: (messages: ChatMessage[]) => void
   chatCancel: () => void
+  takeOver: () => void
   onChatToken: (cb: (text: string) => void) => () => void
   onChatStep: (cb: (step: ChatStep) => void) => () => void
   /** Adjunta una imagen (data URL) al último paso emitido (p. ej. screenshot) */

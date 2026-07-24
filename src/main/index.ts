@@ -61,7 +61,12 @@ interface Tab {
   themeColor: string | null
   pageBg: string | null
   recording: boolean
+  /** Pestaña operada por el agente (aparece en "Agent tabs" y muestra la leyenda de control). */
+  agent: boolean
 }
+
+// Alto de la franja inferior reservada para la leyenda "Monper is controlling this tab".
+const CONTROLLED_STRIP = 40
 
 let win: BrowserWindow | null = null
 const tabs = new Map<number, Tab>()
@@ -81,7 +86,9 @@ function contentBounds() {
   const [w, h] = win!.getContentSize()
   const left = sidebarCollapsed ? 0 : SIDEBAR_WIDTH
   const right = chatOpen ? CHAT_WIDTH : 0
-  return { x: left, y: TOPBAR_HEIGHT, width: Math.max(0, w - left - right), height: Math.max(0, h - TOPBAR_HEIGHT) }
+  // Solo si la pestaña activa es la que el agente está controlando, reserva la franja de la leyenda.
+  const bottom = controllingActive() ? CONTROLLED_STRIP : 0
+  return { x: left, y: TOPBAR_HEIGHT, width: Math.max(0, w - left - right), height: Math.max(0, h - TOPBAR_HEIGHT - bottom) }
 }
 
 function applyRadius(t: Tab) {
@@ -132,14 +139,15 @@ function pushState() {
   const state: BrowserState = {
     activeId,
     tabs: [...tabs.entries()].map(([id, tb]) => ({
-      id, url: displayUrl(tb.url), title: tb.title || 'Nueva pestaña', favicon: tb.favicon, loading: tb.loading, recording: tb.recording
+      id, url: displayUrl(tb.url), title: tb.title || 'Nueva pestaña', favicon: tb.favicon, loading: tb.loading, recording: tb.recording, agent: tb.agent
     })),
     active: t
       ? {
           url: displayUrl(t.url), title: t.title, canBack: t.canBack, canForward: t.canForward,
           loading: t.loading, pageColor: t.pageBg || t.themeColor, bookmarked: isBookmarked(t.url)
         }
-      : null
+      : null,
+    controlling: controllingActive()
   }
   win.webContents.send('state:update', state)
 }
@@ -158,7 +166,7 @@ function sampleTopColor(t: Tab): void {
   })()`, true).then((c: string) => { t.pageBg = c; pushState() }).catch(() => {})
 }
 
-function createTab(url = newtabUrl(), activate = true): number {
+function createTab(url = newtabUrl(), activate = true, agent = false): number {
   const id = nextId++
   const view = new WebContentsView({
     webPreferences: {
@@ -168,7 +176,7 @@ function createTab(url = newtabUrl(), activate = true): number {
       preload: join(__dirname, '../preload/content.js')
     }
   })
-  const t: Tab = { view, url, title: '', favicon: null, loading: false, canBack: false, canForward: false, themeColor: null, pageBg: null, recording: false }
+  const t: Tab = { view, url, title: '', favicon: null, loading: false, canBack: false, canForward: false, themeColor: null, pageBg: null, recording: false, agent }
   tabs.set(id, t)
   win!.contentView.addChildView(view)
 
@@ -712,16 +720,40 @@ ipcMain.on('chat:setEffort', (_e, e: 'low' | 'medium' | 'high') => setEffort(e))
 
 // ---- Chat en streaming (desde el ChatPanel del chrome) ----
 let chatAbort: AbortController | null = null
+// El agente está operando el navegador; `controlledTabId` es la pestaña concreta que controla.
+let agentRunning = false
+let controlledTabId: number | null = null
+// La leyenda de control solo se muestra en la pestaña que el agente controla de verdad.
+function controllingActive(): boolean {
+  return agentRunning && activeId != null && activeId === controlledTabId
+}
+function setAgentRunning(on: boolean): void {
+  if (agentRunning === on) return
+  agentRunning = on
+  controlledTabId = on ? activeId : null // arranca controlando la pestaña activa
+  layoutActive() // ajusta la franja inferior de la vista nativa
+  pushState()
+}
+// El agente movió su foco a otra pestaña (open_tab/switch_tab): sigue la leyenda.
+function setControlledTab(id: number): void {
+  if (!agentRunning) return
+  controlledTabId = id
+  layoutActive()
+  pushState()
+}
 // Cola de eventos asíncronos del navegador (popups, descargas) para steering del agente.
 let agentEvents: string[] = []
 function pushAgentEvent(msg: string): void { if (agentEvents.length < 20) agentEvents.push(msg) }
 ipcMain.on('chat:cancel', () => { chatAbort?.abort() })
+// "Take over": el usuario retoma el control → aborta el agente.
+ipcMain.on('agent:takeOver', () => { chatAbort?.abort() })
 ipcMain.handle('chat:send', async (_e, messages: ChatMessage[]) => {
   const active = getActiveProvider()
   if (!active) { win?.webContents.send('chat:error', 'No hay proveedor de IA conectado. Conéctalo en Settings.'); return }
   chatAbort?.abort()
   agentEvents = [] // limpia eventos viejos al iniciar un turno
   chatAbort = new AbortController()
+  setAgentRunning(true)
   const send = (ch: string, payload?: unknown): void => { win?.webContents.send(ch, payload) }
   try {
     // Agente Mastra con herramientas: opera la pestaña activa + gestión de pestañas (anthropic y openai).
@@ -731,8 +763,8 @@ ipcMain.handle('chat:send', async (_e, messages: ChatMessage[]) => {
       control: {
         getWc: () => (activeId != null ? tabs.get(activeId)?.view.webContents : undefined),
         listTabs: () => [...tabs.entries()].map(([id, t]) => ({ id, title: t.title, url: t.url, active: id === activeId })),
-        openTab: (url) => createTab(url, true),
-        switchTab: (id) => { if (!tabs.has(id)) return false; setActive(id); return true },
+        openTab: (url) => { const id = createTab(url, true, true); setControlledTab(id); return id },
+        switchTab: (id) => { if (!tabs.has(id)) return false; setActive(id); setControlledTab(id); return true },
         closeTab: (id) => { if (!tabs.has(id)) return false; closeTab(id); return true },
         drainEvents: () => { const e = agentEvents; agentEvents = []; return e }
       },
@@ -762,6 +794,8 @@ ipcMain.handle('chat:send', async (_e, messages: ChatMessage[]) => {
     if (!(err instanceof Error && err.name === 'AbortError')) {
       send('chat:error', err instanceof Error ? err.message : String(err))
     }
+  } finally {
+    setAgentRunning(false)
   }
 })
 

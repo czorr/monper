@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- Electron necesita estos dos para JIT de V8 -->
+  <key>com.apple.security.cs.allow-jit</key>
+  <true/>
+  <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+  <true/>
+
+  <!--
+    Passkeys (WebAuthn con Touch ID / Secure Enclave).
+    Debe coincidir EXACTAMENTE con el keychainAccessGroup que pasamos a
+    session.configureWebAuthn() en src/main/index.ts:
+        <TEAM_ID>.com.monper.app.webauthn
+    Reemplaza $(AppIdentifierPrefix) o escribe tu Team ID literal.
+  -->
+  <key>keychain-access-groups</key>
+  <array>
+    <string>$(AppIdentifierPrefix)com.monper.app.webauthn</string>
+  </array>
+</dict>
+</plist>

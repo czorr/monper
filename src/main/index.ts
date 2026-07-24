@@ -1201,6 +1201,33 @@ ipcMain.on('peek:show', (_e, anchor: MenuAnchor) => {
 })
 ipcMain.on('peek:select', (_e, id: number) => { if (tabs.has(id)) setActive(id); hidePeek() })
 ipcMain.on('peek:new', () => { createTab(); hidePeek() })
+/**
+ * Passkeys (WebAuthn) con el autenticador de plataforma de macOS (Touch ID / Secure Enclave).
+ * Sin esto, `isUserVerifyingPlatformAuthenticatorAvailable()` devuelve false y los sitios
+ * no ofrecen passkey. Requiere que la app esté FIRMADA con el entitlement
+ * `keychain-access-groups` que incluya este mismo grupo (ver build/entitlements.mac.plist).
+ */
+const BUNDLE_ID = 'com.monper.app'
+function configurePasskeys(): void {
+  if (!isMac || typeof app.configureWebAuthn !== 'function') return
+  const teamId = process.env['MONPER_TEAM_ID'] // Apple Developer Team ID
+  if (!teamId) {
+    console.log('[passkeys] MONPER_TEAM_ID no definido: passkeys deshabilitados (requiere firma con entitlement).')
+    return
+  }
+  try {
+    app.configureWebAuthn({
+      touchID: {
+        keychainAccessGroup: `${teamId}.${BUNDLE_ID}.webauthn`,
+        promptReason: 'verificar tu identidad en $1'
+      }
+    })
+    console.log('[passkeys] Touch ID habilitado para WebAuthn.')
+  } catch (e) {
+    console.log('[passkeys] No se pudo habilitar Touch ID:', e instanceof Error ? e.message : e)
+  }
+}
+
 // ---- Quick sign-in: "Sign in with…" al detectar un login con credenciales guardadas ----
 let signinWin: BrowserWindow | null = null
 const SIGNIN_W = 360
@@ -1416,6 +1443,7 @@ app.whenReady().then(() => {
     ? 'Macintosh; Intel Mac OS X 10_15_7'
     : process.platform === 'win32' ? 'Windows NT 10.0; Win64; x64' : 'X11; Linux x86_64'
   ses.setUserAgent(`Mozilla/5.0 (${platformUA}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${process.versions.chrome} Safari/537.36`)
+  configurePasskeys()
   attachPermissionHandlers(ses, {
     getWindow: () => win,
     onMedia: (wc, active) => {

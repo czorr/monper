@@ -8,6 +8,8 @@ function builtinDir(): string {
   return app.isPackaged ? join(process.resourcesPath, 'skills') : join(app.getAppPath(), 'resources/skills')
 }
 function userDir(): string { return join(app.getPath('userData'), 'skills') }
+/** Carpeta local donde viven las skills (para abrirla en Finder). */
+export function skillsDir(): string { return builtinDir() }
 function enabledFile(): string { return join(app.getPath('userData'), 'skills-enabled.json') }
 
 let enabled: Record<string, boolean> = {}

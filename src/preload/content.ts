@@ -37,6 +37,7 @@ const api: MonperTabApi = {
   skillsList: () => ipcRenderer.invoke('skills:list'),
   skillsGet: (id) => ipcRenderer.invoke('skills:get', id),
   skillsToggle: (id, enabled) => ipcRenderer.invoke('skills:toggle', id, enabled),
+  openSkillsFolder: () => ipcRenderer.send('skills:openFolder'),
   getProfile: () => ipcRenderer.invoke('profile:get'),
   setProfile: (name) => ipcRenderer.invoke('profile:set', name),
   setAvatar: (dataUrl) => ipcRenderer.invoke('profile:setAvatar', dataUrl),

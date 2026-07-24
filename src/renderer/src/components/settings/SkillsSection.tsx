@@ -72,7 +72,13 @@ export default function SkillsSection(): JSX.Element {
       <div className="w-[268px] shrink-0 border-r border-white/[0.06] flex flex-col">
         <div className="flex items-center justify-between px-3.5 h-12 shrink-0">
           <span className="text-[15px] font-semibold">Skills</span>
-          <IconFolder className="w-[17px] h-[17px] text-text-faint" />
+          <button
+            onClick={() => monperTab.openSkillsFolder()}
+            title="Abrir la carpeta de skills en Finder"
+            className="w-7 h-7 grid place-items-center rounded-md text-text-faint hover:text-text hover:bg-white/[0.06] transition-colors [&>svg]:w-[17px] [&>svg]:h-[17px]"
+          >
+            <IconFolder />
+          </button>
         </div>
         <div className="px-2.5 pb-2">
           <button className={actionRow}><IconFolderPlus /> Import from folder</button>

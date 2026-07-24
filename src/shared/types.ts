@@ -383,6 +383,7 @@ export interface MonperTabApi {
   skillsList: () => Promise<SkillMeta[]>
   skillsGet: (id: string) => Promise<SkillDetail | null>
   skillsToggle: (id: string, enabled: boolean) => Promise<SkillMeta[]>
+  openSkillsFolder: () => void
   // ---- Perfil (gestión desde Settings → Account) ----
   getProfile: () => Promise<Profile>
   setProfile: (name: string) => Promise<Profile>

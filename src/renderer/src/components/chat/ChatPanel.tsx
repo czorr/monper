@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type JSX } from 'react'
-import type { ChatContext, ChatMessage, Effort } from '@shared/types'
+import type { ChatContext, ChatMessage, ChatAttachment, Effort } from '@shared/types'
 import IconX from '~icons/tabler/x'
 import { IconButton } from '@renderer/components/ui'
 import type { Msg, Part } from './types'
@@ -82,15 +82,15 @@ export default function ChatPanel({ open, onClose }: Props): JSX.Element {
   const plainText = (m: Msg): string =>
     m.role === 'user' ? (m.text ?? '') : (m.parts ?? []).filter((p): p is Extract<Part, { type: 'text' }> => p.type === 'text' && !p.error).map((p) => p.text).join('\n\n')
 
-  const send = (text: string): void => {
-    if (running) return
+  const send = (text: string, attachments: ChatAttachment[] = []): void => {
+    if (running || (!text && attachments.length === 0)) return
     const history: ChatMessage[] = messages
       .map((m) => ({ role: m.role, content: plainText(m) }))
       .filter((m) => m.content)
-    history.push({ role: 'user', content: text })
+    history.push({ role: 'user', content: text, attachments: attachments.length ? attachments : undefined })
 
     setRunning(true)
-    setMessages((ms) => [...ms, { role: 'user', text }, { role: 'assistant', parts: [], streaming: true, at: Date.now() }])
+    setMessages((ms) => [...ms, { role: 'user', text, attachments }, { role: 'assistant', parts: [], streaming: true, at: Date.now() }])
     scrollToEnd()
     monper.chatSend(history)
   }
@@ -114,7 +114,7 @@ export default function ChatPanel({ open, onClose }: Props): JSX.Element {
         ) : (
           <div className="flex flex-col selectable">
             {messages.map((m, i) =>
-              m.role === 'user' ? <UserBubble key={i} text={m.text ?? ''} /> : <AssistantTurn key={i} msg={m} />
+              m.role === 'user' ? <UserBubble key={i} text={m.text ?? ''} attachments={m.attachments} /> : <AssistantTurn key={i} msg={m} />
             )}
           </div>
         )}

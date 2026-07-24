@@ -52,6 +52,7 @@ PERSISTENCIA (muy importante): no te detengas hasta COMPLETAR la tarea que te pi
 - Solo termina cuando (a) la tarea está hecha, o (b) tras reintentos reales sigue bloqueada; en ese caso explica CLARAMENTE qué intentaste y por qué no se pudo. Nunca termines en silencio.
 
 Para acciones IRREVERSIBLES o sensibles (comprar, pagar, enviar dinero, borrar cuentas), primero explica qué harás y pide confirmación. Publicar un comentario/respuesta que el usuario te pidió explícitamente SÍ puedes ejecutarlo.
+El usuario puede adjuntar imágenes a su mensaje: obsérvalas para entender la tarea (capturas, diseños, fotos).
 No inventes datos ni credenciales. Cuando termines, responde en texto claro.`
 
 // Construimos una instancia real del provider de @ai-sdk (v6). Es importante para VISIÓN:
@@ -316,6 +317,23 @@ function faviconFor(h: string): string | undefined {
   return h ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(h)}&sz=64` : undefined
 }
 
+// Convierte un ChatMessage a ModelMessage. Si el usuario adjuntó imágenes, arma contenido
+// multimodal ({type:'text'} + {type:'image', image: dataUrl}); si no, deja el string tal cual.
+function toModelMessage(m: ChatMessage): { role: string; content: unknown } {
+  if (m.role === 'user' && m.attachments?.length) {
+    const parts: unknown[] = []
+    if (m.content) parts.push({ type: 'text', text: m.content })
+    for (const a of m.attachments) {
+      // Sin mime explícito, Mastra etiqueta la imagen como image/jpeg y reescribe el prefijo
+      // del data URL, corrompiéndola (un PNG llega como "jpeg"). Damos el mime real del data URL.
+      const mime = a.dataUrl.match(/^data:([^;,]+)/)?.[1] || 'image/png'
+      parts.push({ type: 'image', image: a.dataUrl, mimeType: mime, mediaType: mime })
+    }
+    return { role: m.role, content: parts }
+  }
+  return { role: m.role, content: m.content }
+}
+
 /** Corre el agente Mastra en streaming, emitiendo tokens (texto) y steps (tool-calls). */
 export async function runMastra(opts: {
   provider: AIProvider; key: string; model: string
@@ -324,7 +342,8 @@ export async function runMastra(opts: {
   const agent = buildAgent(opts.provider, opts.key, opts.model, opts.control, opts.settings, opts.skills ?? [])
   // {role, content:string} es un ModelMessage válido; la unión de Mastra es demasiado estricta para inferirlo.
   // maxSteps: el default de Mastra es 5 (corta la tarea a mitad); subimos para dejar completar flujos largos.
-  const out = await agent.stream(opts.messages as Parameters<typeof agent.stream>[0], { maxSteps: MAX_STEPS })
+  const messages = opts.messages.map(toModelMessage)
+  const out = await agent.stream(messages as Parameters<typeof agent.stream>[0], { maxSteps: MAX_STEPS })
   let gotText = false
   for await (const chunk of out.fullStream) {
     if (opts.signal.aborted) return

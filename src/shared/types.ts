@@ -85,9 +85,18 @@ export interface ChatContext {
   effort: Effort
 }
 
+/** Imagen adjuntada por el usuario a un mensaje (data URL). */
+export interface ChatAttachment {
+  type: 'image'
+  dataUrl: string
+  name?: string
+}
+
 export interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
+  /** Adjuntos (solo en mensajes del usuario); el modelo los recibe como contenido multimodal. */
+  attachments?: ChatAttachment[]
 }
 
 /** Tipo de acción de un paso, para elegir su icono en el chat */

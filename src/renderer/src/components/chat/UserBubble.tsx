@@ -1,9 +1,10 @@
 import { useState, type JSX } from 'react'
+import type { ChatAttachment } from '@shared/types'
 import IconCopy from '~icons/tabler/copy'
 import IconCheck from '~icons/tabler/check'
 
 /** Burbuja del mensaje del usuario (alineada a la derecha) con copiar al hover. */
-export default function UserBubble({ text }: { text: string }): JSX.Element {
+export default function UserBubble({ text, attachments }: { text: string; attachments?: ChatAttachment[] }): JSX.Element {
   const [copied, setCopied] = useState(false)
   const copy = (): void => {
     navigator.clipboard.writeText(text).then(() => {
@@ -14,9 +15,23 @@ export default function UserBubble({ text }: { text: string }): JSX.Element {
 
   return (
     <div className="group self-end max-w-[85%] flex flex-col items-end">
-      <div className="rounded-2xl rounded-br-md bg-white/[0.10] px-3.5 py-2 text-[13.5px] whitespace-pre-wrap selectable">
-        {text}
-      </div>
+      {attachments && attachments.length > 0 && (
+        <div className="flex flex-wrap justify-end gap-2 mb-1.5">
+          {attachments.map((a, i) => (
+            <img
+              key={i}
+              src={a.dataUrl}
+              alt={a.name ?? ''}
+              className="max-w-[160px] max-h-40 rounded-xl border border-white/10 object-cover"
+            />
+          ))}
+        </div>
+      )}
+      {text && (
+        <div className="rounded-2xl rounded-br-md bg-white/[0.10] px-3.5 py-2 text-[13.5px] whitespace-pre-wrap selectable">
+          {text}
+        </div>
+      )}
       <button
         onClick={copy}
         title={copied ? 'Copiado' : 'Copiar'}

@@ -1,4 +1,4 @@
-import type { ChatStep } from '@shared/types'
+import type { ChatStep, ChatAttachment } from '@shared/types'
 
 /** Estados válidos del ThinkingOrb usados en el chat */
 export type OrbState = 'working' | 'searching' | 'listening' | 'composing' | 'solving' | 'shaping'
@@ -24,6 +24,8 @@ export interface Msg {
   role: 'user' | 'assistant'
   /** Texto plano para el mensaje del usuario */
   text?: string
+  /** Imágenes adjuntadas por el usuario a este mensaje */
+  attachments?: ChatAttachment[]
   /** Secuencia intercalada de texto y acciones para el asistente */
   parts?: Part[]
   streaming?: boolean

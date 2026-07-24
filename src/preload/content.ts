@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { Bookmark, DownloadEntry, MonperTabApi, Suggestion } from '../shared/types'
 import { setupSelectionUI } from './selectionUI'
+import { setupPasswordCapture } from './passwordCapture'
 
 const api: MonperTabApi = {
   navigate: (url) => ipcRenderer.send('tab:navigate', url),
@@ -51,3 +52,5 @@ window.addEventListener('pointerdown', () => ipcRenderer.send('tab:pointerdown')
 
 // Icono/menú flotante de acciones rápidas al seleccionar texto.
 setupSelectionUI()
+// Ofrecer guardar credenciales al enviar un login.
+setupPasswordCapture()

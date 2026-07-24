@@ -1,6 +1,6 @@
 import { join } from 'path'
 import { readFileSync, writeFileSync } from 'fs'
-import { app, BrowserWindow, Menu, WebContentsView, clipboard, ipcMain, session } from 'electron'
+import { app, BrowserWindow, Menu, WebContentsView, clipboard, dialog, ipcMain, nativeImage, net, session } from 'electron'
 import type { MenuItemConstructorOptions } from 'electron'
 import type { IpcMainEvent } from 'electron'
 import type { BrowserState, Bookmark, ChatMessage, MenuAnchor, ProviderKind } from '../shared/types'
@@ -884,6 +884,42 @@ ipcMain.handle('vault:remove', (e, id: string) => {
   if (!isInternalSender(e.senderFrame?.url)) return vault.list()
   vault.remove(id); notifyVault(); notifyChatContext()
   return vault.list()
+})
+
+// ---- "¿Guardar contraseña?" al enviar un login ----
+async function faviconImage(url: string | null): Promise<Electron.NativeImage | undefined> {
+  if (!url) return undefined
+  try {
+    if (url.startsWith('data:')) { const i = nativeImage.createFromDataURL(url); return i.isEmpty() ? undefined : i }
+    const res = await net.fetch(url)
+    const img = nativeImage.createFromBuffer(Buffer.from(await res.arrayBuffer()))
+    return img.isEmpty() ? undefined : img
+  } catch { return undefined }
+}
+ipcMain.on('vault:capture', async (e, cred: { username: string; password: string }) => {
+  const origin = ((): string => { try { return new URL(e.senderFrame?.url || '').origin } catch { return '' } })()
+  if (!origin || !/^https?:/.test(origin) || !cred?.password) return
+  const host = origin.replace(/^https?:\/\//, '').replace(/^www\./, '')
+  const existing = vault.findCredential(origin)
+  // Ya guardada con la misma contraseña → no molestar.
+  if (existing && vault.getSecret(existing.id) === cred.password) return
+  const t = [...tabs.values()].find((tb) => tb.view.webContents === e.sender)
+  const icon = await faviconImage(t?.favicon ?? null)
+  const update = !!existing
+  const { response } = await dialog.showMessageBox(win ?? undefined!, {
+    type: 'question',
+    icon,
+    message: update ? `¿Actualizar la contraseña de ${host}?` : `¿Guardar la contraseña de ${host} en tu Vault?`,
+    detail: cred.username ? `Usuario: ${cred.username}` : 'Monper la guardará cifrada.',
+    buttons: ['Ahora no', update ? 'Actualizar' : 'Guardar'],
+    defaultId: 1,
+    cancelId: 0,
+    noLink: true
+  })
+  if (response !== 1) return
+  if (existing) vault.update(existing.id, { data: { ...existing.data, username: cred.username || existing.data.username || '' }, secret: cred.password })
+  else vault.add('web-credential', host, { origin, username: cred.username || '' }, cred.password)
+  notifyVault()
 })
 ipcMain.on('vault:open', (_e, anchor: MenuAnchor) => {
   const w = ensureVaultWin()

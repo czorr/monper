@@ -73,6 +73,10 @@ measured, say so instead of implying it works.
   *above* the DOM, so a positioned `div` ends up underneath. Popovers must be real windows.
   Five of them come from `createPopover`; four are bespoke for stated reasons —
   see [docs/popovers.md](docs/popovers.md).
+- **A control next to the content edge only works on the chrome side.** The page view starts
+  exactly at the edge and draws above the DOM, so anything past it gets neither pointer
+  events nor pixels. The resize handle used to straddle the edge (±4px) and half of it was
+  dead — that is why aiming at it was hard. Keep such hit areas entirely on the chrome side.
 - **Only internal pages may touch private data over IPC.** `isInternalSender()` allows
   `newtab/settings/error/downloads`. The chrome (`index.html`) is *not* internal, so
   `addBookmark`/`removeBookmark` in the preload silently do nothing from there.

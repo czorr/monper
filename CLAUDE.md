@@ -46,6 +46,10 @@ See [docs/errores-silenciosos.md](docs/errores-silenciosos.md).
 **Before theorising, diff against the last known-good state.** `git log`/`git show` first.
 Both the corners saga and a no-op focus "fix" were caused by reasoning ahead of measuring.
 
+**Measure before optimising, and measure after.** `pnpm test:only tests/perf.spec.ts` prints
+medians for startup, paint, bundle size, interactions and memory. A change that moves no
+number is a hypothesis, not an optimisation. See [docs/rendimiento.md](docs/rendimiento.md).
+
 **Verify your fix actually fixes it.** A fix that is not measured is a guess. If it cannot be
 measured, say so instead of implying it works.
 
@@ -99,6 +103,7 @@ MONPER_TEAM_ID=...       # required for passkeys (needs a signed build)
 | Vault, autofill, secret handling | [vault-architecture.md](docs/vault-architecture.md) |
 | Error handling, state files | [errores-silenciosos.md](docs/errores-silenciosos.md) |
 | Tests and CI | [tests.md](docs/tests.md) |
+| Performance: baselines and what was optimised | [rendimiento.md](docs/rendimiento.md) |
 | Packaging, signing, auto-update | [distribucion.md](docs/distribucion.md) |
 | Permissions, session restore, hardening | [browser-hardening.md](docs/browser-hardening.md) |
 | Where the product is going, what was dropped | [diagnostico.md](docs/diagnostico.md) |

@@ -24,11 +24,29 @@ async function visiblePopovers(): Promise<{ width: number; height: number }[]> {
   )
 }
 
-test('al arrancar hay popovers pre-creados pero ninguno visible', async () => {
-  // Se crean por adelantado para que el primer click sea instantáneo; ocultos.
+test('al arrancar no hay ninguna ventana de popover', async () => {
+  // Se pre-creaban las tres para que el primer click fuera instantáneo, y costaba 344MB de
+  // base (3 renderers) por 30ms que nadie nota. Ahora nacen en el primer uso.
   const total = await h.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)
-  expect(total).toBeGreaterThan(1)
+  expect(total, 'alguien volvió a pre-crear popovers: mide antes de hacerlo').toBe(1)
   expect(await visiblePopovers()).toEqual([])
+})
+
+test('un popover se crea una vez y se reutiliza', async () => {
+  const ids = async (): Promise<number[]> =>
+    h.app.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows().filter((w) => !!w.getParentWindow()).map((w) => w.id)
+    )
+  await api(h.win, 'openProfileMenu', { x: 40, y: 60, width: 32, height: 32 })
+  await expect.poll(visiblePopovers).toHaveLength(1)
+  const primera = await ids()
+  await h.app.evaluate(({ ipcMain }) => ipcMain.emit('profilemenu:close'))
+  await expect.poll(visiblePopovers).toEqual([])
+  await api(h.win, 'openProfileMenu', { x: 40, y: 60, width: 32, height: 32 })
+  await expect.poll(visiblePopovers).toHaveLength(1)
+  // Misma ventana: se oculta y se reutiliza, no se destruye y recrea en cada apertura.
+  expect(await ids()).toEqual(primera)
+  await h.app.evaluate(({ ipcMain }) => ipcMain.emit('profilemenu:close'))
 })
 
 test('el menú de perfil abre anclado y con su ancho', async () => {

@@ -1,63 +1,29 @@
-import { memo, type JSX } from 'react'
-import ReactMarkdown, { type Components } from 'react-markdown'
-import remarkGfm from 'remark-gfm'
+import { Suspense, lazy, memo, type JSX } from 'react'
 
-const { monper } = window
+/**
+ * Markdown del asistente, cargado en diferido.
+ *
+ * `react-markdown` + `remark-gfm` + micromark son ~547 KB, y antes entraban en el chunk que
+ * carga `index.html`: el navegador parseaba medio mega de maquinaria de Markdown para pintar
+ * un sidebar y una topbar, en cada arranque. Solo hace falta cuando el agente contesta.
+ *
+ * Mientras llega el chunk se muestra el mismo texto en plano, con la tipografía final: así no
+ * hay hueco en blanco ni salto de layout, solo el formato que aparece un instante después.
+ * Ocurre una vez por sesión; a partir de ahí React ya lo tiene cargado.
+ */
+const Impl = lazy(() => import('./MarkdownImpl'))
 
-// Componentes a medida: tipografía compacta y coherente con el tema oscuro del panel.
-const COMPONENTS: Components = {
-  p: ({ children }) => <p className="my-2 first:mt-0 last:mb-0 leading-relaxed">{children}</p>,
-  a: ({ href, children }) => (
-    <a
-      href={href}
-      onClick={(e) => { e.preventDefault(); if (href) monper.go(href) }}
-      className="text-sky-400 hover:underline underline-offset-2 cursor-pointer"
-    >
-      {children}
-    </a>
-  ),
-  ul: ({ children }) => <ul className="my-2 pl-4 list-disc marker:text-text-faint space-y-1">{children}</ul>,
-  ol: ({ children }) => <ol className="my-2 pl-4 list-decimal marker:text-text-faint space-y-1">{children}</ol>,
-  li: ({ children }) => <li className="leading-relaxed">{children}</li>,
-  h1: ({ children }) => <h1 className="mt-3 mb-1.5 text-[15px] font-semibold tracking-[-0.1px]">{children}</h1>,
-  h2: ({ children }) => <h2 className="mt-3 mb-1.5 text-[14px] font-semibold tracking-[-0.1px]">{children}</h2>,
-  h3: ({ children }) => <h3 className="mt-2.5 mb-1 text-[13.5px] font-semibold">{children}</h3>,
-  strong: ({ children }) => <strong className="font-semibold text-text">{children}</strong>,
-  em: ({ children }) => <em className="italic">{children}</em>,
-  hr: () => <hr className="my-3 border-white/10" />,
-  blockquote: ({ children }) => (
-    <blockquote className="my-2 pl-3 border-l-2 border-white/15 text-text-dim">{children}</blockquote>
-  ),
-  code: ({ className, children }) => {
-    const inline = !className
-    if (inline) {
-      return <code className="px-1 py-0.5 rounded-[5px] bg-white/[0.08] text-[12.5px] font-mono">{children}</code>
-    }
-    return (
-      <code className="block my-2 p-3 rounded-lg bg-black/30 border border-white/10 overflow-x-auto text-[12.5px] font-mono leading-relaxed [&::-webkit-scrollbar]:h-1.5">
-        {children}
-      </code>
-    )
-  },
-  pre: ({ children }) => <pre className="my-0">{children}</pre>,
-  table: ({ children }) => (
-    <div className="my-2 overflow-x-auto [&::-webkit-scrollbar]:h-1.5">
-      <table className="w-full text-[12.5px] border-collapse">{children}</table>
-    </div>
-  ),
-  th: ({ children }) => <th className="border border-white/10 px-2 py-1 text-left font-semibold bg-white/[0.04]">{children}</th>,
-  td: ({ children }) => <td className="border border-white/10 px-2 py-1">{children}</td>
-}
-
-function MarkdownImpl({ children }: { children: string }): JSX.Element {
+function MarkdownLazy({ children }: { children: string }): JSX.Element {
   return (
-    <div className="text-[13.5px] text-text">
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={COMPONENTS}>
-        {children}
-      </ReactMarkdown>
-    </div>
+    <Suspense
+      fallback={
+        <div className="text-[13.5px] leading-relaxed text-text whitespace-pre-wrap">{children}</div>
+      }
+    >
+      <Impl>{children}</Impl>
+    </Suspense>
   )
 }
 
-/** Renderiza texto Markdown del asistente. Memoizado: solo re-render cuando cambia el texto. */
-export const Markdown = memo(MarkdownImpl)
+/** Memoizado: solo re-render cuando cambia el texto (importa durante el streaming). */
+export const Markdown = memo(MarkdownLazy)

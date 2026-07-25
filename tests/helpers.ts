@@ -26,7 +26,12 @@ export interface Harness {
  * `--user-data-dir` no es un detalle: sin él los tests escriben en el perfil real del
  * usuario (~/Library/Application Support/Monper) y le borrarían bookmarks y vault.
  */
-export async function launch(env: Record<string, string> = {}, reuseProfile?: string): Promise<Harness> {
+export async function launch(
+  env: Record<string, string> = {},
+  reuseProfile?: string,
+  /** `skipStateListener` evita el reload que instala el listener: solo para medir el arranque. */
+  opts: { skipStateListener?: boolean } = {}
+): Promise<Harness> {
   const userData = reuseProfile ?? mkdtempSync(join(tmpdir(), 'monper-test-'))
   const app = await electron.launch({
     args: ['.', `--user-data-dir=${userData}`],
@@ -40,7 +45,7 @@ export async function launch(env: Record<string, string> = {}, reuseProfile?: st
   })
   const win = await app.firstWindow()
   await win.waitForLoadState('domcontentloaded')
-  await installStateListener(win)
+  if (!opts.skipStateListener) await installStateListener(win)
   return {
     app,
     win,

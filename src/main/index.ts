@@ -760,7 +760,14 @@ function createWindow() {
     if (tabs.size === 0) { if (!restoreSession()) createTab() } else pushState()
     // Pre-carga las ventanas nativas de popups (site-info, menú de perfil) para que
     // abran instantáneo — crearlas en el primer click era lento (2-3 clicks).
-    ensureSiteWin(); ensurePmWin(); ensurePeekWin()
+    // NO se pre-crean los popovers. Se hacía para que el primer click fuera instantáneo,
+    // pero eso arrastraba 3 procesos de renderer desde el arranque. Medido:
+    //   con pre-warm:  primer abrir 31ms, 919MB de base, 4 ventanas
+    //   sin pre-warm:  primer abrir 63ms, 575MB de base, 1 ventana
+    // 344MB por 30ms que nadie percibe, una sola vez. Y el motivo original —que el popover
+    // saliera VACÍO en el primer click— era otro bug, ya resuelto en createPopover
+    // (reenvía sus datos en did-finish-load). Verificado: abre con sus 10 filas a la primera.
+    // Si vuelves a pre-crear, mide antes.
     initRoutines(win!, broadcastRoutines) // scheduler de rutinas (necesita la ventana)
     onUpdateState(broadcastUpdateState)
     void initUpdater() // comprobación silenciosa de actualizaciones
@@ -1221,7 +1228,6 @@ const sitePopover = createPopover(() => win, {
   preload: 'siteinfo', page: 'siteinfo',
   data: { channel: 'siteinfo:data', get: buildSiteInfo }
 }, RENDERER_URL)
-const ensureSiteWin = sitePopover.ensure
 ipcMain.on('siteinfo:open', (_e, anchor: MenuAnchor) => sitePopover.show(anchor))
 ipcMain.on('siteinfo:toggle', (_e, key: PermKey, state: PermState) => {
   try {
@@ -1254,7 +1260,6 @@ const pmPopover = createPopover(() => win, {
   preload: 'profilemenu', page: 'profilemenu',
   data: { channel: 'profilemenu:profile', get: getProfile }
 }, RENDERER_URL)
-const ensurePmWin = pmPopover.ensure
 ipcMain.on('profilemenu:open', (_e, anchor: MenuAnchor) => pmPopover.show(anchor))
 
 // ---- Peek del sidebar (hover del botón expandir con el sidebar colapsado) ----

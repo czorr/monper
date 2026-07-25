@@ -12,6 +12,8 @@ export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin()],
     build: {
+      // Sin esto el bundle sale SIN minificar (medido: el renderer pesaba el doble).
+      minify: 'esbuild',
       rollupOptions: {
         external: ['electron'],
         input: { index: resolve(__dirname, 'src/main/index.ts') },
@@ -22,6 +24,7 @@ export default defineConfig({
   preload: {
     plugins: [externalizeDepsPlugin()],
     build: {
+      minify: 'esbuild',
       rollupOptions: {
         external: ['electron'],
         input: {
@@ -48,6 +51,7 @@ export default defineConfig({
       }
     },
     build: {
+      minify: 'esbuild',
       rollupOptions: {
         input: {
           index: resolve(__dirname, 'src/renderer/index.html'),

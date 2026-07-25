@@ -1,5 +1,5 @@
 import { useEffect, useState, type JSX } from 'react'
-import type { BrowserState, Bookmark, DownloadsSummary, PanelSizes, Profile } from '@shared/types'
+import { NO_UPDATE, type BrowserState, type Bookmark, type DownloadsSummary, type PanelSizes, type Profile, type UpdateState } from '@shared/types'
 import Sidebar from '@renderer/components/browser/Sidebar'
 import Content from '@renderer/components/browser/Content'
 import Topbar from '@renderer/components/browser/Topbar'
@@ -26,6 +26,7 @@ export default function App(): JSX.Element {
     limits: { sidebarMin: 180, sidebarMax: 420, chatMin: 300, chatMax: 640 }
   })
   const [resizing, setResizing] = useState(false)
+  const [update, setUpdate] = useState<UpdateState>(NO_UPDATE)
   const [inject, setInject] = useState<{ text: string; nonce: number } | null>(null)
 
   useEffect(() => monper.onState(setState), [])
@@ -33,6 +34,7 @@ export default function App(): JSX.Element {
   useEffect(() => { monper.getBookmarks().then(setBookmarks); return monper.onBookmarks(setBookmarks) }, [])
   useEffect(() => { monper.getDownloadsSummary().then(setDownloads); return monper.onDownloadsSummary(setDownloads) }, [])
   useEffect(() => { monper.getPanels().then(setPanels) }, [])
+  useEffect(() => { monper.getUpdateState().then(setUpdate); return monper.onUpdateState(setUpdate) }, [])
 
   // Los anchos viven en las CSS vars que ya usan w-sidebar / left-sidebar / w-panel / right-panel.
   useEffect(() => {
@@ -98,6 +100,9 @@ export default function App(): JSX.Element {
         onSelectTab={(id) => monper.selectTab(id)}
         onCloseTab={(id) => monper.closeTab(id)}
         onReorderTabs={(ids) => monper.reorderTabs(ids)}
+        update={update}
+        onDownloadUpdate={() => monper.downloadUpdate()}
+        onInstallUpdate={() => monper.installUpdate()}
       />
       <Content
         leftInset={!collapsed}

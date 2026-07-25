@@ -18,6 +18,7 @@ import { credentialsFor, fillFromVault } from './autofill'
 import { initExtensions, listExtensions, addExtension, setExtensionEnabled, removeExtension as removeExt, installFromStore, extensionUi } from './extensions'
 import { extensionIdFrom } from './crx'
 import { initRoutines, listRoutines, createWatchRoutine, setRoutineEnabled, removeRoutine as removeRoutineEntry, runRoutine } from './routines'
+import { initUpdater, checkForUpdates, downloadUpdate, installUpdate, getUpdateState, onUpdateState } from './updater'
 import { initQuickActions, listQuickActions, saveQuickAction, removeQuickAction, getQuickAction, fillTemplate } from './quickactions'
 import * as vault from './vault/store'
 import type { VaultItemType } from '../shared/vault'
@@ -643,6 +644,7 @@ function buildAppMenu(): void {
     label: 'Monper',
     submenu: [
       { role: 'about', label: 'Acerca de Monper' },
+      { label: 'Buscar actualizaciones…', click: () => void checkForUpdates(true, win) },
       { type: 'separator' },
       { label: 'Ajustes…', accelerator: 'CmdOrCtrl+,', click: () => openSettings() },
       { type: 'separator' },
@@ -758,6 +760,8 @@ function createWindow() {
     // abran instantáneo — crearlas en el primer click era lento (2-3 clicks).
     ensureSiteWin(); ensurePmWin(); ensurePeekWin()
     initRoutines(win!, broadcastRoutines) // scheduler de rutinas (necesita la ventana)
+    onUpdateState(broadcastUpdateState)
+    void initUpdater() // comprobación silenciosa de actualizaciones
   })
 }
 
@@ -817,6 +821,19 @@ function applyVibrancy(v: VibrancySetting): void {
     win.setVibrancy(v)
   }
 }
+// ---- Actualizaciones: estado compartido con el chrome (pill) y con Settings ----
+function broadcastUpdateState(s: ReturnType<typeof getUpdateState>): void {
+  win?.webContents.send('update:state', s)
+  for (const t of tabs.values()) {
+    if (t.url.includes('/settings.html')) t.view.webContents.send('update:state', s)
+  }
+}
+ipcMain.handle('update:state', () => getUpdateState())
+ipcMain.handle('app:version', () => app.getVersion())
+ipcMain.on('update:check', () => void checkForUpdates(true, win))
+ipcMain.on('update:download', () => void downloadUpdate())
+ipcMain.on('update:install', () => installUpdate())
+
 ipcMain.handle('ui:appearance', () => ({ vibrancy: vibrancyMaterial, options: VIBRANCY_OPTIONS }))
 ipcMain.on('ui:setVibrancy', (e, v: VibrancySetting) => {
   if (!isInternalSender(e.senderFrame?.url)) return

@@ -295,6 +295,11 @@ export interface MonperApi {
   // ---- Anchos de paneles (resize) ----
   getPanels: () => Promise<PanelSizes>
   setPanel: (which: 'sidebar' | 'chat', width: number) => void
+  // ---- Actualizaciones ----
+  getUpdateState: () => Promise<UpdateState>
+  onUpdateState: (cb: (s: UpdateState) => void) => () => void
+  downloadUpdate: () => void
+  installUpdate: () => void
   // ---- Menú nativo → acciones de estado del renderer ----
   onMenuAction: (cb: (action: string) => void) => () => void
   // ---- Autocompletado del omnibox ----
@@ -381,6 +386,27 @@ export interface Routine {
   lastValue: string | null
   lastError: string | null
   failures: number
+}
+
+/** Estado de las actualizaciones automáticas. */
+export interface UpdateState {
+  checking: boolean
+  /** hay versión nueva, aún sin descargar */
+  available: boolean
+  /** descargando ahora mismo */
+  downloading: boolean
+  /** 0–100 mientras descarga */
+  percent: number
+  /** ya descargada: se puede instalar reiniciando */
+  downloaded: boolean
+  version: string | null
+  error: string | null
+}
+
+/** Estado "sin novedades", para inicializar en el main y en los renderers sin duplicar. */
+export const NO_UPDATE: UpdateState = {
+  checking: false, available: false, downloading: false, percent: 0,
+  downloaded: false, version: null, error: null
 }
 
 /** Ajustes de apariencia: nivel de transparencia del chrome. */
@@ -476,6 +502,13 @@ export interface MonperTabApi {
   // ---- Apariencia (Settings) ----
   getAppearance: () => Promise<AppearanceData>
   setVibrancy: (id: string) => void
+  // ---- Actualizaciones (Settings → About) ----
+  getUpdateState: () => Promise<UpdateState>
+  onUpdateState: (cb: (s: UpdateState) => void) => () => void
+  checkUpdates: () => void
+  downloadUpdate: () => void
+  installUpdate: () => void
+  getVersion: () => Promise<string>
   // ---- Rutinas (Settings) ----
   listRoutines: () => Promise<Routine[]>
   onRoutines: (cb: (list: Routine[]) => void) => () => void

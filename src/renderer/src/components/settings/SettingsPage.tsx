@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type JSX } from 'react'
-import type { AppearanceData, Profile } from '@shared/types'
+import { NO_UPDATE, type AppearanceData, type Profile, type UpdateState } from '@shared/types'
 import { Avatar } from '@renderer/components/ui'
 import IconSparkles from '~icons/tabler/sparkles'
 import IconCamera from '~icons/tabler/camera'
@@ -474,6 +474,23 @@ function PrivacyPage(): JSX.Element {
 }
 
 function AboutPage(): JSX.Element {
+  const [version, setVersion] = useState('')
+  const [u, setU] = useState<UpdateState>(NO_UPDATE)
+
+  useEffect(() => { monperTab.getVersion().then(setVersion).catch(() => {}) }, [])
+  useEffect(() => { monperTab.getUpdateState().then(setU).catch(() => {}); return monperTab.onUpdateState(setU) }, [])
+
+  // Un solo lugar decide qué se ve: evita estados contradictorios (p. ej. "al día" + botón).
+  const status = u.error
+    ? u.error
+    : u.downloaded ? `Versión ${u.version} lista para instalar`
+      : u.downloading ? `Descargando la versión ${u.version}… ${u.percent}%`
+        : u.available ? `Versión ${u.version} disponible`
+          : u.checking ? 'Buscando actualizaciones…'
+            : 'Monper está al día'
+
+  const purple = 'px-3.5 h-9 rounded-lg bg-purple-400/15 border border-purple-400/25 text-purple-300 hover:bg-purple-400/25 text-[13px] font-medium transition-colors'
+
   return (
     <>
       <h1 className="text-[30px] font-semibold tracking-tight mb-9">About</h1>
@@ -481,7 +498,20 @@ function AboutPage(): JSX.Element {
         <Card>
           <Row label="Monper" desc="Navegador agéntico" />
           <Row label="Versión">
-            <span className="text-[13px] text-text-dim tabular-nums">0.1.0</span>
+            <span className="text-[13px] text-text-dim tabular-nums">{version || '—'}</span>
+          </Row>
+          <Row label="Actualizaciones" desc={status}>
+            {u.downloaded ? (
+              <button onClick={() => monperTab.installUpdate()} className={purple}>Reiniciar e instalar</button>
+            ) : u.downloading ? (
+              <span className="text-[13px] text-purple-300 tabular-nums">{u.percent}%</span>
+            ) : u.available ? (
+              <button onClick={() => monperTab.downloadUpdate()} className={purple}>Descargar</button>
+            ) : (
+              <Pill onClick={() => monperTab.checkUpdates()}>
+                {u.checking ? 'Buscando…' : 'Buscar actualizaciones'}
+              </Pill>
+            )}
           </Row>
         </Card>
       </Group>

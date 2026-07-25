@@ -6,6 +6,13 @@ out/
 dist/
 dist-electron/
 
+# Empaquetado (electron-builder)
+release/
+
+# Feed de actualizaciones de prueba (scripts/fake-update-server.mjs)
+.update-test/
+dev-app-update.yml
+
 # Entorno / secretos
 .env
 .env.*

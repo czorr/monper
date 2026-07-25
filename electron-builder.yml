@@ -1,0 +1,63 @@
+# Empaquetado y distribución de Monper.
+# `pnpm dist` genera el DMG; `pnpm dist:dir` solo la .app (rápido, para verificar).
+appId: com.monper.app
+productName: Monper
+copyright: © 2026 Monper
+
+directories:
+  buildResources: build
+  output: release
+
+# Solo lo que la app necesita en runtime. El código de main/preload/renderer ya viene
+# empaquetado por electron-vite en out/, y monperwright se inlinea en el bundle.
+files:
+  - out/**/*
+  - package.json
+  - '!**/*.map'
+  - '!**/*.ts'
+
+# skills.ts las lee de process.resourcesPath/skills cuando la app está empaquetada.
+extraResources:
+  - from: resources/skills
+    to: skills
+
+mac:
+  category: public.app-category.productivity
+  icon: build/icon.png
+  target:
+    # El DMG es para que la gente instale a mano; el ZIP es OBLIGATORIO para que
+    # electron-updater pueda actualizar en macOS (no sabe leer un DMG).
+    - target: dmg
+      arch: [arm64, x64]
+    - target: zip
+      arch: [arm64, x64]
+  # Requisitos de macOS moderno: runtime endurecido + entitlements (JIT de V8, keychain
+  # para passkeys). Sin cuenta de Apple no se firma; ver docs/pendiente-passkeys-firma.md.
+  hardenedRuntime: true
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  gatekeeperAssess: false
+  # Monper pide cámara/micrófono/ubicación a través de las páginas web que abre:
+  # macOS exige declarar el motivo o mata el proceso al primer uso.
+  extendInfo:
+    NSCameraUsageDescription: Monper necesita la cámara para los sitios web que la usen, como videollamadas.
+    NSMicrophoneUsageDescription: Monper necesita el micrófono para los sitios web que lo usen, como videollamadas.
+    NSLocationWhenInUseUsageDescription: Monper comparte tu ubicación solo con los sitios a los que se lo autorices.
+
+dmg:
+  artifactName: ${productName}-${version}-${arch}.dmg
+
+win:
+  target: nsis
+  icon: build/icon.png
+
+linux:
+  target: AppImage
+  category: Network
+  icon: build/icon.png
+
+# Origen de las actualizaciones automáticas (electron-updater).
+publish:
+  provider: github
+  owner: czorr
+  repo: monper

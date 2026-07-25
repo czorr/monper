@@ -1,5 +1,6 @@
 import type { JSX } from 'react'
-import type { BrowserState, Bookmark, Profile } from '@shared/types'
+import type { BrowserState, Bookmark, Profile, UpdateState } from '@shared/types'
+import UpdatePill from './UpdatePill'
 import AccountPill from './AccountPill'
 import TabList from './TabList'
 import TabRow from './TabRow'
@@ -22,13 +23,18 @@ interface Props {
   onReorderTabs: (ids: number[]) => void
   /** Variante "peek": se renderiza dentro de una ventana flotante, no fijo a la izquierda. */
   floating?: boolean
+  /** Estado de actualización, para el pill junto al semáforo. */
+  update?: UpdateState
+  onDownloadUpdate?: () => void
+  onInstallUpdate?: () => void
 }
 
 const newRowClass =
   'flex items-center gap-2.5 w-full py-1.5 px-2 rounded-lg text-text-faint text-left text-[15px] ' +
   'min-h-[30px] hover:bg-bg-hover hover:text-text [&>svg]:opacity-80 [&>svg]:w-[15px] [&>svg]:h-[15px]'
 
-export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBookmark, onOpenMenu, onCollapse, onNewTab, onSelectTab, onCloseTab, onReorderTabs, floating = false }: Props): JSX.Element {
+export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBookmark, onOpenMenu, onCollapse, onNewTab, onSelectTab, onCloseTab, onReorderTabs, floating = false, update, onDownloadUpdate, onInstallUpdate }: Props): JSX.Element {
+  const noop = (): void => {}
   // Las pestañas ligadas a un bookmark se muestran en su slot de bookmarks, no en Tabs.
   const userTabs = state.tabs.filter((t) => !t.agent && !t.bookmarkId)
   const agentTabs = state.tabs.filter((t) => t.agent)
@@ -44,9 +50,18 @@ export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBo
         (collapsed && !floating ? 'hidden' : '')
       }
     >
-      {/* Row del semáforo nativo (izquierda) + colapsar (derecha). En el peek no aplica. */}
+      {/* Row del semáforo nativo (izquierda) + pill de update y colapsar (derecha).
+          pt-[2px]: el semáforo está en y=17 y mide 12px, así que su centro cae en y=23.
+          Con h-11 (44px) el centro sería 22 y se veía desalineado por 1px. */}
       {!floating && (
-        <div className="h-11 shrink-0 flex items-center justify-end [-webkit-app-region:drag]">
+        <div className="h-11 pt-[2px] shrink-0 flex items-center justify-end gap-1.5 [-webkit-app-region:drag]">
+          {update && (
+            <UpdatePill
+              state={update}
+              onDownload={onDownloadUpdate ?? noop}
+              onInstall={onInstallUpdate ?? noop}
+            />
+          )}
           <IconButton size="sm" title="Colapsar sidebar (⌘S)" onClick={onCollapse}>
             <SidebarIcon />
           </IconButton>

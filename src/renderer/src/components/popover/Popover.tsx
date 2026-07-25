@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, type JSX, type ReactNode } from 'react'
+import { useNoInitialFocus } from './focus'
 
 /**
  * Primitivas compartidas por TODAS las ventanas nativas flotantes (site-info, menú de
@@ -43,6 +44,7 @@ interface PanelProps {
  */
 export function PopoverPanel({ children, onHeight, measure, fill, padded = true, className = '' }: PanelProps): JSX.Element {
   const box = useRef<HTMLDivElement>(null)
+  useNoInitialFocus() // un popover no abre con una fila resaltada
 
   useLayoutEffect(() => {
     if (!onHeight || !box.current) return

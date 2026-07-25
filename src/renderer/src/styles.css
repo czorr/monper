@@ -27,6 +27,13 @@
      Ojo: valores altos (≥1.6) aplanan tanto que sm/md/lg se ven casi iguales (la curva
      domina sobre el radio). ~1.2 conserva el smooth pero deja distinguir cada tamaño. */
   [class*="rounded"]:not([class*="rounded-full"]) { corner-shape: superellipse(1.2); }
+  /* Un popover no abre con una fila resaltada: al activarse la ventana, macOS pinta su
+     anillo de foco en el primer elemento enfocable y parece que hay algo seleccionado.
+     Solo en las ventanas de popover (data-popover) y solo hasta que el usuario toque el
+     teclado (data-kbd) — quien navega con Tab sigue viendo dónde está.
+     Lo pone useNoInitialFocus(); no cambiar por un `outline: none` global. */
+  html[data-popover]:not([data-kbd]) :focus,
+  html[data-popover]:not([data-kbd]) :focus-visible { outline: none; }
   html, body { height: 100%; overflow: hidden; }
   #root { height: 100%; }
   body {

@@ -32,6 +32,17 @@ export interface PopoverOptions {
   align?: 'left' | 'center' | 'right'
   /** Ocupa desde el anchor hasta el fondo de la ventana (peek del sidebar). */
   fullHeight?: boolean
+  /**
+   * El ancho lo manda el anchor, no `width` (la omnibox: el dropdown mide lo que el input).
+   */
+  widthFromAnchor?: boolean
+  /** Desplazamiento vertical respecto al borde inferior del anchor. */
+  offsetY?: number
+  /**
+   * Datos que el popover necesita al abrirse. Se envían al mostrar Y en `did-finish-load`
+   * (el primer show ocurre antes de que el renderer esté listo y el mensaje se perdía).
+   */
+  data?: { channel: string; get: () => unknown }
 }
 
 export interface Popover {
@@ -58,7 +69,7 @@ export function createPopover(getParent: () => BW | null, opts: PopoverOptions, 
     const parent = getParent()
     if (!win || win.isDestroyed() || !anchor || !parent) return
     const cb = parent.getContentBounds()
-    const outerW = opts.width + PAD * 2
+    const outerW = (opts.widthFromAnchor ? anchor.width : opts.width) + PAD * 2
     // Alineación horizontal respecto al anchor, con el margen de la sombra descontado.
     const rawX =
       opts.align === 'center' ? cb.x + anchor.x + anchor.width / 2 - outerW / 2
@@ -66,7 +77,7 @@ export function createPopover(getParent: () => BW | null, opts: PopoverOptions, 
           : cb.x + anchor.x - PAD
     // No dejar que se salga de la ventana padre.
     const x = Math.round(Math.min(Math.max(rawX, cb.x), cb.x + cb.width - outerW))
-    const y = Math.round(cb.y + anchor.y + anchor.height - 4)
+    const y = Math.round(cb.y + anchor.y + anchor.height + (opts.offsetY ?? -4))
     const h = opts.fullHeight ? Math.max(1, cb.y + cb.height - y) : Math.max(1, Math.round(height))
     win.setBounds({ x, y, width: outerW, height: h })
   }
@@ -99,6 +110,13 @@ export function createPopover(getParent: () => BW | null, opts: PopoverOptions, 
     })
     // Un menú se cierra al perder el foco; un overlay no-focusable no tiene ese evento.
     if (focusable) win.on('blur', () => hide())
+    // El primer `show` pasa antes de que el renderer esté escuchando: reenviar al cargar.
+    if (opts.data) {
+      const { channel, get } = opts.data
+      win.webContents.on('did-finish-load', () => {
+        if (win && !win.isDestroyed()) win.webContents.send(channel, get())
+      })
+    }
     if (rendererUrl) win.loadURL(`${rendererUrl}/${opts.page}.html`)
     else win.loadFile(join(__dirname, `../renderer/${opts.page}.html`))
     return win
@@ -108,17 +126,19 @@ export function createPopover(getParent: () => BW | null, opts: PopoverOptions, 
     if (win && !win.isDestroyed() && win.isVisible()) win.hide()
   }
 
-  // Canal único de medición: el renderer reporta el alto de su panel.
+  // Canales comunes: el renderer reporta el alto de su panel y puede cerrarse solo.
   ipcMain.on(`${opts.name}:height`, (_e, h: number) => {
     height = Math.round(h) + PAD * 2
     place()
   })
+  ipcMain.on(`${opts.name}:close`, () => hide())
 
   return {
     ensure,
     show: (a: MenuAnchor) => {
       anchor = a
       const w = ensure()
+      if (opts.data) w.webContents.send(opts.data.channel, opts.data.get())
       place() // posicionar ANTES de mostrar evita el flash en la esquina
       if (focusable) { w.show(); w.focus() } else w.showInactive()
     },

@@ -1,5 +1,6 @@
 import { useEffect, useState, type JSX } from 'react'
 import type { VaultItemMeta, VaultItemType } from '@shared/vault'
+import { useNoInitialFocus } from '@renderer/components/popover/focus'
 import IconLock from '~icons/tabler/lock'
 import IconSparkles from '~icons/tabler/sparkles'
 import IconKey from '~icons/tabler/key'
@@ -22,6 +23,7 @@ function subtext(it: VaultItemMeta): string {
 
 export default function VaultWindow(): JSX.Element {
   const [items, setItems] = useState<VaultItemMeta[]>([])
+  useNoInitialFocus() // si no, abre con "Gestionar en Settings" resaltado
 
   useEffect(() => {
     vaultwin.onItems(setItems)

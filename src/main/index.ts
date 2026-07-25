@@ -17,6 +17,7 @@ import { initDownloads, attachDownloads, listDownloads, activeDownloadCount, can
 import { credentialsFor, fillFromVault } from './autofill'
 import { initExtensions, listExtensions, addExtension, setExtensionEnabled, removeExtension as removeExt, installFromStore, extensionUi } from './extensions'
 import { extensionIdFrom } from './crx'
+import { createPopover } from './popover'
 import { initRoutines, listRoutines, createWatchRoutine, setRoutineEnabled, removeRoutine as removeRoutineEntry, runRoutine } from './routines'
 import { initUpdater, checkForUpdates, downloadUpdate, installUpdate, getUpdateState, onUpdateState } from './updater'
 import { initQuickActions, listQuickActions, saveQuickAction, removeQuickAction, getQuickAction, fillTemplate } from './quickactions'
@@ -252,7 +253,7 @@ function pushState() {
   // El peek renderiza el mismo <Sidebar/> con el mismo preload: recibe el mismo estado.
   if (peekWin && !peekWin.isDestroyed()) peekWin.webContents.send('state:update', state)
   // La ventana de extensiones detecta si estás en una página de la Store.
-  if (extWin && !extWin.isDestroyed() && extWin.isVisible()) sendExtensions()
+  if (extPopover.isVisible()) sendExtensions()
 }
 
 /**
@@ -1036,7 +1037,7 @@ function broadcastProfile(): void {
   const p = getProfile()
   win?.webContents.send('profile:changed', p)
   if (peekWin && !peekWin.isDestroyed()) peekWin.webContents.send('profile:changed', p)
-  if (pmWin && !pmWin.isDestroyed()) pmWin.webContents.send('profilemenu:profile', p)
+  pmPopover.send('profilemenu:profile', p)
 }
 ipcMain.handle('profile:get', () => getProfile())
 ipcMain.handle('profile:set', (e, name: string) => {
@@ -1072,6 +1073,11 @@ ipcMain.handle('ui:clearData', async (e) => {
 
 // ---- Vault ----
 // Ventana nativa flotante, creada una vez y reutilizada (abrir = posicionar + show).
+/**
+ * El vault NO usa la factoría de popovers a propósito: es una ventana opaca con esquinas
+ * y sombra nativas, con su cabecera y su pie, y ese diseño es el que queremos aquí. Pasarlo
+ * a las primitivas compartidas se probó y se descartó — no repetirlo.
+ */
 let vaultWin: BrowserWindow | null = null
 const VAULT_W = 320
 const VAULT_H = 380
@@ -1159,46 +1165,21 @@ ipcMain.on('vault:manage', () => {
 
 // ---- Omnibox: ventana nativa del dropdown de sugerencias (flota sobre la página) ----
 // focusable:false → clicks no le roban el foco al input del chrome; la página no se toca.
-let omniWin: BrowserWindow | null = null
-const OMNI_PAD = 12 // padding (p-3) del contenido, para el borde/sombra
-let omniRect: { x: number; y: number; width: number; height: number } | null = null
 let lastOmniData: unknown = null
-function ensureOmniWin(): BrowserWindow {
-  if (omniWin && !omniWin.isDestroyed()) return omniWin
-  omniWin = new BrowserWindow({
-    parent: win!, show: false, frame: false, transparent: true, focusable: false,
-    resizable: false, movable: false, minimizable: false, maximizable: false,
-    fullscreenable: false, hasShadow: false, skipTaskbar: true, backgroundColor: '#00000000',
-    webPreferences: { preload: join(__dirname, '../preload/omnibox.js'), contextIsolation: true, sandbox: false }
-  })
-  // Reenvía los datos actuales cuando el renderer terminó de cargar (primer show).
-  omniWin.webContents.on('did-finish-load', () => {
-    if (lastOmniData && omniWin && !omniWin.isDestroyed()) omniWin.webContents.send('omni:data', lastOmniData)
-  })
-  if (RENDERER_URL) omniWin.loadURL(`${RENDERER_URL}/omnibox.html`)
-  else omniWin.loadFile(join(__dirname, '../renderer/omnibox.html'))
-  return omniWin
-}
-function placeOmni(winHeight: number): void {
-  if (!omniWin || omniWin.isDestroyed() || !omniRect || !win) return
-  const cb = win.getContentBounds()
-  omniWin.setBounds({
-    x: Math.round(cb.x + omniRect.x - OMNI_PAD),
-    y: Math.round(cb.y + omniRect.y + omniRect.height - 2),
-    width: Math.round(omniRect.width + OMNI_PAD * 2),
-    height: Math.max(1, Math.round(winHeight))
-  })
-}
-function hideOmni(): void { if (omniWin && !omniWin.isDestroyed()) omniWin.hide() }
-ipcMain.on('omni:show', (_e, rect: typeof omniRect, data) => {
-  omniRect = rect
+const omniPopover = createPopover(() => win, {
+  // width solo es el ancho con el que nace la ventana (para que el renderer no mida a
+  // 24px); el real lo pone el anchor en cada show.
+  name: 'omni', width: 420, widthFromAnchor: true, offsetY: -2,
+  focusable: false, // los clicks no le roban el foco al input del chrome
+  preload: 'omnibox', page: 'omnibox',
+  data: { channel: 'omni:data', get: () => lastOmniData }
+}, RENDERER_URL)
+function hideOmni(): void { omniPopover.hide() }
+ipcMain.on('omni:show', (_e, rect: MenuAnchor, data) => {
   lastOmniData = data
-  const w = ensureOmniWin()
-  w.webContents.send('omni:data', data)
-  if (!w.isVisible()) w.showInactive()
+  omniPopover.show(rect)
 })
-ipcMain.on('omni:update', (_e, data) => { lastOmniData = data; if (omniWin && !omniWin.isDestroyed()) omniWin.webContents.send('omni:data', data) })
-ipcMain.on('omni:height', (_e, h: number) => placeOmni(h + OMNI_PAD * 2))
+ipcMain.on('omni:update', (_e, data) => { lastOmniData = data; omniPopover.send('omni:data', data) })
 ipcMain.on('omni:hide', hideOmni)
 ipcMain.on('omni:choose', (_e, i: number) => win?.webContents.send('omni:chosen', i))
 ipcMain.on('omni:hover', (_e, i: number) => win?.webContents.send('omni:hovered', i))
@@ -1217,90 +1198,30 @@ function buildSiteInfo(): SiteInfoData {
   const permissions = internal ? [] : requestedKeys(origin).map((key) => ({ key, state: stateOf(origin, key) }))
   return { url, origin, domain, secure, internal, permissions }
 }
-let siteWin: BrowserWindow | null = null
-const SITE_W = 340
-const SITE_PAD = 12
-let siteAnchor: MenuAnchor | null = null
-let lastSiteHeight = 200
-function ensureSiteWin(): BrowserWindow {
-  if (siteWin && !siteWin.isDestroyed()) return siteWin
-  siteWin = new BrowserWindow({
-    parent: win!, width: SITE_W, height: 240, show: false, frame: false, transparent: true,
-    resizable: false, movable: false, minimizable: false, maximizable: false,
-    fullscreenable: false, hasShadow: false, skipTaskbar: true, backgroundColor: '#00000000',
-    webPreferences: { preload: join(__dirname, '../preload/siteinfo.js'), contextIsolation: true, sandbox: false }
-  })
-  siteWin.on('blur', () => { if (siteWin && !siteWin.isDestroyed()) siteWin.hide() })
-  siteWin.webContents.on('did-finish-load', () => { if (siteWin && !siteWin.isDestroyed()) siteWin.webContents.send('siteinfo:data', buildSiteInfo()) })
-  if (RENDERER_URL) siteWin.loadURL(`${RENDERER_URL}/siteinfo.html`)
-  else siteWin.loadFile(join(__dirname, '../renderer/siteinfo.html'))
-  return siteWin
-}
-function placeSiteWin(height: number): void {
-  if (!siteWin || siteWin.isDestroyed() || !siteAnchor || !win) return
-  const cb = win.getContentBounds()
-  siteWin.setBounds({
-    x: Math.max(cb.x + 4, Math.round(cb.x + siteAnchor.x - SITE_PAD)),
-    y: Math.round(cb.y + siteAnchor.y + siteAnchor.height - 4),
-    width: SITE_W,
-    height: Math.max(1, Math.round(height))
-  })
-}
-ipcMain.on('siteinfo:open', (_e, anchor: MenuAnchor) => {
-  siteAnchor = anchor
-  const w = ensureSiteWin()
-  w.webContents.send('siteinfo:data', buildSiteInfo())
-  placeSiteWin(lastSiteHeight) // posiciona en el anchor antes de mostrar (evita el flash)
-  w.show(); w.focus()
-})
-ipcMain.on('siteinfo:height', (_e, h: number) => { lastSiteHeight = h + SITE_PAD * 2; placeSiteWin(lastSiteHeight) })
+const sitePopover = createPopover(() => win, {
+  name: 'siteinfo', width: 340, height: 200,
+  preload: 'siteinfo', page: 'siteinfo',
+  data: { channel: 'siteinfo:data', get: buildSiteInfo }
+}, RENDERER_URL)
+const ensureSiteWin = sitePopover.ensure
+ipcMain.on('siteinfo:open', (_e, anchor: MenuAnchor) => sitePopover.show(anchor))
 ipcMain.on('siteinfo:toggle', (_e, key: PermKey, state: PermState) => {
   try { setState(new URL(activeUrl()).origin, key, state) } catch { /* noop */ }
-  if (siteWin && !siteWin.isDestroyed()) siteWin.webContents.send('siteinfo:data', buildSiteInfo())
+  sitePopover.send('siteinfo:data', buildSiteInfo())
 })
 ipcMain.on('siteinfo:clear', async () => {
   try { await session.fromPartition(PARTITION).clearStorageData({ origin: new URL(activeUrl()).origin }) } catch { /* noop */ }
-  if (siteWin && !siteWin.isDestroyed()) siteWin.hide()
+  sitePopover.hide()
 })
-ipcMain.on('siteinfo:close', () => { if (siteWin && !siteWin.isDestroyed()) siteWin.hide() })
 
 // ---- Menú de perfil: ventana nativa (flota sobre la página) ----
-let pmWin: BrowserWindow | null = null
-const PM_W = 264
-const PM_PAD = 12
-let pmAnchor: MenuAnchor | null = null
-let lastPmHeight = 380
-function ensurePmWin(): BrowserWindow {
-  if (pmWin && !pmWin.isDestroyed()) return pmWin
-  pmWin = new BrowserWindow({
-    parent: win!, width: PM_W, height: 200, show: false, frame: false, transparent: true,
-    resizable: false, movable: false, minimizable: false, maximizable: false,
-    fullscreenable: false, hasShadow: false, skipTaskbar: true, backgroundColor: '#00000000',
-    webPreferences: { preload: join(__dirname, '../preload/profilemenu.js'), contextIsolation: true, sandbox: false }
-  })
-  pmWin.on('blur', () => { if (pmWin && !pmWin.isDestroyed()) pmWin.hide() })
-  pmWin.webContents.on('did-finish-load', () => { if (pmWin && !pmWin.isDestroyed()) pmWin.webContents.send('profilemenu:profile', getProfile()) })
-  if (RENDERER_URL) pmWin.loadURL(`${RENDERER_URL}/profilemenu.html`)
-  else pmWin.loadFile(join(__dirname, '../renderer/profilemenu.html'))
-  return pmWin
-}
-function placePmWin(height: number): void {
-  if (!pmWin || pmWin.isDestroyed() || !pmAnchor || !win) return
-  const cb = win.getContentBounds()
-  pmWin.setBounds({
-    x: Math.max(cb.x + 4, Math.round(cb.x + pmAnchor.x - PM_PAD)),
-    y: Math.round(cb.y + pmAnchor.y + pmAnchor.height - 4),
-    width: PM_W, height: Math.max(1, Math.round(height))
-  })
-}
-ipcMain.on('profilemenu:open', (_e, anchor: MenuAnchor) => {
-  pmAnchor = anchor
-  const w = ensurePmWin()
-  w.webContents.send('profilemenu:profile', getProfile())
-  placePmWin(lastPmHeight) // posiciona en el anchor antes de mostrar
-  w.show(); w.focus()
-})
-ipcMain.on('profilemenu:height', (_e, h: number) => { lastPmHeight = h + PM_PAD * 2; placePmWin(lastPmHeight) })
+const pmPopover = createPopover(() => win, {
+  name: 'profilemenu', width: 264, height: 380,
+  preload: 'profilemenu', page: 'profilemenu',
+  data: { channel: 'profilemenu:profile', get: getProfile }
+}, RENDERER_URL)
+const ensurePmWin = pmPopover.ensure
+ipcMain.on('profilemenu:open', (_e, anchor: MenuAnchor) => pmPopover.show(anchor))
 
 // ---- Peek del sidebar (hover del botón expandir con el sidebar colapsado) ----
 let peekWin: BrowserWindow | null = null
@@ -1450,60 +1371,27 @@ ipcMain.on('routines:remove', (e, id: string) => { if (isInternalSender(e.sender
 ipcMain.on('routines:run', (e, id: string) => { if (isInternalSender(e.senderFrame?.url)) void runRoutine(id) })
 
 // ---- Extensiones de Chrome (ventana nativa de gestión) ----
-let extWin: BrowserWindow | null = null
-const EXT_W = 320
-const EXT_PAD = 12
-let extAnchor: MenuAnchor | null = null
-let lastExtHeight = 240
-function ensureExtWin(): BrowserWindow {
-  if (extWin && !extWin.isDestroyed()) return extWin
-  extWin = new BrowserWindow({
-    parent: win!, width: EXT_W + EXT_PAD * 2, height: 240, show: false, frame: false, transparent: true,
-    resizable: false, movable: false, minimizable: false, maximizable: false,
-    fullscreenable: false, hasShadow: false, skipTaskbar: true, backgroundColor: '#00000000',
-    webPreferences: { preload: join(__dirname, '../preload/extensionswin.js'), contextIsolation: true, sandbox: false }
-  })
-  extWin.on('blur', () => { if (extWin && !extWin.isDestroyed()) extWin.hide() })
-  extWin.webContents.on('did-finish-load', () => sendExtensions())
-  if (RENDERER_URL) extWin.loadURL(`${RENDERER_URL}/extensions.html`)
-  else extWin.loadFile(join(__dirname, '../renderer/extensions.html'))
-  return extWin
-}
 let extInstalling = false
-function sendExtensions(): void {
-  if (!extWin || extWin.isDestroyed()) {
-    console.log('[ext] sendExtensions: la ventana no existe todavía, no se envía nada')
-    return
-  }
+/** Estado que ve la ventana de extensiones: lo instalado + si la pestaña activa es la store. */
+function extensionsData(): unknown {
   const items = listExtensions()
   // ¿La pestaña activa es la página de una extensión en la Chrome Web Store?
   const url = activeId != null ? tabs.get(activeId)?.url ?? '' : ''
   const isStore = /chromewebstore\.google\.com|chrome\.google\.com\/webstore/.test(url)
   const id = isStore ? extensionIdFrom(url) : null
-  extWin.webContents.send('extensions:data', {
+  return {
     items,
     storeCandidate: id ? { id, installed: items.some((e) => e.path.endsWith(id)) } : null,
     installing: extInstalling
-  })
+  }
 }
-function placeExtWin(height: number): void {
-  if (!extWin || extWin.isDestroyed() || !extAnchor || !win) return
-  const cb = win.getContentBounds()
-  extWin.setBounds({
-    x: Math.round(cb.x + extAnchor.x + extAnchor.width / 2 - (EXT_W + EXT_PAD * 2) / 2),
-    y: Math.round(cb.y + extAnchor.y + extAnchor.height - 4),
-    width: EXT_W + EXT_PAD * 2, height: Math.max(1, Math.round(height))
-  })
-}
-ipcMain.on('extensions:open', (_e, anchor: MenuAnchor) => {
-  extAnchor = anchor
-  const w = ensureExtWin()
-  sendExtensions()
-  placeExtWin(lastExtHeight) // posiciona antes de mostrar (evita el flash)
-  w.show(); w.focus()
-})
-ipcMain.on('extensions:height', (_e, h: number) => { lastExtHeight = h + EXT_PAD * 2; placeExtWin(lastExtHeight) })
-ipcMain.on('extensions:close', () => { if (extWin && !extWin.isDestroyed()) extWin.hide() })
+const extPopover = createPopover(() => win, {
+  name: 'extensions', width: 320, height: 240, align: 'center',
+  preload: 'extensionswin', page: 'extensions',
+  data: { channel: 'extensions:data', get: extensionsData }
+}, RENDERER_URL)
+function sendExtensions(): void { extPopover.send('extensions:data', extensionsData()) }
+ipcMain.on('extensions:open', (_e, anchor: MenuAnchor) => extPopover.show(anchor))
 ipcMain.on('extensions:toggle', async (_e, path: string, enabled: boolean) => {
   await setExtensionEnabled(path, enabled)
   sendExtensions()
@@ -1529,23 +1417,23 @@ function openExtensionPopup(path: string): void {
   extPopupWin.once('ready-to-show', () => extPopupWin?.show())
 }
 ipcMain.on('extensions:openPopup', (_e, path: string) => {
-  if (extWin && !extWin.isDestroyed()) extWin.hide()
+  extPopover.hide()
   openExtensionPopup(path)
 })
 // Menú "…" de una extensión: sus opciones + acciones del navegador.
 ipcMain.on('extensions:menu', (_e, path: string) => {
   const ui = extensionUi(path)
   const items: MenuItemConstructorOptions[] = [
-    { label: 'Abrir', enabled: !!ui?.popup, click: () => { extWin?.hide(); openExtensionPopup(path) } },
-    { label: 'Opciones', enabled: !!ui?.options, click: () => { extWin?.hide(); if (ui?.options) createTab(ui.options) } },
+    { label: 'Abrir', enabled: !!ui?.popup, click: () => { extPopover.hide(); openExtensionPopup(path) } },
+    { label: 'Opciones', enabled: !!ui?.options, click: () => { extPopover.hide(); if (ui?.options) createTab(ui.options) } },
     { type: 'separator' },
     { label: 'Quitar de Monper', click: () => { removeExt(path); sendExtensions() } }
   ]
-  Menu.buildFromTemplate(items).popup({ window: extWin && !extWin.isDestroyed() ? extWin : win! })
+  Menu.buildFromTemplate(items).popup({ window: extPopover.window ?? win! })
 })
 ipcMain.on('extensions:browseStore', () => {
   createTab('https://chromewebstore.google.com/category/extensions')
-  if (extWin && !extWin.isDestroyed()) extWin.hide()
+  extPopover.hide()
 })
 ipcMain.on('extensions:installFromStore', async (e) => {
   // La petición puede venir del popup del puzzle o del botón inyectado en la Store.
@@ -1559,7 +1447,7 @@ ipcMain.on('extensions:installFromStore', async (e) => {
     fromTab.view.webContents.send('extensions:installResult', r)
   }
   if (!r.ok && r.error) {
-    const parent = extWin && !extWin.isDestroyed() && extWin.isVisible() ? extWin : win
+    const parent = extPopover.isVisible() ? extPopover.window : win
     dialog.showMessageBox(parent!, {
       type: 'error', buttons: ['OK'],
       message: 'No se pudo añadir la extensión',
@@ -1570,7 +1458,7 @@ ipcMain.on('extensions:installFromStore', async (e) => {
   }
 })
 ipcMain.on('extensions:installFromFolder', async () => {
-  const parent = extWin && !extWin.isDestroyed() ? extWin : win
+  const parent = extPopover.window ?? win
   const res = await dialog.showOpenDialog(parent!, {
     title: 'Elige la carpeta de la extensión',
     properties: ['openDirectory']
@@ -1585,37 +1473,26 @@ ipcMain.on('extensions:installFromFolder', async () => {
 })
 
 // ---- Quick sign-in: "Sign in with…" al detectar un login con credenciales guardadas ----
-let signinWin: BrowserWindow | null = null
 const SIGNIN_W = 360
-const SIGNIN_PAD = 12
 let signinTabId: number | null = null
-let lastSigninHeight = 160
+let signinCreds: unknown = null
 const signinDismissed = new Set<string>() // orígenes descartados en esta sesión
-function ensureSigninWin(): BrowserWindow {
-  if (signinWin && !signinWin.isDestroyed()) return signinWin
-  signinWin = new BrowserWindow({
-    parent: win!, width: SIGNIN_W + SIGNIN_PAD * 2, height: 200, show: false, frame: false, transparent: true,
-    resizable: false, movable: false, minimizable: false, maximizable: false,
-    fullscreenable: false, hasShadow: false, skipTaskbar: true, backgroundColor: '#00000000',
-    acceptFirstMouse: true,
-    webPreferences: { preload: join(__dirname, '../preload/signin.js'), contextIsolation: true, sandbox: false }
-  })
-  if (RENDERER_URL) signinWin.loadURL(`${RENDERER_URL}/signin.html`)
-  else signinWin.loadFile(join(__dirname, '../renderer/signin.html'))
-  return signinWin
-}
-function placeSigninWin(height: number): void {
-  if (!signinWin || signinWin.isDestroyed() || !win) return
+const signinPopover = createPopover(() => win, {
+  name: 'signin', width: SIGNIN_W, height: 160,
+  focusable: false, // aparece sobre la página sin robarle el foco al formulario
+  preload: 'signin', page: 'signin',
+  data: { channel: 'signin:credentials', get: () => signinCreds }
+}, RENDERER_URL)
+/**
+ * Este no cuelga de ningún botón: va en la esquina del área de contenido. La factoría
+ * posiciona respecto a un anchor, así que se le pasa uno sintético — el desplazamiento del
+ * panel (PAD) lo compensa el +12 de la x.
+ */
+function showSignin(): void {
   const cb = contentBounds()
-  const wb = win.getContentBounds()
-  signinWin.setBounds({
-    x: Math.round(wb.x + cb.x + 16),
-    y: Math.round(wb.y + cb.y + 12),
-    width: SIGNIN_W + SIGNIN_PAD * 2,
-    height: Math.max(1, Math.round(height))
-  })
+  signinPopover.show({ x: cb.x + 16 + 12, y: cb.y + 12, width: 0, height: 0 })
 }
-function hideSignin(): void { signinTabId = null; if (signinWin && !signinWin.isDestroyed()) signinWin.hide() }
+function hideSignin(): void { signinTabId = null; signinPopover.hide() }
 ipcMain.on('autofill:loginForm', (e, hasForm: boolean) => {
   const entry = [...tabs.entries()].find(([, t]) => t.view.webContents === e.sender)
   if (!entry) return
@@ -1626,13 +1503,10 @@ ipcMain.on('autofill:loginForm', (e, hasForm: boolean) => {
   if (!origin || signinDismissed.has(origin)) return
   const creds = credentialsFor(origin)
   if (!creds.length) return
-  const w = ensureSigninWin()
   signinTabId = id
-  w.webContents.send('signin:credentials', creds)
-  placeSigninWin(lastSigninHeight)
-  w.showInactive() // no roba el foco de la página
+  signinCreds = creds
+  showSignin()
 })
-ipcMain.on('signin:height', (_e, h: number) => { lastSigninHeight = h + SIGNIN_PAD * 2; placeSigninWin(lastSigninHeight) })
 ipcMain.on('signin:fill', async (_e, itemId: string) => {
   const t = signinTabId != null ? tabs.get(signinTabId) : null
   hideSignin()
@@ -1644,9 +1518,9 @@ ipcMain.on('signin:dismiss', () => {
   hideSignin()
 })
 
-ipcMain.on('profilemenu:close', () => { if (pmWin && !pmWin.isDestroyed()) pmWin.hide() })
+// `profilemenu:close` lo maneja la factoría de popovers.
 ipcMain.on('profilemenu:action', (_e, name: string) => {
-  if (pmWin && !pmWin.isDestroyed()) pmWin.hide()
+  pmPopover.hide()
   switch (name) {
     case 'new-tab':
     case 'bookmarks': createTab(); break

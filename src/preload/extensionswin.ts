@@ -13,6 +13,8 @@ const api: ExtensionsWinApi = {
   browseStore: () => ipcRenderer.send('extensions:browseStore'),
   installFromStore: () => ipcRenderer.send('extensions:installFromStore'),
   installFromFolder: () => ipcRenderer.send('extensions:installFromFolder'),
+  openPopup: (path: string) => ipcRenderer.send('extensions:openPopup', path),
+  menu: (path: string) => ipcRenderer.send('extensions:menu', path),
   close: () => ipcRenderer.send('extensions:close')
 }
 

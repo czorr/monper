@@ -2,6 +2,7 @@ import { createRoot } from 'react-dom/client'
 import { useEffect, useState, type JSX } from 'react'
 import type { BrowserState, Bookmark, Profile } from '@shared/types'
 import Sidebar from '@renderer/components/browser/Sidebar'
+import { PopoverPanel } from '@renderer/components/popover'
 import './styles.css'
 
 const { monper, peekbar: pk } = window
@@ -24,12 +25,7 @@ function Peek(): JSX.Element {
   useEffect(() => pk.onShown(() => setNonce((n) => n + 1)), [])
 
   return (
-    <div className="h-full pl-2.5 pr-1 pt-2 pb-2.5">
-      <div
-        key={nonce}
-        style={{ animation: 'peek-in 150ms cubic-bezier(0.33,1,0.68,1)' }}
-        className="h-full rounded-2xl border border-white/10 bg-[#1c1c20]/95 backdrop-blur-md shadow-2xl shadow-black/50 overflow-hidden"
-      >
+    <PopoverPanel key={nonce} fill padded={false}>
         <Sidebar
           floating
           state={state}
@@ -44,8 +40,7 @@ function Peek(): JSX.Element {
           onCloseTab={(id) => monper.closeTab(id)}
           onReorderTabs={(ids) => monper.reorderTabs(ids)}
         />
-      </div>
-    </div>
+    </PopoverPanel>
   )
 }
 

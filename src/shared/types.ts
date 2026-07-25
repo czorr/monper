@@ -426,6 +426,10 @@ export interface ExtensionsWinApi {
   installFromStore: () => void
   /** Instalar desde una carpeta local (avanzado) */
   installFromFolder: () => void
+  /** Abre el popup propio de la extensión */
+  openPopup: (path: string) => void
+  /** Menú "…" con las opciones de esa extensión */
+  menu: (path: string) => void
   close: () => void
 }
 

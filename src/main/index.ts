@@ -1,6 +1,6 @@
 import { join } from 'path'
 import { readFileSync, writeFileSync } from 'fs'
-import { app, BrowserWindow, Menu, WebContentsView, clipboard, dialog, ipcMain, nativeImage, net, screen, session, shell } from 'electron'
+import { app, BrowserWindow, Menu, Notification, WebContentsView, clipboard, dialog, ipcMain, nativeImage, net, screen, session, shell } from 'electron'
 import type { MenuItemConstructorOptions } from 'electron'
 import type { IpcMainEvent } from 'electron'
 import type { BrowserState, Bookmark, ChatMessage, MenuAnchor, ProviderKind } from '../shared/types'
@@ -15,7 +15,7 @@ import { initSkills, listSkills, getSkill, toggleSkill, enabledSkills, skillsDir
 import { initProfile, getProfile, setProfile, setAvatar } from './profile'
 import { initDownloads, attachDownloads, listDownloads, activeDownloadCount, cancelDownload, openDownload, showDownload, clearDownloads } from './downloads'
 import { credentialsFor, fillFromVault } from './autofill'
-import { initExtensions, listExtensions, addExtension, setExtensionEnabled, removeExtension as removeExt, installFromStore } from './extensions'
+import { initExtensions, listExtensions, addExtension, setExtensionEnabled, removeExtension as removeExt, installFromStore, extensionUi } from './extensions'
 import { extensionIdFrom } from './crx'
 import { initRoutines, listRoutines, createWatchRoutine, setRoutineEnabled, removeRoutine as removeRoutineEntry, runRoutine } from './routines'
 import { initQuickActions, listQuickActions, saveQuickAction, removeQuickAction, getQuickAction, fillTemplate } from './quickactions'
@@ -31,7 +31,16 @@ const PANEL_LIMITS = { sidebarMin: 180, sidebarMax: 420, chatMin: 300, chatMax: 
 let sidebarWidth = SIDEBAR_DEFAULT
 let chatWidth = CHAT_DEFAULT
 const TOPBAR_HEIGHT = 52
-const CONTENT_RADIUS = 14 // debe coincidir con rounded-t[l/r] en Content.tsx
+/** Redondeo del page view. Debe coincidir con rounded-t[l/r] en Content.tsx. */
+const CONTENT_RADIUS = 14
+/**
+ * Material de la vibrancy. 'sidebar' es más translúcido que 'under-window'.
+ * Se puede cambiar en vivo con ⌘⌥V para calibrar (ver VIBRANCY_MATERIALS).
+ * MONPER_NO_VIBRANCY=1 la desactiva (útil solo para depurar composición).
+ */
+const VIBRANCY: 'sidebar' = 'sidebar'
+const NO_VIBRANCY = process.env['MONPER_NO_VIBRANCY'] === '1'
+const APP_BG = '#111114' // igual que --color-bg en styles.css
 const PARTITION = 'persist:monper'
 const isMac = process.platform === 'darwin'
 
@@ -253,6 +262,40 @@ function applyTopColor(t: Tab, c: string): void {
   pushState()
 }
 /**
+ * Diagnóstico de las esquinas: compara el color que usamos para tapar la costura contra
+ * el píxel REAL de cada esquina de la página. Si no coinciden, el problema es el muestreo;
+ * si coinciden, el arco es del antialiasing del compositor y el redondeado hay que quitarlo.
+ * Se activa con MONPER_DEBUG_CORNERS=1.
+ */
+const DEBUG_CORNERS = process.env['MONPER_DEBUG_CORNERS'] === '1'
+async function logCornerDiagnostics(t: Tab, sampled: string): Promise<void> {
+  const b = t.view.getBounds()
+  const pixel = async (x: number, y: number): Promise<string> => {
+    try {
+      const img = await t.view.webContents.capturePage({ x, y, width: 1, height: 1 })
+      const p = img.toBitmap()
+      return p.length >= 3 ? `#${[p[2], p[1], p[0]].map((n) => n.toString(16).padStart(2, '0')).join('')}` : '??'
+    } catch { return '??' }
+  }
+  const [tl, tr, bl, br] = await Promise.all([
+    pixel(1, 1),
+    pixel(Math.max(0, b.width - 2), 1),
+    pixel(1, Math.max(0, b.height - 2)),
+    pixel(Math.max(0, b.width - 2), Math.max(0, b.height - 2))
+  ])
+  console.log('[esquinas]', {
+    radio: CONTENT_RADIUS,
+    usadoParaLaCostura: sampled,
+    pixelRealArribaIzq: tl,
+    pixelRealArribaDer: tr,
+    pixelRealAbajoIzq: bl,
+    pixelRealAbajoDer: br,
+    fondoApp: APP_BG,
+    coincideArribaIzq: tl.toLowerCase() === sampled.toLowerCase()
+  })
+}
+
+/**
  * Muestrea el color REAL bajo el topbar capturando una franja de 3px del render y
  * promediándola (resize 1x1). A diferencia de leer CSS, esto ve gradientes, imágenes
  * y video — que es lo que usan la mayoría de los hero de las páginas.
@@ -261,11 +304,17 @@ async function sampleTopStrip(t: Tab): Promise<void> {
   const b = t.view.getBounds()
   if (b.width < 8 || b.height < 8) return
   try {
-    const img = await t.view.webContents.capturePage({ x: 0, y: 0, width: b.width, height: 3 })
+    // Muestreamos LA ESQUINA superior-izquierda, no el ancho completo: este color rellena
+    // la muesca del redondeado nativo, así que debe coincidir con el píxel de ESA esquina.
+    // Promediar toda la franja daba un color distinto en páginas con degradado o con algo
+    // claro arriba, y esa diferencia se veía como un arco en la esquina.
+    const w = Math.min(24, b.width)
+    const img = await t.view.webContents.capturePage({ x: 0, y: 0, width: w, height: 4 })
     if (img.isEmpty()) return
     const px = img.resize({ width: 1, height: 1, quality: 'good' }).toBitmap() // BGRA
     if (px.length < 3) return
     const hex = `#${[px[2], px[1], px[0]].map((n) => n.toString(16).padStart(2, '0')).join('')}`
+    if (DEBUG_CORNERS) await logCornerDiagnostics(t, hex)
     applyTopColor(t, hex)
   } catch { /* la vista puede estar oculta o destruida */ }
 }
@@ -307,10 +356,11 @@ function createTab(url = newtabUrl(), activate = true, agent = false): number {
       preload: join(__dirname, '../preload/content.js')
     }
   })
-  // Fondo opaco: sin esto la vista es transparente y, en el frame en blanco al cambiar
-  // de pestaña, se ve el fondo de la ventana (gris/escritorio). Blanco = como la mayoría
-  // de páginas; se ajusta al color real de la página cuando lo muestreamos.
-  if (typeof view.setBackgroundColor === 'function') view.setBackgroundColor('#ffffff')
+  // Fondo opaco: sin esto la vista es transparente y, al cambiar de pestaña, se ve el
+  // fondo de la ventana. Arrancamos con el color de la app (oscuro), NO blanco: el borde
+  // antialiaseado del redondeado nativo tiñe con este color, y en blanco dibujaba un
+  // halo claro en las esquinas. Se ajusta al color real de la página al muestrearla.
+  if (typeof view.setBackgroundColor === 'function') view.setBackgroundColor(APP_BG)
   const t: Tab = { view, url, title: '', favicon: null, loading: false, canBack: false, canForward: false, themeColor: null, pageBg: null, recording: false, muted: false, audible: false, agent, bookmarkId: null, errorUrl: null }
   tabs.set(id, t)
   touchWarm(id) // pestaña recién creada: entra al warm set
@@ -665,12 +715,11 @@ function createWindow() {
     minWidth: 720,
     minHeight: 480,
     show: false,
-    // Fondo transparente en mac para que la vibrancy nativa se vea a través del
-    // sidebar (que es HTML transparente). Compatible con el semáforo nativo
-    // porque ya no usamos setWindowButtonVisibility(false).
-    ...(isMac
-      ? { vibrancy: 'under-window' as const, visualEffectState: 'active' as const, backgroundColor: '#00000000' }
-      : { backgroundColor: '#111114' }),
+    // Fondo transparente en mac para que la vibrancy se vea a través del sidebar y de
+    // las muescas del redondeado del page view.
+    ...(isMac && !NO_VIBRANCY
+      ? { vibrancy: VIBRANCY, visualEffectState: 'active' as const, backgroundColor: '#00000000' }
+      : { backgroundColor: APP_BG }),
     titleBarStyle: isMac ? 'hiddenInset' : 'default',
     trafficLightPosition: isMac ? { x: 15, y: 17 } : undefined,
     ...(isMac ? {} : { icon: appIcon }),
@@ -1362,7 +1411,10 @@ function ensureExtWin(): BrowserWindow {
 }
 let extInstalling = false
 function sendExtensions(): void {
-  if (!extWin || extWin.isDestroyed()) return
+  if (!extWin || extWin.isDestroyed()) {
+    console.log('[ext] sendExtensions: la ventana no existe todavía, no se envía nada')
+    return
+  }
   const items = listExtensions()
   // ¿La pestaña activa es la página de una extensión en la Chrome Web Store?
   const url = activeId != null ? tabs.get(activeId)?.url ?? '' : ''
@@ -1397,22 +1449,64 @@ ipcMain.on('extensions:toggle', async (_e, path: string, enabled: boolean) => {
   sendExtensions()
 })
 ipcMain.on('extensions:remove', (_e, path: string) => { removeExt(path); sendExtensions() })
+
+// Popup propio de la extensión (el que Chrome abre al clicar su icono).
+let extPopupWin: BrowserWindow | null = null
+function openExtensionPopup(path: string): void {
+  const ui = extensionUi(path)
+  if (!ui?.popup) return
+  if (extPopupWin && !extPopupWin.isDestroyed()) extPopupWin.destroy()
+  const cb = win!.getContentBounds()
+  extPopupWin = new BrowserWindow({
+    parent: win!, width: 400, height: 600, show: false, frame: false,
+    resizable: false, movable: false, minimizable: false, maximizable: false,
+    fullscreenable: false, skipTaskbar: true, roundedCorners: true, backgroundColor: '#ffffff',
+    x: Math.round(cb.x + cb.width - 420), y: Math.round(cb.y + TOPBAR_HEIGHT),
+    webPreferences: { partition: PARTITION, contextIsolation: true, sandbox: false }
+  })
+  extPopupWin.on('blur', () => { if (extPopupWin && !extPopupWin.isDestroyed()) extPopupWin.destroy() })
+  extPopupWin.loadURL(ui.popup)
+  extPopupWin.once('ready-to-show', () => extPopupWin?.show())
+}
+ipcMain.on('extensions:openPopup', (_e, path: string) => {
+  if (extWin && !extWin.isDestroyed()) extWin.hide()
+  openExtensionPopup(path)
+})
+// Menú "…" de una extensión: sus opciones + acciones del navegador.
+ipcMain.on('extensions:menu', (_e, path: string) => {
+  const ui = extensionUi(path)
+  const items: MenuItemConstructorOptions[] = [
+    { label: 'Abrir', enabled: !!ui?.popup, click: () => { extWin?.hide(); openExtensionPopup(path) } },
+    { label: 'Opciones', enabled: !!ui?.options, click: () => { extWin?.hide(); if (ui?.options) createTab(ui.options) } },
+    { type: 'separator' },
+    { label: 'Quitar de Monper', click: () => { removeExt(path); sendExtensions() } }
+  ]
+  Menu.buildFromTemplate(items).popup({ window: extWin && !extWin.isDestroyed() ? extWin : win! })
+})
 ipcMain.on('extensions:browseStore', () => {
   createTab('https://chromewebstore.google.com/category/extensions')
   if (extWin && !extWin.isDestroyed()) extWin.hide()
 })
-ipcMain.on('extensions:installFromStore', async () => {
-  const url = activeId != null ? tabs.get(activeId)?.url ?? '' : ''
-  const parent = extWin && !extWin.isDestroyed() ? extWin : win
+ipcMain.on('extensions:installFromStore', async (e) => {
+  // La petición puede venir del popup del puzzle o del botón inyectado en la Store.
+  const fromTab = [...tabs.values()].find((t) => t.view.webContents === e.sender)
+  const url = fromTab?.url || (activeId != null ? tabs.get(activeId)?.url ?? '' : '')
   extInstalling = true; sendExtensions()
   const r = await installFromStore(url)
   extInstalling = false; sendExtensions()
+  // Avisa al botón de la página (si de ahí vino) para que muestre el resultado.
+  if (fromTab && !fromTab.view.webContents.isDestroyed()) {
+    fromTab.view.webContents.send('extensions:installResult', r)
+  }
   if (!r.ok && r.error) {
+    const parent = extWin && !extWin.isDestroyed() && extWin.isVisible() ? extWin : win
     dialog.showMessageBox(parent!, {
       type: 'error', buttons: ['OK'],
       message: 'No se pudo añadir la extensión',
       detail: r.error
     })
+  } else if (r.ok) {
+    new Notification({ title: 'Extensión añadida', body: r.name ?? 'Listo' }).show()
   }
 })
 ipcMain.on('extensions:installFromFolder', async () => {

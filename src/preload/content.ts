@@ -3,6 +3,7 @@ import type { Bookmark, DownloadEntry, MonperTabApi, Suggestion } from '../share
 import { setupSelectionUI } from './selectionUI'
 import { setupPasswordCapture } from './passwordCapture'
 import { setupTopColor } from './topColor'
+import { setupStoreInstall } from './storeInstall'
 
 const api: MonperTabApi = {
   navigate: (url) => ipcRenderer.send('tab:navigate', url),
@@ -62,9 +63,13 @@ contextBridge.exposeInMainWorld('monperTab', api)
 // Avisa al chrome cuando se interactúa con la página, para cerrar overlays (menú de perfil).
 window.addEventListener('pointerdown', () => ipcRenderer.send('tab:pointerdown'), true)
 
-// Icono/menú flotante de acciones rápidas al seleccionar texto.
-setupSelectionUI()
-// Ofrecer guardar credenciales al enviar un login.
-setupPasswordCapture()
-// Color bajo el topbar (se actualiza al hacer scroll) para fundirlo con la página.
-setupTopColor()
+// Cada módulo se aísla: si uno falla en algún sitio raro, los demás siguen vivos.
+// (Antes, un throw en el primero dejaba sin ejecutar todos los siguientes.)
+function safeSetup(name: string, fn: () => void): void {
+  try { fn() } catch (e) { console.warn(`[monper] fallo al iniciar ${name}:`, e) }
+}
+
+safeSetup('selection', setupSelectionUI)      // acciones rápidas sobre texto seleccionado
+safeSetup('passwordCapture', setupPasswordCapture) // ofrecer guardar credenciales
+safeSetup('topColor', setupTopColor)          // color bajo el topbar al hacer scroll
+safeSetup('storeInstall', setupStoreInstall)  // botón "Install to Monper" en la Store

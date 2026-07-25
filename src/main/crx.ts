@@ -17,17 +17,41 @@ export function extensionIdFrom(input: string): string | null {
   return m ? m[1] : null
 }
 
-function download(url: string): Promise<Buffer> {
+function download(url: string, timeoutMs = 90_000): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const req = net.request({ url, redirect: 'follow' })
     const chunks: Buffer[] = []
+    let bytes = 0
+    let settled = false
+    // Sin timeout, una descarga estancada dejaba la promesa colgada para siempre
+    // y el botón se quedaba en "Instalando…".
+    const done = (fn: () => void): void => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      fn()
+    }
+    const timer = setTimeout(() => {
+      try { req.abort() } catch { /* noop */ }
+      done(() => reject(new Error(`La descarga se quedó estancada (${Math.round(bytes / 1024)} KB en ${timeoutMs / 1000}s)`)))
+    }, timeoutMs)
+
     req.on('response', (res) => {
-      if (res.statusCode >= 400) { reject(new Error(`HTTP ${res.statusCode} al descargar la extensión`)); return }
-      res.on('data', (c) => chunks.push(Buffer.from(c)))
-      res.on('end', () => resolve(Buffer.concat(chunks)))
-      res.on('error', reject)
+      console.log('[ext] respuesta HTTP', res.statusCode, '· tamaño:', res.headers['content-length'] ?? '?')
+      if (res.statusCode >= 400) {
+        done(() => reject(new Error(`HTTP ${res.statusCode} al descargar la extensión`)))
+        return
+      }
+      res.on('data', (c) => { bytes += c.length; chunks.push(Buffer.from(c)) })
+      res.on('end', () => done(() => { console.log('[ext] descarga completa:', bytes, 'bytes'); resolve(Buffer.concat(chunks)) }))
+      res.on('error', (e) => done(() => reject(e)))
     })
-    req.on('error', reject)
+    req.on('redirect', (status, _m, redirectUrl) => {
+      console.log('[ext] redirect', status, '→', String(redirectUrl).slice(0, 80))
+      req.followRedirect() // con listener de 'redirect' hay que continuar a mano
+    })
+    req.on('error', (e) => done(() => reject(e)))
+    req.on('abort', () => done(() => reject(new Error('descarga abortada'))))
     req.end()
   })
 }
@@ -51,6 +75,8 @@ function unzip(zip: Buffer, dest: string): void {
   if (eocd < 0) throw new Error('El archivo de la extensión no es un ZIP válido.')
   const count = zip.readUInt16LE(eocd + 10)
   let p = zip.readUInt32LE(eocd + 16) // offset del directorio central
+  console.log('[ext] descomprimiendo', count, 'entradas…')
+  let written = 0
 
   for (let n = 0; n < count; n++) {
     if (zip.readUInt32LE(p) !== 0x02014b50) break
@@ -76,7 +102,9 @@ function unzip(zip: Buffer, dest: string): void {
     if (name.endsWith('/')) { mkdirSync(out, { recursive: true }); continue }
     mkdirSync(dirname(out), { recursive: true })
     writeFileSync(out, method === 8 ? inflateRawSync(data) : data)
+    written++
   }
+  console.log('[ext] descomprimido:', written, 'archivos en', dest)
 }
 
 /** Descarga la extensión y la deja desempaquetada en `dest`. Devuelve la ruta. */

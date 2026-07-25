@@ -1,6 +1,7 @@
 import { createRoot } from 'react-dom/client'
-import { useEffect, useLayoutEffect, useRef, useState, type JSX } from 'react'
+import { useEffect, useState, type JSX } from 'react'
 import type { SigninCredential } from '@shared/types'
+import { PopoverPanel } from '@renderer/components/popover'
 import IconKey from '~icons/tabler/key'
 import IconX from '~icons/tabler/x'
 import IconWorld from '~icons/tabler/world'
@@ -34,20 +35,12 @@ function Row({ c }: { c: SigninCredential }): JSX.Element {
 }
 
 function SignIn(): JSX.Element {
-  const boxRef = useRef<HTMLDivElement>(null)
   const [creds, setCreds] = useState<SigninCredential[]>([])
   useEffect(() => sg.onCredentials(setCreds), [])
-  useLayoutEffect(() => {
-    if (boxRef.current) sg.reportHeight(Math.ceil(boxRef.current.getBoundingClientRect().height))
-  }, [creds])
 
   return (
-    <div className="p-3">
-      <div
-        ref={boxRef}
-        style={{ animation: 'peek-in 160ms cubic-bezier(0.33,1,0.68,1)' }}
-        className="rounded-2xl border border-white/10 bg-[#1c1c20]/95 backdrop-blur-md shadow-2xl shadow-black/50 p-3"
-      >
+    <PopoverPanel onHeight={sg.reportHeight} measure={creds} className="p-3">
+      <>
         <div className="flex items-center gap-2 px-1 pb-2.5">
           <IconKey className="w-[18px] h-[18px] text-text-dim shrink-0" />
           <span className="flex-1 text-[15px] text-text-dim">Sign in with…</span>
@@ -62,8 +55,8 @@ function SignIn(): JSX.Element {
         <div className="flex flex-col gap-1.5">
           {creds.map((c) => <Row key={c.id} c={c} />)}
         </div>
-      </div>
-    </div>
+      </>
+    </PopoverPanel>
   )
 }
 

@@ -18,6 +18,27 @@ function readManifest(path: string): Record<string, unknown> | null {
   try { return JSON.parse(readFileSync(join(path, 'manifest.json'), 'utf-8')) } catch { return null }
 }
 
+/**
+ * Resuelve los placeholders de i18n del manifest (`__MSG_name__`) contra _locales.
+ * Sin esto las extensiones traducidas se listan literalmente como "__MSG_name__".
+ */
+function i18n(path: string, manifest: Record<string, unknown> | null, raw: unknown): string {
+  const s = typeof raw === 'string' ? raw : ''
+  const m = s.match(/^__MSG_(\w+)__$/)
+  if (!m) return s
+  const locales = [String(manifest?.default_locale ?? 'en'), 'en', 'en_US', 'es']
+  for (const loc of locales) {
+    try {
+      const msgs = JSON.parse(readFileSync(join(path, '_locales', loc, 'messages.json'), 'utf-8'))
+      // Las claves de messages.json no distinguen mayúsculas.
+      const key = Object.keys(msgs).find((k) => k.toLowerCase() === m[1].toLowerCase())
+      const val = key ? msgs[key]?.message : null
+      if (typeof val === 'string' && val) return val
+    } catch { /* prueba el siguiente locale */ }
+  }
+  return s
+}
+
 /** Icono del manifest como data URL (la ventana tiene CSP: no puede leer file://). */
 function iconOf(path: string, manifest: Record<string, unknown> | null): string | null {
   const icons = (manifest?.icons ?? {}) as Record<string, string>
@@ -51,15 +72,16 @@ function loadedFor(path: string): Electron.Extension | undefined {
 }
 
 export function listExtensions(): ExtensionInfo[] {
+  console.log('[ext] listExtensions →', items.length, 'entradas:', items.map((e) => basename(e.path)).join(', ') || '(ninguna)')
   return items.map((e) => {
     const m = readManifest(e.path)
     const live = loadedFor(e.path)
     return {
       path: e.path,
       id: live?.id ?? '',
-      name: live?.name ?? (m?.name as string) ?? basename(e.path),
+      name: i18n(e.path, m, live?.name ?? m?.name) || basename(e.path),
       version: live?.version ?? (m?.version as string) ?? '',
-      description: (m?.description as string) ?? '',
+      description: i18n(e.path, m, m?.description),
       icon: iconOf(e.path, m),
       enabled: !!live,
       missing: !existsSync(e.path)
@@ -73,11 +95,13 @@ export async function addExtension(path: string): Promise<{ ok: boolean; error?:
   if (!readManifest(path)) return { ok: false, error: 'Esa carpeta no tiene un manifest.json válido.' }
   if (items.some((e) => e.path === path)) return { ok: false, error: 'Esa extensión ya está instalada.' }
   try {
-    await ses.extensions.loadExtension(path, { allowFileAccess: true })
+    const ext = await ses.extensions.loadExtension(path, { allowFileAccess: true })
     items.push({ path, enabled: true })
     persist()
+    console.log('[ext] cargada en la sesión:', ext.id, ext.name, '· total instaladas:', items.length)
     return { ok: true }
   } catch (e) {
+    console.error('[ext] loadExtension FALLÓ para', path, '→', e)
     return { ok: false, error: e instanceof Error ? e.message : String(e) }
   }
 }
@@ -106,6 +130,26 @@ export function removeExtension(path: string): void {
 
 function storeDir(): string { return join(app.getPath('userData'), 'extensions') }
 
+/**
+ * URLs de la propia extensión: su popup (el que Chrome muestra al clicar su icono)
+ * y su página de opciones. Solo existen si la extensión está cargada, porque el
+ * esquema chrome-extension:// usa su id.
+ */
+export function extensionUi(path: string): { id: string; popup: string | null; options: string | null } | null {
+  const live = loadedFor(path)
+  if (!live) return null
+  const m = readManifest(path)
+  const action = (m?.action ?? m?.browser_action) as { default_popup?: string } | undefined
+  const optionsPage =
+    (m?.options_ui as { page?: string } | undefined)?.page ?? (m?.options_page as string | undefined)
+  const base = `chrome-extension://${live.id}/`
+  return {
+    id: live.id,
+    popup: action?.default_popup ? base + action.default_popup : null,
+    options: optionsPage ? base + optionsPage : null
+  }
+}
+
 /** Instala desde la Chrome Web Store a partir de una URL o un id. */
 export async function installFromStore(urlOrId: string): Promise<{ ok: boolean; error?: string; name?: string }> {
   const id = extensionIdFrom(urlOrId)
@@ -120,5 +164,5 @@ export async function installFromStore(urlOrId: string): Promise<{ ok: boolean; 
   items = items.filter((e) => e.path !== dest)
   const r = await addExtension(dest)
   const m = readManifest(dest)
-  return r.ok ? { ok: true, name: (m?.name as string) ?? id } : r
+  return r.ok ? { ok: true, name: i18n(dest, m, m?.name) || id } : r
 }

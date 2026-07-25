@@ -1,5 +1,6 @@
 import { join } from 'path'
-import { readFileSync, writeFileSync, existsSync } from 'fs'
+import { readFileSync, existsSync } from 'fs'
+import { writeJson } from './jsonfile'
 import { app } from 'electron'
 import type { Profile } from '../shared/types'
 
@@ -7,7 +8,7 @@ let file = ''
 let name = 'Tú'
 let avatar: string | null = null
 
-function persist(): void { try { writeFileSync(file, JSON.stringify({ name, avatar })) } catch { /* noop */ } }
+function persist(): void { writeJson(file, { name, avatar }, 'el perfil', false) }
 
 export function initProfile(): void {
   file = join(app.getPath('userData'), 'profile.json')
@@ -16,7 +17,10 @@ export function initProfile(): void {
       const d = JSON.parse(readFileSync(file, 'utf-8'))
       name = (d.name as string) || name
       avatar = (d.avatar as string) || null
-    } catch { /* noop */ }
+    } catch (e) {
+      // El perfil existía pero está corrupto: se arranca con el de por defecto, y se dice.
+      console.error('[perfil] profile.json ilegible, se usa el perfil por defecto:', e instanceof Error ? e.message : e)
+    }
   }
 }
 

@@ -1,5 +1,5 @@
 import { join } from 'path'
-import { readFileSync, writeFileSync, existsSync } from 'fs'
+import { readJson, writeJson } from './jsonfile'
 import { app, Notification, type BrowserWindow } from 'electron'
 import type { Routine, RoutineCondition } from '../shared/types'
 import { getActiveProvider } from './ai/store'
@@ -19,13 +19,13 @@ let win: BrowserWindow | null = null
 let onChange: () => void = () => {}
 let timer: NodeJS.Timeout | null = null
 
-function persist(): void { try { writeFileSync(file, JSON.stringify(items, null, 2)) } catch { /* noop */ } }
+function persist(): void { writeJson(file, items, 'las rutinas') }
 
 export function initRoutines(w: BrowserWindow, notify: () => void): void {
   win = w
   onChange = notify
   file = join(app.getPath('userData'), 'routines.json')
-  if (existsSync(file)) { try { items = JSON.parse(readFileSync(file, 'utf-8')) } catch { items = [] } }
+  items = readJson<Routine[]>(file, [], 'las rutinas')
   if (timer) clearInterval(timer)
   timer = setInterval(tick, 30_000) // resolución de 30s; cada rutina tiene su propio periodo
 }

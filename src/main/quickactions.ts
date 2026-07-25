@@ -1,5 +1,6 @@
 import { join } from 'path'
-import { readFileSync, writeFileSync, existsSync } from 'fs'
+import { existsSync } from 'fs'
+import { readJson, writeJson } from './jsonfile'
 import { app } from 'electron'
 import type { QuickAction } from '../shared/types'
 
@@ -23,12 +24,12 @@ const DEFAULTS: QuickAction[] = [
 let file = ''
 let items: QuickAction[] = []
 
-function persist(): void { try { writeFileSync(file, JSON.stringify(items, null, 2)) } catch { /* noop */ } }
+function persist(): void { writeJson(file, items, 'las acciones rápidas') }
 
 export function initQuickActions(): void {
   file = join(app.getPath('userData'), 'quickactions.json')
   if (existsSync(file)) {
-    try { items = JSON.parse(readFileSync(file, 'utf-8')) } catch { items = [...DEFAULTS] }
+    items = readJson<QuickAction[]>(file, [...DEFAULTS], 'las acciones rápidas')
   } else {
     items = [...DEFAULTS]
     persist()

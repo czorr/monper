@@ -1,5 +1,6 @@
 import { join } from 'path'
-import { readFileSync, writeFileSync, existsSync } from 'fs'
+import { existsSync } from 'fs'
+import { readJson, writeJson } from './jsonfile'
 import { app } from 'electron'
 import type { Bookmark } from '../shared/types'
 
@@ -16,13 +17,13 @@ const SEED: Bookmark[] = [
 ]
 
 function persist(): void {
-  try { writeFileSync(file, JSON.stringify(items, null, 2)) } catch { /* noop */ }
+  writeJson(file, items, 'los marcadores')
 }
 
 export function initBookmarks(): void {
   file = join(app.getPath('userData'), 'bookmarks.json')
   if (existsSync(file)) {
-    try { items = JSON.parse(readFileSync(file, 'utf-8')) } catch { items = [...SEED] }
+    items = readJson<Bookmark[]>(file, [...SEED], 'los marcadores')
   } else {
     items = [...SEED]
     persist()

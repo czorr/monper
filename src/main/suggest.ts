@@ -44,8 +44,8 @@ function googleSuggest(query: string, signal?: AbortSignal, timeoutMs = 2500): P
       clearTimeout(timer)
       resolve(list)
     }
-    const timer = setTimeout(() => { try { req.abort() } catch { /* noop */ } ; done([]) }, timeoutMs)
-    signal?.addEventListener('abort', () => { try { req.abort() } catch { /* noop */ } ; done([]) })
+    const timer = setTimeout(() => { try { req.abort() } catch { /* ya terminó */ } ; done([]) }, timeoutMs)
+    signal?.addEventListener('abort', () => { try { req.abort() } catch { /* ya terminó */ } ; done([]) })
     req.on('response', (res) => {
       res.on('data', (c) => { body += c.toString() })
       res.on('end', () => {
@@ -79,7 +79,8 @@ export async function suggest(query: string, signal?: AbortSignal): Promise<Sugg
   // 2) Historial (frecency).
   for (const h of history.search(q, 5)) {
     let detail = h.url
-    try { detail = new URL(h.url).hostname.replace(/^www\./, '') } catch { /* noop */ }
+    // Sin dominio parseable la sugerencia se muestra sin subtexto, y ya está.
+    try { detail = new URL(h.url).hostname.replace(/^www\./, '') } catch { /* sin subtexto */ }
     push({ kind: 'history', title: h.title || h.url, url: h.url, detail, favicon: h.favicon ?? faviconOf(h.url) })
   }
 

@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
-import { rmSync } from 'node:fs'
+import { rmSync, writeFileSync, readdirSync } from 'node:fs'
+import { join } from 'node:path'
 import { launch, api, waitForState, serve, html, type Harness } from './helpers'
 
 interface BookmarkLike { id: string; url: string; title: string }
@@ -76,5 +77,39 @@ test('los marcadores sobreviven a un reinicio', async () => {
     await second.close()
     rmSync(profile, { recursive: true, force: true })
     await site2.close()
+  }
+})
+
+test('un fichero de estado corrupto no impide arrancar', async () => {
+  // Antes esto se tragaba en silencio (`catch { items = [...SEED] }`). Ahora se avisa por
+  // consola, pero lo importante sigue siendo que la app abra y no se lleve nada por delante.
+  const first = await launch()
+  const profile = first.userData
+  await first.close(true)
+
+  writeFileSync(join(profile, 'bookmarks.json'), '{ esto no es json', 'utf8')
+
+  const second = await launch({}, profile)
+  try {
+    // Arranca, y con los marcadores por defecto en vez de una lista vacía.
+    await waitForState(second.win, (s) => s.tabs.length > 0)
+    expect((await bookmarks(second)).length).toBeGreaterThan(0)
+  } finally {
+    await second.close()
+    rmSync(profile, { recursive: true, force: true })
+  }
+})
+
+test('la escritura de estado es atómica (no deja .tmp por ahí)', async () => {
+  // writeJson escribe en un .tmp y hace rename para que un cierre a mitad no deje el JSON
+  // truncado. El .tmp no debe sobrevivir a la operación.
+  const h2 = await launch()
+  try {
+    await api(h2.win, 'toggleBookmark')
+    await new Promise((r) => setTimeout(r, 300))
+    const sobras = readdirSync(h2.userData).filter((f) => f.endsWith('.tmp'))
+    expect(sobras, `quedaron temporales: ${sobras.join(', ')}`).toEqual([])
+  } finally {
+    await h2.close()
   }
 })

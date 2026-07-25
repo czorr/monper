@@ -68,7 +68,10 @@ export function setupSelectionUI(): void {
 
   const openMenu = async (x: number, y: number): Promise<void> => {
     let actions: QuickAction[] = []
-    try { actions = await ipcRenderer.invoke('quickactions:list') } catch { /* noop */ }
+    // Sin acciones el menú sale solo con "Preguntar a Monper", que sigue sirviendo.
+    try { actions = await ipcRenderer.invoke('quickactions:list') } catch (e) {
+      console.error('[quickactions] no se pudieron cargar:', e)
+    }
     const r = ensureHost()
     setHTML(r, '')
     menuOpen = true

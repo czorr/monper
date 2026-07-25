@@ -1,5 +1,6 @@
 import { join } from 'path'
-import { readFileSync, writeFileSync, existsSync } from 'fs'
+import { readFileSync, existsSync } from 'fs'
+import { writeJson } from '../jsonfile'
 import { app, safeStorage } from 'electron'
 import type { AIProvider, ChatContext, Effort, ProviderInfo, ProviderKind } from '../../shared/types'
 import { MODELS } from '../../shared/types'
@@ -10,7 +11,7 @@ interface ChatConfig { activeId: string | null; model: string | null; effort: Ef
 let cfgFile = ''
 let cfg: ChatConfig = { activeId: null, model: null, effort: 'medium' }
 
-function persist(): void { try { writeFileSync(cfgFile, JSON.stringify(cfg, null, 2)) } catch { /* noop */ } }
+function persist(): void { writeJson(cfgFile, cfg, 'los proveedores de IA') }
 
 /** Migra el ai.json antiguo (providers + keys cifradas) al vault, una sola vez. */
 function migrateLegacy(): void {
@@ -31,8 +32,15 @@ function migrateLegacy(): void {
       if (enc) { try { key = safeStorage.decryptString(Buffer.from(enc, 'base64')) } catch { /* skip */ } }
       const data: Record<string, string> = { kind: p.kind }
       if (p.baseUrl) data.baseUrl = p.baseUrl
-      const item = vault.add('ai-key', p.label, data, key)
-      map[p.id] = item.id
+      // La migración no puede reventar por un proveedor: si su key no se pudo descifrar del
+      // formato viejo, o el vault la rechaza, se salta ESE y se siguen migrando los demás.
+      if (!key) { console.warn(`[ai] se salta "${p.label}" al migrar: su API key no se pudo leer del formato antiguo`); continue }
+      try {
+        const item = vault.add('ai-key', p.label, data, key)
+        map[p.id] = item.id
+      } catch (e) {
+        console.error(`[ai] no se pudo migrar "${p.label}":`, e instanceof Error ? e.message : e)
+      }
     }
     cfg = {
       activeId: old.activeId ? (map[old.activeId] ?? null) : (vault.itemsByType('ai-key')[0]?.id ?? null),

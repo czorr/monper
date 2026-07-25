@@ -1,5 +1,6 @@
 import { join, basename } from 'path'
-import { readFileSync, writeFileSync, existsSync, rmSync } from 'fs'
+import { readFileSync, existsSync, rmSync } from 'fs'
+import { readJson, writeJson } from './jsonfile'
 import { app, type Session } from 'electron'
 import type { ExtensionInfo } from '../shared/types'
 import { installCrx, extensionIdFrom } from './crx'
@@ -12,7 +13,7 @@ let file = ''
 let items: Entry[] = []
 let ses: Session | null = null
 
-function persist(): void { try { writeFileSync(file, JSON.stringify(items, null, 2)) } catch { /* noop */ } }
+function persist(): void { writeJson(file, items, 'las extensiones') }
 
 function readManifest(path: string): Record<string, unknown> | null {
   try { return JSON.parse(readFileSync(join(path, 'manifest.json'), 'utf-8')) } catch { return null }
@@ -57,7 +58,7 @@ function iconOf(path: string, manifest: Record<string, unknown> | null): string 
 export async function initExtensions(session: Session): Promise<void> {
   ses = session
   file = join(app.getPath('userData'), 'extensions.json')
-  if (existsSync(file)) { try { items = JSON.parse(readFileSync(file, 'utf-8')) } catch { items = [] } }
+  items = readJson<Entry[]>(file, [], 'las extensiones')
   // Electron NO persiste extensiones entre arranques: hay que recargarlas siempre.
   for (const e of items) {
     if (e.enabled && existsSync(e.path)) {
@@ -111,9 +112,20 @@ export async function setExtensionEnabled(path: string, on: boolean): Promise<vo
   if (!entry || !ses) return
   const live = loadedFor(path)
   if (on && !live) {
-    try { await ses.extensions.loadExtension(path, { allowFileAccess: true }) } catch { /* noop */ }
+    try {
+      await ses.extensions.loadExtension(path, { allowFileAccess: true })
+    } catch (e) {
+      // NO marcarla como activa si no cargó: el interruptor se quedaba en ON con la
+      // extensión muerta, y luego "no funciona" sin ninguna pista de por qué.
+      console.error(`[ext] no se pudo cargar ${path}:`, e instanceof Error ? e.message : e)
+      entry.enabled = false
+      persist()
+      return
+    }
   } else if (!on && live) {
-    try { ses.extensions.removeExtension(live.id) } catch { /* noop */ }
+    try { ses.extensions.removeExtension(live.id) } catch (e) {
+      console.error(`[ext] no se pudo descargar ${path}:`, e instanceof Error ? e.message : e)
+    }
   }
   entry.enabled = on
   persist()
@@ -121,11 +133,17 @@ export async function setExtensionEnabled(path: string, on: boolean): Promise<vo
 
 export function removeExtension(path: string): void {
   const live = loadedFor(path)
-  if (live && ses) { try { ses.extensions.removeExtension(live.id) } catch { /* noop */ } }
+  // Ya podía estar descargada (o Electron haberla soltado): quitarla es best-effort.
+  if (live && ses) { try { ses.extensions.removeExtension(live.id) } catch { /* ya no estaba cargada */ } }
   items = items.filter((e) => e.path !== path)
   persist()
   // Si la instalamos nosotros desde la Store, borramos también sus archivos.
-  if (path.startsWith(storeDir())) { try { rmSync(path, { recursive: true, force: true }) } catch { /* noop */ } }
+  if (path.startsWith(storeDir())) {
+    try { rmSync(path, { recursive: true, force: true }) } catch (e) {
+      // La extensión ya está fuera de la lista; solo quedan archivos huérfanos en disco.
+      console.warn('[ext] quedaron archivos sin borrar en', path, e instanceof Error ? e.message : e)
+    }
+  }
 }
 
 function storeDir(): string { return join(app.getPath('userData'), 'extensions') }

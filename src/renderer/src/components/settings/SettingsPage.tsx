@@ -290,6 +290,7 @@ function AccountPage(): JSX.Element {
   const [profile, setProfile] = useState<Profile>({ name: '', initials: '?', avatar: null })
   const [name, setName] = useState('')
   const [saved, setSaved] = useState(false)
+  const [avatarError, setAvatarError] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => { monperTab.getProfile().then((p) => { setProfile(p); setName(p.name) }) }, [])
@@ -303,7 +304,13 @@ function AccountPage(): JSX.Element {
     const f = e.target.files?.[0]
     e.target.value = ''
     if (!f) return
-    try { setProfile(await monperTab.setAvatar(await fileToAvatar(f))) } catch { /* noop */ }
+    setAvatarError(null)
+    // Si falla, el usuario eligió una foto y no pasó nada: hay que decirle por qué.
+    try {
+      setProfile(await monperTab.setAvatar(await fileToAvatar(f)))
+    } catch (err) {
+      setAvatarError(err instanceof Error ? err.message : 'No se pudo usar esa imagen.')
+    }
   }
   const removeAvatar = async (): Promise<void> => setProfile(await monperTab.setAvatar(null))
 
@@ -324,6 +331,7 @@ function AccountPage(): JSX.Element {
             <button onClick={() => fileRef.current?.click()} className="text-[13px] text-text-dim hover:text-text transition-colors">Cambiar foto</button>
             {profile.avatar && <button onClick={removeAvatar} className="text-[13px] text-text-faint hover:text-red-400 transition-colors">Quitar</button>}
           </div>
+          {avatarError && <div className="mt-1 text-[12.5px] text-amber-400">{avatarError}</div>}
         </div>
         <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onPickAvatar} />
       </div>

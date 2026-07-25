@@ -7,7 +7,11 @@ export function makeGoogleAccounts(page: Page) {
     let raw = ''
     try {
       raw = await page.fetchText('https://accounts.google.com/ListAccounts?gpsia=1&source=ChromeOgb&mo=1&mn=1', { credentials: 'include' })
-    } catch { /* noop */ }
+    } catch (e) {
+      // Sin sesión de Google (o si cambió el endpoint) no hay cuentas: `raw` se queda vacío
+      // y el JSON.parse de abajo devuelve la lista vacía. Se registra para poder depurarlo.
+      console.warn('[google-accounts] no se pudo listar las cuentas:', e instanceof Error ? e.message : e)
+    }
     try {
       const data = JSON.parse(raw) as unknown[]
       const arr = (data[1] as unknown[][]) || []

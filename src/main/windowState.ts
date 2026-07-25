@@ -1,5 +1,6 @@
 import { join } from 'path'
-import { readFileSync, writeFileSync, existsSync } from 'fs'
+import { existsSync } from 'fs'
+import { readJson, writeJson } from './jsonfile'
 import { app, screen, type BrowserWindow, type Rectangle } from 'electron'
 
 export interface WindowState {
@@ -14,7 +15,7 @@ let saveTimer: NodeJS.Timeout | null = null
 export function initWindowState(): void {
   file = join(app.getPath('userData'), 'window-state.json')
   if (existsSync(file)) {
-    try { state = JSON.parse(readFileSync(file, 'utf-8')) } catch { state = {} }
+    state = readJson(file, {} as typeof state, 'el tamaño de la ventana')
   }
 }
 
@@ -44,7 +45,7 @@ export function trackWindow(win: BrowserWindow): void {
     if (saveTimer) clearTimeout(saveTimer)
     saveTimer = setTimeout(() => {
       saveTimer = null
-      try { writeFileSync(file, JSON.stringify(state)) } catch { /* noop */ }
+      writeJson(file, state, 'el tamaño de la ventana', false)
     }, 400)
   }
   const capture = (): void => {

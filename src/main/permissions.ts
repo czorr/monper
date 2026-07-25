@@ -1,5 +1,5 @@
 import { join } from 'path'
-import { readFileSync, writeFileSync, existsSync } from 'fs'
+import { readJson, writeJson } from './jsonfile'
 import { app, dialog, type Session, type WebContents, type BrowserWindow } from 'electron'
 import type { PermKey, PermState } from '../shared/types'
 
@@ -10,11 +10,11 @@ let store: Store = {}
 // Permisos que cada origen ha SOLICITADO (para mostrar solo los relevantes en el popup).
 const requested: Record<string, Set<PermKey>> = {}
 
-function persist(): void { try { writeFileSync(file, JSON.stringify(store)) } catch { /* noop */ } }
+function persist(): void { writeJson(file, store, 'los permisos de los sitios', false) }
 
 export function initPermissions(): void {
   file = join(app.getPath('userData'), 'permissions.json')
-  if (existsSync(file)) { try { store = JSON.parse(readFileSync(file, 'utf-8')) } catch { store = {} } }
+  store = readJson(file, {} as typeof store, 'los permisos de los sitios')
 }
 
 function originOf(url: string): string { try { return new URL(url).origin } catch { return '' } }

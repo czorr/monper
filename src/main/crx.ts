@@ -32,7 +32,7 @@ function download(url: string, timeoutMs = 90_000): Promise<Buffer> {
       fn()
     }
     const timer = setTimeout(() => {
-      try { req.abort() } catch { /* noop */ }
+      try { req.abort() } catch { /* la petición ya terminó */ }
       done(() => reject(new Error(`La descarga se quedó estancada (${Math.round(bytes / 1024)} KB en ${timeoutMs / 1000}s)`)))
     }, timeoutMs)
 

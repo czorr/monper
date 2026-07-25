@@ -1,5 +1,6 @@
 import { join } from 'path'
-import { readFileSync, writeFileSync, existsSync } from 'fs'
+import { existsSync } from 'fs'
+import { readJson, writeJson } from './jsonfile'
 import { app } from 'electron'
 
 export interface HistoryEntry {
@@ -24,14 +25,14 @@ function persistSoon(): void {
   if (saveTimer) return
   saveTimer = setTimeout(() => {
     saveTimer = null
-    try { writeFileSync(file, JSON.stringify(items)) } catch { /* noop */ }
+    writeJson(file, items, 'el historial', false)
   }, 1500)
 }
 
 export function initHistory(): void {
   file = join(app.getPath('userData'), 'history.json')
   if (existsSync(file)) {
-    try { items = JSON.parse(readFileSync(file, 'utf-8')) } catch { items = [] }
+    items = readJson<HistoryEntry[]>(file, [], 'el historial')
   }
 }
 

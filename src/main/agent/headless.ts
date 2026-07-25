@@ -31,8 +31,9 @@ export async function withHeadlessPage<T>(
     await page.waitForLoad(5_000)
     return await deadline(fn({ page, wc }), 'al leer la página')
   } finally {
-    try { win.contentView.removeChildView(view) } catch { /* noop */ }
-    try { wc.close() } catch { /* noop */ }
+    // Teardown: puede estar ya quitada o destruida (timeout, ventana cerrada). Da igual.
+    try { win.contentView.removeChildView(view) } catch { /* ya no estaba */ }
+    try { wc.close() } catch { /* ya destruida */ }
   }
 }
 

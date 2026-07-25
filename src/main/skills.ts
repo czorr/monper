@@ -1,5 +1,6 @@
 import { join } from 'path'
-import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync } from 'fs'
+import { readFileSync, existsSync, mkdirSync, readdirSync, statSync } from 'fs'
+import { readJson, writeJson } from './jsonfile'
 import { app } from 'electron'
 import type { SkillMeta, SkillDetail } from '../shared/types'
 
@@ -15,12 +16,15 @@ function enabledFile(): string { return join(app.getPath('userData'), 'skills-en
 let enabled: Record<string, boolean> = {}
 
 function loadEnabled(): void {
-  try { enabled = JSON.parse(readFileSync(enabledFile(), 'utf-8')) } catch { enabled = {} }
+  enabled = readJson(enabledFile(), {} as typeof enabled, 'las skills activas')
 }
-function saveEnabled(): void { try { writeFileSync(enabledFile(), JSON.stringify(enabled, null, 2)) } catch { /* noop */ } }
+function saveEnabled(): void { writeJson(enabledFile(), enabled, 'las skills activas') }
 
 export function initSkills(): void {
-  try { mkdirSync(userDir(), { recursive: true }) } catch { /* noop */ }
+  try { mkdirSync(userDir(), { recursive: true }) } catch (e) {
+    // Sin esta carpeta no se pueden crear skills propias; las de fábrica siguen yendo.
+    console.error('[skills] no se pudo crear', userDir(), e instanceof Error ? e.message : e)
+  }
   loadEnabled()
 }
 
@@ -53,7 +57,7 @@ function readSkill(dir: string, id: string, builtin: boolean): Loaded | null {
   const { data, body } = parseFrontmatter(raw)
   const kw = data.keywords
   let updated = ''
-  try { updated = statSync(file).mtime.toISOString().slice(0, 10) } catch { /* noop */ }
+  try { updated = statSync(file).mtime.toISOString().slice(0, 10) } catch { /* sin fecha: se queda vacía */ }
   return {
     id, builtin, file,
     name: (data.name as string) || id,

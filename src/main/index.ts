@@ -1,5 +1,5 @@
 import { join } from 'path'
-import { readFileSync, writeFileSync } from 'fs'
+import { readFileSync } from 'fs'
 import { app, BrowserWindow, Menu, Notification, WebContentsView, clipboard, dialog, ipcMain, nativeImage, net, screen, session, shell } from 'electron'
 import type { MenuItemConstructorOptions } from 'electron'
 import type { IpcMainEvent } from 'electron'
@@ -18,6 +18,7 @@ import { credentialsFor, fillFromVault } from './autofill'
 import { initExtensions, listExtensions, addExtension, setExtensionEnabled, removeExtension as removeExt, installFromStore, extensionUi } from './extensions'
 import { extensionIdFrom } from './crx'
 import { createPopover } from './popover'
+import { writeJson } from './jsonfile'
 import { initRoutines, listRoutines, createWatchRoutine, setRoutineEnabled, removeRoutine as removeRoutineEntry, runRoutine } from './routines'
 import { initUpdater, checkForUpdates, downloadUpdate, installUpdate, getUpdateState, onUpdateState } from './updater'
 import { initQuickActions, listQuickActions, saveQuickAction, removeQuickAction, getQuickAction, fillTemplate } from './quickactions'
@@ -583,7 +584,7 @@ function collectSession(): { urls: string[]; activeIndex: number } {
   return { urls, activeIndex }
 }
 function saveSessionNow(): void {
-  try { writeFileSync(sessionFile(), JSON.stringify(collectSession())) } catch { /* noop */ }
+  writeJson(sessionFile(), collectSession(), 'la sesión (pestañas abiertas)', false)
 }
 function scheduleSaveSession(): void {
   if (saveSessionTimer) clearTimeout(saveSessionTimer)
@@ -796,7 +797,7 @@ let savePanelsTimer: NodeJS.Timeout | null = null
 function savePanels(): void {
   if (savePanelsTimer) clearTimeout(savePanelsTimer)
   savePanelsTimer = setTimeout(() => {
-    try { writeFileSync(panelsFile(), JSON.stringify({ sidebar: sidebarWidth, chat: chatWidth, vibrancy: vibrancyMaterial })) } catch { /* noop */ }
+    writeJson(panelsFile(), { sidebar: sidebarWidth, chat: chatWidth, vibrancy: vibrancyMaterial }, 'el tamaño de los paneles', false)
   }, 400)
 }
 ipcMain.handle('ui:panels', () => ({ sidebar: sidebarWidth, chat: chatWidth, limits: PANEL_LIMITS }))
@@ -1100,10 +1101,23 @@ function notifyVault(): void {
   if (vaultWin && !vaultWin.isDestroyed() && vaultWin.isVisible()) vaultWin.webContents.send('vault:items', vault.list())
 }
 
+/**
+ * Un fallo del vault se le DICE al usuario. Es la diferencia entre "tu contraseña no se
+ * guardó" y creer que sí y descubrirlo dos semanas después sin poder entrar a un sitio.
+ */
+function reportVaultError(e: unknown): void {
+  const detail = e instanceof Error ? e.message : String(e)
+  console.error('[vault]', detail)
+  dialog.showMessageBox(win ?? undefined!, {
+    type: 'error', buttons: ['OK'], message: 'No se pudo guardar en el Vault', detail
+  })
+}
+
 ipcMain.handle('vault:list', () => vault.list())
 ipcMain.handle('vault:add', (e, type: VaultItemType, label: string, data: Record<string, string>, secret: string) => {
   if (!isInternalSender(e.senderFrame?.url)) return vault.list()
-  vault.add(type, label, data, secret); notifyVault(); notifyChatContext()
+  try { vault.add(type, label, data, secret) } catch (err) { reportVaultError(err) }
+  notifyVault(); notifyChatContext()
   return vault.list()
 })
 ipcMain.handle('vault:remove', (e, id: string) => {
@@ -1143,8 +1157,10 @@ ipcMain.on('vault:capture', async (e, cred: { username: string; password: string
     noLink: true
   })
   if (response !== 1) return
-  if (existing) vault.update(existing.id, { data: { ...existing.data, username: cred.username || existing.data.username || '' }, secret: cred.password })
-  else vault.add('web-credential', host, { origin, username: cred.username || '' }, cred.password)
+  try {
+    if (existing) vault.update(existing.id, { data: { ...existing.data, username: cred.username || existing.data.username || '' }, secret: cred.password })
+    else vault.add('web-credential', host, { origin, username: cred.username || '' }, cred.password)
+  } catch (err) { reportVaultError(err); return }
   notifyVault()
 })
 ipcMain.on('vault:open', (_e, anchor: MenuAnchor) => {
@@ -1192,7 +1208,9 @@ function activeUrl(): string {
 function buildSiteInfo(): SiteInfoData {
   const url = activeUrl()
   let origin = '', domain = ''
-  try { const u = new URL(url); origin = u.origin; domain = u.hostname.replace(/^www\./, '') } catch { /* noop */ }
+  // Sin URL parseable no hay origen ni dominio: es una página interna o about:blank,
+  // y buildSiteInfo ya lo trata como `internal`. No hay nada que reportar.
+  try { const u = new URL(url); origin = u.origin; domain = u.hostname.replace(/^www\./, '') } catch { /* url no parseable: interna */ }
   const internal = isInternal(url) || !origin
   const secure = /^https:\/\//i.test(url)
   const permissions = internal ? [] : requestedKeys(origin).map((key) => ({ key, state: stateOf(origin, key) }))
@@ -1206,11 +1224,27 @@ const sitePopover = createPopover(() => win, {
 const ensureSiteWin = sitePopover.ensure
 ipcMain.on('siteinfo:open', (_e, anchor: MenuAnchor) => sitePopover.show(anchor))
 ipcMain.on('siteinfo:toggle', (_e, key: PermKey, state: PermState) => {
-  try { setState(new URL(activeUrl()).origin, key, state) } catch { /* noop */ }
+  try {
+    setState(new URL(activeUrl()).origin, key, state)
+  } catch (e) {
+    // El interruptor vuelve a su sitio solo, porque abajo se reenvía el estado REAL.
+    console.error(`[permisos] no se pudo poner ${key}=${state} en ${activeUrl()}:`, e instanceof Error ? e.message : e)
+  }
   sitePopover.send('siteinfo:data', buildSiteInfo())
 })
 ipcMain.on('siteinfo:clear', async () => {
-  try { await session.fromPartition(PARTITION).clearStorageData({ origin: new URL(activeUrl()).origin }) } catch { /* noop */ }
+  // "Borrar datos del sitio" es una acción de privacidad: si no se borró, hay que decirlo.
+  // Callarlo es dejar al usuario creyendo que sus datos ya no están.
+  try {
+    await session.fromPartition(PARTITION).clearStorageData({ origin: new URL(activeUrl()).origin })
+  } catch (e) {
+    const detail = e instanceof Error ? e.message : String(e)
+    console.error('[siteinfo] no se pudieron borrar los datos de', activeUrl(), detail)
+    dialog.showMessageBox(win ?? undefined!, {
+      type: 'error', buttons: ['OK'],
+      message: 'No se pudieron borrar los datos del sitio', detail
+    })
+  }
   sitePopover.hide()
 })
 
@@ -1514,7 +1548,8 @@ ipcMain.on('signin:fill', async (_e, itemId: string) => {
 })
 ipcMain.on('signin:dismiss', () => {
   const t = signinTabId != null ? tabs.get(signinTabId) : null
-  if (t) { try { signinDismissed.add(new URL(t.url).origin) } catch { /* noop */ } }
+  // Si la URL no es parseable no hay origen que recordar; el popup ya se cierra igual.
+  if (t) { try { signinDismissed.add(new URL(t.url).origin) } catch { /* sin origen: no se recuerda */ } }
   hideSignin()
 })
 
@@ -1536,7 +1571,7 @@ function notifyChatContext(): void { win?.webContents.send('chat:contextChanged'
 ipcMain.handle('providers:list', (e) => (isInternalSender(e.senderFrame?.url) ? listProviders() : []))
 ipcMain.handle('providers:add', (e, input: { label: string; kind: ProviderKind; baseUrl?: string }, apiKey: string) => {
   if (!isInternalSender(e.senderFrame?.url)) { console.warn('[providers:add] denegado, sender:', e.senderFrame?.url); return listProviders() }
-  try { addProvider(input, apiKey) } catch (err) { console.error('[providers:add] falló:', err) }
+  try { addProvider(input, apiKey) } catch (err) { reportVaultError(err) }
   notifyChatContext(); notifyVault()
   return listProviders()
 })

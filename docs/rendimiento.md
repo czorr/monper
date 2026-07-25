@@ -149,6 +149,38 @@ por fuera (lo hacía `ui:omnibox`), la caché miente y `layoutTabs` se salta el 
 hacía falta — la página se queda oculta. Todo cambio de visibilidad pasa por
 `setViewVisible`, y hay un test que lo fija.
 
+## Color del topbar: la muestra que se perdía
+
+Síntoma reportado: al volver arriba con un flick de trackpad, el topbar se quedaba con el
+color de mitad del recorrido y hacía falta mover el scroll un pelín para que reaccionara.
+
+Dos agujeros en `scheduleTopSample`, los dos reales:
+
+1. Los eventos que llegaban **mientras había una captura pendiente se descartaban** y nadie
+   volvía a mirar. Si el último evento del scroll caía en esa ventana de 100 ms, la última
+   muestra era de mitad del recorrido.
+2. En macOS el scroll **sigue animándose después del último evento `scroll` del DOM**:
+   momentum y, al topar arriba, el rebote elástico. Esa animación la hace el compositor y no
+   emite más eventos, así que la última captura veía un frame intermedio.
+
+Arreglo: muestra de cierre cuando se descartaron eventos, más una muestra a los 260 ms de
+quedarse quieto.
+
+**Estado de la prueba, con precisión:**
+
+- El **gesto** no se pudo reproducir. `window.scrollTo` (seco o `smooth`) no vale: la muestra
+  siempre cae después del cambio de posición y se autocorrige. Los eventos de rueda de
+  `sendInputEvent` tampoco, porque no llevan las fases de momentum de macOS. Se probó también
+  contra github.com real, con flick de rueda, y salía OK con y sin el arreglo.
+- El **mecanismo** sí está probado: hay un test que pinta un color 150 ms después del último
+  evento de scroll —la misma forma que el rebote— y **falla sin el arreglo y pasa con él**.
+- Para confirmarlo en tu máquina con tu trackpad: `MONPER_DEBUG_TOPCOLOR=1 pnpm dev` imprime
+  cada muestra con su motivo (`scroll` / `reposo`), el `scrollY` y el color. Al llegar arriba
+  debe aparecer una línea `reposo` con el color bueno.
+
+De paso, la home de github.com **nunca** coincide exacto: su hero está animado, así que el
+píxel cambia entre que se captura y se compara. No es un bug del muestreo.
+
 ## Lo que no está medido
 
 - El arranque **empaquetado**, que es el que ve el usuario (aquí se mide el de desarrollo).

@@ -348,7 +348,7 @@ async function logCornerDiagnostics(t: Tab, sampled: string): Promise<void> {
  * promediándola (resize 1x1). A diferencia de leer CSS, esto ve gradientes, imágenes
  * y video — que es lo que usan la mayoría de los hero de las páginas.
  */
-async function sampleTopStrip(t: Tab): Promise<void> {
+async function sampleTopStrip(t: Tab, motivo = 'directo'): Promise<void> {
   const b = t.view.getBounds()
   if (b.width < 8 || b.height < 8) return
   try {
@@ -363,22 +363,49 @@ async function sampleTopStrip(t: Tab): Promise<void> {
     if (px.length < 3) return
     const hex = `#${[px[2], px[1], px[0]].map((n) => n.toString(16).padStart(2, '0')).join('')}`
     if (DEBUG_CORNERS) await logCornerDiagnostics(t, hex)
+    if (DEBUG_TOPCOLOR) {
+      const y = await t.view.webContents.executeJavaScript('window.scrollY').catch(() => '?')
+      console.log(`[topcolor] ${motivo.padEnd(7)} scrollY=${String(y).padStart(6)}  ${hex}${t.pageBg === hex ? '' : '  ← cambia'}`)
+    }
     applyTopColor(t, hex)
   } catch { /* la vista puede estar oculta o destruida */ }
 }
-// Throttle por pestaña: el scroll dispara mucho; capturamos como máximo cada 100ms.
+/**
+ * Throttle por pestaña: el scroll dispara mucho, así que capturamos como máximo cada 100ms.
+ *
+ * Dos cosas que NO son opcionales, y que faltaban:
+ *
+ * 1. **Muestra de cierre (`again`).** Los eventos que llegaban mientras había una captura
+ *    pendiente se descartaban y nadie volvía a mirar. Si el último evento del scroll caía en
+ *    esa ventana, el topbar se quedaba con el color de MITAD del recorrido.
+ * 2. **Muestra tras el reposo (`SETTLE_MS`).** En macOS el scroll sigue animándose después
+ *    del último evento `scroll` del DOM: momentum y, al llegar arriba, el rebote elástico.
+ *    Esa animación la hace el compositor y NO emite más eventos, así que la última captura
+ *    veía un frame intermedio. Síntoma: al volver arriba había que mover un pelín el scroll
+ *    para que cogiera el color bueno.
+ */
+const DEBUG_TOPCOLOR = process.env['MONPER_DEBUG_TOPCOLOR'] === '1'
 const topSampleAt = new WeakMap<Tab, number>()
 const topSamplePending = new WeakSet<Tab>()
+const topSampleAgain = new WeakSet<Tab>()
+const topSettle = new WeakMap<Tab, NodeJS.Timeout>()
+const SETTLE_MS = 260 // margen para que el momentum y el rebote terminen
+
 function scheduleTopSample(t: Tab): void {
-  const now = Date.now()
-  const last = topSampleAt.get(t) ?? 0
-  const wait = Math.max(0, 100 - (now - last))
-  if (topSamplePending.has(t)) return
+  // Siempre se re-arma la muestra de cierre: se toma cuando el scroll deja de moverse.
+  const prev = topSettle.get(t)
+  if (prev) clearTimeout(prev)
+  topSettle.set(t, setTimeout(() => { topSettle.delete(t); void sampleTopStrip(t, 'reposo') }, SETTLE_MS))
+
+  if (topSamplePending.has(t)) { topSampleAgain.add(t); return }
+  const wait = Math.max(0, 100 - (Date.now() - (topSampleAt.get(t) ?? 0)))
   topSamplePending.add(t)
   setTimeout(() => {
     topSamplePending.delete(t)
     topSampleAt.set(t, Date.now())
-    void sampleTopStrip(t)
+    void sampleTopStrip(t, 'scroll')
+    // Hubo eventos descartados mientras esta captura estaba pendiente: mira otra vez.
+    if (topSampleAgain.delete(t)) scheduleTopSample(t)
   }, wait)
 }
 ipcMain.on('page:scrolled', (e) => {

@@ -7,7 +7,7 @@ import TabRow from './TabRow'
 import BookmarkRow from './BookmarkRow'
 import { IconButton, SectionLabel } from '@renderer/components/ui'
 import { PlusIcon, SidebarIcon } from '@renderer/lib/icons'
-import MonperMark from '@renderer/assets/monper.png'
+import monperPng from '@renderer/assets/monper.png' // el PNG a pelo: aquí el fondo es siempre oscuro
 
 interface Props {
   state: BrowserState
@@ -103,7 +103,7 @@ export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBo
       {agentTabs.length > 0 && (
         <div className="shrink-0 mt-1.5">
           <div className="flex items-center gap-1.5 px-2 pb-1 text-[12px] font-medium text-text-faint [&>img]:w-3.5 [&>img]:h-3.5 [&>img]:opacity-80">
-            <img src={MonperMark} alt="" />
+            <img src={monperPng} alt="" />
             <span>Agent tabs</span>
           </div>
           <div className="flex flex-col gap-px max-h-[40vh] overflow-y-auto [&::-webkit-scrollbar]:w-0">

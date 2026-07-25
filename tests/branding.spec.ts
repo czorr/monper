@@ -18,8 +18,9 @@ test('en una página interna la pill dice Monper y lleva el iso', async () => {
   // Exacto, no substring: el topbar tiene un botón "Ask Monper" que lo pillaba de rebote.
   const marca = h.win.locator('button', { hasText: /^Monper$/ }).first()
   await expect(marca).toBeVisible()
-  // El iso, no solo el texto.
-  await expect(marca.locator('img')).toBeVisible()
+  // El iso, no solo el texto. Ya no es un <img>: es un span con el PNG como máscara para
+  // poder recolorearlo (ver MonperMark).
+  await expect(marca.locator('.monper-mark')).toBeVisible()
 })
 
 test('en un sitio real la pill muestra el dominio, sin iso', async () => {
@@ -30,7 +31,7 @@ test('en un sitio real la pill muestra el dominio, sin iso', async () => {
     await waitForState(h.win, (s) => s.tabs.find((t) => t.id === s.activeId)?.title === 'Un sitio')
     const dominio = h.win.locator('button', { hasText: '127.0.0.1' }).first()
     await expect(dominio).toBeVisible()
-    await expect(dominio.locator('img')).toHaveCount(0)
+    await expect(dominio.locator('.monper-mark')).toHaveCount(0)
     await expect(h.win.locator('button', { hasText: /^Monper$/ })).toHaveCount(0)
   } finally {
     await site.close()
@@ -61,5 +62,38 @@ test('el título de la ventana sigue a la pestaña activa', async () => {
       .toBe('Página X — Monper')
   } finally {
     await site.close()
+  }
+})
+
+test('el iso se oscurece en páginas de fondo claro', async () => {
+  // El PNG es blanco sobre transparente y el topbar toma el color real de la página: sobre
+  // un sitio claro el iso desaparecía. MonperMark usa el alfa como máscara y lo rellena con
+  // `currentColor`, así que hereda los tokens que `.on-light` ya redefine.
+  const claro = await serve({ '/': '<!doctype html><meta charset="utf-8"><title>Claro</title><body style="margin:0;background:#ffffff;height:100vh"></body>' })
+  const oscuro = await serve({ '/': '<!doctype html><meta charset="utf-8"><title>Oscuro</title><body style="margin:0;background:#101014;height:100vh"></body>' })
+
+  /** Luminancia del relleno del iso (0 = negro, 1 = blanco). */
+  const lumMarca = async (): Promise<number> =>
+    h.win.evaluate(() => {
+      const el = document.querySelector('.monper-mark')
+      if (!el) return -1
+      const m = /rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(getComputedStyle(el).backgroundColor)
+      if (!m) return -1
+      const [r, g, b] = m.slice(1).map(Number)
+      return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255
+    })
+
+  try {
+    await api(h.win, 'newTab')
+    await api(h.win, 'go', claro.url + '/')
+    await waitForState(h.win, (s) => s.tabs.find((t) => t.id === s.activeId)?.title === 'Claro')
+    await expect.poll(lumMarca, { timeout: 8000 }).toBeLessThan(0.4)
+
+    await api(h.win, 'go', oscuro.url + '/')
+    await waitForState(h.win, (s) => s.tabs.find((t) => t.id === s.activeId)?.title === 'Oscuro')
+    await expect.poll(lumMarca, { timeout: 8000 }).toBeGreaterThan(0.6)
+  } finally {
+    await claro.close()
+    await oscuro.close()
   }
 })

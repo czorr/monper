@@ -9,7 +9,7 @@ import IconVolumeOff from '~icons/tabler/volume-off'
 import IconVolume from '~icons/tabler/volume'
 import IconDownload from '~icons/tabler/download'
 import IconPuzzle from '~icons/tabler/puzzle'
-import monperLogo from '@renderer/assets/monper.png'
+import MonperMark from '@renderer/components/ui/MonperMark'
 
 interface Props {
   active: ActiveInfo | null
@@ -115,7 +115,8 @@ export default function Topbar({ active, collapsed, mac, chatOpen, editRequest, 
             (chatOpen ? 'bg-white/[0.16] text-text' : 'bg-white/[0.08] hover:bg-white/[0.13] text-text-dim hover:text-text')
           }
         >
-          <img src={monperLogo} alt="" className="w-4 h-4 object-contain" />
+          {/* Hereda el color del botón: en una página clara se vuelve oscuro solo. */}
+          <MonperMark className="w-4 h-4" />
           Ask Monper
         </button>
       </div>

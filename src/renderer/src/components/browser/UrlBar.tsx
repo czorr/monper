@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type JSX } from 'react'
 import type { ActiveInfo, Suggestion } from '@shared/types'
 import { domainOf } from '@renderer/lib/dom'
-import monperLogo from '@renderer/assets/monper.png'
+import MonperMark from '@renderer/components/ui/MonperMark'
 import { useAutocomplete } from '@renderer/components/omnibox'
 
 const { monper } = window
@@ -135,7 +135,7 @@ export default function UrlBar({ active, editRequest, onGo }: Props): JSX.Elemen
             }}
             className="flex items-center gap-1.5 shrink-0 h-[30px] pl-2 pr-3 rounded-full text-[13px] font-medium text-text bg-bg-elev hover:bg-bg-hover transition-colors whitespace-nowrap tracking-[-0.08px]"
           >
-            {interna && <img src={monperLogo} alt="" className="w-[15px] h-[15px] object-contain" />}
+            {interna && <MonperMark className="w-[15px] h-[15px]" />}
             <span className={interna ? '' : 'pl-1'}>{domain}</span>
           </button>
           {/* Título → abre el input */}

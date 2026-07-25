@@ -1,5 +1,5 @@
 import type { JSX, ReactNode } from 'react'
-import MonperMark from '@renderer/assets/monper.png'
+import monperPng from '@renderer/assets/monper.png' // el PNG a pelo: aquí el fondo es siempre oscuro
 
 interface Props {
   /** sidebar izquierdo expandido → inset y redondeo del lado izquierdo */
@@ -49,7 +49,7 @@ export default function Content({ leftInset, rightInset, pageColor, controlling,
       {controlling && (
         <div className="absolute left-0 right-0 bottom-0 h-10 flex items-center justify-center gap-3 px-4 text-[12.5px] text-text-dim">
           <span className="flex items-center gap-2 [&>img]:w-4 [&>img]:h-4 [&>img]:opacity-80">
-            <img src={MonperMark} alt="" />
+            <img src={monperPng} alt="" />
             Monper is controlling this tab
           </span>
           <button

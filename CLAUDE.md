@@ -92,6 +92,7 @@ MONPER_DEBUG_CORNERS=1   # print sampled vs real corner pixels
 MONPER_FAKE_UPDATE=1     # simulate the whole update cycle (UI only)
 MONPER_UPDATE_FEED=http://localhost:8788   # real detect → download → verify
 MONPER_TEAM_ID=...       # required for passkeys (needs a signed build)
+MONPER_DEBUG_TOPCOLOR=1  # log every topbar sample: reason, scrollY and colour
 ```
 
 ## Read before you touch
@@ -119,6 +120,9 @@ when a session teaches something a future one would otherwise rediscover the har
   restates the code is noise; one that records a trap is the point.
 - New state files go through `jsonfile.ts`. New popovers go through `createPopover` unless
   there is a reason worth writing down.
+- The Monper mark on a variable background goes through `MonperMark` (the PNG's alpha as a
+  CSS mask filled with `currentColor`). A plain `<img>` cannot be recoloured, and the white
+  iso vanished on light pages. Where the background is always dark, the PNG is fine.
 - Popover rows use `PopoverRow`. Do not invent a new row style per window — that is the
   inconsistency the shared primitives exist to remove.
 - Talk to the user in Spanish.

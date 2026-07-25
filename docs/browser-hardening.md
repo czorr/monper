@@ -104,10 +104,22 @@ Ahora hay una caché por host en [`src/main/favicons.ts`](../src/main/favicons.t
 con el icono real que Chromium ya reporta en `page-favicon-updated`. Si un sitio no se ha
 visitado todavía no hay icono y la UI cae a su globo local. **Nunca a un tercero.**
 
-Los marcadores **de fábrica** no se quedan sin icono mientras tanto: llevan el logo de marca
-en SVG ([`SeedFavicon.tsx`](../src/renderer/src/components/browser/SeedFavicon.tsx)), sacado
-de `simple-icons`, que ya estaba en el bundle por los proveedores de IA. Los de marca oscura
-(GitHub, X) se pintan en blanco, porque sobre el chrome oscuro no se verían.
+Y **ya no hay marcadores de fábrica**: se quitaron los seis (Gmail, YouTube, GitHub…). Además
+de presuponer a qué sitios entra el usuario, eran los que obligaban a inventarles un icono
+antes de haber visitado nunca la página.
 
-El orden es: **favicon real del sitio → logo de marca empaquetado → globo**. En cuanto visitas
-el sitio, el real gana y el de marca deja de usarse.
+Para los marcadores que no traen icono (los heredados, de antes de esta caché), se le pregunta
+**al propio sitio**: se lee su HTML y se elige su `<link rel="icon">`, con `/favicon.ico` como
+respaldo. Una vez por host y por sesión, con timeout.
+
+Cuidado al tocar esa elección: **no vale con coger el primer `rel` que contenga "icon"**.
+`fluid-icon` y `mask-icon` también lo contienen y son otra cosa — medido contra los sitios
+reales, coger el primero daba el icono de aplicación de GitHub (su logo sobre un cuadrado
+oscuro) y la máscara monocroma de Safari en Chess.com. Se puntúa por tipo y gana el de más
+resolución:
+
+| Sitio | Antes (primer match) | Ahora |
+|---|---|---|
+| github.com | `fluidicon.png` (logo sobre cuadrado) | `favicons/favicon.png` |
+| chess.com | `safari-pinned-tab.svg` (silueta) | `favicon.ico` |
+| youtube.com | `favicon.ico` | `favicon_144x144.png` |

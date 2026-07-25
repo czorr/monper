@@ -19,7 +19,7 @@ import { credentialsFor, fillFromVault } from './autofill'
 import { initExtensions, listExtensions, addExtension, setExtensionEnabled, removeExtension as removeExt, installFromStore, extensionUi } from './extensions'
 import { extensionIdFrom } from './crx'
 import { createPopover } from './popover'
-import { initFavicons, rememberFavicon, faviconFor } from './favicons'
+import { initFavicons, rememberFavicon, faviconFor, resolveFavicon } from './favicons'
 import { initChats, listSessions, resumeOrNew, startSession, openSession, sessionForNextMessage, saveSession, removeSession as removeChatSession } from './chats'
 import { writeJson } from './jsonfile'
 import { initRoutines, listRoutines, createWatchRoutine, setRoutineEnabled, removeRoutine as removeRoutineEntry, runRoutine } from './routines'
@@ -968,9 +968,20 @@ ipcMain.on('ui:omnibox', (_e, open: boolean) => {
 })
 
 // ---- Bookmarks ----
-/** Completa los marcadores que no traen icono con el que se vio al visitar el sitio. */
+/**
+ * Completa los marcadores con el icono que se vio al visitar el sitio. Los que sigan sin
+ * icono (marcadores heredados, de antes de la caché) se resuelven en segundo plano pidiéndolo
+ * al propio sitio, y cuando llega se reemiten.
+ */
 function conFavicon(list: Bookmark[]): Bookmark[] {
-  return list.map((b) => (b.favicon ? b : { ...b, favicon: faviconFor(b.url) }))
+  const out = list.map((b) => (b.favicon ? b : { ...b, favicon: faviconFor(b.url) }))
+  const faltan = out.filter((b) => !b.favicon)
+  if (faltan.length) {
+    void Promise.all(faltan.map((b) => resolveFavicon(b.url))).then((r) => {
+      if (r.some(Boolean)) broadcastBookmarks()
+    })
+  }
+  return out
 }
 
 function broadcastBookmarks(): void {

@@ -1,5 +1,5 @@
 import { join } from 'path'
-import { app } from 'electron'
+import { app, net } from 'electron'
 import { readJson, writeJson } from './jsonfile'
 
 /**
@@ -50,4 +50,98 @@ export function rememberFavicon(url: string, favicon: string | null): void {
 /** El favicon conocido de esa URL, o null si el sitio no se ha visitado todavía. */
 export function faviconFor(url: string): string | null {
   return byHost[hostOf(url)] ?? null
+}
+
+/**
+ * Resuelve el favicon de un sitio que todavía no se ha visitado, preguntándole AL PROPIO
+ * SITIO — nunca a un servicio de terceros.
+ *
+ * Hace falta para los marcadores heredados: los que se crearon antes de que existiera esta
+ * caché no traen icono y salían con el globo hasta que volvieras a entrar. Se intenta una
+ * sola vez por host y por sesión; si el sitio no responde, se queda el globo y ya.
+ */
+const intentados = new Set<string>()
+
+/** `net.fetch` con techo de tiempo: una promesa de red sin timeout es la app colgada. */
+async function fetchConTimeout(url: string, ms = 4000): Promise<Response | null> {
+  const ctrl = new AbortController()
+  const t = setTimeout(() => ctrl.abort(), ms)
+  try {
+    return await net.fetch(url, { signal: ctrl.signal, redirect: 'follow' })
+  } catch {
+    return null
+  } finally {
+    clearTimeout(t)
+  }
+}
+
+/**
+ * El mejor `<link rel="...icon...">` del HTML, resuelto a absoluto.
+ *
+ * No vale con el primero que contenga "icon": `rel="fluid-icon"` y `rel="mask-icon"` también
+ * lo contienen, y son otra cosa. Medido contra los sitios reales, coger el primero daba el
+ * icono de aplicación de GitHub (logo sobre cuadrado oscuro, no su favicon) y la máscara
+ * monocroma de Safari en Chess.com. Se puntúa por tipo y se prefiere el de más resolución.
+ */
+function iconFromHtml(html: string, base: string): string | null {
+  const candidatos: { href: string; puntos: number }[] = []
+  for (const tag of html.match(/<link\s[^>]*>/gi) ?? []) {
+    const rel = /rel=["']([^"']+)["']/i.exec(tag)?.[1]?.toLowerCase().trim()
+    const href = /href=["']([^"']+)["']/i.exec(tag)?.[1]
+    if (!rel || !href) continue
+    const tokens = rel.split(/\s+/)
+    // Máscaras e iconos de app: monocromos o recortados. No son el favicon.
+    if (tokens.includes('mask-icon') || tokens.includes('fluid-icon')) continue
+
+    let puntos = 0
+    if (tokens.includes('icon')) puntos = 3
+    else if (tokens.includes('apple-touch-icon') || tokens.includes('apple-touch-icon-precomposed')) puntos = 2
+    else if (tokens.includes('shortcut')) puntos = 1
+    else continue
+
+    // A igualdad de tipo, el de más lado: el sidebar lo pinta a 17px pero en pantallas
+    // retina se ve la diferencia.
+    const lado = Number(/sizes=["'](\d+)/i.exec(tag)?.[1] ?? 0)
+    puntos = puntos * 1000 + Math.min(lado, 512)
+
+    try {
+      candidatos.push({ href: new URL(href, base).href, puntos })
+    } catch {
+      /* href inservible: se prueba el siguiente */
+    }
+  }
+  candidatos.sort((a, b) => b.puntos - a.puntos)
+  return candidatos[0]?.href ?? null
+}
+
+/**
+ * Busca el icono y lo deja en la caché. Devuelve true si lo encontró (para que quien llame
+ * refresque la UI).
+ */
+export async function resolveFavicon(url: string): Promise<boolean> {
+  const h = hostOf(url)
+  if (!h || byHost[h] || intentados.has(h)) return false
+  intentados.add(h)
+
+  let origin = ''
+  try {
+    origin = new URL(url).origin
+  } catch {
+    return false
+  }
+
+  // 1) El sitio declara su icono en el HTML: es el bueno (y suele ser el de más resolución).
+  const página = await fetchConTimeout(origin)
+  if (página?.ok) {
+    const icono = iconFromHtml((await página.text()).slice(0, 60_000), origin)
+    if (icono) {
+      const r = await fetchConTimeout(icono)
+      if (r?.ok) { rememberFavicon(url, icono); return true }
+    }
+  }
+  // 2) La convención de toda la vida.
+  const ico = `${origin}/favicon.ico`
+  const r = await fetchConTimeout(ico)
+  if (r?.ok) { rememberFavicon(url, ico); return true }
+  return false
 }

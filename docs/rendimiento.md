@@ -25,6 +25,23 @@ no mueve un número, no es una optimización, es una hipótesis.
 Las tres últimas filas están dentro del ruido con n=5: no se toca nada que las explique, y
 no se van a presentar como mejoras ni como regresiones.
 
+## Arranque empaquetado (el que ve el usuario)
+
+`pnpm dist:dir --mac --arm64` y el banco lo mide solo (se salta el test si no hay build):
+
+| | Empaquetada | Desarrollo |
+|---|---|---|
+| Arranque → interactivo | **710 ms** (peor 1252) | 648-711 ms |
+| First contentful paint | **254 ms** (peor 472) | 228 ms |
+| Tamaño de la `.app` | 329 MB | — |
+
+Sale casi igual que en desarrollo, que era la duda: el asar y `file://` no penalizan frente
+al dev server. El "peor" caso alto es el primer arranque tras compilar (macOS verifica el
+binario nuevo); a partir del segundo se estabiliza.
+
+Sin firmar. Con firma y notarización habrá que volver a medir: Gatekeeper añade trabajo en
+el primer arranque de cada versión.
+
 ## Los tres cambios
 
 **1. El build no estaba minificado.** `electron.vite.config.ts` no fijaba `build.minify`, y
@@ -59,11 +76,78 @@ Hay un test que lo fija: *"al arrancar no hay ninguna ventana de popover"*, con 
 
 Las cuento porque un número falso es peor que ninguno:
 
+- **El FCP devolvía 0** cuando la entrada de paint aún no existía, por un `?? 0` de fallback.
+  Pasó **dos veces**: la segunda al copiar el patrón en el test de la app empaquetada. Ahora
+  hay una sola función (`medirFcp`) que espera la entrada y falla si no llega, precisamente
+  para que no pueda volver a existir en dos sitios.
 - **`decodedBodySize` es 0 en `file://`**, así que "JS cargado por el chrome" daba **0 KB**.
   Ahora se suma el tamaño en disco de los chunks que referencia `index.html`.
 - **El arranque incluía un reload** que mete el propio harness (`installStateListener`).
   Ahora ese test usa `skipStateListener`, y además se mide el FCP, que aísla nuestro código
   del ~900 ms que tarda Electron en arrancar y que tapaba cualquier mejora.
+
+## El "flash gris" al cambiar de pestaña: lo que se descartó
+
+Se investigó a fondo y **no se pudo reproducir ni medir**. Queda escrito para no repetir el
+camino:
+
+- **`win.capturePage()` no ve las vistas nativas.** Muestreando el centro del área de
+  contenido durante 25 capturas seguidas sale `17,17,20` (el fondo de la app) siempre, con
+  la página cargada y quieta. Solo captura el DOM del chrome. Para muestrear una página hay
+  que capturar desde SU webContents (es lo que hace `MONPER_DEBUG_CORNERS`).
+- **La página no deja de pintar.** Con una página que registra cada `requestAnimationFrame`:
+  tras activar una pestaña, el primer frame llega a los **2-10 ms**, y da igual que la
+  pestaña estuviera fría (fuera del warm set de 8) o caliente. El hueco máximo entre frames
+  en régimen estacionario es 17-18 ms, o sea un frame a 60Hz.
+- **Grabar la pantalla no es una opción práctica**: `getMediaAccessStatus('screen')` sale
+  `denied` y `desktopCapturer.getSources` lanza *"Failed to get sources"*. Es un permiso TCC
+  de macOS que se concede a mano en Ajustes del Sistema, y el binario que lanzan los tests
+  (`node_modules/electron/dist`) no aparece en esa lista hasta que lo pide.
+- **Lo que SÍ funciona: `contentTracing`**, el trazador del propio Chromium, sin permisos.
+  Los eventos `PipelineReporter` dicen el estado de cada frame: `STATE_PRESENTED_ALL`,
+  `STATE_DROPPED`, `STATE_NO_UPDATE_DESIRED`. Es el único instrumento que tenemos para ver
+  artefactos visuales, y está en [`tests/frames.spec.ts`](../tests/frames.spec.ts).
+
+### Lo que dijo el trazado
+
+| Guion | Presentados | Descartados |
+|---|---|---|
+| 12 cambios de pestaña | ~45 | 6-16 (**~1 por cambio**) |
+| 8 colapsos del sidebar | ~665 | 16-26 (3-4%) |
+
+Hay ~1 frame descartado por cambio de pestaña, de forma consistente. Es el mejor candidato a
+ser el flash. **Pero ninguno de los dos arreglos que probé lo movió**, y la varianza entre
+dos corridas del MISMO build (16 vs 26 descartados) es mayor que cualquier efecto que
+midiéramos:
+
+| | Cambios | Colapsos |
+|---|---|---|
+| Antes | 11 | 25 |
+| Sin re-enganchar la vista activa | 9 | 24 |
+| Con el layout idempotente | 6-9 | 16-26 |
+
+Los valores absolutos también son ruidosos porque cada pestaña tiene su propio compositor y
+**en reposo ya salen frames descartados** (13 de 26 en 2,5 s quieto). Sirve para A/B con el
+mismo guion, no como umbral.
+
+Lo que sí salió de la investigación, medido: **`layoutTabs` re-enganchaba la vista activa al
+compositor en cada cambio de layout**. `addChildView` sobre una vista que ya cuelga del
+`contentView` la desengancha y la vuelve a enganchar, y se llamaba al colapsar el sidebar, al
+abrir el chat y en cada resize: **12 de 12 llamadas eran redundantes**. Ahora solo se llama si
+la vista no está ya encima (0 de 12), y al cambiar de pestaña exactamente 1 vez.
+
+Y además `layoutTabs` llamaba a `setVisible`, `setBounds` y `setBorderRadius` de TODAS las
+pestañas en cada layout, incluso cuando el valor no cambiaba; ahora se cachea lo aplicado.
+
+**Ninguno de los dos mejora los frames descartados** (ver arriba). Se quedan porque reducen
+trabajo real contra el compositor —que en una máquina más lenta que esta sí puede notarse—
+pero no se venden como el arreglo del flash. Fijados en
+[`tests/layout.spec.ts`](../tests/layout.spec.ts).
+
+**Coste de la caché de layout**: introduce un riesgo nuevo. Si alguien llama a `setVisible`
+por fuera (lo hacía `ui:omnibox`), la caché miente y `layoutTabs` se salta el cambio que
+hacía falta — la página se queda oculta. Todo cambio de visibilidad pasa por
+`setViewVisible`, y hay un test que lo fija.
 
 ## Lo que no está medido
 

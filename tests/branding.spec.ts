@@ -45,3 +45,21 @@ test('la pestaña de una página interna lleva el iso', async () => {
   const isos = await h.win.locator('img[src*="monper"]').count()
   expect(isos).toBeGreaterThan(0)
 })
+
+test('el título de la ventana sigue a la pestaña activa', async () => {
+  // No se ve en la barra (frameless), pero sí en Mission Control y en el menú Ventana.
+  // Antes ponía siempre "Monper": las pestañas son WebContentsView y el título del chrome
+  // no cambiaba solo.
+  const site = await serve({ '/': html('Página X') })
+  try {
+    await api(h.win, 'newTab')
+    await api(h.win, 'go', site.url + '/')
+    await waitForState(h.win, (s) => s.tabs.find((t) => t.id === s.activeId)?.title === 'Página X')
+    await expect
+      .poll(() => h.app.evaluate(({ BrowserWindow }) =>
+        BrowserWindow.getAllWindows().find((w) => !w.getParentWindow())?.getTitle() ?? ''))
+      .toBe('Página X — Monper')
+  } finally {
+    await site.close()
+  }
+})

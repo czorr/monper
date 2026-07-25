@@ -29,12 +29,18 @@ export interface Harness {
 export async function launch(
   env: Record<string, string> = {},
   reuseProfile?: string,
-  /** `skipStateListener` evita el reload que instala el listener: solo para medir el arranque. */
-  opts: { skipStateListener?: boolean } = {}
+  /**
+   * `skipStateListener` evita el reload que instala el listener: solo para medir el arranque.
+   * `exe` lanza un binario ya empaquetado en vez de `electron .` (para medir el arranque real
+   * que ve el usuario, que no es el de desarrollo).
+   */
+  opts: { skipStateListener?: boolean; exe?: string } = {}
 ): Promise<Harness> {
   const userData = reuseProfile ?? mkdtempSync(join(tmpdir(), 'monper-test-'))
   const app = await electron.launch({
-    args: ['.', `--user-data-dir=${userData}`],
+    // Con un binario empaquetado la app ya está dentro: pasarle '.' la haría abrir el cwd.
+    ...(opts.exe ? { executablePath: opts.exe } : {}),
+    args: opts.exe ? [`--user-data-dir=${userData}`] : ['.', `--user-data-dir=${userData}`],
     env: {
       ...process.env,
       NODE_ENV: 'test',

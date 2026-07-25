@@ -76,6 +76,7 @@ mida a 24px); el real lo pone el anchor en cada `show`.
 
 ## Tests
 
-[`tests/popovers.spec.ts`](../tests/popovers.spec.ts): que al arrancar están pre-creados y
-ocultos, que abren con el ancho correcto, que se cierran desde el renderer, que solo hay uno
+[`tests/popovers.spec.ts`](../tests/popovers.spec.ts): que al arrancar **no** existe ninguno
+(ya no se pre-crean: costaba 344MB de base, ver [rendimiento.md](rendimiento.md)), que cada uno
+se crea en el primer uso y luego se reutiliza, que abren con el ancho correcto, que se cierran desde el renderer, que solo hay uno
 abierto a la vez, que el alto reportado mueve la ventana y que la omnibox no roba el foco.

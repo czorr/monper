@@ -82,6 +82,17 @@ test('solo hay un popover abierto a la vez', async () => {
 test('el alto que reporta el renderer mueve la ventana', async () => {
   await api(h.win, 'openProfileMenu', { x: 40, y: 60, width: 32, height: 32 })
   await expect.poll(visiblePopovers).toHaveLength(1)
+  // Hay que esperar a que el panel haya reportado SU alto antes de inyectar uno falso: si
+  // no, su medición llega después y gana. (Esto se coló como test inestable, no como bug.)
+  let anterior = -1
+  await expect
+    .poll(async () => {
+      const h0 = (await visiblePopovers())[0]?.height ?? 0
+      const estable = h0 > 24 && h0 === anterior
+      anterior = h0
+      return estable
+    })
+    .toBe(true)
   await h.app.evaluate(({ ipcMain }) => ipcMain.emit('profilemenu:height', null, 500))
   await expect.poll(async () => (await visiblePopovers())[0]?.height).toBe(500 + 24)
   await h.app.evaluate(({ ipcMain }) => ipcMain.emit('profilemenu:close'))

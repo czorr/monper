@@ -108,6 +108,14 @@ function isInternalSender(url: string | undefined): boolean {
 
 interface Tab {
   view: WebContentsView
+  /**
+   * Último layout aplicado a la vista. `setBounds`/`setVisible`/`setBorderRadius` van al
+   * compositor incluso cuando el valor no cambia, y `layoutTabs()` los llamaba para TODAS
+   * las pestañas en cada cambio. Guardarlos permite no repetir lo que ya está puesto.
+   */
+  radius: number | null
+  visible: boolean | null
+  bounds: { x: number; y: number; width: number; height: number } | null
   url: string
   title: string
   favicon: string | null
@@ -156,11 +164,12 @@ function contentBounds() {
 }
 
 function applyRadius(t: Tab) {
-  if (typeof t.view.setBorderRadius === 'function') {
-    // Redondea cuando la página "flota" (sidebar izq y/o panel de chat der).
-    const rounded = !sidebarCollapsed || chatOpen
-    t.view.setBorderRadius(rounded ? CONTENT_RADIUS : 0)
-  }
+  if (typeof t.view.setBorderRadius !== 'function') return
+  // Redondea cuando la página "flota" (sidebar izq y/o panel de chat der).
+  const r = !sidebarCollapsed || chatOpen ? CONTENT_RADIUS : 0
+  if (t.radius === r) return // idempotente: cada llamada real toca el compositor
+  t.radius = r
+  t.view.setBorderRadius(r)
 }
 
 /**
@@ -180,18 +189,43 @@ function touchWarm(id: number): void {
   warmOrder.unshift(id)
 }
 
+/** Muestra/oculta la vista solo si cambia. TODO cambio de visibilidad pasa por aquí: si
+ * alguien llama a `setVisible` por su cuenta, la caché miente y `layoutTabs` se salta el
+ * cambio que hacía falta. */
+function setViewVisible(t: Tab, v: boolean): void {
+  if (t.visible === v) return
+  t.visible = v
+  t.view.setVisible(v)
+}
+
+/** Mueve la vista solo si el rect cambió (cada setBounds llega al compositor). */
+function setViewBounds(t: Tab, b: { x: number; y: number; width: number; height: number }): void {
+  const p = t.bounds
+  if (p && p.x === b.x && p.y === b.y && p.width === b.width && p.height === b.height) return
+  t.bounds = { ...b }
+  t.view.setBounds(b)
+}
+
 function layoutTabs() {
   if (!win || win.isDestroyed()) return
   const cb = contentBounds()
   const warm = new Set(warmOrder.slice(0, WARM_MAX))
   for (const [id, t] of tabs) {
     // Visible si es la activa o está en el warm set; las demás se ocultan (no renderizan).
-    t.view.setVisible(id === activeId || warm.has(id))
-    t.view.setBounds(cb)
+    const vis = id === activeId || warm.has(id)
+    setViewVisible(t, vis)
+    setViewBounds(t, cb)
     applyRadius(t)
   }
+  // La activa al frente, pero SOLO si no lo está ya: `addChildView` sobre una vista que ya
+  // cuelga del contentView la desengancha y la vuelve a enganchar, y esto se llama en cada
+  // colapso, cada apertura del chat y cada resize. Medido: 12 de 12 llamadas eran
+  // redundantes, o sea 12 re-enganches al compositor para dejar todo como estaba.
   const at = activeId != null ? tabs.get(activeId) : null
-  if (at) win.contentView.addChildView(at.view) // activa al frente
+  if (at) {
+    const kids = win.contentView.children
+    if (kids[kids.length - 1] !== at.view) win.contentView.addChildView(at.view)
+  }
 }
 // Alias: llamadas existentes que solo querían recolocar la vista activa.
 function layoutActive() { layoutTabs() }
@@ -212,7 +246,7 @@ function animateLayout() {
     for (const [id, t] of tabs) {
       const s = starts.get(id)
       if (!s) continue
-      t.view.setBounds({
+      setViewBounds(t, {
         x: Math.round(s.x + (target.x - s.x) * e),
         y: target.y,
         width: Math.round(s.width + (target.width - s.width) * e),
@@ -251,6 +285,11 @@ function pushState() {
     controlling: controllingActive()
   }
   win.webContents.send('state:update', state)
+  // El título de la ventana. No se ve en la barra (es frameless), pero sí en Mission
+  // Control, en el menú Ventana y al compartir pantalla, donde antes ponía siempre
+  // "Monper": las pestañas son WebContentsView aparte, así que el título del chrome nunca
+  // cambiaba solo.
+  win.setTitle(t?.title ? `${t.title} — Monper` : 'Monper')
   // El peek renderiza el mismo <Sidebar/> con el mismo preload: recibe el mismo estado.
   if (peekWin && !peekWin.isDestroyed()) peekWin.webContents.send('state:update', state)
   // La ventana de extensiones detecta si estás en una página de la Store.
@@ -370,7 +409,7 @@ function createTab(url = newtabUrl(), activate = true, agent = false): number {
   // antialiaseado del redondeado nativo tiñe con este color, y en blanco dibujaba un
   // halo claro en las esquinas. Se ajusta al color real de la página al muestrearla.
   if (typeof view.setBackgroundColor === 'function') view.setBackgroundColor(APP_BG)
-  const t: Tab = { view, url, title: '', favicon: null, loading: false, canBack: false, canForward: false, themeColor: null, pageBg: null, recording: false, muted: false, audible: false, agent, bookmarkId: null, errorUrl: null }
+  const t: Tab = { view, radius: null, visible: null, bounds: null, url, title: '', favicon: null, loading: false, canBack: false, canForward: false, themeColor: null, pageBg: null, recording: false, muted: false, audible: false, agent, bookmarkId: null, errorUrl: null }
   tabs.set(id, t)
   touchWarm(id) // pestaña recién creada: entra al warm set
   win!.contentView.addChildView(view)
@@ -871,7 +910,7 @@ ipcMain.handle('ui:chat', (_e, open: boolean) => { chatOpen = !!open; animateLay
 // el dropdown del omnibox sea visible; se restaura al cerrar el editor.
 ipcMain.on('ui:omnibox', (_e, open: boolean) => {
   const t = activeId != null ? tabs.get(activeId) : null
-  if (t) t.view.setVisible(!open)
+  if (t) setViewVisible(t, !open)
 })
 
 // ---- Bookmarks ----

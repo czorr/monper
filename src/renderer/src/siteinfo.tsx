@@ -10,6 +10,7 @@ import IconMapPin from '~icons/tabler/map-pin'
 import IconBell from '~icons/tabler/bell'
 import IconClipboard from '~icons/tabler/clipboard'
 import IconTrash from '~icons/tabler/trash'
+import monperLogo from '@renderer/assets/monper.png'
 import './styles.css'
 
 const si = window.siteinfo
@@ -31,17 +32,27 @@ function SiteInfoWindow(): JSX.Element {
 
   return (
     <PopoverPanel onHeight={si.reportHeight} measure={data}>
-      <PopoverLabel>{data.internal ? 'Página de Monper' : data.domain}</PopoverLabel>
+      <PopoverLabel>{data.internal ? 'Monper' : data.domain}</PopoverLabel>
 
       {/* Estado de la conexión: la única fila con color propio, por semántica. */}
-      <div className={'mx-1 mb-1 flex items-center gap-3 px-2.5 h-9 rounded-lg ' + (data.secure ? 'bg-emerald-500/10' : 'bg-amber-500/10')}>
-        {data.secure
-          ? <IconLock className="w-[18px] h-[18px] text-emerald-400 shrink-0" />
-          : <IconLockOpen className="w-[18px] h-[18px] text-amber-400 shrink-0" />}
-        <span className={'flex-1 text-[13.5px] ' + (data.secure ? 'text-emerald-300' : 'text-amber-300')}>
-          {data.internal ? 'Página interna' : data.secure ? 'La conexión es segura' : 'La conexión no es segura'}
-        </span>
-      </div>
+      {data.internal ? (
+        // Nuestras páginas no son https, así que la rama de abajo las pintaba en ÁMBAR con
+        // el candado abierto: "la conexión no es segura" en nuestra propia página, que es
+        // una señal falsa. Aquí no hay conexión que juzgar, solo contenido local.
+        <div className="mx-1 mb-1 flex items-center gap-3 px-2.5 h-9 rounded-lg bg-white/[0.04]">
+          <img src={monperLogo} alt="" className="w-[18px] h-[18px] shrink-0 object-contain" />
+          <span className="flex-1 text-[13.5px] text-text-dim">Contenido local de Monper</span>
+        </div>
+      ) : (
+        <div className={'mx-1 mb-1 flex items-center gap-3 px-2.5 h-9 rounded-lg ' + (data.secure ? 'bg-emerald-500/10' : 'bg-amber-500/10')}>
+          {data.secure
+            ? <IconLock className="w-[18px] h-[18px] text-emerald-400 shrink-0" />
+            : <IconLockOpen className="w-[18px] h-[18px] text-amber-400 shrink-0" />}
+          <span className={'flex-1 text-[13.5px] ' + (data.secure ? 'text-emerald-300' : 'text-amber-300')}>
+            {data.secure ? 'La conexión es segura' : 'La conexión no es segura'}
+          </span>
+        </div>
+      )}
 
       {perms.length > 0 && (
         <>

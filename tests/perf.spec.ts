@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { readFileSync, statSync } from 'node:fs'
+import { existsSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { launch, api, waitForState, serve, html } from './helpers'
 
@@ -30,6 +30,31 @@ function report(label: string, samples: number[]): number {
   return med
 }
 
+/**
+ * First contentful paint, esperando la entrada. Un `?? 0` de fallback ya metió dos veces
+ * medianas falsas de "0ms" en este banco: la medida se espera o falla, no se inventa.
+ */
+async function medirFcp(win: Awaited<ReturnType<typeof launch>>['win']): Promise<number> {
+  const v = await win.evaluate(
+    () =>
+      new Promise<number>((resolve, reject) => {
+        const leer = (): number | undefined =>
+          (performance.getEntriesByName('first-contentful-paint')[0] ??
+            performance.getEntriesByType('paint')[0])?.startTime
+        const ya = leer()
+        if (ya !== undefined) return resolve(ya)
+        const t0 = Date.now()
+        const iv = setInterval(() => {
+          const x = leer()
+          if (x !== undefined) { clearInterval(iv); resolve(x) }
+          else if (Date.now() - t0 > 5000) { clearInterval(iv); reject(new Error('sin entrada de paint')) }
+        }, 50)
+      })
+  )
+  expect(v, 'first contentful paint no puede ser 0').toBeGreaterThan(0)
+  return v
+}
+
 test('arranque: hasta que el chrome es interactivo', async () => {
   const samples: number[] = []
   for (let i = 0; i < 3; i++) {
@@ -53,14 +78,31 @@ test('pintado del chrome (aislado del arranque de Electron)', async () => {
   for (let i = 0; i < 3; i++) {
     const h = await launch({}, undefined, { skipStateListener: true })
     await h.win.locator('[title*="Colapsar sidebar"]').waitFor()
-    const fcp = await h.win.evaluate(() => {
-      const p = performance.getEntriesByName('first-contentful-paint')[0]
-      return p ? p.startTime : performance.getEntriesByType('paint')[0]?.startTime ?? 0
-    })
-    pinturas.push(fcp)
+    pinturas.push(await medirFcp(h.win))
     await h.close()
   }
   expect(report('first contentful paint', pinturas)).toBeLessThan(1500)
+})
+
+test('arranque de la app EMPAQUETADA (el que ve el usuario)', async () => {
+  // El de desarrollo no es comparable: carga desde el dev server y sin asar. Este test se
+  // salta si no hay build empaquetada, para no romper el CI.
+  const exe = join(process.cwd(), 'release/mac-arm64/Monper.app/Contents/MacOS/Monper')
+  test.skip(!existsSync(exe), 'no hay build empaquetada (pnpm dist:dir --mac --arm64)')
+
+  const arranques: number[] = []
+  const pinturas: number[] = []
+  for (let i = 0; i < 4; i++) {
+    const t0 = Date.now()
+    const h = await launch({}, undefined, { skipStateListener: true, exe })
+    await h.win.locator('[title*="Colapsar sidebar"]').waitFor()
+    arranques.push(Date.now() - t0)
+    pinturas.push(await medirFcp(h.win))
+    await h.close()
+  }
+  report('EMPAQUETADA: arranque → interactivo', arranques)
+  report('EMPAQUETADA: first contentful paint', pinturas)
+  expect(median(arranques), 'la app empaquetada tarda demasiado en arrancar').toBeLessThan(10_000)
 })
 
 test('cuánto pesa el chrome al arrancar', () => {

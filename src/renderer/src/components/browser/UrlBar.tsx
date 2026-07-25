@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type JSX } from 'react'
 import type { ActiveInfo, Suggestion } from '@shared/types'
 import { domainOf } from '@renderer/lib/dom'
+import monperLogo from '@renderer/assets/monper.png'
 import { useAutocomplete } from '@renderer/components/omnibox'
 
 const { monper } = window
@@ -104,7 +105,10 @@ export default function UrlBar({ active, editRequest, onGo }: Props): JSX.Elemen
     )
   }, [editing, ac.open, ac.items, ac.active, ac.query])
 
-  const domain = active ? domainOf(active.url) || 'New tab' : ''
+  // En nuestras páginas no hay dominio que mostrar (el main manda la url vacía a propósito),
+  // así que ese hueco lo ocupa la marca. El nombre de la página lo pone el título de al lado.
+  const interna = !!active?.internal
+  const domain = active ? (interna ? 'Monper' : domainOf(active.url) || 'New tab') : ''
   const title = active && active.title && active.title !== domain ? active.title : ''
 
   return (
@@ -129,9 +133,10 @@ export default function UrlBar({ active, editRequest, onGo }: Props): JSX.Elemen
               const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
               monper.openSiteInfo({ x: r.left, y: r.top, width: r.width, height: r.height })
             }}
-            className="flex items-center shrink-0 h-[30px] px-3 rounded-full text-[13px] font-medium text-text bg-bg-elev hover:bg-bg-hover transition-colors whitespace-nowrap tracking-[-0.08px]"
+            className="flex items-center gap-1.5 shrink-0 h-[30px] pl-2 pr-3 rounded-full text-[13px] font-medium text-text bg-bg-elev hover:bg-bg-hover transition-colors whitespace-nowrap tracking-[-0.08px]"
           >
-            {domain}
+            {interna && <img src={monperLogo} alt="" className="w-[15px] h-[15px] object-contain" />}
+            <span className={interna ? '' : 'pl-1'}>{domain}</span>
           </button>
           {/* Título → abre el input */}
           <button

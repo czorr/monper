@@ -3,7 +3,8 @@ import { readFileSync } from 'fs'
 import { app, BrowserWindow, Menu, Notification, WebContentsView, clipboard, dialog, ipcMain, nativeImage, net, screen, session, shell } from 'electron'
 import type { MenuItemConstructorOptions } from 'electron'
 import type { IpcMainEvent } from 'electron'
-import type { BrowserState, Bookmark, ChatMessage, MenuAnchor, ProviderKind } from '../shared/types'
+import type { BrowserState, Bookmark, ChatMessage, MenuAnchor, ProviderKind, InternalPage } from '../shared/types'
+import { internalPageOf } from '../shared/types'
 import { initBookmarks, listBookmarks, isBookmarked, addBookmark, removeBookmark, toggleBookmark } from './bookmarks'
 import { initAI, listProviders, addProvider, removeProvider, setActive as setActiveProvider, setModel, setEffort, getChatContext, getActiveProvider } from './ai/store'
 import { runMastra, errText } from './agent/mastra'
@@ -64,8 +65,7 @@ app.commandLine.appendSwitch('disable-features', 'FedCm,FedCmWithoutWellKnownEnf
 
 // Páginas internas servidas por nuestro propio renderer (new-tab, settings…).
 const RENDERER_URL_EARLY = process.env['ELECTRON_RENDERER_URL']
-const INTERNAL_PAGES = ['newtab', 'settings', 'error', 'downloads'] as const
-function internalUrl(page: (typeof INTERNAL_PAGES)[number]): string {
+function internalUrl(page: InternalPage): string {
   return RENDERER_URL_EARLY
     ? `${RENDERER_URL_EARLY}/${page}.html`
     : `file://${join(__dirname, `../renderer/${page}.html`)}`
@@ -99,7 +99,7 @@ function isNewtab(url: string): boolean {
   return url.includes('/newtab.html')
 }
 function isInternal(url: string): boolean {
-  return INTERNAL_PAGES.some((p) => url.includes(`/${p}.html`))
+  return internalPageOf(url) !== null
 }
 /** Sólo las páginas internas pueden leer/escribir datos privados vía IPC */
 function isInternalSender(url: string | undefined): boolean {
@@ -239,11 +239,11 @@ function pushState() {
   const state: BrowserState = {
     activeId,
     tabs: [...tabs.entries()].map(([id, tb]) => ({
-      id, url: tb.errorUrl ?? displayUrl(tb.url), title: tb.title || 'Nueva pestaña', favicon: tb.favicon, loading: tb.loading, recording: tb.recording, muted: tb.muted, audible: tb.audible, agent: tb.agent, bookmarkId: tb.bookmarkId
+      id, url: tb.errorUrl ?? displayUrl(tb.url), title: tb.title || 'Nueva pestaña', favicon: tb.favicon, loading: tb.loading, recording: tb.recording, muted: tb.muted, audible: tb.audible, agent: tb.agent, bookmarkId: tb.bookmarkId, internal: internalPageOf(tb.url)
     })),
     active: t
       ? {
-          url: t.errorUrl ?? displayUrl(t.url), title: t.title, canBack: t.canBack, canForward: t.canForward,
+          url: t.errorUrl ?? displayUrl(t.url), internal: internalPageOf(t.url), title: t.title, canBack: t.canBack, canForward: t.canForward,
           loading: t.loading, pageColor: t.pageBg || t.themeColor, bookmarked: isBookmarked(t.errorUrl ?? t.url),
           muted: t.muted, audible: t.audible
         }

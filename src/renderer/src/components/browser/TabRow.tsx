@@ -27,8 +27,8 @@ export default function TabRow({ tab, active, onSelect, onClose }: Props): JSX.E
       onAuxClick={(e) => e.button === 1 && onClose(tab.id)}
       onContextMenu={(e) => { e.preventDefault(); window.monper.tabContextMenu(tab.id) }}
     >
-      {!tab.url ? (
-        // Páginas internas (new tab / settings): siempre nuestro iso, aunque tengan favicon default.
+      {tab.internal || !tab.url ? (
+        // Nuestras páginas llevan siempre el iso, nunca un favicon por defecto.
         <img src={monperLogo} alt="" className="w-4 h-4 shrink-0 object-contain opacity-80" />
       ) : tab.loading ? (
         <div className="w-3 h-3 m-0.5 shrink-0 rounded-full border-[1.5px] border-text-faint border-t-text animate-spin" />

@@ -16,10 +16,20 @@ export interface TabInfo {
   agent: boolean
   /** id del bookmark al que está ligada esta pestaña (se muestra en su slot de bookmarks) */
   bookmarkId: string | null
+  /**
+   * Qué página nuestra es, o null si es un sitio web.
+   *
+   * Hace falta porque `url` viene VACÍA en nuestras páginas (a propósito: la omnibox no debe
+   * mostrar `file:///…/settings.html`), así que el renderer no podía distinguir la new tab de
+   * settings. Sin esto tendría que adivinarlo por el título.
+   */
+  internal: InternalPage | null
 }
 
 export interface ActiveInfo {
   url: string
+  /** Ver TabInfo.internal. */
+  internal: InternalPage | null
   title: string
   canBack: boolean
   canForward: boolean
@@ -404,6 +414,23 @@ export interface UpdateState {
 }
 
 /** Estado "sin novedades", para inicializar en el main y en los renderers sin duplicar. */
+/**
+ * Páginas propias de Monper (no son sitios web). El main las sirve como `file://` en
+ * producción y como `http://localhost:PORT` en desarrollo, así que se reconocen por el
+ * nombre del fichero y no por el origen.
+ *
+ * Vive en shared porque main y renderer TIENEN que estar de acuerdo: el main decide quién
+ * puede tocar datos privados por IPC y el renderer decide cuándo mostrar nuestra marca en
+ * vez de un dominio. Dos listas separadas se habrían desincronizado.
+ */
+export const INTERNAL_PAGES = ['newtab', 'settings', 'error', 'downloads'] as const
+export type InternalPage = (typeof INTERNAL_PAGES)[number]
+
+/** El nombre de la página interna de esa URL, o null si es un sitio web de verdad. */
+export function internalPageOf(url: string): InternalPage | null {
+  return INTERNAL_PAGES.find((p) => url.includes(`/${p}.html`)) ?? null
+}
+
 export const NO_UPDATE: UpdateState = {
   checking: false, available: false, downloading: false, percent: 0,
   downloaded: false, version: null, error: null

@@ -35,6 +35,8 @@ interface PanelProps {
   fill?: boolean
   /** Padding interno; por defecto el de una lista de menú. */
   padded?: boolean
+  /** Animación CSS (shorthand). Solo el peek la cambia: entra y sale como un cajón. */
+  animation?: string
   className?: string
 }
 
@@ -42,7 +44,9 @@ interface PanelProps {
  * El contenedor de todo popover: card + medición de alto + animación de entrada.
  * La ventana nativa se dimensiona con el alto que reportamos aquí.
  */
-export function PopoverPanel({ children, onHeight, measure, fill, padded = true, className = '' }: PanelProps): JSX.Element {
+const ANIM_DEFAULT = 'peek-in 140ms cubic-bezier(0.33,1,0.68,1)'
+
+export function PopoverPanel({ children, onHeight, measure, fill, padded = true, className = '', animation = ANIM_DEFAULT }: PanelProps): JSX.Element {
   const box = useRef<HTMLDivElement>(null)
   useNoInitialFocus() // un popover no abre con una fila resaltada
 
@@ -65,7 +69,7 @@ export function PopoverPanel({ children, onHeight, measure, fill, padded = true,
     <div className={fill ? 'h-full p-3' : 'p-3'}>
       <div
         ref={box}
-        style={{ animation: 'peek-in 140ms cubic-bezier(0.33,1,0.68,1)' }}
+        style={{ animation }}
         className={`${PANEL} ${fill ? 'h-full flex flex-col' : ''} ${padded ? 'p-1.5' : ''} ${className}`}
       >
         {children}

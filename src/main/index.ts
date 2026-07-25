@@ -19,6 +19,7 @@ import { credentialsFor, fillFromVault } from './autofill'
 import { initExtensions, listExtensions, addExtension, setExtensionEnabled, removeExtension as removeExt, installFromStore, extensionUi } from './extensions'
 import { extensionIdFrom } from './crx'
 import { createPopover } from './popover'
+import { initChats, listSessions, resumeOrNew, startSession, openSession, sessionForNextMessage, saveSession, removeSession as removeChatSession } from './chats'
 import { writeJson } from './jsonfile'
 import { initRoutines, listRoutines, createWatchRoutine, setRoutineEnabled, removeRoutine as removeRoutineEntry, runRoutine } from './routines'
 import { initUpdater, checkForUpdates, downloadUpdate, installUpdate, getUpdateState, onUpdateState } from './updater'
@@ -108,14 +109,8 @@ function isInternalSender(url: string | undefined): boolean {
 
 interface Tab {
   view: WebContentsView
-  /**
-   * Último layout aplicado a la vista. `setBounds`/`setVisible`/`setBorderRadius` van al
-   * compositor incluso cuando el valor no cambia, y `layoutTabs()` los llamaba para TODAS
-   * las pestañas en cada cambio. Guardarlos permite no repetir lo que ya está puesto.
-   */
+  /** Último radio aplicado; ver applyRadius (reaplicarlo trae de vuelta las muescas). */
   radius: number | null
-  visible: boolean | null
-  bounds: { x: number; y: number; width: number; height: number } | null
   url: string
   title: string
   favicon: string | null
@@ -167,7 +162,10 @@ function applyRadius(t: Tab) {
   if (typeof t.view.setBorderRadius !== 'function') return
   // Redondea cuando la página "flota" (sidebar izq y/o panel de chat der).
   const r = !sidebarCollapsed || chatOpen ? CONTENT_RADIUS : 0
-  if (t.radius === r) return // idempotente: cada llamada real toca el compositor
+  // Solo cuando CAMBIA. Reaplicar el radio en cada layout hace reaparecer las muescas de las
+  // esquinas; este `if` estaba en el último estado que se dio por bueno y quitarlo las trajo
+  // de vuelta. Ver docs/esquinas-y-vibrancy.md.
+  if (t.radius === r) return
   t.radius = r
   t.view.setBorderRadius(r)
 }
@@ -189,32 +187,25 @@ function touchWarm(id: number): void {
   warmOrder.unshift(id)
 }
 
-/** Muestra/oculta la vista solo si cambia. TODO cambio de visibilidad pasa por aquí: si
- * alguien llama a `setVisible` por su cuenta, la caché miente y `layoutTabs` se salta el
- * cambio que hacía falta. */
-function setViewVisible(t: Tab, v: boolean): void {
-  if (t.visible === v) return
-  t.visible = v
-  t.view.setVisible(v)
-}
-
-/** Mueve la vista solo si el rect cambió (cada setBounds llega al compositor). */
-function setViewBounds(t: Tab, b: { x: number; y: number; width: number; height: number }): void {
-  const p = t.bounds
-  if (p && p.x === b.x && p.y === b.y && p.width === b.width && p.height === b.height) return
-  t.bounds = { ...b }
-  t.view.setBounds(b)
-}
-
+/**
+ * Aquí NO se cachea lo último aplicado.
+ *
+ * Se probó (caché de bounds/visible/radius para no repetir llamadas al compositor) y se
+ * revirtió: medido con `contentTracing`, no movía ni un frame descartado —así que no pagaba
+ * por sí misma— y en cambio introducía un modo de fallo nuevo: en cuanto alguien cambia la
+ * geometría por otra vía, la caché miente y `layoutTabs` se salta el cambio que hacía falta
+ * (pasó con `ui:omnibox`, y hubo una regresión del ancho al cerrar el panel de chat que no se
+ * pudo reproducir pero apuntaba aquí). Repetir un `setBounds` es barato; una vista con el
+ * tamaño equivocado no.
+ */
 function layoutTabs() {
   if (!win || win.isDestroyed()) return
   const cb = contentBounds()
   const warm = new Set(warmOrder.slice(0, WARM_MAX))
   for (const [id, t] of tabs) {
     // Visible si es la activa o está en el warm set; las demás se ocultan (no renderizan).
-    const vis = id === activeId || warm.has(id)
-    setViewVisible(t, vis)
-    setViewBounds(t, cb)
+    t.view.setVisible(id === activeId || warm.has(id))
+    t.view.setBounds(cb)
     applyRadius(t)
   }
   // La activa al frente, pero SOLO si no lo está ya: `addChildView` sobre una vista que ya
@@ -226,6 +217,15 @@ function layoutTabs() {
     const kids = win.contentView.children
     if (kids[kids.length - 1] !== at.view) win.contentView.addChildView(at.view)
   }
+  // El chrome copia esta misma posición: no anima por su cuenta (ver Content.tsx).
+  publicarRect(cb)
+}
+
+/** Manda al chrome el rect que acaba de aplicarse a la vista nativa. */
+function publicarRect(r: { x: number; width: number }): void {
+  if (!win || win.isDestroyed()) return
+  const [ancho] = win.getContentSize()
+  win.webContents.send('layout:frame', { left: r.x, right: Math.max(0, ancho - r.x - r.width) })
 }
 // Alias: llamadas existentes que solo querían recolocar la vista activa.
 function layoutActive() { layoutTabs() }
@@ -238,21 +238,38 @@ function animateLayout() {
   for (const t of tabs.values()) applyRadius(t)
   const starts = new Map([...tabs].map(([id, t]) => [id, t.view.getBounds()]))
   const target = contentBounds()
-  const t0 = Date.now()
+  /**
+   * El reloj arranca en el PRIMER tick, no aquí.
+   *
+   * Medido: el primer tick del intervalo llega ~34ms tarde (el main está ocupado justo
+   * después del click), y como la curva está muy cargada al principio, arrancar el reloj
+   * antes hacía que la vista nativa apareciera ya al 47% del recorrido — un salto de 112px
+   * mientras el chrome iba por 61. Se veía como si fueran a velocidades distintas.
+   * Arrancando aquí, el primer frame cae en p=0 y el retraso se paga al final, donde la
+   * curva es plana: 2px sobre 240.
+   */
+  let t0 = 0
   if (collapseAnim) clearInterval(collapseAnim)
   collapseAnim = setInterval(() => {
-    const p = Math.min(1, (Date.now() - t0) / COLLAPSE_MS)
-    const e = 1 - Math.pow(1 - p, 3) // easeOutCubic (matchea el cubic-bezier del CSS)
+    const ahora = Date.now()
+    if (!t0) t0 = ahora
+    const p = Math.min(1, (ahora - t0) / COLLAPSE_MS)
+    const e = 1 - Math.pow(1 - p, 3) // easeOutCubic
+    let rect = { x: target.x, width: target.width }
     for (const [id, t] of tabs) {
       const s = starts.get(id)
       if (!s) continue
-      setViewBounds(t, {
+      rect = {
         x: Math.round(s.x + (target.x - s.x) * e),
-        y: target.y,
-        width: Math.round(s.width + (target.width - s.width) * e),
-        height: target.height
-      })
+        width: Math.round(s.width + (target.width - s.width) * e)
+      }
+      t.view.setBounds({ x: rect.x, y: target.y, width: rect.width, height: target.height })
     }
+    // El MISMO rect al chrome, en el mismo tick. Antes el topbar lo animaba una transición
+    // CSS por su cuenta: dos relojes independientes, y por mucho que coincidieran la curva y
+    // la duración, siempre se veían desfasados. Ahora hay un solo animador y el topbar se
+    // limita a copiar la posición de la página.
+    publicarRect(rect)
     if (p >= 1 && collapseAnim) { clearInterval(collapseAnim); collapseAnim = null; layoutTabs() }
   }, 1000 / 60)
 }
@@ -436,7 +453,7 @@ function createTab(url = newtabUrl(), activate = true, agent = false): number {
   // antialiaseado del redondeado nativo tiñe con este color, y en blanco dibujaba un
   // halo claro en las esquinas. Se ajusta al color real de la página al muestrearla.
   if (typeof view.setBackgroundColor === 'function') view.setBackgroundColor(APP_BG)
-  const t: Tab = { view, radius: null, visible: null, bounds: null, url, title: '', favicon: null, loading: false, canBack: false, canForward: false, themeColor: null, pageBg: null, recording: false, muted: false, audible: false, agent, bookmarkId: null, errorUrl: null }
+  const t: Tab = { view, radius: null, url, title: '', favicon: null, loading: false, canBack: false, canForward: false, themeColor: null, pageBg: null, recording: false, muted: false, audible: false, agent, bookmarkId: null, errorUrl: null }
   tabs.set(id, t)
   touchWarm(id) // pestaña recién creada: entra al warm set
   win!.contentView.addChildView(view)
@@ -937,7 +954,7 @@ ipcMain.handle('ui:chat', (_e, open: boolean) => { chatOpen = !!open; animateLay
 // el dropdown del omnibox sea visible; se restaura al cerrar el editor.
 ipcMain.on('ui:omnibox', (_e, open: boolean) => {
   const t = activeId != null ? tabs.get(activeId) : null
-  if (t) setViewVisible(t, !open)
+  if (t) t.view.setVisible(!open)
 })
 
 // ---- Bookmarks ----
@@ -1364,13 +1381,28 @@ function placePeekWin(): void {
     height: Math.max(1, Math.round(cb.height - TOPBAR_HEIGHT))
   })
 }
+/**
+ * Esconde el peek, pero no de golpe: avisa al renderer para que se retraiga y esconde la
+ * ventana cuando la animación ha terminado. Sin esto la ventana desaparece en seco y no hay
+ * salida que animar (una ventana oculta no pinta nada).
+ */
+const PEEK_OUT_MS = 140
+let peekHideTimer: NodeJS.Timeout | null = null
+
 function hidePeek(): void {
   if (peekOpenTimer) { clearTimeout(peekOpenTimer); peekOpenTimer = null }
+  // El sondeo del cursor se para YA: mientras se retrae no debe volver a abrirse sola.
   if (peekPoll) { clearInterval(peekPoll); peekPoll = null }
   if (!peekWin || peekWin.isDestroyed() || !peekWin.isVisible()) return
-  const hadFocus = peekWin.isFocused()
-  peekWin.hide()
-  if (hadFocus) win?.focus() // devuelve el foco al navegador
+  if (peekHideTimer) return // ya se está retrayendo
+  peekWin.webContents.send('peek:closing')
+  peekHideTimer = setTimeout(() => {
+    peekHideTimer = null
+    if (!peekWin || peekWin.isDestroyed() || !peekWin.isVisible()) return
+    const hadFocus = peekWin.isFocused()
+    peekWin.hide()
+    if (hadFocus) win?.focus() // devuelve el foco al navegador
+  }, PEEK_OUT_MS)
 }
 // El cursor está sobre el botón o el panel (con margen para cruzar el hueco entre ambos).
 function cursorNearPeek(px: number, py: number): boolean {
@@ -1401,6 +1433,8 @@ function startPeekPoll(): void {
   }, 60)
 }
 function showPeekNow(): void {
+  // Si volvió el ratón mientras se retraía, se cancela la retirada y entra otra vez.
+  if (peekHideTimer) { clearTimeout(peekHideTimer); peekHideTimer = null }
   const w = ensurePeekWin()
   pushState() // refresca el <Sidebar/> del peek con el estado actual
   placePeekWin()
@@ -1415,7 +1449,18 @@ ipcMain.on('peek:show', (_e, anchor: MenuAnchor) => {
   if (Date.now() - lastCollapseAt < 600) return
   const cb = win!.getContentBounds()
   peekButtonRect = { x: cb.x + anchor.x, y: cb.y + anchor.y, w: anchor.width, h: anchor.height }
-  if (peekWin && !peekWin.isDestroyed() && peekWin.isVisible()) { startPeekPoll(); return }
+  if (peekWin && !peekWin.isDestroyed() && peekWin.isVisible()) {
+    // Puede estar VISIBLE pero retrayéndose: si el ratón vuelve ahora hay que cancelar la
+    // retirada y volver a entrar. Sin esto el peek se escondía igual aunque hubieras vuelto,
+    // porque este atajo se saltaba `showPeekNow`, que es donde se cancela.
+    if (peekHideTimer) {
+      clearTimeout(peekHideTimer)
+      peekHideTimer = null
+      peekWin.webContents.send('peek:shown') // vuelve a entrar deslizándose
+    }
+    startPeekPoll()
+    return
+  }
   // Hover intent: solo abrir si el cursor sigue sobre el botón tras un instante.
   if (peekOpenTimer) clearTimeout(peekOpenTimer)
   peekOpenTimer = setTimeout(() => {
@@ -1690,6 +1735,15 @@ function setControlledTab(id: number): void {
 let agentEvents: string[] = []
 function pushAgentEvent(msg: string): void { if (agentEvents.length < 20) agentEvents.push(msg) }
 ipcMain.on('chat:cancel', () => { chatAbort?.abort() })
+// El historial de chats vive en el chrome como el propio chat, así que estos canales no
+// llevan la guarda de `isInternalSender` — igual que `chat:send`.
+ipcMain.handle('chats:list', () => listSessions())
+ipcMain.handle('chats:resume', () => resumeOrNew())
+ipcMain.handle('chats:new', () => startSession())
+ipcMain.handle('chats:open', (_e, id: string) => openSession(id))
+ipcMain.handle('chats:forNext', (_e, id: string) => sessionForNextMessage(id))
+ipcMain.on('chats:save', (_e, id: string, messages) => saveSession(id, messages))
+ipcMain.on('chats:remove', (_e, id: string) => removeChatSession(id))
 // "Take over": el usuario retoma el control → aborta el agente.
 ipcMain.on('agent:takeOver', () => { chatAbort?.abort() })
 ipcMain.handle('chat:send', async (_e, messages: ChatMessage[]) => {
@@ -1793,6 +1847,7 @@ app.whenReady().then(() => {
     pushAgentEvent(`Descarga iniciada: ${item.getFilename()} (${item.getURL()})`)
   })
   initBookmarks()
+  initChats()
   initHistory()
   initSkills()
   initQuickActions()

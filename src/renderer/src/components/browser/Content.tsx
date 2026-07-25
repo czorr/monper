@@ -1,5 +1,7 @@
-import type { JSX, ReactNode } from 'react'
+import { useEffect, useRef, type JSX, type ReactNode } from 'react'
 import monperPng from '@renderer/assets/monper.png' // el PNG a pelo: aquí el fondo es siempre oscuro
+
+const { monper } = window
 
 interface Props {
   /** sidebar izquierdo expandido → inset y redondeo del lado izquierdo */
@@ -10,8 +12,6 @@ interface Props {
   pageColor: string
   /** el agente controla la pestaña activa → leyenda inferior + botón Take over */
   controlling?: boolean
-  /** durante el arrastre del borde: sin transición, para ir en sync con la vista nativa */
-  resizing?: boolean
   onTakeOver?: () => void
   children: ReactNode
 }
@@ -24,10 +24,35 @@ interface Props {
  * dejaba un arco por el antialiasing del compositor, medido y confirmado. El look
  * "flotante" lo da el topbar, que al ser DOM sí redondea limpio.
  */
-export default function Content({ leftInset, rightInset, pageColor, controlling, resizing, onTakeOver, children }: Props): JSX.Element {
+export default function Content({ leftInset, rightInset, pageColor, controlling, onTakeOver, children }: Props): JSX.Element {
+  const box = useRef<HTMLDivElement>(null)
+
+  /**
+   * ESTE div no anima. Su posición la manda SIEMPRE el main, que es quien mueve la vista
+   * nativa: el mismo rect, en el mismo tick, escrito directo en el nodo.
+   *
+   * Es la única forma de que el topbar y la página se muevan como una sola pieza. Todo lo
+   * demás se probó y se midió:
+   *  - dos animaciones independientes (transición CSS + intervalo en el main), aunque
+   *    coincidan curva y duración: se ven desfasadas;
+   *  - pasar el rect por estado de React a 60fps: la reconciliación deja el topbar 140px
+   *    por detrás;
+   *  - dejar que la clase CSS retome al terminar: dispara una segunda animación (380ms).
+   * Las clases `left-*`/`right-*` solo sirven de posición inicial, hasta el primer frame.
+   */
+  useEffect(
+    () =>
+      monper.onLayoutFrame((r) => {
+        const el = box.current
+        if (!el) return
+        el.style.left = `${r.left}px`
+        el.style.right = `${r.right}px`
+      }),
+    []
+  )
+
   const cls = [
-    'fixed top-0 bottom-0 overflow-hidden ease-[cubic-bezier(0.33,1,0.68,1)]',
-    resizing ? '' : 'transition-[left,right] duration-[180ms]',
+    'fixed top-0 bottom-0 overflow-hidden',
     leftInset ? 'left-sidebar rounded-tl-[14px]' : 'left-0',
     rightInset ? 'right-panel rounded-tr-[14px]' : 'right-0'
   ].join(' ')
@@ -36,7 +61,7 @@ export default function Content({ leftInset, rightInset, pageColor, controlling,
     // SIN fondo, a propósito. Las muescas del redondeado nativo son lo ÚNICO que se ve
     // de esta capa, y deben mostrar la vibrancy de la ventana. Ponerle un color opaco
     // dibuja una cuña sólida en cada esquina (los "piquitos"): ya pasó, no repetirlo.
-    <div className={cls}>
+    <div ref={box} className={cls}>
       {children}
       {/* Tapa la muesca de las esquinas SUPERIORES para que la costura con el topbar
           sea invisible. Solo arriba: si cubriera todo, se perdería el redondeado de abajo. */}

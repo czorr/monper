@@ -22,6 +22,17 @@
     from { opacity: 0; transform: translateX(-12px); }
     to { opacity: 1; transform: none; }
   }
+  /* El peek del sidebar sí es un cajón: entra desde el borde izquierdo y se retrae hacia él.
+     Va aparte de `peek-in` a propósito — esa la usan TODOS los popovers y un menú no debe
+     deslizarse media pantalla. */
+  @keyframes peek-slide-in {
+    from { opacity: 0; transform: translateX(-100%); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes peek-slide-out {
+    from { opacity: 1; transform: none; }
+    to { opacity: 0; transform: translateX(-100%); }
+  }
   /* Squircle solo en las cajas redondeadas (rounded-md/lg/xl/2xl/[Npx], rounded-t/b, etc.),
      NO en rounded-full: círculos, pills y toggles deben quedar redondos de verdad.
      Ojo: valores altos (≥1.6) aplanan tanto que sm/md/lg se ven casi iguales (la curva

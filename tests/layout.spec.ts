@@ -78,10 +78,9 @@ test('cambiar de pestaña sí la pone al frente, una sola vez', async () => {
 })
 
 test('la omnibox oculta la vista y la devuelve', async () => {
-  // La visibilidad se cachea para no repetir llamadas al compositor. Este camino la cambia
-  // desde otro sitio (`ui:omnibox`), así que si no pasa por el mismo helper la caché miente
-  // y `layoutTabs` se salta el cambio: la página se quedaría oculta. Riesgo introducido por
-  // la caché, no por el diseño original.
+  // Al editar la URL se oculta la vista nativa para que se vea el dropdown. Lo que se fija
+  // aquí es que VUELVA, incluso si entre medias hubo un cambio de layout: es donde una caché
+  // de visibilidad (que hubo, y se quitó) dejaba la página oculta.
   const visibles = (): Promise<number> =>
     h.app.evaluate(({ BrowserWindow }) => {
       const w = BrowserWindow.getAllWindows().find((x) => !x.getParentWindow())!

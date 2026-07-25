@@ -136,18 +136,21 @@ compositor en cada cambio de layout**. `addChildView` sobre una vista que ya cue
 abrir el chat y en cada resize: **12 de 12 llamadas eran redundantes**. Ahora solo se llama si
 la vista no está ya encima (0 de 12), y al cambiar de pestaña exactamente 1 vez.
 
-Y además `layoutTabs` llamaba a `setVisible`, `setBounds` y `setBorderRadius` de TODAS las
-pestañas en cada layout, incluso cuando el valor no cambiaba; ahora se cachea lo aplicado.
+Se probó además una **caché de layout** (no repetir `setVisible`/`setBounds`/`setBorderRadius`
+cuando el valor no cambia) y **se revirtió**. Merece quedar escrito:
 
-**Ninguno de los dos mejora los frames descartados** (ver arriba). Se quedan porque reducen
-trabajo real contra el compositor —que en una máquina más lenta que esta sí puede notarse—
-pero no se venden como el arreglo del flash. Fijados en
+- No mejoraba **nada** medible: los frames descartados salían iguales con y sin ella.
+- Y añadía un modo de fallo nuevo: en cuanto alguien cambia la geometría por otra vía, la
+  caché miente y `layoutTabs` se salta el cambio que hacía falta. Pasó de verdad con
+  `ui:omnibox` (la página se quedaba oculta) y luego apareció una regresión del ancho al
+  cerrar el panel de chat que apuntaba aquí — no se pudo reproducir en el harness (5
+  escenarios: toggle por IPC, por click, doble toggle a mitad de animación, arrastrar y
+  cerrar, resize de ventana) pero el mecanismo era éste y no pagaba por sí misma.
+
+Repetir un `setBounds` es barato; una vista con el tamaño equivocado no. **La única parte que
+se queda es la guarda de `addChildView`**, porque no tiene estado: lee la lista real de hijos
+del `contentView`, así que no puede quedarse obsoleta. Fijada en
 [`tests/layout.spec.ts`](../tests/layout.spec.ts).
-
-**Coste de la caché de layout**: introduce un riesgo nuevo. Si alguien llama a `setVisible`
-por fuera (lo hacía `ui:omnibox`), la caché miente y `layoutTabs` se salta el cambio que
-hacía falta — la página se queda oculta. Todo cambio de visibilidad pasa por
-`setViewVisible`, y hay un test que lo fija.
 
 ## Color del topbar: la muestra que se perdía
 
@@ -180,6 +183,61 @@ quedarse quieto.
 
 De paso, la home de github.com **nunca** coincide exacto: su hero está animado, así que el
 píxel cambia entre que se captura y se compara. No es un bug del muestreo.
+
+## Colapsar/expandir: el chrome y la página iban desfasados
+
+El chrome lo anima una transición CSS (compositor) y la vista de la página un `setInterval`
+en el main: dos relojes. Se veía "laggy" al expandir.
+
+Medido con un único reloj de referencia (el evento de click **dentro** de la página, porque el
+click de Playwright trae ~85ms propios que no son nuestros), instrumentando cada `setBounds`
+del main y cada frame del chrome con `requestAnimationFrame`:
+
+| | Antes | Después |
+|---|---|---|
+| Arranque de la vista nativa | ~19 ms **después** del chrome | 1-4 ms |
+| Mejor encaje entre las dos curvas | 20-24 ms de desfase | 0-4 ms |
+
+**Y con eso NO bastaba.** Alinear el arranque dejó otro síntoma que la métrica de
+desplazamiento no ve: cada lado, cuando su primer frame llega tarde, **entra de golpe a mitad
+del recorrido**, porque la curva está muy cargada al principio (a 34ms ya va por el 47%).
+
+| primer frame pintado | Antes | Después |
+|---|---|---|
+| Expandir: chrome / nativa | 61px / **112px** | 61 / 62 |
+| Colapsar: chrome / nativa | **130px** / 178px | 179 / 178 |
+
+Dos arreglos simétricos, uno a cada lado:
+
+- **El main arranca su reloj en el PRIMER tick**, no cuando llega el IPC. El primer tick del
+  intervalo llega ~34ms tarde (el main está ocupado justo después del click) y antes ese
+  retraso se pagaba al principio, donde la curva es vertical. Ahora se paga al final, donde es
+  plana: 2px sobre 240.
+- **El chrome anima con un `inset` que va un frame por detrás de `collapsed`.** El cambio de
+  `collapsed` monta o desmonta el sidebar entero, y la transición CSS arrancaba con el reloj
+  ya corriendo: su primer frame pintado aparecía al 46%. Separando el inset, la animación
+  empieza en un frame en el que el render ya está hecho.
+
+Resultado: mismo primer frame (1-3px de diferencia) y misma duración (149-154ms).
+
+Tres cosas que enseñó la medición, y que valen más que el arreglo:
+
+- **Ambos lados corren limpios a 60fps** (hueco máximo 17-18ms). No había frames perdidos:
+  el problema era el arranque, no la fluidez.
+- **Comparar píxeles en el mismo instante engaña.** La curva es tan empinada al principio que
+  un frame de desfase de muestreo ya da 60px de "diferencia". La métrica buena es el
+  desplazamiento temporal que mejor encaja una curva con la otra.
+- **Se probó además compartir el origen de tiempo** (el renderer manda su instante de
+  arranque y el main anima desde ahí). Control con y sin: **no movía ningún número**, así que
+  se quitó. Lo que alinea es el rAF.
+
+Fijado en [`tests/layout-sync.spec.ts`](../tests/layout-sync.spec.ts), que comprueba las tres
+cosas: desplazamiento ≤10ms, primer frame a menos de 35px de diferencia y duraciones que no se
+separen más de 40ms.
+
+**Cuidado con la métrica**: las dos series registran su posición de PARTIDA, y comparar la
+partida de una contra el primer movimiento de la otra da 61px de desfase que no existe. Pasó,
+y por poco lo doy por bueno.
 
 ## Lo que no está medido
 

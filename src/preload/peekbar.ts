@@ -10,6 +10,11 @@ const api: PeekWinApi = {
     ipcRenderer.on('peek:shown', h)
     return () => { ipcRenderer.removeListener('peek:shown', h) }
   },
+  onClosing: (cb) => {
+    const h = (): void => cb()
+    ipcRenderer.on('peek:closing', h)
+    return () => { ipcRenderer.removeListener('peek:closing', h) }
+  },
   hide: () => ipcRenderer.send('peek:hide')
 }
 

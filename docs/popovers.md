@@ -57,6 +57,24 @@ En el renderer, envolver todo en `PopoverPanel` con `onHeight` y usar `PopoverRo
   click. Cada ventana lo había arreglado por su cuenta (o no).
 - **`<name>:height`** para que la ventana se ajuste al contenido, y **`<name>:close`**.
 
+## La salida del peek
+
+Una ventana oculta no pinta nada, así que **para que un popover tenga animación de salida el
+main tiene que avisar antes de esconderla**. El peek lo hace: `hidePeek()` manda
+`peek:closing`, espera `PEEK_OUT_MS` (140ms) y entonces sí llama a `hide()`.
+
+Dos trampas que costaron un test cada una:
+
+- El sondeo del cursor se para **al empezar** la retirada, no al terminar; si no, se vuelve a
+  abrir sola mientras se está yendo.
+- Si el ratón vuelve a mitad de la retirada, la ventana **sigue visible**, así que `peek:show`
+  tomaba el atajo de "ya está abierta" y se saltaba la cancelación: el peek se escondía igual
+  aunque hubieras vuelto. Ese atajo ahora cancela el temporizador y reenvía `peek:shown`.
+
+Las animaciones del peek (`peek-slide-in` / `peek-slide-out`, cajón desde el borde izquierdo)
+son suyas y no la `peek-in` compartida: esa la usan todos los popovers y un menú no debe
+deslizarse media pantalla. `PopoverPanel` acepta la animación por prop.
+
 ## Lo que NO se unifica
 
 Que una ventana esté "a mano" no es siempre deuda. El vault es el ejemplo: comparte las

@@ -114,12 +114,17 @@ export default function Composer({ ctx, running, onSend, onCancel, onPickModel, 
         </div>
 
         <div className="flex items-center gap-0.5 px-2 pb-2 pt-1">
+          {/*
+            El icono va a 16px, como el de enviar de este mismo composer: a 18px cantaba al
+            lado del texto de 12.5px de los selectores. El botón sigue midiendo 28px — se
+            encoge el dibujo, no la zona clicable.
+          */}
           <button
             onClick={() => fileRef.current?.click()}
             title="Adjuntar imagen"
-            className="w-7 h-7 shrink-0 grid place-items-center rounded-lg text-text-dim hover:text-text hover:bg-white/[0.08] transition-colors [&>svg]:w-[18px] [&>svg]:h-[18px]"
+            className="w-7 h-7 shrink-0 grid place-items-center rounded-lg text-text-dim hover:text-text hover:bg-white/[0.08] transition-colors"
           >
-            <IconPaperclip />
+            <IconPaperclip className="w-4 h-4" />
           </button>
           <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={onPickFiles} />
           <ModelSelector ctx={ctx} onPick={onPickModel} onConnect={onConnect} />

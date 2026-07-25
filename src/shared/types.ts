@@ -119,6 +119,34 @@ export interface ChatMessage {
   attachments?: ChatAttachment[]
 }
 
+// ---- Historial de conversaciones ----
+/** Ficha de una conversación guardada (sin los mensajes). */
+export interface ChatSessionMeta {
+  id: string
+  title: string
+  updatedAt: number
+  count: number
+}
+
+/**
+ * Un mensaje tal y como se guarda en disco. NO es el `Msg` del panel: aquí las imágenes se
+ * sustituyen por una marca (`attachments` es un número, `hadImage` un booleano), porque los
+ * data URLs de adjuntos y screenshots convertirían el fichero en megas y se lee entero en
+ * cada arranque.
+ */
+export interface StoredChatMsg {
+  role: 'user' | 'assistant'
+  text?: string
+  /** Cuántas imágenes llevaba (no las imágenes). */
+  attachments?: number
+  parts?: StoredPart[]
+  at?: number
+}
+
+export type StoredPart =
+  | { type: 'text'; text: string; error?: boolean }
+  | { type: 'step'; step: Omit<ChatStep, 'image'>; hadImage?: boolean }
+
 /** Tipo de acción de un paso, para elegir su icono en el chat */
 export type StepKind =
   | 'navigate' | 'read' | 'click' | 'type' | 'scroll'
@@ -298,6 +326,17 @@ export interface MonperApi {
   onChatError: (cb: (message: string) => void) => () => void
   /** El main pide abrir el chat y enviar un prompt (p. ej. desde una acción rápida). */
   onChatPrefill: (cb: (prompt: string) => void) => () => void
+  // ---- Historial de conversaciones ----
+  chatsList: () => Promise<ChatSessionMeta[]>
+  /** La conversación que toca al abrir el panel (retoma la última reciente, o crea una). */
+  chatsResume: () => Promise<{ id: string; messages: StoredChatMsg[] }>
+  chatsNew: () => Promise<{ id: string; messages: StoredChatMsg[] }>
+  chatsOpen: (id: string) => Promise<{ id: string; messages: StoredChatMsg[] } | null>
+  /** Antes de enviar: puede devolver otra id si la actual expiró por inactividad. */
+  chatsForNext: (id: string) => Promise<{ id: string; fresh: boolean }>
+  /** Persiste la conversación completa (el panel es la fuente de verdad en vivo). */
+  chatsSave: (id: string, messages: unknown[]) => void
+  chatsRemove: (id: string) => void
   // ---- Vault (ventana nativa flotante) ----
   openVault: (anchor: MenuAnchor) => void
   /** Abre el gestor de extensiones (ventana nativa), anclado a su botón del topbar */
@@ -311,6 +350,12 @@ export interface MonperApi {
   downloadUpdate: () => void
   installUpdate: () => void
   // ---- Menú nativo → acciones de estado del renderer ----
+  /**
+   * Cada frame de la animación de layout, con el rect que el main acaba de aplicar a la
+   * vista nativa. El chrome copia esa posición en vez de animar por su cuenta: con dos
+   * relojes independientes siempre se veían desfasados.
+   */
+  onLayoutFrame: (cb: (r: { left: number; right: number }) => void) => () => void
   onMenuAction: (cb: (action: string) => void) => () => void
   // ---- Autocompletado del omnibox ----
   suggest: (query: string) => Promise<Suggestion[]>
@@ -366,6 +411,8 @@ export const QUICK_ICONS = [
  * `window.monper` completo (mismo preload que el chrome) para poder reusar <Sidebar/>.
  */
 export interface PeekWinApi {
+  /** El main avisa antes de esconder la ventana, para poder animar la salida. */
+  onClosing: (cb: () => void) => () => void
   /** Se dispara cada vez que el peek se muestra (para la animación de entrada). */
   onShown: (cb: () => void) => () => void
   hide: () => void

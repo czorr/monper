@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type JSX } from 'react'
-import type { ChatContext, ChatMessage, ChatAttachment, Effort } from '@shared/types'
+import type { ChatContext, ChatMessage, ChatAttachment, Effort, ChatSessionMeta, StoredChatMsg } from '@shared/types'
 import IconX from '~icons/tabler/x'
 import { IconButton } from '@renderer/components/ui'
 import type { Msg, Part } from './types'
@@ -7,6 +7,7 @@ import UserBubble from './UserBubble'
 import AssistantTurn from './AssistantTurn'
 import EmptyState from './EmptyState'
 import Composer from './Composer'
+import SessionPill from './SessionPill'
 
 const EMPTY_CTX: ChatContext = { provider: null, models: [], model: '', effort: 'medium' }
 
@@ -24,8 +25,51 @@ interface Props {
 export default function ChatPanel({ open, onClose, inject, resizing }: Props): JSX.Element {
   const [messages, setMessages] = useState<Msg[]>([])
   const [running, setRunning] = useState(false)
+  const [sessionId, setSessionId] = useState('')
+  const [sessions, setSessions] = useState<ChatSessionMeta[]>([])
   const [ctx, setCtx] = useState<ChatContext>(EMPTY_CTX)
   const scrollRef = useRef<HTMLDivElement>(null)
+
+  /**
+   * Los mensajes guardados no traen imágenes (ver chats.ts): se rehidratan con la marca de
+   * cuántas había, para que la conversación cargada no mienta sobre lo que se envió.
+   */
+  const rehidratar = (ms: StoredChatMsg[]): Msg[] =>
+    ms.map((m) => ({
+      role: m.role,
+      text: m.text,
+      at: m.at,
+      attachments: m.attachments ? Array.from({ length: m.attachments }, () => ({ type: 'image' as const, dataUrl: '' })) : undefined,
+      parts: m.parts?.map((p) => (p.type === 'text' ? { type: 'text' as const, text: p.text, error: p.error } : { type: 'step' as const, step: p.step }))
+    }))
+
+  const refrescarLista = (): void => { void monper.chatsList().then(setSessions) }
+
+  // Al abrir el panel se retoma la conversación que toque (ver las reglas en chats.ts).
+  useEffect(() => {
+    if (!open || sessionId) return
+    void monper.chatsResume().then((s) => { setSessionId(s.id); setMessages(rehidratar(s.messages)) })
+    refrescarLista()
+  }, [open, sessionId])
+
+  /** Guarda tras cada turno terminado. El panel es la fuente de verdad mientras está vivo. */
+  const guardar = (ms: Msg[]): void => {
+    if (!sessionId || ms.length === 0) return
+    monper.chatsSave(sessionId, ms)
+    refrescarLista()
+  }
+
+  const nuevaSesion = (): void => {
+    void monper.chatsNew().then((s) => { setSessionId(s.id); setMessages([]); refrescarLista() })
+  }
+  const abrirSesion = (id: string): void => {
+    void monper.chatsOpen(id).then((s) => { if (s) { setSessionId(s.id); setMessages(rehidratar(s.messages)) } })
+  }
+  const borrarSesion = (id: string): void => {
+    monper.chatsRemove(id)
+    if (id === sessionId) nuevaSesion()
+    else refrescarLista()
+  }
 
   // Refresca proveedor/modelos al abrir el panel y cuando cambian en Settings.
   useEffect(() => { if (open) monper.getChatContext().then(setCtx) }, [open])
@@ -74,21 +118,41 @@ export default function ChatPanel({ open, onClose, inject, resizing }: Props): J
     const offToken = monper.onChatToken((t) => patchLast((m) => appendToken(m, t)))
     const offStep = monper.onChatStep((s) => patchLast((m) => pushPart(m, { type: 'step', step: s })))
     const offStepImg = monper.onChatStepImage((d) => patchLast((m) => attachImage(m, d)))
-    const offDone = monper.onChatDone(() => { patchLast((m) => ({ ...m, streaming: false })); setRunning(false) })
+    const offDone = monper.onChatDone(() => {
+      patchLast((m) => ({ ...m, streaming: false }))
+      setRunning(false)
+      // Se lee del estado ya actualizado, no de la clausura (que tendría el de antes).
+      setMessages((ms) => { guardar(ms); return ms })
+    })
     const offErr = monper.onChatError((msg) => {
       patchLast((m) => ({ ...pushPart(m, { type: 'text', text: msg, error: true }), streaming: false }))
       setRunning(false)
+      setMessages((ms) => { guardar(ms); return ms })
     })
     return () => { offToken(); offStep(); offStepImg(); offDone(); offErr() }
-  }, [])
+  }, [sessionId])
 
   // Texto plano de un mensaje (usuario: text; asistente: concatena sus partes de texto).
   const plainText = (m: Msg): string =>
     m.role === 'user' ? (m.text ?? '') : (m.parts ?? []).filter((p): p is Extract<Part, { type: 'text' }> => p.type === 'text' && !p.error).map((p) => p.text).join('\n\n')
 
-  const send = (text: string, attachments: ChatAttachment[] = []): void => {
+  const send = async (text: string, attachments: ChatAttachment[] = []): Promise<void> => {
     if (running || (!text && attachments.length === 0)) return
-    const history: ChatMessage[] = messages
+    // Puede devolver otra sesión si la actual llevaba horas callada: en ese caso el mensaje
+    // arranca la nueva y no arrastra el contexto viejo.
+    let base = messages
+    if (sessionId) {
+      try {
+        const next = await monper.chatsForNext(sessionId)
+        if (next.fresh) { setSessionId(next.id); setMessages([]); base = [] }
+      } catch (e) {
+        // No se puede tragar: sin esto el mensaje del usuario desaparecía sin explicación.
+        console.error('[chats] no se pudo resolver la conversación destino:', e)
+        setMessages((ms) => [...ms, { role: 'assistant', parts: [{ type: 'text', text: 'No se pudo abrir la conversación. Vuelve a intentarlo.', error: true }] }])
+        return
+      }
+    }
+    const history: ChatMessage[] = base
       .map((m) => ({ role: m.role, content: plainText(m) }))
       .filter((m) => m.content)
     history.push({ role: 'user', content: text, attachments: attachments.length ? attachments : undefined })
@@ -100,7 +164,7 @@ export default function ChatPanel({ open, onClose, inject, resizing }: Props): J
   }
 
   // Envía el prompt inyectado (acción rápida) cuando cambia el nonce.
-  useEffect(() => { if (inject?.text) send(inject.text) }, [inject?.nonce])
+  useEffect(() => { if (inject?.text) void send(inject.text) }, [inject?.nonce])
 
   return (
     <aside
@@ -111,7 +175,16 @@ export default function ChatPanel({ open, onClose, inject, resizing }: Props): J
       }
     >
       <header className="h-topbar shrink-0 flex items-center gap-2 px-3 [-webkit-app-region:drag]">
-        <span className="flex-1 text-[14px] font-semibold tracking-[-0.1px]">Ask Monper</span>
+        <div className="flex-1 min-w-0 flex items-center">
+          <SessionPill
+            sessions={sessions}
+            currentId={sessionId}
+            onNew={nuevaSesion}
+            onOpen={abrirSesion}
+            onRemove={borrarSesion}
+            onRefresh={refrescarLista}
+          />
+        </div>
         <IconButton size="sm" title="Cerrar (⌘J)" onClick={onClose}><IconX /></IconButton>
       </header>
 

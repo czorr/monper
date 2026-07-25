@@ -132,18 +132,21 @@ test('un popover no abre con una fila resaltada', async () => {
   await expect.poll(() => h.app.windows().some((p) => p.url().includes('vault.html'))).toBe(true)
   const vault = h.app.windows().find((p) => p.url().includes('vault.html'))
 
-  const rings = await vault!.evaluate(() => {
-    const b = document.querySelector('button') as HTMLElement | null
-    if (!b) return null
-    const root = document.documentElement
-    b.focus()
-    const sinTeclado = getComputedStyle(b).outlineStyle
-    root.dataset['kbd'] = '1' // simula que el usuario tabuló
-    const conTeclado = getComputedStyle(b).outlineStyle
-    delete root.dataset['kbd']
-    return { sinTeclado, conTeclado }
-  })
-  expect(rings?.sinTeclado).toBe('none')
-  expect(rings?.conTeclado).not.toBe('none') // el teclado no pierde el anillo
+  // Con poll: en la corrida completa el React del vault puede no haber pintado el botón
+  // todavía, y una lectura única devolvía null. Era fragilidad del test, no del código.
+  const leer = async (): Promise<{ sinTeclado: string; conTeclado: string } | null> =>
+    vault!.evaluate(() => {
+      const b = document.querySelector('button') as HTMLElement | null
+      if (!b) return null
+      const root = document.documentElement
+      b.focus()
+      const sinTeclado = getComputedStyle(b).outlineStyle
+      root.dataset['kbd'] = '1' // simula que el usuario tabuló
+      const conTeclado = getComputedStyle(b).outlineStyle
+      delete root.dataset['kbd']
+      return { sinTeclado, conTeclado }
+    })
+  await expect.poll(async () => (await leer())?.sinTeclado).toBe('none')
+  expect((await leer())?.conTeclado).not.toBe('none') // el teclado no pierde el anillo
   await h.app.evaluate(({ ipcMain }) => ipcMain.emit('vault:closeWindow'))
 })

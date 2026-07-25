@@ -43,6 +43,8 @@ const api: MonperTabApi = {
   getProfile: () => ipcRenderer.invoke('profile:get'),
   setProfile: (name) => ipcRenderer.invoke('profile:set', name),
   setAvatar: (dataUrl) => ipcRenderer.invoke('profile:setAvatar', dataUrl),
+  getAppearance: () => ipcRenderer.invoke('ui:appearance'),
+  setVibrancy: (id) => ipcRenderer.send('ui:setVibrancy', id),
   listRoutines: () => ipcRenderer.invoke('routines:list'),
   onRoutines: (cb) => {
     const h = (_e: unknown, list: unknown): void => cb(list as never)

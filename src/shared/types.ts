@@ -383,6 +383,12 @@ export interface Routine {
   failures: number
 }
 
+/** Ajustes de apariencia: nivel de transparencia del chrome. */
+export interface AppearanceData {
+  vibrancy: string
+  options: { id: string; label: string; desc: string }[]
+}
+
 /** Anchos de los paneles laterales (redimensionables por el usuario). */
 export interface PanelSizes {
   sidebar: number
@@ -467,6 +473,9 @@ export interface MonperTabApi {
   openDownload: (id: string) => void
   showDownload: (id: string) => void
   clearDownloads: () => void
+  // ---- Apariencia (Settings) ----
+  getAppearance: () => Promise<AppearanceData>
+  setVibrancy: (id: string) => void
   // ---- Rutinas (Settings) ----
   listRoutines: () => Promise<Routine[]>
   onRoutines: (cb: (list: Routine[]) => void) => () => void

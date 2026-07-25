@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type JSX } from 'react'
-import type { Profile } from '@shared/types'
+import type { AppearanceData, Profile } from '@shared/types'
 import { Avatar } from '@renderer/components/ui'
 import IconSparkles from '~icons/tabler/sparkles'
 import IconCamera from '~icons/tabler/camera'
@@ -48,7 +48,7 @@ const NAV: NavGroup[] = [
     items: [
       { id: 'general', label: 'General', icon: <IconSettings /> },
       { id: 'account', label: 'Account', icon: <IconUser /> },
-      { id: 'appearance', label: 'Appearance', icon: <IconPalette />, soon: true },
+      { id: 'appearance', label: 'Appearance', icon: <IconPalette /> },
       { id: 'billing', label: 'Billing', icon: <IconCreditCard />, soon: true },
       { id: 'privacy', label: 'Privacy', icon: <IconShield /> },
       { id: 'password', label: 'Password', icon: <IconKey />, soon: true },
@@ -76,11 +76,6 @@ const NAV: NavGroup[] = [
 
 /** Qué será cada sección pendiente: el roadmap, visible dentro del producto. */
 const SOON: Partial<Record<Cat, { title: string; desc: string; bullets: string[] }>> = {
-  appearance: {
-    title: 'Appearance',
-    desc: 'Controla cómo se ve Monper.',
-    bullets: ['Tema claro/oscuro y acentos', 'Densidad de la interfaz', 'Redondeo y material de la ventana']
-  },
   billing: {
     title: 'Billing',
     desc: 'Tu plan y consumo.',
@@ -233,6 +228,7 @@ export default function SettingsPage(): JSX.Element {
               {cat === 'ai' && <AIPage />}
               {cat === 'actions' && <QuickActionsSection />}
               {cat === 'routines' && <RoutinesSection />}
+              {cat === 'appearance' && <AppearancePage />}
               {cat === 'account' && <AccountPage />}
               {cat === 'general' && <GeneralPage />}
               {cat === 'privacy' && <PrivacyPage />}
@@ -352,6 +348,74 @@ function AccountPage(): JSX.Element {
           </div>
         </Card>
       </Group>
+    </>
+  )
+}
+
+/** Transparencia del chrome: cambia el material de vibrancy de la ventana, en vivo. */
+function AppearancePage(): JSX.Element {
+  const [data, setData] = useState<AppearanceData>({ vibrancy: '', options: [] })
+  const [error, setError] = useState('')
+  // Con catch: si el preload es viejo o el handler no está, se ve el motivo en vez de
+  // quedarse en blanco (era exactamente el patrón de fallo silencioso que arrastrábamos).
+  useEffect(() => {
+    Promise.resolve()
+      .then(() => monperTab.getAppearance())
+      .then(setData)
+      .catch((e) => {
+        console.error('[appearance] no se pudo leer la configuración:', e)
+        setError('No se pudo leer la configuración. Reinicia Monper: los cambios en el preload necesitan reiniciar la app, no solo recargar.')
+      })
+  }, [])
+
+  const pick = (id: string): void => {
+    setData((d) => ({ ...d, vibrancy: id })) // feedback inmediato
+    monperTab.setVibrancy(id)
+  }
+
+  return (
+    <>
+      <h1 className="text-[30px] font-semibold tracking-tight mb-3">Appearance</h1>
+      <p className="text-[13.5px] text-text-dim leading-relaxed mb-7">
+        Cuánto se transparenta el chrome de Monper — el sidebar y el panel de chat — sobre
+        lo que hay detrás de la ventana. El contenido de las páginas no cambia.
+      </p>
+
+      {error && (
+        <div className="mb-6 px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[13px] text-amber-300 leading-relaxed">
+          {error}
+        </div>
+      )}
+
+      <Group title="Transparencia">
+        <Card>
+          {data.options.length === 0 && !error && (
+            <div className="px-4 py-4 text-[13px] text-text-faint">Cargando…</div>
+          )}
+          {data.options.map((o) => {
+            const on = o.id === data.vibrancy
+            return (
+              <button key={o.id} onClick={() => pick(o.id)} className="w-full text-left">
+                <Row label={o.label} desc={o.desc}>
+                  <span
+                    className={
+                      'w-[18px] h-[18px] rounded-full border grid place-items-center shrink-0 ' +
+                      (on ? 'border-white/70' : 'border-white/20')
+                    }
+                  >
+                    {on && <span className="w-2.5 h-2.5 rounded-full bg-white" />}
+                  </span>
+                </Row>
+              </button>
+            )
+          })}
+        </Card>
+      </Group>
+
+      <p className="text-[12.5px] text-text-faint">
+        Atajo: <kbd className="px-1.5 py-0.5 rounded-md bg-white/[0.08] font-sans">⌘⌥V</kbd> cicla
+        los niveles sin salir de la página que estés viendo.
+      </p>
     </>
   )
 }

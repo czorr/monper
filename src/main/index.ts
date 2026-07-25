@@ -34,11 +34,17 @@ const TOPBAR_HEIGHT = 52
 /** Redondeo del page view. Debe coincidir con rounded-t[l/r] en Content.tsx. */
 const CONTENT_RADIUS = 14
 /**
- * Material de la vibrancy. 'sidebar' es más translúcido que 'under-window'.
- * Se puede cambiar en vivo con ⌘⌥V para calibrar (ver VIBRANCY_MATERIALS).
- * MONPER_NO_VIBRANCY=1 la desactiva (útil solo para depurar composición).
+ * Materiales de vibrancy, ordenados de MÁS a MENOS transparente. Definen cuán translúcido
+ * se ve TODO el chrome (sidebar, panel de chat), porque esas zonas son HTML sin fondo.
+ * ⌘⌥V cicla entre ellos en vivo y la elección se persiste en panels.json.
+ * MONPER_NO_VIBRANCY=1 la desactiva (solo para depurar composición).
  */
-const VIBRANCY: 'sidebar' = 'sidebar'
+const VIBRANCY_MATERIALS = ['hud', 'popover', 'menu', 'fullscreen-ui', 'sidebar', 'header', 'window', 'content', 'under-window'] as const
+type VibrancyMaterial = (typeof VIBRANCY_MATERIALS)[number]
+const VIBRANCY_DEFAULT: VibrancyMaterial = 'hud'
+/** 'none' = ventana opaca (sin vibrancy). Es un valor de ajuste, no un material de macOS. */
+type VibrancySetting = VibrancyMaterial | 'none'
+let vibrancyMaterial: VibrancySetting = VIBRANCY_DEFAULT
 const NO_VIBRANCY = process.env['MONPER_NO_VIBRANCY'] === '1'
 const APP_BG = '#111114' // igual que --color-bg en styles.css
 const PARTITION = 'persist:monper'
@@ -717,8 +723,12 @@ function createWindow() {
     show: false,
     // Fondo transparente en mac para que la vibrancy se vea a través del sidebar y de
     // las muescas del redondeado del page view.
-    ...(isMac && !NO_VIBRANCY
-      ? { vibrancy: VIBRANCY, visualEffectState: 'active' as const, backgroundColor: '#00000000' }
+    ...(isMac && !NO_VIBRANCY && vibrancyMaterial !== 'none'
+      ? {
+          vibrancy: vibrancyMaterial,
+          visualEffectState: 'active' as const,
+          backgroundColor: '#00000000'
+        }
       : { backgroundColor: APP_BG }),
     titleBarStyle: isMac ? 'hiddenInset' : 'default',
     trafficLightPosition: isMac ? { x: 15, y: 17 } : undefined,
@@ -768,20 +778,53 @@ ipcMain.handle('nav:reload', () => { const t = activeId != null ? tabs.get(activ
 function panelsFile(): string { return join(app.getPath('userData'), 'panels.json') }
 function loadPanels(): void {
   try {
-    const d = JSON.parse(readFileSync(panelsFile(), 'utf-8')) as { sidebar?: number; chat?: number }
+    const d = JSON.parse(readFileSync(panelsFile(), 'utf-8')) as { sidebar?: number; chat?: number; vibrancy?: string }
     const L = PANEL_LIMITS
     if (d.sidebar) sidebarWidth = Math.min(L.sidebarMax, Math.max(L.sidebarMin, Math.round(d.sidebar)))
     if (d.chat) chatWidth = Math.min(L.chatMax, Math.max(L.chatMin, Math.round(d.chat)))
+    // Solo aceptamos un valor conocido: el JSON lo puede editar el usuario.
+    const v = d.vibrancy as VibrancySetting
+    if (v === 'none' || VIBRANCY_MATERIALS.includes(v as VibrancyMaterial)) vibrancyMaterial = v
   } catch { /* valores por defecto */ }
 }
 let savePanelsTimer: NodeJS.Timeout | null = null
 function savePanels(): void {
   if (savePanelsTimer) clearTimeout(savePanelsTimer)
   savePanelsTimer = setTimeout(() => {
-    try { writeFileSync(panelsFile(), JSON.stringify({ sidebar: sidebarWidth, chat: chatWidth })) } catch { /* noop */ }
+    try { writeFileSync(panelsFile(), JSON.stringify({ sidebar: sidebarWidth, chat: chatWidth, vibrancy: vibrancyMaterial })) } catch { /* noop */ }
   }, 400)
 }
 ipcMain.handle('ui:panels', () => ({ sidebar: sidebarWidth, chat: chatWidth, limits: PANEL_LIMITS }))
+
+// ---- Apariencia: nivel de transparencia del chrome (sidebar y panel de chat) ----
+/** Materiales expuestos en Settings, con nombre humano en vez del término de macOS. */
+const VIBRANCY_OPTIONS: { id: VibrancySetting; label: string; desc: string }[] = [
+  { id: 'hud', label: 'Máxima', desc: 'El chrome deja pasar casi todo el fondo' },
+  { id: 'popover', label: 'Alta', desc: 'Translúcido, con algo más de cuerpo' },
+  { id: 'menu', label: 'Media', desc: 'Equilibrio entre fondo y legibilidad' },
+  { id: 'sidebar', label: 'Baja', desc: 'Apenas se intuye lo que hay detrás' },
+  { id: 'under-window', label: 'Mínima', desc: 'Casi opaco' },
+  { id: 'none', label: 'Sin transparencia', desc: 'Fondo sólido, sin efecto de material' }
+]
+/** Aplica el ajuste en vivo. 'none' quita la vibrancy y pone fondo opaco. */
+function applyVibrancy(v: VibrancySetting): void {
+  if (!win || win.isDestroyed() || !isMac) return
+  if (v === 'none') {
+    win.setVibrancy(null)
+    win.setBackgroundColor(APP_BG)
+  } else {
+    win.setBackgroundColor('#00000000') // necesario para que el material se vea
+    win.setVibrancy(v)
+  }
+}
+ipcMain.handle('ui:appearance', () => ({ vibrancy: vibrancyMaterial, options: VIBRANCY_OPTIONS }))
+ipcMain.on('ui:setVibrancy', (e, v: VibrancySetting) => {
+  if (!isInternalSender(e.senderFrame?.url)) return
+  if (!VIBRANCY_OPTIONS.some((o) => o.id === v)) return
+  vibrancyMaterial = v
+  applyVibrancy(v)
+  savePanels()
+})
 ipcMain.on('ui:setPanel', (_e, which: 'sidebar' | 'chat', width: number) => {
   const L = PANEL_LIMITS
   const w = Math.round(width)
@@ -1705,15 +1748,15 @@ ipcMain.handle('chat:send', async (_e, messages: ChatMessage[]) => {
   }
 })
 
-// DEV: cicla materiales de vibrancy en vivo (⌘⌥V) para calibrar en tu macOS.
-const VIBRANCY_MATERIALS = ['under-window', 'sidebar', 'hud', 'fullscreen-ui', 'menu', 'popover', 'content', 'header', 'window', 'selection'] as const
-let vibrancyIdx = 0
+// ⌘⌥V cicla los materiales de vibrancy en vivo (ver VIBRANCY_MATERIALS arriba).
 ipcMain.on('ui:cycleVibrancy', () => {
   if (!win || !isMac) return
-  vibrancyIdx = (vibrancyIdx + 1) % VIBRANCY_MATERIALS.length
-  const mat = VIBRANCY_MATERIALS[vibrancyIdx]
-  win.setVibrancy(mat)
-  console.log('[vibrancy]', mat)
+  // Cicla solo entre materiales; 'none' se elige desde Settings.
+  const i = VIBRANCY_MATERIALS.indexOf(vibrancyMaterial as VibrancyMaterial)
+  vibrancyMaterial = VIBRANCY_MATERIALS[(i + 1) % VIBRANCY_MATERIALS.length]
+  applyVibrancy(vibrancyMaterial)
+  savePanels()
+  console.log('[vibrancy]', vibrancyMaterial, '· ⌘⌥V para el siguiente')
 })
 
 app.whenReady().then(() => {

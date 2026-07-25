@@ -7,6 +7,13 @@ import { launch, api, type Harness } from './helpers'
  * exista, el main tiene que avisar ANTES de esconder la ventana (una ventana oculta no pinta).
  */
 
+/**
+ * Local-only: el peek se abre con hover intent y a los 180ms comprueba dónde está el cursor
+ * REAL (`screen.getCursorScreenPoint()`). En un runner de CI no hay cursor que valga, así que
+ * el peek nunca llega a abrirse y el test no mide nada del producto.
+ */
+test.skip(() => !!process.env['CI'], 'necesita el cursor real del sistema')
+
 let h: Harness
 
 test.beforeAll(async () => { h = await launch() })

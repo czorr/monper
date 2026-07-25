@@ -52,6 +52,18 @@ npx playwright test tests/tabs.spec.ts -g "reordena"
   necesita borrar marcadores, hay que decidirlo a propósito y no descubrirlo con un
   botón que no responde.
 
+## Tests que solo corren en local
+
+Cuatro dependen del entorno de la máquina, no del producto, y en CI se saltan o se quedan sin
+afirmar. Está decidido a propósito: bajar los umbrales hasta que el runner no proteste los
+dejaría sin capacidad de detectar la regresión para la que se escribieron.
+
+| Test | Por qué |
+|---|---|
+| `peek.spec.ts` (3) | El peek se abre con hover intent y comprueba el cursor **real** (`screen.getCursorScreenPoint()`). Un runner no tiene cursor. |
+| `topcolor.spec.ts` → muestra de reposo | Depende de que UNA captura concreta caiga en su ventana, y `capturePage` sin GPU no es fiable. Los otros dos de ese fichero aguantan porque cualquier muestra posterior los corrige. |
+| `layout-sync.spec.ts` | En CI mide e **imprime**, pero no afirma: el umbral es de cadencia de frames. El runner da `shift=-18ms` (un frame, el suelo de mandar el rect por IPC) con el arreglo funcionando — y el dato que de verdad importa, el primer frame, sale en Δ=0px. |
+
 ## CI
 
 [`.github/workflows/ci.yml`](../.github/workflows/ci.yml), dos jobs en `macos-latest`:

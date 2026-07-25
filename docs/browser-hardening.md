@@ -85,3 +85,29 @@ Prioridad: **P0** bloquea "confiable" · **P1** importante · **P2** esperado/pu
 
 Los primeros cuatro puntos convierten a Monper de "funciona" a "confiable"; el
 resto es el pulido que se espera de un navegador diario.
+
+
+## Favicons: se acabó el servicio de Google
+
+Los marcadores sin icono propio, las sugerencias del omnibox, los pasos del agente y el
+prompt de "iniciar sesión con…" pedían el favicon a `google.com/s2/favicons?domain=…`.
+
+Dos problemas, uno visual y otro de fondo:
+
+- **Ese servicio normaliza los iconos**: los devuelve compuestos sobre un fondo opaco. GitHub
+  aparecía con un recuadro que en la web no tiene. Fue el síntoma por el que se miró.
+- **Le mandaba a Google un dominio por cada marcador**, por cada sugerencia del omnibox, por
+  cada paso del agente y —lo peor— **por cada sitio donde el usuario guarda contraseñas**.
+  En un navegador cuyo argumento es que no filtra lo que haces.
+
+Ahora hay una caché por host en [`src/main/favicons.ts`](../src/main/favicons.ts), alimentada
+con el icono real que Chromium ya reporta en `page-favicon-updated`. Si un sitio no se ha
+visitado todavía no hay icono y la UI cae a su globo local. **Nunca a un tercero.**
+
+Los marcadores **de fábrica** no se quedan sin icono mientras tanto: llevan el logo de marca
+en SVG ([`SeedFavicon.tsx`](../src/renderer/src/components/browser/SeedFavicon.tsx)), sacado
+de `simple-icons`, que ya estaba en el bundle por los proveedores de IA. Los de marca oscura
+(GitHub, X) se pintan en blanco, porque sobre el chrome oscuro no se verían.
+
+El orden es: **favicon real del sitio → logo de marca empaquetado → globo**. En cuanto visitas
+el sitio, el real gana y el de marca deja de usarse.

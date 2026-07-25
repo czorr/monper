@@ -55,8 +55,10 @@ test('ningún canal IPC lleva secretos en el nombre', async () => {
 test('el chrome no puede escribir datos privados por IPC', async () => {
   // Los canales de datos privados están restringidos a las páginas internas
   // (newtab/settings/error/downloads). El chrome no es una de ellas, y esto lo fija.
+  // Hay que crear uno: la app ya no trae marcadores de fábrica.
+  await api(h.win, 'toggleBookmark')
+  await expect.poll(async () => (await api<BookmarkLike[]>(h.win, 'getBookmarks')).length).toBe(1)
   const before = await api<BookmarkLike[]>(h.win, 'getBookmarks')
-  expect(before.length).toBeGreaterThan(0)
   await api(h.win, 'removeBookmark', before[0].id)
   await new Promise((r) => setTimeout(r, 500))
   const after = await api<BookmarkLike[]>(h.win, 'getBookmarks')

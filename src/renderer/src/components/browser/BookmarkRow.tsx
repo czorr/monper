@@ -5,8 +5,14 @@ import IconWorld from '~icons/tabler/world'
 function hostOf(url: string): string {
   try { return new URL(url).hostname.replace(/^www\./, '') } catch { return url }
 }
-function faviconUrl(b: Bookmark): string {
-  return b.favicon || `https://www.google.com/s2/favicons?domain=${encodeURIComponent(hostOf(b.url))}&sz=64`
+/**
+ * Orden: el favicon REAL del sitio (el main lo recuerda al visitarlo) → el icono de marca
+ * empaquetado, para los marcadores de fábrica → el globo. Nunca un servicio externo: el de
+ * Google componía los iconos sobre fondo opaco (GitHub con recuadro) y recibía el dominio de
+ * cada marcador del usuario.
+ */
+function faviconUrl(b: Bookmark): string | null {
+  return b.favicon || null
 }
 
 interface Props {
@@ -24,15 +30,15 @@ export default function BookmarkRow({ bookmark, onOpen }: Props): JSX.Element {
       <button
         onClick={() => onOpen(bookmark.id)}
         title={bookmark.url}
-        className="flex items-center gap-2.5 w-full py-1.5 px-2 rounded-lg text-text-dim text-left text-[15px] min-h-[30px] hover:bg-bg-hover hover:text-text"
+        className="flex items-center gap-2.5 w-full py-1 px-2 rounded-lg border border-transparent text-text/75 text-left text-[14.5px] min-h-[29px] hover:bg-bg-hover hover:text-text"
       >
-        {broken ? (
-          <IconWorld className="w-[15px] h-[15px] shrink-0 opacity-70" />
+        {broken || !faviconUrl(bookmark) ? (
+          <IconWorld className="w-[17px] h-[17px] shrink-0 opacity-70" />
         ) : (
           <img
-            src={faviconUrl(bookmark)}
+            src={faviconUrl(bookmark)!}
             alt=""
-            className="w-[15px] h-[15px] shrink-0 rounded-[3px]"
+            className="w-[17px] h-[17px] shrink-0 rounded-[3px]"
             onError={() => setBroken(true)}
           />
         )}

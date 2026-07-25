@@ -1,5 +1,4 @@
 import { join } from 'path'
-import { existsSync } from 'fs'
 import { readJson, writeJson } from './jsonfile'
 import { app } from 'electron'
 import type { Bookmark } from '../shared/types'
@@ -7,14 +6,15 @@ import type { Bookmark } from '../shared/types'
 let file = ''
 let items: Bookmark[] = []
 
-const SEED: Bookmark[] = [
-  { id: 'gmail', title: 'Gmail', url: 'https://mail.google.com' },
-  { id: 'youtube', title: 'YouTube', url: 'https://youtube.com' },
-  { id: 'github', title: 'GitHub', url: 'https://github.com' },
-  { id: 'figma', title: 'Figma', url: 'https://figma.com' },
-  { id: 'x', title: 'X', url: 'https://x.com' },
-  { id: 'wa', title: 'WhatsApp', url: 'https://web.whatsapp.com' }
-]
+/**
+ * Se empieza SIN marcadores, a propósito.
+ *
+ * Antes venían seis de fábrica (Gmail, YouTube, GitHub…). Además de presuponer a qué sitios
+ * entra el usuario, obligaba a inventarles un icono antes de haber visitado nunca la página:
+ * primero pidiéndoselo a Google —que los devuelve con fondo y de paso recibe los dominios—
+ * y luego con logos de marca empaquetados. Sin marcadores por defecto el problema no existe:
+ * el que añades se guarda con el favicon real del sitio, que ya lo tenemos.
+ */
 
 function persist(): void {
   writeJson(file, items, 'los marcadores')
@@ -22,12 +22,7 @@ function persist(): void {
 
 export function initBookmarks(): void {
   file = join(app.getPath('userData'), 'bookmarks.json')
-  if (existsSync(file)) {
-    items = readJson<Bookmark[]>(file, [...SEED], 'los marcadores')
-  } else {
-    items = [...SEED]
-    persist()
-  }
+  items = readJson<Bookmark[]>(file, [], 'los marcadores')
 }
 
 export function listBookmarks(): Bookmark[] {

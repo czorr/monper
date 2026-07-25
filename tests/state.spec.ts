@@ -8,7 +8,7 @@ interface BookmarkLike { id: string; url: string; title: string }
 let h: Harness
 let site: { url: string; close: () => Promise<void> }
 
-/** La app trae marcadores por defecto, así que todo se mide contra la lista inicial. */
+/** Se empieza sin marcadores; aun así todo se mide contra la lista inicial, no contra cero. */
 let baseline = 0
 
 test.beforeAll(async () => {
@@ -81,8 +81,8 @@ test('los marcadores sobreviven a un reinicio', async () => {
 })
 
 test('un fichero de estado corrupto no impide arrancar', async () => {
-  // Antes esto se tragaba en silencio (`catch { items = [...SEED] }`). Ahora se avisa por
-  // consola, pero lo importante sigue siendo que la app abra y no se lleve nada por delante.
+  // Antes un JSON ilegible se tragaba en silencio. Ahora se avisa por consola, pero lo
+  // importante sigue siendo que la app abra y no se lleve nada por delante.
   const first = await launch()
   const profile = first.userData
   await first.close(true)
@@ -91,9 +91,10 @@ test('un fichero de estado corrupto no impide arrancar', async () => {
 
   const second = await launch({}, profile)
   try {
-    // Arranca, y con los marcadores por defecto en vez de una lista vacía.
+    // Lo que se fija es que ARRANQUE: con el fichero ilegible cae a la lista vacía (la app ya
+    // no trae marcadores de fábrica) y lo dice por consola, pero no se queda a medias.
     await waitForState(second.win, (s) => s.tabs.length > 0)
-    expect((await bookmarks(second)).length).toBeGreaterThan(0)
+    expect(await bookmarks(second)).toEqual([])
   } finally {
     await second.close()
     rmSync(profile, { recursive: true, force: true })

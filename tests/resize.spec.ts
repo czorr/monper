@@ -43,3 +43,21 @@ test('arrastrar el borde cambia el ancho del sidebar', async () => {
     .poll(async () => (await api<{ sidebar: number }>(h.win, 'getPanels')).sidebar)
     .toBeGreaterThan(antes)
 })
+
+test('los iconos del sidebar y del topbar comparten banda y tamaño', async () => {
+  // El sidebar y el topbar son la MISMA línea visual. Antes había tres centros distintos ahí
+  // (semáforo 23, iconos del sidebar 24, iconos del topbar 26) y se veía torcido.
+  const m = await h.win.evaluate(() => {
+    const medir = (sel: string): { y: number; w: number; h: number } | null => {
+      const el = document.querySelector(sel) as HTMLElement | null
+      if (!el) return null
+      const r = el.getBoundingClientRect()
+      return { y: Math.round(r.top + r.height / 2), w: Math.round(r.width), h: Math.round(r.height) }
+    }
+    return { sidebar: medir('[title*="Colapsar sidebar"]'), topbar: medir('[title="Recargar"]') }
+  })
+  expect(m.sidebar, 'no se encontró el botón de colapsar').toBeTruthy()
+  expect(m.topbar, 'no se encontró un botón del topbar').toBeTruthy()
+  expect(m.sidebar!.y, 'mismo centro vertical que el topbar').toBe(m.topbar!.y)
+  expect([m.sidebar!.w, m.sidebar!.h]).toEqual([m.topbar!.w, m.topbar!.h])
+})

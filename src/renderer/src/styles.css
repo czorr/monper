@@ -10,7 +10,7 @@
   --color-text: #ececee;
   --color-text-dim: rgba(235, 235, 245, 0.55);
   --color-text-faint: rgba(235, 235, 245, 0.32);
-  --spacing-sidebar: 240px;
+  --spacing-sidebar: 300px; /* el main tiene el mismo valor en SIDEBAR_DEFAULT */
   --spacing-panel: 380px;
   --spacing-topbar: 52px;
 }

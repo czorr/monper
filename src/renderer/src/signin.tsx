@@ -15,7 +15,9 @@ function hostOf(url: string): string {
 
 function Row({ c }: { c: SigninCredential }): JSX.Element {
   const [broken, setBroken] = useState(false)
-  const favicon = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(hostOf(c.origin))}&sz=64`
+  // El favicon del sitio ya está cargado en la pestaña: pedirlo a Google le contaba a un
+  // tercero en qué páginas guardas contraseñas. Si no hay, el candado.
+  const favicon = c.favicon ?? ''
   return (
     <button
       onClick={() => sg.fill(c.id)}

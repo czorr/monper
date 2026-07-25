@@ -545,6 +545,8 @@ export interface SigninCredential {
   label: string
   username: string
   origin: string
+  /** Favicon real del sitio (el que recuerda el main); null si no se ha visitado. */
+  favicon?: string | null
 }
 
 /** API expuesta a la ventana nativa de "Sign in with…" */

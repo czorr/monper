@@ -10,16 +10,17 @@ replacement. When in doubt, invest in the agent, not in browser parity.
 pnpm dev          # the USER runs this — see below
 pnpm typecheck    # tsc on node + web projects; includes tests/
 pnpm build        # electron-vite build (required before tests)
-pnpm test         # build + the Playwright smoke suite (tests/)
+pnpm test         # build + the Playwright smoke suite — CI runs this on every commit
 pnpm test:only    # tests without rebuilding
 pnpm dist:mac     # DMG + ZIP (the ZIP is mandatory for auto-update)
 ```
 
 ## Hard rules
 
-**Do not launch the app.** The user runs `pnpm dev` themselves. Verify with `pnpm typecheck`,
-`pnpm build`, and the test suite — never by starting the Electron app to "have a look".
-Running `pnpm test` is fine: it launches its own throwaway instance.
+**Do not launch the app, and do not run the test suite.** The user runs `pnpm dev`
+themselves, and CI runs the tests on every commit — running them locally just burns minutes.
+Verify with `pnpm typecheck` and `pnpm build`. Write and update tests as usual; let CI run
+them. Run a single spec only if the user asks, or to debug a specific failure they reported.
 
 **Main-process and preload changes need a full restart.** ⌘R only reloads the renderer. This
 has bitten us repeatedly (the store button, the Appearance section). Say so when handing off.

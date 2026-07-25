@@ -19,6 +19,7 @@ import { credentialsFor, fillFromVault } from './autofill'
 import { initExtensions, listExtensions, addExtension, setExtensionEnabled, removeExtension as removeExt, installFromStore, extensionUi } from './extensions'
 import { extensionIdFrom } from './crx'
 import { createPopover } from './popover'
+import { initFavicons, rememberFavicon, faviconFor } from './favicons'
 import { initChats, listSessions, resumeOrNew, startSession, openSession, sessionForNextMessage, saveSession, removeSession as removeChatSession } from './chats'
 import { writeJson } from './jsonfile'
 import { initRoutines, listRoutines, createWatchRoutine, setRoutineEnabled, removeRoutine as removeRoutineEntry, runRoutine } from './routines'
@@ -30,7 +31,7 @@ import type { SiteInfoData, PermKey, PermState } from '../shared/types'
 import appIcon from '../renderer/src/assets/icon.png?asset'
 
 // Anchos redimensionables por el usuario (el renderer los aplica a --spacing-sidebar/panel).
-const SIDEBAR_DEFAULT = 240
+const SIDEBAR_DEFAULT = 300
 const CHAT_DEFAULT = 380
 const PANEL_LIMITS = { sidebarMin: 180, sidebarMax: 420, chatMin: 300, chatMax: 640 }
 let sidebarWidth = SIDEBAR_DEFAULT
@@ -477,7 +478,14 @@ function createTab(url = newtabUrl(), activate = true, agent = false): number {
   })
   wc.on('did-navigate-in-page', (_e, u, isMainFrame) => { if (isMainFrame) { t.url = u; refresh() } })
   wc.on('page-title-updated', (_e, title) => { t.title = title; updateMeta(t.url, title); pushState() })
-  wc.on('page-favicon-updated', (_e, icons) => { t.favicon = icons?.[0] || null; updateMeta(t.url, undefined, t.favicon); pushState() })
+  wc.on('page-favicon-updated', (_e, icons) => {
+    t.favicon = icons?.[0] || null
+    // Se recuerda por host: es el icono de verdad del sitio, y sirve para los marcadores sin
+    // icono propio en vez de pedírselo a un tercero.
+    rememberFavicon(t.url, t.favicon)
+    updateMeta(t.url, undefined, t.favicon)
+    pushState()
+  })
   wc.on('did-change-theme-color', (_e, color) => { t.themeColor = color; pushState() })
   wc.on('audio-state-changed', (e) => { t.audible = e.audible; pushState() })
   // --- Confiabilidad: fallos de carga (red/DNS/certificado) y crashes → página de error ---
@@ -818,7 +826,9 @@ function createWindow() {
         }
       : { backgroundColor: APP_BG }),
     titleBarStyle: isMac ? 'hiddenInset' : 'default',
-    trafficLightPosition: isMac ? { x: 15, y: 17 } : undefined,
+    // y=20: el semáforo mide 12px, así que su centro cae en 26 — el mismo que los iconos del
+    // topbar y los del sidebar, que comparten banda. Con y=17 caía en 23 y se veía desalineado.
+    trafficLightPosition: isMac ? { x: 15, y: 20 } : undefined,
     ...(isMac ? {} : { icon: appIcon }),
     webPreferences: { preload: join(__dirname, '../preload/index.js'), contextIsolation: true, sandbox: false }
   })
@@ -958,8 +968,13 @@ ipcMain.on('ui:omnibox', (_e, open: boolean) => {
 })
 
 // ---- Bookmarks ----
+/** Completa los marcadores que no traen icono con el que se vio al visitar el sitio. */
+function conFavicon(list: Bookmark[]): Bookmark[] {
+  return list.map((b) => (b.favicon ? b : { ...b, favicon: faviconFor(b.url) }))
+}
+
 function broadcastBookmarks(): void {
-  const list = listBookmarks()
+  const list = conFavicon(listBookmarks())
   for (const t of tabs.values()) {
     if (isNewtab(t.url)) t.view.webContents.send('bookmarks:changed', list)
   }
@@ -973,7 +988,7 @@ function navigateActive(raw: string): void {
   if (url && t) t.view.webContents.loadURL(url)
 }
 
-ipcMain.handle('bookmarks:list', () => listBookmarks())
+ipcMain.handle('bookmarks:list', () => conFavicon(listBookmarks()))
 ipcMain.on('bookmarks:add', (e: IpcMainEvent, b: Omit<Bookmark, 'id'>) => {
   if (!isInternalSender(e.senderFrame?.url)) return
   addBookmark(b); broadcastBookmarks()
@@ -1347,7 +1362,7 @@ ipcMain.on('profilemenu:open', (_e, anchor: MenuAnchor) => pmPopover.show(anchor
 
 // ---- Peek del sidebar (hover del botón expandir con el sidebar colapsado) ----
 let peekWin: BrowserWindow | null = null
-const PEEK_W = 250
+const PEEK_W = 310 // el peek es el mismo sidebar flotando: sigue a SIDEBAR_DEFAULT
 const PEEK_MARGIN = 10 // separación del borde/topbar para que se vea flotante
 const PEEK_HIT_PAD = 26 // margen de "sigue vivo" alrededor del botón/panel
 const PEEK_GRACE = 240 // coyote time al salir (ms)
@@ -1847,6 +1862,7 @@ app.whenReady().then(() => {
     pushAgentEvent(`Descarga iniciada: ${item.getFilename()} (${item.getURL()})`)
   })
   initBookmarks()
+  initFavicons()
   initChats()
   initHistory()
   initSkills()

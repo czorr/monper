@@ -1,7 +1,7 @@
 import type { JSX } from 'react'
 import type { Bookmark } from '@shared/types'
-import { domainOf } from '@renderer/lib/dom'
 import IconX from '~icons/tabler/x'
+import IconWorld from '~icons/tabler/world'
 
 interface Props {
   bookmark: Bookmark
@@ -9,9 +9,10 @@ interface Props {
   onRemove: (id: string) => void
 }
 
-function faviconFor(url: string): string {
-  return `https://www.google.com/s2/favicons?domain=${domainOf(url)}&sz=64`
-}
+/**
+ * Igual que en el sidebar: solo el favicon real que el main recuerda del sitio. El servicio
+ * de Google los devolvía con fondo opaco y le contaba los dominios del usuario.
+ */
 
 export default function BookmarkCard({ bookmark, onOpen, onRemove }: Props): JSX.Element {
   return (
@@ -26,7 +27,11 @@ export default function BookmarkCard({ bookmark, onOpen, onRemove }: Props): JSX
         <IconX className="w-3 h-3" />
       </span>
       <span className="w-14 h-14 rounded-2xl bg-white/[0.06] grid place-items-center overflow-hidden">
-        <img src={faviconFor(bookmark.url)} width={28} height={28} alt="" className="rounded" />
+        {bookmark.favicon ? (
+          <img src={bookmark.favicon} width={28} height={28} alt="" className="rounded" />
+        ) : (
+          <IconWorld className="w-7 h-7 text-text-faint" />
+        )}
       </span>
       <span className="text-[12px] text-text-dim max-w-[76px] truncate">{bookmark.title}</span>
     </button>

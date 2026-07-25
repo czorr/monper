@@ -4,6 +4,7 @@ import { createAnthropic } from '@ai-sdk/anthropic'
 import { createOpenAI } from '@ai-sdk/openai'
 import { z } from 'zod'
 import type { WebContents } from 'electron'
+import { faviconFor } from '../favicons'
 import type { AIProvider, ChatMessage, ChatStep, SkillDetail } from '../../shared/types'
 import * as page from './page'
 import { runRepl } from './repl'
@@ -357,7 +358,7 @@ function describe(toolName: string, args: unknown): ChatStep {
     case 'read_page': return { state: 'listening', label: 'Leyendo la página', kind: 'read' }
     case 'navigate': {
       const h = host(String(a.url ?? ''))
-      return { state: 'searching', label: `Navegando a ${h}`, kind: 'navigate', favicon: faviconFor(h) }
+      return { state: 'searching', label: `Navegando a ${h}`, kind: 'navigate', favicon: faviconDelPaso(h) }
     }
     case 'click': return { state: 'working', label: `Click en el elemento ${a.ref}`, kind: 'click' }
     case 'type': return { state: 'composing', label: 'Escribiendo', kind: 'type' }
@@ -368,7 +369,7 @@ function describe(toolName: string, args: unknown): ChatStep {
     case 'select_option': return { state: 'composing', label: `Eligiendo "${a.value}"`, kind: 'select' }
     case 'history': return { state: 'searching', label: `Historial: ${a.action}`, kind: 'history' }
     case 'list_tabs': return { state: 'listening', label: 'Viendo las pestañas', kind: 'tab' }
-    case 'open_tab': return { state: 'searching', label: `Abriendo ${host(String(a.url ?? ''))}`, kind: 'tab', favicon: faviconFor(host(String(a.url ?? ''))) }
+    case 'open_tab': return { state: 'searching', label: `Abriendo ${host(String(a.url ?? ''))}`, kind: 'tab', favicon: faviconDelPaso(host(String(a.url ?? ''))) }
     case 'switch_tab': return { state: 'working', label: `Cambiando a la pestaña ${a.id}`, kind: 'tab' }
     case 'close_tab': return { state: 'working', label: `Cerrando la pestaña ${a.id}`, kind: 'tab' }
     case 'screenshot': return { state: 'searching', label: 'Mirando la pantalla', kind: 'screenshot' }
@@ -384,8 +385,13 @@ function describe(toolName: string, args: unknown): ChatStep {
 function host(u: string): string {
   try { return new URL(/^https?:/.test(u) ? u : 'https://' + u).hostname.replace(/^www\./, '') } catch { return u }
 }
-function faviconFor(h: string): string | undefined {
-  return h ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(h)}&sz=64` : undefined
+/**
+ * Favicon para los pasos del agente ("navegando a X"). Sale de la caché de sitios visitados;
+ * si el agente entra a un sitio nuevo, el paso va sin icono en vez de pedírselo a Google, que
+ * de paso le iría contando por dónde navega el agente.
+ */
+function faviconDelPaso(h: string): string | undefined {
+  return (h ? faviconFor(`https://${h}`) : null) ?? undefined
 }
 
 // Compaction: si la conversación es larga, colapsa los turnos viejos en un resumen

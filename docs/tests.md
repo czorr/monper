@@ -42,8 +42,9 @@ npx playwright test tests/tabs.spec.ts -g "reordena"
 - `getVersion` está en el preload de contenido (páginas internas), no en el del chrome.
 - La página de error **conserva la URL que pidió el usuario** (para que la omnibox la
   muestre); la señal de que se pintó es el título, no la URL.
-- La app trae marcadores por defecto (Gmail y compañía): cualquier test de marcadores tiene
-  que medir contra la lista inicial, no contra cero.
+- La app **ya no trae marcadores por defecto** (se quitaron: presuponían a qué sitios entra el
+  usuario y obligaban a inventarles un icono antes de haber visitado la página). Los tests de
+  marcadores crean el suyo y miden contra la lista inicial igualmente.
 - **`removeBookmark` y `addBookmark` del preload no hacen nada desde el chrome**: los
   canales están restringidos a las páginas internas (`newtab/settings/error/downloads`) y
   `index.html` no es una de ellas. Nadie en el renderer los llama (los marcadores se

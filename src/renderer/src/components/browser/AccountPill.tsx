@@ -13,11 +13,11 @@ export default function AccountPill({ initials, name, avatar, onOpen }: Props): 
   return (
     <button
       onClick={(e) => onOpen((e.currentTarget as HTMLElement).getBoundingClientRect())}
-      className="flex items-center gap-0.5 py-1.5 px-2 rounded-lg hover:bg-bg-hover [-webkit-app-region:no-drag] max-w-full min-w-0"
+      className="flex items-center gap-0.5 py-1 px-2 rounded-lg hover:bg-bg-hover [-webkit-app-region:no-drag] max-w-full min-w-0"
     >
       <div className="flex items-center gap-2 min-w-0">
         <Avatar initials={initials} src={avatar} />
-        <span className="text-[15px] font-semibold truncate max-w-[150px] tracking-[-0.1px]">
+        <span className="text-[14px] font-semibold truncate max-w-[150px] tracking-[-0.1px]">
           {name}
         </span>
       </div>

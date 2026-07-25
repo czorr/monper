@@ -13,12 +13,13 @@ interface Props {
 }
 
 const rowBase =
-  'group/tab flex items-center gap-2.5 w-full py-1.5 px-2 rounded-lg text-left text-[15px] min-h-[30px]'
+  'group/tab flex items-center gap-2.5 w-full py-1 px-2 rounded-lg text-left text-[14.5px] min-h-[29px]'
 
 export default function TabRow({ tab, active, onSelect, onClose }: Props): JSX.Element {
   const state = active
-    ? 'bg-bg-active text-text backdrop-blur-sm'
-    : 'text-text-dim hover:bg-bg-hover hover:text-text'
+    ? 'bg-white/[0.07] border border-white/[0.07] text-text backdrop-blur-sm'
+    // `border-transparent` para que la fila activa no mida 2px más y la lista no salte.
+    : 'border border-transparent text-text/75 hover:bg-bg-hover hover:text-text'
 
   return (
     <div
@@ -29,17 +30,17 @@ export default function TabRow({ tab, active, onSelect, onClose }: Props): JSX.E
     >
       {tab.internal || !tab.url ? (
         // Nuestras páginas llevan siempre el iso, nunca un favicon por defecto.
-        <img src={monperLogo} alt="" className="w-4 h-4 shrink-0 object-contain opacity-80" />
+        <img src={monperLogo} alt="" className="w-[17px] h-[17px] shrink-0 object-contain opacity-80" />
       ) : tab.loading ? (
-        <div className="w-3 h-3 m-0.5 shrink-0 rounded-full border-[1.5px] border-text-faint border-t-text animate-spin" />
+        <div className="w-[13px] h-[13px] m-0.5 shrink-0 rounded-full border-[1.5px] border-text-faint border-t-text animate-spin" />
       ) : tab.favicon ? (
         <img
-          className="w-4 h-4 shrink-0 rounded object-contain"
+          className="w-[17px] h-[17px] shrink-0 rounded object-contain"
           src={tab.favicon}
           onError={(e) => (e.currentTarget.style.visibility = 'hidden')}
         />
       ) : (
-        <span className="w-4 h-4 shrink-0 rounded bg-bg-elev" />
+        <span className="w-[17px] h-[17px] shrink-0 rounded bg-bg-elev" />
       )}
 
       <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[15px] tracking-[-0.08px]">

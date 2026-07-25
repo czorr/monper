@@ -1,4 +1,5 @@
 import { net } from 'electron'
+import { faviconFor } from './favicons'
 import type { Suggestion } from '../shared/types'
 import * as history from './history'
 import { listBookmarks } from './bookmarks'
@@ -22,11 +23,13 @@ function searchUrl(q: string): string {
   return 'https://www.google.com/search?q=' + encodeURIComponent(q.trim())
 }
 
+/**
+ * El favicon que ya vimos al visitar ese sitio. Antes se pedía a `google.com/s2/favicons`,
+ * que además de componer los iconos sobre fondo opaco le iba contando a Google cada dominio
+ * que el usuario escribía en la barra. Sin icono conocido, la UI pone su globo.
+ */
 function faviconOf(url: string): string {
-  try {
-    const h = new URL(url).hostname
-    return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(h)}&sz=64`
-  } catch { return '' }
+  return faviconFor(url) ?? ''
 }
 
 // Sugerencias de búsqueda de Google (desde el main: sin CSP). Formato firefox: [q, [s1, s2, ...]].

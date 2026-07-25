@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    # macOS no es un capricho: los smoke tests arrancan Electron con ventana, y la app
+    # depende de cosas de macOS (vibrancy, semáforo, WebContentsView sobre el DOM).
+    # En Linux habría que meter xvfb y probaríamos algo que nadie usa.
+    runs-on: macos-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Build
+        run: pnpm build
+
+      # Sin `pnpm test` para no volver a compilar: el build ya corrió arriba.
+      - name: Smoke tests
+        run: pnpm test:only
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+
+  package:
+    # Que empaquete es parte de que funcione: se rompió una vez por una dependencia que
+    # no entraba en el asar y no lo vimos hasta intentar distribuir.
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Empaquetar (sin firmar)
+        run: pnpm dist:dir --mac --arm64
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - name: Comprobar que la .app existe y trae las skills
+        run: |
+          test -d "release/mac-arm64/Monper.app" || { echo "no se generó la .app"; exit 1; }
+          test -d "release/mac-arm64/Monper.app/Contents/Resources/skills" || { echo "faltan las skills"; exit 1; }

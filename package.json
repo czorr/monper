@@ -11,7 +11,9 @@
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "dist": "electron-vite build && electron-builder",
     "dist:dir": "electron-vite build && electron-builder --dir",
-    "dist:mac": "electron-vite build && electron-builder --mac"
+    "dist:mac": "electron-vite build && electron-builder --mac",
+    "test": "electron-vite build && playwright test",
+    "test:only": "playwright test"
   },
   "author": "",
   "license": "MIT",
@@ -20,6 +22,7 @@
     "@electron-toolkit/utils": "^4.0.0",
     "@iconify-json/simple-icons": "^1.2.91",
     "@iconify-json/tabler": "^1.2.37",
+    "@playwright/test": "^1.62.0",
     "@svgr/core": "^8.1.0",
     "@svgr/plugin-jsx": "^8.1.0",
     "@tailwindcss/vite": "^4.3.3",

@@ -9,6 +9,10 @@ dist-electron/
 # Empaquetado (electron-builder)
 release/
 
+# Playwright
+playwright-report/
+test-results/
+
 # Feed de actualizaciones de prueba (scripts/fake-update-server.mjs)
 .update-test/
 dev-app-update.yml

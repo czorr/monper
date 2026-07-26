@@ -93,12 +93,23 @@ Las filas con chevron (Bookmarks, Downloads, Extensions, History, Developers) ab
 submenú **en otra ventana nativa**, no en un div: sale fuera del panel y ahí el DOM no se ve,
 porque la vista de la página se dibuja encima.
 
-Tres cosas que lo hacen funcionar como un menú de verdad:
+Cómo funciona el foco, que es la parte que cuesta:
 
-- **`focusable: false`** en el submenú. Si robara el foco, el menú padre se cerraría por su
-  propio `blur` en cuanto apareciera el hijo.
-- **`onHide` en la factoría**: cuando el padre se esconde, se lleva al hijo consigo.
-- **Pasar por una fila sin submenú lo cierra**, que es lo que se espera al recorrer un menú.
+**macOS no entrega eventos de ratón a una ventana inactiva.** Con el submenú sin foco, su
+`:hover` no responde y hay que clicar primero — se sentía rarísimo. Pero si el submenú toma el
+foco, el padre lo pierde y se cierra. La salida son cuatro piezas:
+
+- **`keepOnBlur`**: mientras el submenú esté abierto, el padre NO se cierra al perder el foco
+  (se lo ha llevado su propio hijo).
+- **`activateOnShow: false`**: el submenú aparece sin activarse. Se abre con el ratón todavía
+  sobre el padre, y robarle el foco ahí dejaría las demás filas del padre sin hover.
+- **Un sondeo del cursor** (el mismo truco del peek) que da el foco a quien esté debajo del
+  puntero, **en los dos sentidos**: al entrar en el submenú, al hijo; al volver al menú, al
+  padre. Solo dárselo al hijo era el mismo bug al revés.
+- **`onHide`**: al cerrarse el hijo, el padre sobrevive solo si tiene el foco (volviste a él);
+  si el foco se fue a otra parte, se cierran los dos. Es un menú, no dos ventanas sueltas.
+
+Y **pasar por una fila sin submenú lo cierra**, que es lo que se espera al recorrer un menú.
 
 El renderer del submenú no sabe de dónde salen las filas: el main se las manda ya masticadas
 (`SubmenuRow`, con label, subtexto, icono, imagen y `action`), y devuelve la `action` al

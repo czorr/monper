@@ -48,6 +48,23 @@ export interface PopoverOptions {
   data?: { channel: string; get: () => unknown }
   /** Se llama al esconderlo. Lo usa el menú de perfil para arrastrar consigo su submenú. */
   onHide?: () => void
+  /**
+   * Si devuelve true, NO se cierra al perder el foco.
+   *
+   * Lo usa el menú de perfil mientras su submenú está abierto: el submenú tiene que poder
+   * tomar el foco (macOS no manda eventos de ratón a ventanas inactivas, así que sin foco no
+   * hay hover), y sin esto el padre se cerraría en cuanto el hijo se lo quitara.
+   */
+  keepOnBlur?: () => boolean
+  /**
+   * false = se muestra sin activarse, aunque sea focusable.
+   *
+   * El submenú lo necesita: se abre al pasar el ratón por una fila del menú padre, y si
+   * robara el foco ahí, las demás filas del padre dejarían de responder al hover (macOS no
+   * manda eventos de ratón a ventanas inactivas). El foco se lo lleva después, cuando el
+   * cursor entra de verdad en él.
+   */
+  activateOnShow?: boolean
 }
 
 export interface Popover {
@@ -114,7 +131,7 @@ export function createPopover(getParent: () => BW | null, opts: PopoverOptions, 
       }
     })
     // Un menú se cierra al perder el foco; un overlay no-focusable no tiene ese evento.
-    if (focusable) win.on('blur', () => hide())
+    if (focusable) win.on('blur', () => { if (!opts.keepOnBlur?.()) hide() })
     /**
      * `did-finish-load` NO basta: dispara cuando la página termina de cargar, pero el
      * componente registra su listener DESPUÉS (en su efecto), así que el mensaje se perdía y
@@ -156,7 +173,7 @@ export function createPopover(getParent: () => BW | null, opts: PopoverOptions, 
       const w = ensure()
       if (opts.data) w.webContents.send(opts.data.channel, opts.data.get())
       place() // posicionar ANTES de mostrar evita el flash en la esquina
-      if (focusable) { w.show(); w.focus() } else w.showInactive()
+      if (focusable && opts.activateOnShow !== false) { w.show(); w.focus() } else w.showInactive()
     },
     hide,
     isVisible: () => !!win && !win.isDestroyed() && win.isVisible(),

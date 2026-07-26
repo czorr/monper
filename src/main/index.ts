@@ -1389,7 +1389,9 @@ const pmPopover = createPopover(() => win, {
   preload: 'profilemenu', page: 'profilemenu',
   data: { channel: 'profilemenu:profile', get: getProfile },
   // El submenú es una ventana aparte: si el menú se va, se va con él.
-  onHide: () => submenuPopover.hide()
+  onHide: () => submenuPopover.hide(),
+  // Mientras el submenú esté abierto, perder el foco NO cierra el menú: se lo ha llevado él.
+  keepOnBlur: () => submenuPopover.isVisible()
 }, RENDERER_URL)
 ipcMain.on('profilemenu:open', (_e, anchor: MenuAnchor) => pmPopover.show(anchor))
 
@@ -1817,11 +1819,47 @@ function datosSubmenu(): SubmenuData {
 
 const submenuPopover = createPopover(() => win, {
   name: 'profilesubmenu', width: 300, height: 180,
-  focusable: false, // si robara el foco, el menú padre se cerraría al perderlo
   offsetY: 0,
+  activateOnShow: false, // se abre con el ratón aún sobre el padre; ver el sondeo de abajo
   preload: 'profilesubmenu', page: 'profilesubmenu',
-  data: { channel: 'profilesubmenu:data', get: datosSubmenu }
+  data: { channel: 'profilesubmenu:data', get: datosSubmenu },
+  // Al cerrarse el hijo, el padre solo sobrevive si tiene el foco (volviste a él). Si el
+  // foco se fue a otra parte, se cierran los dos: es un menú, no dos ventanas sueltas.
+  onHide: () => {
+    pararSondeoSubmenu()
+    const pm = pmPopover.window
+    if (pm && !pm.isDestroyed() && pm.isVisible() && !pm.isFocused()) pmPopover.hide()
+  }
 }, RENDERER_URL)
+
+/**
+ * Activa el submenú cuando el cursor entra en él.
+ *
+ * macOS no entrega eventos de ratón a una ventana inactiva: sin esto había que CLICAR antes
+ * de que el hover funcionara. Es el mismo truco que ya usa el peek, y por eso el submenú es
+ * focusable y el padre se declara `keepOnBlur` mientras esté abierto.
+ */
+let sondeoSubmenu: NodeJS.Timeout | null = null
+function pararSondeoSubmenu(): void {
+  if (sondeoSubmenu) { clearInterval(sondeoSubmenu); sondeoSubmenu = null }
+}
+function sondearSubmenu(): void {
+  pararSondeoSubmenu()
+  const dentro = (w: Electron.BrowserWindow, x: number, y: number): boolean => {
+    const b = w.getBounds()
+    return x >= b.x && x <= b.x + b.width && y >= b.y && y <= b.y + b.height
+  }
+  sondeoSubmenu = setInterval(() => {
+    const sub = submenuPopover.window
+    const pm = pmPopover.window
+    if (!sub || !sub.isVisible()) { pararSondeoSubmenu(); return }
+    const p = screen.getCursorScreenPoint()
+    // El foco sigue al cursor en los DOS sentidos: si solo lo diera al hijo, al volver al
+    // padre sus filas dejarían de responder al hover, que es el mismo bug al revés.
+    if (dentro(sub, p.x, p.y)) { if (!sub.isFocused()) sub.focus() }
+    else if (pm && pm.isVisible() && dentro(pm, p.x, p.y) && !pm.isFocused()) pm.focus()
+  }, 60)
+}
 
 /**
  * Coloca el submenú a la derecha del menú de perfil, a la altura de la fila.
@@ -1850,6 +1888,7 @@ ipcMain.on('profilemenu:submenu', (_e, section: SubmenuSection, rect: { top: num
     height: 0
   })
   submenuPopover.send('profilesubmenu:data', datosSubmenu())
+  sondearSubmenu()
 })
 ipcMain.on('profilemenu:submenuClose', () => submenuPopover.hide())
 ipcMain.on('profilesubmenu:action', (_e, action: string) => {

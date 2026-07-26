@@ -150,3 +150,33 @@ test('un popover no abre con una fila resaltada', async () => {
   expect((await leer())?.conTeclado).not.toBe('none') // el teclado no pierde el anillo
   await h.app.evaluate(({ ipcMain }) => ipcMain.emit('vault:closeWindow'))
 })
+
+test('los submenús del menú de perfil abren al lado, sin cerrar el padre', async () => {
+  // El submenú es otra ventana nativa: sale FUERA del panel y ahí un div no se vería. Y no
+  // roba el foco, porque si lo robara el menú padre se cerraría por su propio `blur`.
+  await api(h.win, 'openProfileMenu', { x: 40, y: 60, width: 32, height: 32 })
+  await expect.poll(() => h.app.windows().some((p) => p.url().includes('profilemenu.html'))).toBe(true)
+  const pm = h.app.windows().find((p) => p.url().includes('profilemenu.html'))!
+
+  const contenido = async (): Promise<string> => {
+    const sub = h.app.windows().find((p) => p.url().includes('profilesubmenu.html'))
+    return sub ? (await sub.evaluate(() => document.body.innerText)).replace(/\n/g, ' ') : ''
+  }
+
+  await pm.locator('div', { hasText: /^Developers$/ }).first().hover()
+  await expect.poll(contenido).toContain('Developer tools')
+  // Los dos a la vez: el padre sigue abierto.
+  expect(await visiblePopovers()).toHaveLength(2)
+
+  // Cambiar de sección reusa la misma ventana con otros datos.
+  await pm.locator('div', { hasText: /^Extensions$/ }).first().hover()
+  await expect.poll(contenido).toContain('Manage all extensions')
+
+  // Pasar por una fila sin submenú lo cierra. Se apunta al TEXTO: el div de esa fila incluye
+  // además su atajo (`⌘,`), así que `hasText: /^Settings$/` no casaba con ella.
+  await pm.getByText('Settings', { exact: true }).hover()
+  await expect.poll(visiblePopovers).toHaveLength(1)
+
+  await h.app.evaluate(({ ipcMain }) => ipcMain.emit('profilemenu:close'))
+  await expect.poll(visiblePopovers).toEqual([])
+})

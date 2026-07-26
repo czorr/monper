@@ -213,11 +213,52 @@ export interface SiteInfoData {
   internal: boolean
   permissions: SitePermission[]
 }
+// ---- Submenús del menú de perfil ----
+export type SubmenuSection = 'bookmarks' | 'downloads' | 'extensions' | 'history' | 'developers'
+
+/**
+ * Una fila del submenú, ya masticada por el main: el renderer no sabe de dónde salen los
+ * datos, solo los pinta. `action` es lo que se manda de vuelta al clicar.
+ */
+export interface SubmenuRow {
+  id: string
+  label: string
+  /** Segunda línea (estado de la descarga, dominio…). */
+  sub?: string
+  /** Icono por nombre; el renderer los mapea a tabler. */
+  icon?: 'download' | 'file' | 'puzzle' | 'bookmark' | 'history' | 'code' | 'gauge' | 'list'
+  /** Favicon o icono de la extensión, si lo hay. */
+  image?: string | null
+  /** Atajo o texto a la derecha. */
+  meta?: string
+  action: string
+  /** Fila de cabecera del submenú (separada del resto). */
+  primary?: boolean
+}
+
+export interface SubmenuData {
+  section: SubmenuSection
+  /** Título de la lista de abajo ("Installed extensions"), si la hay. */
+  listLabel?: string
+  rows: SubmenuRow[]
+}
+
+/** API expuesta a la ventana nativa de un submenú */
+export interface SubmenuWinApi {
+  onData: (cb: (d: SubmenuData) => void) => void
+  reportHeight: (h: number) => void
+  action: (action: string) => void
+}
+
 /** API expuesta a la ventana nativa del menú de perfil */
 export interface ProfileMenuWinApi {
   onProfile: (cb: (p: Profile) => void) => void
   reportHeight: (h: number) => void
   action: (name: string) => void
+  /** Abre (o cambia) el submenú de una sección, anclado a la fila. */
+  submenu: (section: SubmenuSection, rect: { top: number; height: number }) => void
+  /** El puntero salió de las filas con submenú: cerrarlo si no se entró en él. */
+  submenuMaybeClose: () => void
   close: () => void
 }
 
@@ -635,6 +676,7 @@ declare global {
     omniwin: OmniWinApi
     siteinfo: SiteInfoWinApi
     profilemenu: ProfileMenuWinApi
+    profilesubmenu: SubmenuWinApi
     peekbar: PeekWinApi
     signin: SigninWinApi
     extensionswin: ExtensionsWinApi

@@ -5,6 +5,7 @@ const api: SigninWinApi = {
   onCredentials: (cb) => {
     const h = (_e: unknown, list: SigninCredential[]): void => cb(list)
     ipcRenderer.on('signin:credentials', h)
+    ipcRenderer.send('signin:ready') // ya hay quien escuche: mándame los datos
     return () => { ipcRenderer.removeListener('signin:credentials', h) }
   },
   reportHeight: (h: number) => ipcRenderer.send('signin:height', h),

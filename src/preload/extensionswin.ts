@@ -5,6 +5,7 @@ const api: ExtensionsWinApi = {
   onData: (cb) => {
     const h = (_e: unknown, d: ExtensionsData): void => cb(d)
     ipcRenderer.on('extensions:data', h)
+    ipcRenderer.send('extensions:ready') // ya hay quien escuche: mándame los datos
     return () => { ipcRenderer.removeListener('extensions:data', h) }
   },
   reportHeight: (h: number) => ipcRenderer.send('extensions:height', h),

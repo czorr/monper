@@ -3,12 +3,12 @@ import { readFileSync } from 'fs'
 import { app, BrowserWindow, Menu, Notification, WebContentsView, clipboard, dialog, ipcMain, nativeImage, net, screen, session, shell } from 'electron'
 import type { MenuItemConstructorOptions } from 'electron'
 import type { IpcMainEvent } from 'electron'
-import type { BrowserState, Bookmark, ChatMessage, MenuAnchor, ProviderKind, InternalPage } from '../shared/types'
+import type { BrowserState, Bookmark, ChatMessage, MenuAnchor, ProviderKind, InternalPage, SubmenuData, SubmenuSection } from '../shared/types'
 import { internalPageOf } from '../shared/types'
 import { initBookmarks, listBookmarks, isBookmarked, addBookmark, removeBookmark, toggleBookmark } from './bookmarks'
 import { initAI, listProviders, addProvider, removeProvider, setActive as setActiveProvider, setModel, setEffort, getChatContext, getActiveProvider } from './ai/store'
 import { runMastra, errText } from './agent/mastra'
-import { initHistory, recordVisit, updateMeta } from './history'
+import { initHistory, recordVisit, updateMeta, recent as historyRecent } from './history'
 import { initWindowState, initialBounds, shouldMaximize, trackWindow } from './windowState'
 import { suggest } from './suggest'
 import { initPermissions, attachPermissionHandlers, stateOf, setState, requestedKeys } from './permissions'
@@ -1009,7 +1009,7 @@ ipcMain.on('bookmarks:remove', (e: IpcMainEvent, id: string) => {
   removeBookmark(id); broadcastBookmarks()
 })
 ipcMain.on('tab:navigate', (_e: IpcMainEvent, url: string) => navigateActive(url))
-ipcMain.on('bookmarks:open', (_e: IpcMainEvent, id: string) => {
+function abrirBookmark(id: string): void {
   const b = listBookmarks().find((x) => x.id === id)
   if (!b) return
   hidePeek()
@@ -1018,7 +1018,8 @@ ipcMain.on('bookmarks:open', (_e: IpcMainEvent, id: string) => {
   const tabId = createTab(b.url, true)
   const t = tabs.get(tabId)
   if (t) { t.bookmarkId = id; pushState() }
-})
+}
+ipcMain.on('bookmarks:open', (_e: IpcMainEvent, id: string) => abrirBookmark(id))
 
 function setTabMuted(id: number, muted: boolean): void {
   const t = tabs.get(id)
@@ -1367,7 +1368,9 @@ ipcMain.on('siteinfo:clear', async () => {
 const pmPopover = createPopover(() => win, {
   name: 'profilemenu', width: 264, height: 380,
   preload: 'profilemenu', page: 'profilemenu',
-  data: { channel: 'profilemenu:profile', get: getProfile }
+  data: { channel: 'profilemenu:profile', get: getProfile },
+  // El submenú es una ventana aparte: si el menú se va, se va con él.
+  onHide: () => submenuPopover.hide()
 }, RENDERER_URL)
 ipcMain.on('profilemenu:open', (_e, anchor: MenuAnchor) => pmPopover.show(anchor))
 
@@ -1633,7 +1636,7 @@ ipcMain.on('extensions:installFromStore', async (e) => {
     new Notification({ title: 'Extensión añadida', body: r.name ?? 'Listo' }).show()
   }
 })
-ipcMain.on('extensions:installFromFolder', async () => {
+async function importarExtensionDesdeCarpeta(): Promise<void> {
   const parent = extPopover.window ?? win
   const res = await dialog.showOpenDialog(parent!, {
     title: 'Elige la carpeta de la extensión',
@@ -1646,7 +1649,8 @@ ipcMain.on('extensions:installFromFolder', async () => {
   if (!r.ok && r.error) {
     dialog.showMessageBox(parent!, { type: 'error', message: 'No se pudo añadir la extensión', detail: r.error, buttons: ['OK'] })
   }
-})
+}
+ipcMain.on('extensions:installFromFolder', () => void importarExtensionDesdeCarpeta())
 
 // ---- Quick sign-in: "Sign in with…" al detectar un login con credenciales guardadas ----
 const SIGNIN_W = 360
@@ -1696,6 +1700,144 @@ ipcMain.on('signin:dismiss', () => {
 })
 
 // `profilemenu:close` lo maneja la factoría de popovers.
+
+// ---- Submenús del menú de perfil ----
+/**
+ * Ventana propia, no un div dentro del menú: el submenú sale FUERA del panel y la vista de la
+ * página se dibuja encima del DOM. `focusable: false` a propósito — si robara el foco, el
+ * menú padre se cerraría por su `blur`.
+ */
+let submenuSección: SubmenuSection = 'downloads'
+
+function datosSubmenu(): SubmenuData {
+  switch (submenuSección) {
+    case 'downloads': {
+      const estado = (d: { state: string }): string =>
+        d.state === 'completed' ? 'Descargado' : d.state === 'progressing' ? 'Descargando…' : 'Cancelado'
+      return {
+        section: 'downloads',
+        rows: [
+          { id: 'all', label: 'Show all downloads', icon: 'download', action: 'downloads:all', primary: true },
+          ...listDownloads().slice(0, 8).map((d) => ({
+            id: d.id,
+            label: d.filename,
+            sub: estado(d),
+            icon: 'file' as const,
+            action: `downloads:open:${d.id}`
+          }))
+        ]
+      }
+    }
+    case 'extensions': {
+      const items = listExtensions()
+      return {
+        section: 'extensions',
+        listLabel: items.length ? 'Installed extensions' : undefined,
+        rows: [
+          { id: 'manage', label: 'Manage all extensions', icon: 'puzzle', action: 'extensions:manage', primary: true },
+          { id: 'import', label: 'Import extensions', icon: 'download', action: 'extensions:import', primary: true },
+          ...items.map((e) => ({
+            id: e.path,
+            label: e.name,
+            image: e.icon ?? null,
+            action: `extensions:open:${e.path}`
+          }))
+        ]
+      }
+    }
+    case 'bookmarks': {
+      const items = conFavicon(listBookmarks())
+      return {
+        section: 'bookmarks',
+        rows: items.slice(0, 12).map((b) => ({
+          id: b.id,
+          label: b.title || b.url,
+          image: b.favicon ?? null,
+          icon: 'bookmark' as const,
+          action: `bookmarks:open:${b.id}`
+        }))
+      }
+    }
+    case 'history': {
+      return {
+        section: 'history',
+        rows: historyRecent(10).map((h) => ({
+          id: h.url,
+          label: h.title || h.url,
+          sub: (() => { try { return new URL(h.url).hostname.replace(/^www\./, '') } catch { return '' } })(),
+          image: h.favicon ?? null,
+          icon: 'history' as const,
+          action: `history:open:${h.url}`
+        }))
+      }
+    }
+    case 'developers':
+      return {
+        section: 'developers',
+        rows: [
+          { id: 'devtools', label: 'Developer tools', icon: 'code', meta: '⌥⌘I', action: 'dev:devtools', primary: true },
+          { id: 'reload', label: 'Recargar sin caché', icon: 'gauge', meta: '⇧⌘R', action: 'dev:hardReload', primary: true }
+        ]
+      }
+  }
+}
+
+const submenuPopover = createPopover(() => win, {
+  name: 'profilesubmenu', width: 300, height: 180,
+  focusable: false, // si robara el foco, el menú padre se cerraría al perderlo
+  offsetY: 0,
+  preload: 'profilesubmenu', page: 'profilesubmenu',
+  data: { channel: 'profilesubmenu:data', get: datosSubmenu }
+}, RENDERER_URL)
+
+/**
+ * Coloca el submenú a la derecha del menú de perfil, a la altura de la fila.
+ *
+ * El rect llega en coordenadas de la VENTANA del menú, así que hay que pasarlo por pantalla
+ * y de ahí al área de contenido de la ventana principal, que es el sistema en el que trabaja
+ * la factoría. Los ±PAD son el margen que el panel deja dentro de su ventana para la sombra.
+ */
+/** Abre el gestor de extensiones anclado al botón del topbar (o al centro si no lo hay). */
+function abrirExtensionesDesdeMenu(): void {
+  const cb = win?.getContentBounds()
+  extPopover.show({ x: Math.round((cb?.width ?? 800) / 2) - 20, y: TOPBAR_HEIGHT - 8, width: 40, height: 28 })
+}
+
+ipcMain.on('profilemenu:submenu', (_e, section: SubmenuSection, rect: { top: number; height: number }) => {
+  const pm = pmPopover.window
+  if (!pm || !win) return
+  submenuSección = section
+  const pmb = pm.getBounds()
+  const cb = win.getContentBounds()
+  const PAD = 12
+  submenuPopover.show({
+    x: pmb.x + pmb.width - PAD + 6 - cb.x,
+    y: pmb.y + rect.top - PAD - cb.y,
+    width: 0,
+    height: 0
+  })
+  submenuPopover.send('profilesubmenu:data', datosSubmenu())
+})
+ipcMain.on('profilemenu:submenuClose', () => submenuPopover.hide())
+ipcMain.on('profilesubmenu:action', (_e, action: string) => {
+  const [grupo, verbo, ...resto] = action.split(':')
+  const arg = resto.join(':')
+  submenuPopover.hide()
+  pmPopover.hide()
+  switch (`${grupo}:${verbo}`) {
+    case 'downloads:all': openDownloads(); break
+    case 'downloads:open': openDownload(arg); break
+    // Sin anchor propio: se ancla al mismo sitio donde estaba el menú de perfil.
+    case 'extensions:manage': abrirExtensionesDesdeMenu(); break
+    case 'extensions:import': void importarExtensionDesdeCarpeta(); break
+    case 'extensions:open': openExtensionPopup(arg); break
+    case 'bookmarks:open': abrirBookmark(arg); break
+    case 'history:open': createTab(arg); break
+    case 'dev:devtools': toggleDevtools(); break
+    case 'dev:hardReload': activeWc()?.reloadIgnoringCache(); break
+  }
+})
+
 ipcMain.on('profilemenu:action', (_e, name: string) => {
   pmPopover.hide()
   switch (name) {

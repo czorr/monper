@@ -39,10 +39,15 @@ export interface PopoverOptions {
   /** Desplazamiento vertical respecto al borde inferior del anchor. */
   offsetY?: number
   /**
-   * Datos que el popover necesita al abrirse. Se envían al mostrar Y en `did-finish-load`
-   * (el primer show ocurre antes de que el renderer esté listo y el mensaje se perdía).
+   * Datos que el popover necesita al abrirse.
+   *
+   * Se envían al mostrar, en `did-finish-load` y —lo importante— cuando el renderer avisa
+   * por `<name>:ready` de que ya se ha suscrito. Los dos primeros pueden llegar antes de que
+   * el componente registre su listener; el tercero es el que garantiza que no se pierdan.
    */
   data?: { channel: string; get: () => unknown }
+  /** Se llama al esconderlo. Lo usa el menú de perfil para arrastrar consigo su submenú. */
+  onHide?: () => void
 }
 
 export interface Popover {
@@ -110,7 +115,12 @@ export function createPopover(getParent: () => BW | null, opts: PopoverOptions, 
     })
     // Un menú se cierra al perder el foco; un overlay no-focusable no tiene ese evento.
     if (focusable) win.on('blur', () => hide())
-    // El primer `show` pasa antes de que el renderer esté escuchando: reenviar al cargar.
+    /**
+     * `did-finish-load` NO basta: dispara cuando la página termina de cargar, pero el
+     * componente registra su listener DESPUÉS (en su efecto), así que el mensaje se perdía y
+     * el popover salía vacío la primera vez. Se deja como cinturón, pero lo que de verdad
+     * cierra la carrera es `<name>:ready`, que manda el preload en cuanto alguien se suscribe.
+     */
     if (opts.data) {
       const { channel, get } = opts.data
       win.webContents.on('did-finish-load', () => {
@@ -124,6 +134,7 @@ export function createPopover(getParent: () => BW | null, opts: PopoverOptions, 
 
   const hide = (): void => {
     if (win && !win.isDestroyed() && win.isVisible()) win.hide()
+    opts.onHide?.()
   }
 
   // Canales comunes: el renderer reporta el alto de su panel y puede cerrarse solo.
@@ -132,6 +143,11 @@ export function createPopover(getParent: () => BW | null, opts: PopoverOptions, 
     place()
   })
   ipcMain.on(`${opts.name}:close`, () => hide())
+  // "ya estoy escuchando": el renderer lo manda al suscribirse y aquí se le contesta con los
+  // datos. Es lo único que garantiza que no se pierdan por llegar antes de tiempo.
+  ipcMain.on(`${opts.name}:ready`, () => {
+    if (opts.data && win && !win.isDestroyed()) win.webContents.send(opts.data.channel, opts.data.get())
+  })
 
   return {
     ensure,

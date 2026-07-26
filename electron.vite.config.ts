@@ -34,6 +34,7 @@ export default defineConfig({
           omnibox: resolve(__dirname, 'src/preload/omnibox.ts'),
           siteinfo: resolve(__dirname, 'src/preload/siteinfo.ts'),
           profilemenu: resolve(__dirname, 'src/preload/profilemenu.ts'),
+          profilesubmenu: resolve(__dirname, 'src/preload/profilesubmenu.ts'),
           peekbar: resolve(__dirname, 'src/preload/peekbar.ts'),
           signin: resolve(__dirname, 'src/preload/signin.ts'),
           extensionswin: resolve(__dirname, 'src/preload/extensionswin.ts')
@@ -63,6 +64,7 @@ export default defineConfig({
           omnibox: resolve(__dirname, 'src/renderer/omnibox.html'),
           siteinfo: resolve(__dirname, 'src/renderer/siteinfo.html'),
           profilemenu: resolve(__dirname, 'src/renderer/profilemenu.html'),
+          profilesubmenu: resolve(__dirname, 'src/renderer/profilesubmenu.html'),
           peekbar: resolve(__dirname, 'src/renderer/peekbar.html'),
           signin: resolve(__dirname, 'src/renderer/signin.html'),
           extensions: resolve(__dirname, 'src/renderer/extensions.html')

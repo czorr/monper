@@ -1,6 +1,6 @@
 import { createRoot } from 'react-dom/client'
-import { useEffect, useState, type JSX } from 'react'
-import type { Profile } from '@shared/types'
+import { useEffect, useRef, useState, type JSX } from 'react'
+import type { Profile, SubmenuSection } from '@shared/types'
 import { Avatar } from '@renderer/components/ui'
 import { PopoverPanel, PopoverRow, PopoverLabel, PopoverDivider } from '@renderer/components/popover'
 import IconChevronRight from '~icons/tabler/chevron-right'
@@ -20,14 +20,42 @@ import './styles.css'
 const pm = window.profilemenu
 const Chevron = (): JSX.Element => <IconChevronRight />
 
+/**
+ * Fila que abre un submenú al pasar el ratón por encima.
+ *
+ * El submenú es otra ventana nativa (sale fuera de este panel), así que aquí solo se manda la
+ * sección y la posición vertical de la fila; el main la coloca al lado. Al salir NO se cierra
+ * de inmediato: el puntero tiene que poder cruzar el hueco hasta el submenú, igual que en el
+ * peek del sidebar.
+ */
+function RowConSubmenu({ section, icon, label }: { section: SubmenuSection; icon: JSX.Element; label: string }): JSX.Element {
+  const ref = useRef<HTMLDivElement>(null)
+  return (
+    <div
+      ref={ref}
+      onMouseEnter={() => {
+        const r = ref.current?.getBoundingClientRect()
+        if (r) pm.submenu(section, { top: Math.round(r.top), height: Math.round(r.height) })
+      }}
+    >
+      <PopoverRow icon={icon} label={label} meta={<Chevron />} onClick={() => {
+        const r = ref.current?.getBoundingClientRect()
+        if (r) pm.submenu(section, { top: Math.round(r.top), height: Math.round(r.height) })
+      }} />
+    </div>
+  )
+}
+
 function ProfileMenuWindow(): JSX.Element {
   const [profile, setProfile] = useState<Profile>({ name: 'Tú', initials: '?', avatar: null })
   useEffect(() => pm.onProfile(setProfile), [])
   const act = (name: string): void => pm.action(name)
 
+  // Pasar por cualquier fila SIN submenú lo cierra: es lo que se espera de un menú.
   return (
     <PopoverPanel onHeight={pm.reportHeight} measure={profile}>
-      <PopoverLabel>Profiles</PopoverLabel>
+      <div onMouseEnter={() => pm.submenuMaybeClose()}>
+        <PopoverLabel>Profiles</PopoverLabel>
 
       <PopoverRow
         icon={<Avatar initials={profile.initials} src={profile.avatar} size="sm" />}
@@ -36,15 +64,18 @@ function ProfileMenuWindow(): JSX.Element {
         onClick={() => act('switch-profile')}
         meta={<><IconCheck className="w-3.5 h-3.5" /><IconDots className="w-3.5 h-3.5" /></>}
       />
-      <PopoverRow icon={<IconUserPlus />} label="New profile" onClick={() => act('new-profile')} />
+        <PopoverRow icon={<IconUserPlus />} label="New profile" onClick={() => act('new-profile')} />
+      </div>
 
       <PopoverDivider />
-      <PopoverRow icon={<IconBookmark />} label="Bookmarks" meta={<Chevron />} onClick={() => act('bookmarks')} />
-      <PopoverRow icon={<IconDownload />} label="Downloads" meta={<Chevron />} onClick={() => act('downloads')} />
-      <PopoverRow icon={<IconPuzzle />} label="Extensions" meta={<Chevron />} onClick={() => act('extensions')} />
-      <PopoverRow icon={<IconHistory />} label="History" meta={<Chevron />} onClick={() => act('history')} />
-      <PopoverRow icon={<IconCode />} label="Developers" meta={<Chevron />} onClick={() => act('developers')} />
-      <PopoverRow icon={<IconSettings />} label="Settings" meta="⌘," onClick={() => act('settings')} />
+      <RowConSubmenu section="bookmarks" icon={<IconBookmark />} label="Bookmarks" />
+      <RowConSubmenu section="downloads" icon={<IconDownload />} label="Downloads" />
+      <RowConSubmenu section="extensions" icon={<IconPuzzle />} label="Extensions" />
+      <RowConSubmenu section="history" icon={<IconHistory />} label="History" />
+      <RowConSubmenu section="developers" icon={<IconCode />} label="Developers" />
+      <div onMouseEnter={() => pm.submenuMaybeClose()}>
+        <PopoverRow icon={<IconSettings />} label="Settings" meta="⌘," onClick={() => act('settings')} />
+      </div>
 
       <PopoverDivider />
       <PopoverRow icon={<IconPlus />} label="New Tab" meta="⌘T" onClick={() => act('new-tab')} />

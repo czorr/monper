@@ -52,9 +52,13 @@ En el renderer, envolver todo en `PopoverPanel` con `onHeight` y usar `PopoverRo
 - **`blur` → `hide`** en los focusables (un menú se cierra al perder el foco). Los
   `focusable: false` no reciben ese evento, así que se cierran a mano.
 - **`acceptFirstMouse`**, para que el primer click funcione sin activar la ventana.
-- **Reenvío de `data` en `did-finish-load`.** El primer `show()` pasa antes de que el
-  renderer esté escuchando y el mensaje se perdía: la ventana salía vacía en el primer
-  click. Cada ventana lo había arreglado por su cuenta (o no).
+- **Los datos llegan aunque el renderer todavía no estuviera escuchando.** El popover salía
+  vacío en el primer click porque el `send` del main ocurría antes de que el componente
+  registrara su listener. `did-finish-load` **no basta**: dispara cuando la página carga, y el
+  efecto de React corre después — el menú de perfil seguía saliendo sin nombre ni avatar con
+  ese arreglo. Lo que cierra la carrera es el apretón de manos: el preload manda
+  `<name>:ready` en cuanto alguien se suscribe y el main contesta con los datos. Si añades un
+  popover con `data`, su preload tiene que mandar ese aviso al suscribirse.
 - **`<name>:height`** para que la ventana se ajuste al contenido, y **`<name>:close`**.
 
 ## La salida del peek
@@ -74,6 +78,27 @@ Dos trampas que costaron un test cada una:
 Las animaciones del peek (`peek-slide-in` / `peek-slide-out`, cajón desde el borde izquierdo)
 son suyas y no la `peek-in` compartida: esa la usan todos los popovers y un menú no debe
 deslizarse media pantalla. `PopoverPanel` acepta la animación por prop.
+
+## Submenús del menú de perfil
+
+Las filas con chevron (Bookmarks, Downloads, Extensions, History, Developers) abren un
+submenú **en otra ventana nativa**, no en un div: sale fuera del panel y ahí el DOM no se ve,
+porque la vista de la página se dibuja encima.
+
+Tres cosas que lo hacen funcionar como un menú de verdad:
+
+- **`focusable: false`** en el submenú. Si robara el foco, el menú padre se cerraría por su
+  propio `blur` en cuanto apareciera el hijo.
+- **`onHide` en la factoría**: cuando el padre se esconde, se lleva al hijo consigo.
+- **Pasar por una fila sin submenú lo cierra**, que es lo que se espera al recorrer un menú.
+
+El renderer del submenú no sabe de dónde salen las filas: el main se las manda ya masticadas
+(`SubmenuRow`, con label, subtexto, icono, imagen y `action`), y devuelve la `action` al
+clicar. Añadir una sección es añadir un `case` en `datosSubmenu()` y otro en el handler.
+
+**La posición hay que traducirla dos veces**: el rect de la fila llega en coordenadas de la
+ventana DEL MENÚ, hay que pasarlo a pantalla y de ahí al área de contenido de la ventana
+principal, que es el sistema en el que trabaja la factoría.
 
 ## Lo que NO se unifica
 

@@ -67,6 +67,11 @@ function frecency(h: HistoryEntry): number {
   return h.visits * recency
 }
 
+/** Los últimos sitios visitados, para el submenú de History. */
+export function recent(limit = 10): HistoryEntry[] {
+  return [...items].sort((a, b) => b.lastVisit - a.lastVisit).slice(0, limit)
+}
+
 /** Busca en el historial por url/título; devuelve los más relevantes. */
 export function search(query: string, limit = 6): HistoryEntry[] {
   const q = query.trim().toLowerCase()

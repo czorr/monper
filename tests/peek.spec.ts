@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { launch, api, type Harness } from './helpers'
+import { launch, api, waitForState, serve, html, type Harness } from './helpers'
 
 /**
  * El peek: el sidebar flotante que sale al pasar el ratón por el botón de expandir.
@@ -82,4 +82,34 @@ test('si vuelve el ratón mientras se retrae, entra otra vez', async () => {
   await expect.poll(animacion).toBe('peek-slide-in')
   await new Promise((r) => setTimeout(r, 400))
   expect(await visible(), 'la retirada cancelada no debe esconderlo después').toBe(true)
+})
+
+test('el peek muestra exactamente las mismas pestañas que el sidebar', async () => {
+  // Es el MISMO componente, pero el estado llega por push y el peek se crea al vuelo: su
+  // React se suscribía después del envío y salía con pestañas de otro momento. Lo que lo
+  // arregla es que al suscribirse se PIDA el estado (`state:get`), no que llegue a tiempo.
+  const site = await serve({ '/a': html('Alfa'), '/b': html('Beta'), '/c': html('Gamma') })
+  try {
+    for (const p of ['/a', '/b', '/c']) {
+      await api(h.win, 'newTab')
+      await api(h.win, 'go', site.url + p)
+      await waitForState(h.win, (s) => !!s.tabs.find((t) => t.id === s.activeId)?.title)
+    }
+    await api(h.win, 'setCollapsed', true)
+    await new Promise((r) => setTimeout(r, 700)) // el peek ignora el hover justo tras colapsar
+    await mostrar()
+    await expect.poll(visible).toBe(true)
+
+    const pk = await peekPage()
+    const titulos = (t: string): string[] => t.match(/Alfa|Beta|Gamma/g) ?? []
+    await expect
+      .poll(async () => titulos(await pk.evaluate(() => document.body.innerText)))
+      .toEqual(['Alfa', 'Beta', 'Gamma'])
+
+    await api(h.win, 'setCollapsed', false)
+    const enSidebar = titulos(await h.win.evaluate(() => document.querySelector('aside')?.innerText ?? ''))
+    expect(enSidebar, 'la misma info en los dos, siempre').toEqual(['Alfa', 'Beta', 'Gamma'])
+  } finally {
+    await site.close()
+  }
 })

@@ -79,6 +79,14 @@ Las animaciones del peek (`peek-slide-in` / `peek-slide-out`, cajón desde el bo
 son suyas y no la `peek-in` compartida: esa la usan todos los popovers y un menú no debe
 deslizarse media pantalla. `PopoverPanel` acepta la animación por prop.
 
+## El peek va por el mismo camino
+
+El peek no usa `data` de la factoría: renderiza el mismo `<Sidebar/>` y recibe `state:update`
+como el chrome. Tenía **el mismo fallo**: al crearse al vuelo, su React se suscribía después
+del `pushState()` que lo acompaña y salía con pestañas de otro momento. Ahora el preload pide
+el estado (`state:get`) al suscribirse, así que ya no depende de llegar a tiempo — y de paso
+el chrome también deja de depender de ello tras un ⌘R.
+
 ## Submenús del menú de perfil
 
 Las filas con chevron (Bookmarks, Downloads, Extensions, History, Developers) abren un

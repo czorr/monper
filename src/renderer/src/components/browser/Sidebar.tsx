@@ -1,6 +1,7 @@
 import type { JSX } from 'react'
 import type { BrowserState, Bookmark, Profile, UpdateState } from '@shared/types'
 import UpdatePill from './UpdatePill'
+import RemotePill from './RemotePill'
 import AccountPill from './AccountPill'
 import TabList from './TabList'
 import TabRow from './TabRow'
@@ -27,13 +28,16 @@ interface Props {
   update?: UpdateState
   onDownloadUpdate?: () => void
   onInstallUpdate?: () => void
+  /** Control remoto activo → indicador en el mismo hueco que el pill de actualización. */
+  remote?: { enabled: boolean; port: number }
+  onDisableRemote?: () => void
 }
 
 const newRowClass =
   'flex items-center gap-2.5 w-full py-1 px-2 rounded-lg border border-transparent text-text-dim text-left text-[14.5px] ' +
   'min-h-[29px] hover:bg-bg-hover hover:text-text [&>svg]:opacity-80 [&>svg]:w-[16px] [&>svg]:h-[16px]'
 
-export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBookmark, onOpenMenu, onCollapse, onNewTab, onSelectTab, onCloseTab, onReorderTabs, floating = false, update, onDownloadUpdate, onInstallUpdate }: Props): JSX.Element {
+export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBookmark, onOpenMenu, onCollapse, onNewTab, onSelectTab, onCloseTab, onReorderTabs, floating = false, update, onDownloadUpdate, onInstallUpdate, remote, onDisableRemote }: Props): JSX.Element {
   const noop = (): void => {}
   // Las pestañas ligadas a un bookmark se muestran en su slot de bookmarks, no en Tabs.
   const userTabs = state.tabs.filter((t) => !t.agent && !t.bookmarkId)
@@ -61,6 +65,7 @@ export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBo
       */}
       {!floating && (
         <div className="h-topbar shrink-0 flex items-center justify-end gap-1.5 [-webkit-app-region:drag]">
+          {remote?.enabled && <RemotePill port={remote.port} onDisable={onDisableRemote ?? noop} />}
           {update && (
             <UpdatePill
               state={update}

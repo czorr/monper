@@ -81,7 +81,12 @@ measured, say so instead of implying it works.
 - **Only internal pages may touch private data over IPC.** `isInternalSender()` allows
   `newtab/settings/error/downloads`. The chrome (`index.html`) is *not* internal, so
   `addBookmark`/`removeBookmark` in the preload silently do nothing from there.
-- **`state:update` is push-only**, sent on `did-finish-load` and on every change.
+- **Anything that receives data over IPC must be able to PULL it, not just wait for a push.**
+  A window created on demand subscribes *after* the push that was meant for it, so it renders
+  empty or stale — this bit the profile menu (no name or avatar) and the peek (wrong tabs).
+  The state has `state:get`; popovers created with `data` reply to `<name>:ready`, which the
+  preload sends the moment something subscribes. `did-finish-load` is NOT enough: it fires
+  before React's effect runs.
 - **The renderer CSP forbids `unsafe-eval`**, so nothing can compile a function in the page.
 - **Extensions with blocking APIs can never work.** Electron does not implement
   `declarativeNetRequest`, `chrome.contextMenus` or `chrome.action`. Not a bug to fix.

@@ -123,3 +123,38 @@ resolución:
 | github.com | `fluidicon.png` (logo sobre cuadrado) | `favicons/favicon.png` |
 | chess.com | `safari-pinned-tab.svg` (silueta) | `favicon.ico` |
 | youtube.com | `favicon.ico` | `favicon_144x144.png` |
+
+
+## Control remoto (Developers → Remote debugging)
+
+Deja que un proceso externo conduzca Monper con los mismos verbos que necesita
+`monperwright` (`goto`, `eval`, `mouse`, `key`, `screenshot`, `tabs`…). Vive en
+[`src/main/remote.ts`](../src/main/remote.ts) y **está apagado por defecto**.
+
+### Qué expone de verdad
+
+Conviene decirlo sin eufemismos: con esto encendido, quien tenga el token puede navegar a los
+sitios **donde ya tienes sesión abierta** y leer lo que muestren. `goto` a tu correo + `eval`
+de `document.body.innerText` es tu correo. Un `screenshot` es tu pantalla. Eso no es un
+descuido: es lo que significa controlar un navegador.
+
+Lo que **no** puede: pedir un secreto al vault ni disparar un autofill. Esos caminos siguen
+siendo solo del usuario, y ningún verbo los toca.
+
+### Decisiones tomadas
+
+- **Solo `127.0.0.1`.** Escuchar en `0.0.0.0` lo abriría a toda la red local.
+- **Token obligatorio** en cabecera (nunca en la URL: acaban en logs e historiales). Sin él, 401.
+- **`enabled` NO se persiste.** El token sí, el interruptor no: si se recordara, lo enciendes
+  un día para trabajar y al siguiente la app arranca escuchando en silencio.
+- **Indicador fijo en el chrome** mientras esté activo, en el mismo hueco que el pill de
+  actualización, y clicarlo lo apaga. Nunca debe estar encendido sin verse.
+- **No se usa CDP** (`--remote-debugging-port`): solo se puede fijar al arrancar —no habría
+  interruptor en caliente— y da acceso total, incluidas las cookies de sesión.
+
+El límite conocido: **el token está en texto plano** en `remote.json`, y en macOS cualquier
+app que ejecutes puede leer tu carpeta de usuario. Por eso la protección real es que esté
+apagado. El siguiente paso, si esto va a producción, es pedir confirmación con un diálogo
+nativo en la primera orden de cada cliente.
+
+Fijado en `security.spec.ts`: arranca apagado, y encendido tiene indicador.

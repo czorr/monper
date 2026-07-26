@@ -89,3 +89,21 @@ test('una web no alcanza node ni el runtime de Electron', async () => {
   })
   expect(globals).toBe('undefined,undefined,undefined,undefined')
 })
+
+test('el control remoto arranca apagado y se ve cuando está encendido', async () => {
+  // Dos garantías que van juntas: encenderlo no sobrevive al cierre de la app (nunca escucha
+  // en silencio al día siguiente) y mientras esté activo hay un indicador fijo en el chrome.
+  const estado = (): Promise<{ enabled: boolean }> => api(h.win, 'getRemoteState')
+  expect((await estado()).enabled, 'al arrancar tiene que estar apagado').toBe(false)
+
+  const pill = h.win.locator('button', { hasText: 'Remoto' })
+  await expect(pill).toHaveCount(0)
+
+  await h.app.evaluate(({ ipcMain }) => ipcMain.emit('profilesubmenu:action', null, 'dev:remote'))
+  await expect(pill, 'encendido sin indicador visible es exactamente lo que no queremos').toBeVisible()
+  expect((await estado()).enabled).toBe(true)
+
+  await pill.click() // el indicador es además el interruptor de pánico
+  await expect(pill).toHaveCount(0)
+  expect((await estado()).enabled).toBe(false)
+})

@@ -34,6 +34,10 @@ const api: MonperApi = {
   onState: (cb: (state: BrowserState) => void) => {
     const handler = (_e: unknown, state: BrowserState) => cb(state)
     ipcRenderer.on('state:update', handler)
+    // `state:update` es solo push: quien se suscribe tarde se pierde el último. El peek se
+    // crea al vuelo y su React llega después del push que lo acompaña, así que salía con
+    // pestañas de otro momento. Pedirlo al suscribirse quita la carrera de en medio.
+    void ipcRenderer.invoke('state:get').then((s) => { if (s) cb(s as BrowserState) })
     return () => { ipcRenderer.removeListener('state:update', handler) }
   },
   toggleBookmark: () => ipcRenderer.send('bookmarks:toggle'),
@@ -80,6 +84,9 @@ const api: MonperApi = {
   getPanels: () => ipcRenderer.invoke('ui:panels') as Promise<import('../shared/types').PanelSizes>,
   setPanel: (which: 'sidebar' | 'chat', width: number) => ipcRenderer.send('ui:setPanel', which, width),
   getUpdateState: () => ipcRenderer.invoke('update:state') as Promise<import('../shared/types').UpdateState>,
+  getRemoteState: () => ipcRenderer.invoke('remote:get') as Promise<{ enabled: boolean; port: number }>,
+  onRemoteState: (cb) => sub('remote:state', (r) => cb(r as never)),
+  setRemote: (on: boolean) => ipcRenderer.send('remote:set', on),
   onUpdateState: (cb) => sub('update:state', (s) => cb(s as never)),
   downloadUpdate: () => ipcRenderer.send('update:download'),
   installUpdate: () => ipcRenderer.send('update:install'),

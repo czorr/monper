@@ -234,6 +234,9 @@ export interface SubmenuRow {
   action: string
   /** Fila de cabecera del submenú (separada del resto). */
   primary?: boolean
+  /** La fila es un interruptor; `on` es su estado. Al pulsarla el menú NO se cierra. */
+  toggle?: boolean
+  on?: boolean
 }
 
 export interface SubmenuData {
@@ -387,6 +390,10 @@ export interface MonperApi {
   setPanel: (which: 'sidebar' | 'chat', width: number) => void
   // ---- Actualizaciones ----
   getUpdateState: () => Promise<UpdateState>
+  // ---- Control remoto (ver src/main/remote.ts) ----
+  getRemoteState: () => Promise<{ enabled: boolean; port: number }>
+  onRemoteState: (cb: (s: { enabled: boolean; port: number }) => void) => () => void
+  setRemote: (on: boolean) => void
   onUpdateState: (cb: (s: UpdateState) => void) => () => void
   downloadUpdate: () => void
   installUpdate: () => void
@@ -621,6 +628,10 @@ export interface MonperTabApi {
   setVibrancy: (id: string) => void
   // ---- Actualizaciones (Settings → About) ----
   getUpdateState: () => Promise<UpdateState>
+  // ---- Control remoto (ver src/main/remote.ts) ----
+  getRemoteState: () => Promise<{ enabled: boolean; port: number }>
+  onRemoteState: (cb: (s: { enabled: boolean; port: number }) => void) => () => void
+  setRemote: (on: boolean) => void
   onUpdateState: (cb: (s: UpdateState) => void) => () => void
   checkUpdates: () => void
   downloadUpdate: () => void

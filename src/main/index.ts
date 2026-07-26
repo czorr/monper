@@ -19,6 +19,7 @@ import { credentialsFor, fillFromVault } from './autofill'
 import { initExtensions, listExtensions, addExtension, setExtensionEnabled, removeExtension as removeExt, installFromStore, extensionUi } from './extensions'
 import { extensionIdFrom } from './crx'
 import { createPopover } from './popover'
+import { initRemote, remoteState, setRemoteEnabled, onRemoteState } from './remote'
 import { initFavicons, rememberFavicon, faviconFor, resolveFavicon } from './favicons'
 import { initChats, listSessions, resumeOrNew, startSession, openSession, sessionForNextMessage, saveSession, removeSession as removeChatSession } from './chats'
 import { writeJson } from './jsonfile'
@@ -284,8 +285,16 @@ function toggleDevtools(): void {
   else wc.openDevTools({ mode: 'detach' })
 }
 
-function pushState() {
-  if (!win || win.isDestroyed()) return
+/**
+ * El estado actual, para poder MANDARLO y también para poder PEDIRLO.
+ *
+ * `state:update` es solo push, y eso deja fuera a cualquiera que se suscriba tarde: el peek se
+ * crea al vuelo y su React se suscribe después del `pushState()` que lo acompaña, así que
+ * salía con las pestañas de otro momento (o sin ninguna) hasta el siguiente cambio. Con
+ * `state:get` quien se suscribe pide el estado y deja de depender de llegar a tiempo.
+ */
+function buildState(): BrowserState | null {
+  if (!win || win.isDestroyed()) return null
   const t = activeId != null ? tabs.get(activeId) : null
   const displayUrl = (u: string) => (isInternal(u) ? '' : u)
   const state: BrowserState = {
@@ -302,6 +311,13 @@ function pushState() {
       : null,
     controlling: controllingActive()
   }
+  return state
+}
+
+function pushState(): void {
+  const state = buildState()
+  if (!state || !win || win.isDestroyed()) return
+  const t = activeId != null ? tabs.get(activeId) : null
   win.webContents.send('state:update', state)
   // El título de la ventana. No se ve en la barra (es frameless), pero sí en Mission
   // Control, en el menú Ventana y al compartir pantalla, donde antes ponía siempre
@@ -900,6 +916,7 @@ function savePanels(): void {
     writeJson(panelsFile(), { sidebar: sidebarWidth, chat: chatWidth, vibrancy: vibrancyMaterial }, 'el tamaño de los paneles', false)
   }, 400)
 }
+ipcMain.handle('state:get', () => buildState())
 ipcMain.handle('ui:panels', () => ({ sidebar: sidebarWidth, chat: chatWidth, limits: PANEL_LIMITS }))
 
 // ---- Apariencia: nivel de transparencia del chrome (sidebar y panel de chat) ----
@@ -931,6 +948,8 @@ function broadcastUpdateState(s: ReturnType<typeof getUpdateState>): void {
   }
 }
 ipcMain.handle('update:state', () => getUpdateState())
+ipcMain.handle('remote:get', () => { const r = remoteState(); return { enabled: r.enabled, port: r.port } })
+ipcMain.on('remote:set', (_e, on: boolean) => setRemoteEnabled(!!on))
 ipcMain.handle('app:version', () => app.getVersion())
 ipcMain.on('update:check', () => void checkForUpdates(true, win))
 ipcMain.on('update:download', () => void downloadUpdate())
@@ -1771,14 +1790,28 @@ function datosSubmenu(): SubmenuData {
         }))
       }
     }
-    case 'developers':
+    case 'developers': {
+      const r = remoteState()
       return {
         section: 'developers',
+        listLabel: 'Advanced',
         rows: [
           { id: 'devtools', label: 'Developer tools', icon: 'code', meta: '⌥⌘I', action: 'dev:devtools', primary: true },
-          { id: 'reload', label: 'Recargar sin caché', icon: 'gauge', meta: '⇧⌘R', action: 'dev:hardReload', primary: true }
+          { id: 'reload', label: 'Recargar sin caché', icon: 'gauge', meta: '⇧⌘R', action: 'dev:hardReload', primary: true },
+          {
+            id: 'remote',
+            label: 'Remote debugging',
+            sub: r.enabled ? `Escuchando en 127.0.0.1:${r.port}` : 'Deja que una IA externa controle el navegador',
+            toggle: true,
+            on: r.enabled,
+            action: 'dev:remote'
+          },
+          ...(r.enabled
+            ? [{ id: 'token', label: 'Copiar token de acceso', icon: 'code' as const, action: 'dev:copyToken' }]
+            : [])
         ]
       }
+    }
   }
 }
 
@@ -1822,6 +1855,12 @@ ipcMain.on('profilemenu:submenuClose', () => submenuPopover.hide())
 ipcMain.on('profilesubmenu:action', (_e, action: string) => {
   const [grupo, verbo, ...resto] = action.split(':')
   const arg = resto.join(':')
+  // El toggle es la excepción: cerrar el menú al pulsarlo impediría ver que cambió.
+  if (action === 'dev:remote') {
+    setRemoteEnabled(!remoteState().enabled)
+    submenuPopover.send('profilesubmenu:data', datosSubmenu())
+    return
+  }
   submenuPopover.hide()
   pmPopover.hide()
   switch (`${grupo}:${verbo}`) {
@@ -1835,6 +1874,7 @@ ipcMain.on('profilesubmenu:action', (_e, action: string) => {
     case 'history:open': createTab(arg); break
     case 'dev:devtools': toggleDevtools(); break
     case 'dev:hardReload': activeWc()?.reloadIgnoringCache(); break
+    case 'dev:copyToken': clipboard.writeText(remoteState().token); break
   }
 })
 
@@ -2016,6 +2056,19 @@ app.whenReady().then(() => {
   })
   initBookmarks()
   initFavicons()
+  // Control remoto: apagado salvo que el usuario lo dejara encendido (ver remote.ts).
+  initRemote({
+    activeWc: () => activeWc(),
+    listTabs: () => [...tabs.entries()].map(([id, t]) => ({ id, url: t.url, title: t.title })),
+    activateTab: (id) => setActive(id),
+    newTab: (url) => createTab(url),
+    navigate: (url) => navigateActive(url)
+  })
+  // El indicador del chrome: nunca debe estar encendido sin que se vea.
+  onRemoteState((r) => {
+    win?.webContents.send('remote:state', r)
+    if (peekWin && !peekWin.isDestroyed()) peekWin.webContents.send('remote:state', r)
+  })
   initChats()
   initHistory()
   initSkills()

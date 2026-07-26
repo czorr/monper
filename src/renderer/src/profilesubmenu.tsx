@@ -1,7 +1,7 @@
 import { createRoot } from 'react-dom/client'
 import { useEffect, useState, type JSX } from 'react'
 import type { SubmenuData } from '@shared/types'
-import { PopoverPanel, PopoverRow, PopoverLabel, PopoverDivider, PopoverList } from '@renderer/components/popover'
+import { PopoverPanel, PopoverRow, PopoverLabel, PopoverDivider, PopoverList, PopoverToggle } from '@renderer/components/popover'
 import IconDownload from '~icons/tabler/download'
 import IconFile from '~icons/tabler/file'
 import IconPuzzle from '~icons/tabler/puzzle'
@@ -45,6 +45,19 @@ function SubmenuWindow(): JSX.Element {
 
   const fila = (r: (typeof data.rows)[number]): JSX.Element => {
     const Icon = r.icon ? ICONS[r.icon] : null
+    // Fila-interruptor: el main la vuelve a mandar con el estado nuevo, así que no hay estado
+    // local que se pueda desincronizar de lo que de verdad está encendido.
+    if (r.toggle) {
+      return (
+        <div key={r.id} className="flex items-center gap-3 px-2.5 py-1.5 rounded-lg hover:bg-white/[0.06]">
+          <div className="flex-1 min-w-0">
+            <div className="text-[13.5px] text-text truncate">{r.label}</div>
+            {r.sub && <div className="text-[11.5px] text-text-faint truncate">{r.sub}</div>}
+          </div>
+          <PopoverToggle on={!!r.on} onChange={() => sm.action(r.action)} />
+        </div>
+      )
+    }
     return (
       <PopoverRow
         key={r.id}

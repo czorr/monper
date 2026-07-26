@@ -16,6 +16,10 @@ export default function App(): JSX.Element {
   const [collapsed, setCollapsed] = useState(false)
   const [editRequest, setEditRequest] = useState(0)
   const [chatOpen, setChatOpen] = useState(false)
+  /** Control remoto: se pinta un indicador mientras esté activo (ver RemotePill). */
+  const [remoto, setRemoto] = useState<{ enabled: boolean; port: number }>({ enabled: false, port: 0 })
+  useEffect(() => { void monper.getRemoteState().then(setRemoto) }, [])
+  useEffect(() => monper.onRemoteState(setRemoto), [])
   const [profile, setProfile] = useState<Profile>({ name: 'Tú', initials: '?', avatar: null })
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([])
   const [downloads, setDownloads] = useState<DownloadsSummary>({ active: 0, total: 0 })
@@ -119,6 +123,8 @@ export default function App(): JSX.Element {
         update={update}
         onDownloadUpdate={() => monper.downloadUpdate()}
         onInstallUpdate={() => monper.installUpdate()}
+        remote={remoto}
+        onDisableRemote={() => monper.setRemote(false)}
       />
       <Content
         leftInset={!collapsed}

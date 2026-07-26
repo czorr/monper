@@ -26,7 +26,7 @@ export default function TabList({ tabs, activeId, onSelect, onClose, onReorder }
   }
 
   return (
-    <div className="flex-1 overflow-y-auto flex flex-col gap-px mt-px [&::-webkit-scrollbar]:w-0">
+    <div className="flex-1 overflow-y-auto flex flex-col gap-px mt-px pb-px [&::-webkit-scrollbar]:w-0">
       {tabs.map((t) => (
         <div
           key={t.id}

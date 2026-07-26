@@ -11,7 +11,7 @@ export default function SectionLabel({ label, action }: Props): JSX.Element {
       <span>{label}</span>
       {action && (
         <button
-          className="text-[11.5px] text-text-faint py-0.5 px-1.5 rounded opacity-0 transition-opacity duration-150 group-hover:opacity-100 hover:bg-bg-hover hover:text-text-dim"
+          className="text-[11.5px] text-text-faint py-0.5 px-1.5 rounded-md opacity-0 transition-opacity duration-150 group-hover:opacity-100 hover:bg-bg-hover hover:text-text-dim"
           title={action.title}
           onClick={action.onClick}
         >

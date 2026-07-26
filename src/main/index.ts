@@ -592,8 +592,11 @@ function closeTab(id: number) {
   tabs.delete(id)
   const wi = warmOrder.indexOf(id); if (wi >= 0) warmOrder.splice(wi, 1)
   if (activeId === id) {
-    const remaining = [...tabs.keys()]
-    if (remaining.length) setActive(remaining[remaining.length - 1])
+    // Se activa la última pestaña VISIBLE. Las del agente no salen en el sidebar, así que
+    // saltar a una de ellas parece que no ha pasado nada: la lista se queda vacía y el
+    // contenido cambia a algo que el usuario no abrió.
+    const visibles = [...tabs.entries()].filter(([, t]) => !t.agent).map(([tid]) => tid)
+    if (visibles.length) setActive(visibles[visibles.length - 1])
     else createTab()
   } else {
     pushState()
@@ -851,7 +854,10 @@ function createWindow() {
 
   if (shouldMaximize()) win.maximize()
   win.once('ready-to-show', () => {
-    if (isMac) win!.setVibrancy('under-window')
+    // Se reaplica el material ELEGIDO. Antes había aquí un `setVibrancy('under-window')` fijo
+    // que pisaba la preferencia guardada y también ignoraba MONPER_NO_VIBRANCY: el selector
+    // de Settings solo surtía efecto si lo cambiabas en vivo.
+    if (isMac && !NO_VIBRANCY && vibrancyMaterial !== 'none') win!.setVibrancy(vibrancyMaterial)
     win!.show()
   })
   trackWindow(win)

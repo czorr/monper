@@ -1,4 +1,4 @@
-import type { JSX } from 'react'
+import { useState, type JSX } from 'react'
 import type { TabInfo } from '@shared/types'
 import { domainOf } from '@renderer/lib/dom'
 import { CloseIcon } from '@renderer/lib/icons'
@@ -13,9 +13,20 @@ interface Props {
 }
 
 const rowBase =
-  'group/tab flex items-center gap-2.5 w-full py-1 px-2 rounded-lg text-left text-[14.5px] min-h-[29px]'
+  'group/tab flex items-center gap-2.5 w-full py-1 px-2 rounded-xl text-left text-[14.5px] min-h-[29px] transition-transform duration-150'
+
+/**
+ * Efecto de pulsación de la fila. Va por estado y no por `active:` de CSS a propósito.
+ *
+ * Con `active:` la fila se hunde también al pulsar sus BOTONES —cerrar, silenciar— y como el
+ * transform mueve todo el row, al soltar el puntero ya no estaba encima del botón y el click
+ * no llegaba a dispararse: parecía que cerrar no funcionaba. Aquí solo se hunde si la
+ * pulsación empezó en la fila, no en uno de sus controles.
+ */
+const PRESSED = 'scale-[0.98] translate-y-[1px]'
 
 export default function TabRow({ tab, active, onSelect, onClose }: Props): JSX.Element {
+  const [pressed, setPressed] = useState(false)
   const state = active
     ? 'bg-white/[0.07] border border-white/[0.07] text-text backdrop-blur-sm'
     // `border-transparent` para que la fila activa no mida 2px más y la lista no salte.
@@ -23,7 +34,10 @@ export default function TabRow({ tab, active, onSelect, onClose }: Props): JSX.E
 
   return (
     <div
-      className={`${rowBase} ${state}`}
+      className={`${rowBase} ${state} ${pressed ? PRESSED : ''}`}
+      onPointerDown={(e) => { if (!(e.target as HTMLElement).closest('button')) setPressed(true) }}
+      onPointerUp={() => setPressed(false)}
+      onPointerLeave={() => setPressed(false)}
       onClick={() => onSelect(tab.id)}
       onAuxClick={(e) => e.button === 1 && onClose(tab.id)}
       onContextMenu={(e) => { e.preventDefault(); window.monper.tabContextMenu(tab.id) }}

@@ -85,3 +85,18 @@ test('una URL que no resuelve muestra la página de error, no una pantalla en bl
   )
   expect(s.tabs.find((t) => t.id === s.activeId)?.url).toContain('dominio-que-no-existe')
 })
+
+test('el efecto de pulsación no impide cerrar una pestaña', async () => {
+  // La fila se hunde al pulsarla (`scale` + `translate-y`). Cuando ese efecto se aplicaba
+  // también al pulsar sus BOTONES, el transform movía el botón de cerrar de debajo del
+  // puntero y el click no llegaba a dispararse: parecía que cerrar no funcionaba.
+  await api(h.win, 'newTab')
+  await api(h.win, 'go', site.url + '/')
+  await waitForState(h.win, (s) => s.tabs.some((t) => t.title === 'Hola Monper'))
+  const antes = (await waitForState(h.win, () => true)).tabs.length
+
+  const fila = h.win.locator('.group\\/tab').first()
+  await fila.hover()
+  await fila.locator('[title="Cerrar"]').click()
+  await expect.poll(async () => (await waitForState(h.win, () => true)).tabs.length).toBe(antes - 1)
+})

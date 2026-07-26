@@ -89,7 +89,9 @@ export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBo
       {bookmarks.length > 0 && (
         <div className="shrink-0">
           <SectionLabel label="Bookmarks" />
-          <div className="flex flex-col gap-px max-h-[35vh] overflow-y-auto [&::-webkit-scrollbar]:w-0">
+          {/* pb-px: la fila pulsada baja 1px y, si es la última, sacaba scroll en este
+              contenedor. Ese píxel de holgura evita la barra sin tocar el efecto. */}
+          <div className="flex flex-col gap-px pb-px max-h-[35vh] overflow-y-auto [&::-webkit-scrollbar]:w-0">
             {bookmarks.map((b) => {
               const live = liveBookmark(b.id)
               return live ? (
@@ -117,7 +119,7 @@ export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBo
             <img src={monperPng} alt="" />
             <span>Agent tabs</span>
           </div>
-          <div className="flex flex-col gap-px max-h-[40vh] overflow-y-auto [&::-webkit-scrollbar]:w-0">
+          <div className="flex flex-col gap-px pb-px max-h-[40vh] overflow-y-auto [&::-webkit-scrollbar]:w-0">
             {agentTabs.map((t) => (
               <TabRow key={t.id} tab={t} active={t.id === state.activeId} onSelect={onSelectTab} onClose={onCloseTab} />
             ))}

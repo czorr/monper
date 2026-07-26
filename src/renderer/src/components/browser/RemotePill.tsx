@@ -18,8 +18,8 @@ export default function RemotePill({ port, onDisable }: { port: number; onDisabl
       title={`Control remoto activo en 127.0.0.1:${port} — click para apagarlo`}
       className={
         'flex items-center justify-center gap-1.5 h-6 pl-2 pr-2.5 rounded-full shrink-0 ' +
-        'bg-amber-400/15 text-amber-300 border border-amber-400/25 ' +
-        'hover:bg-amber-400/25 hover:text-amber-200 ' +
+        'bg-orange-400/15 text-orange-300 border border-orange-400/25 ' +
+        'hover:bg-orange-400/25 hover:text-orange-200 ' +
         'text-[11.5px] font-medium tracking-[-0.1px] transition-colors ' +
         '[-webkit-app-region:no-drag] [&>svg]:w-3.5 [&>svg]:h-3.5 [&>svg]:shrink-0'
       }

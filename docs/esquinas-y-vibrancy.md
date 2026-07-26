@@ -125,11 +125,28 @@ Son **cuatro piezas y van juntas**. Quitar una deja un fallo visual que no parec
      vería entera, como una banda opaca de 16px bajo el topbar, en vez de solo por las muescas;
    - `applyTopColor` le pone a la vista el color muestreado **como fondo opaco**, así que al
      primer scroll deshacía la transparencia.
-4. **`soloActiva` en `layoutTabs`.** El warm set deja renderizando hasta 8 vistas **apiladas
-   en el mismo rect**, y eso solo es invisible mientras la de encima sea opaca. Con settings
-   activo se veía la new tab a través de él. Cuando la activa es translúcida, se queda ella
-   sola. No cuesta nada medible: el primer frame tarda 2-10ms venga del warm set o no (ver
-   [rendimiento.md](rendimiento.md)) — el warm set nunca compró velocidad de pintado.
+4. **Solo la activa se dibuja** (`layoutTabs`). Antes el warm set dejaba renderizando hasta 8
+   vistas **apiladas en el mismo rect**, cosa inofensiva solo mientras la de encima fuese
+   opaca y ya hubiese pintado. Ninguna de las dos se cumple siempre — ver abajo.
+
+   No cuesta nada medible: el primer frame tarda 2-10ms venga del warm set o esté fría (ver
+   [rendimiento.md](rendimiento.md)). El warm set nunca compró velocidad de pintado; solo
+   hacía renderizar 8 vistas a la vez. `warmOrder` se mantiene porque es el LRU que necesita
+   el descarte de pestañas (punto 11 de [browser-hardening.md](browser-hardening.md)).
+
+### El mismo bug dos veces, y por qué la primera solución era mala
+
+Primero se vio con **settings sobre la new tab**, y se acotó a "si la activa es translúcida,
+que se quede sola". Volvió a los dos días disfrazado: **abrir un marcador desde settings**
+mostraba la new tab durante medio segundo. Parecía que el marcador pasaba por la new tab page,
+y no: medido, su URL es la definitiva desde el ms 0 — "Nueva pestaña" es solo el título por
+defecto hasta que llega el de la página. Lo que pasaba es que al activarse una pestaña
+**opaca**, la excepción se apagaba y las 4 vistas volvían a ser visibles de golpe, mientras la
+nueva aún no había pintado su primer frame (~80ms).
+
+La lección: la condición correcta no era *"¿puede taparlas?"* sino *"no hay razón para
+dibujarlas"*. Acotar la excepción al caso conocido dejó vivo el mecanismo, y el mecanismo
+volvió por otro lado.
 
 ### La trampa del `luminance`
 

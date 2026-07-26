@@ -184,7 +184,13 @@ function applyRadius(t: Tab) {
 // Warm set (LRU): mantenemos vivas y compuestas solo las N pestañas más recientes.
 // Cambiar entre ellas es instantáneo (ya están pintadas); las "frías" se ocultan para
 // que dejen de renderizar (ahorra CPU/GPU/energía). Es la contraparte del keep-alive.
-const WARM_MAX = 8
+/**
+ * Orden de uso reciente de las pestañas (la más reciente primero).
+ *
+ * Ya NO decide qué se dibuja — eso es solo la activa, ver `layoutTabs`. Se mantiene porque es
+ * el LRU que necesita el descarte de pestañas en segundo plano (punto 11 de
+ * docs/browser-hardening.md): dormir las que llevan mucho sin tocarse.
+ */
 const warmOrder: number[] = []
 function touchWarm(id: number): void {
   const i = warmOrder.indexOf(id)
@@ -206,22 +212,22 @@ function touchWarm(id: number): void {
 function layoutTabs() {
   if (!win || win.isDestroyed()) return
   const cb = contentBounds()
-  const warm = new Set(warmOrder.slice(0, WARM_MAX))
-  /**
-   * El warm set deja renderizando varias vistas APILADAS en el mismo rect, y eso solo es
-   * invisible mientras la de encima sea opaca. Con una página interna translúcida se ven las
-   * de detrás a través de ella (settings sobre la new tab, las dos a la vez).
-   *
-   * Así que cuando la activa es translúcida, se queda ella sola. No cuesta nada medible: en
-   * `docs/rendimiento.md` está comprobado que el primer frame tarda 2-10ms tanto si la
-   * pestaña venía del warm set como si no — el warm set nunca estuvo comprando velocidad de
-   * pintado. Para las webs, que son opacas, no cambia nada.
-   */
-  const activa = activeId != null ? tabs.get(activeId) : null
-  const soloActiva = !!activa && esTranslucida(activa)
   for (const [id, t] of tabs) {
-    // Visible si es la activa o está en el warm set; las demás se ocultan (no renderizan).
-    t.view.setVisible(id === activeId || (!soloActiva && warm.has(id)))
+    /**
+     * SOLO la activa se dibuja. Las demás son vistas apiladas en el MISMO rect, así que
+     * dejarlas visibles solo era inofensivo mientras la de encima fuese opaca y ya hubiese
+     * pintado. Ninguna de las dos cosas se cumple siempre:
+     *  - una página interna es translúcida y deja ver las de detrás (settings sobre newtab);
+     *  - una pestaña recién creada tarda ~80ms en su primer frame, y en ese hueco se ve a
+     *    través de ella lo que haya debajo (medido al abrir un marcador desde settings).
+     * Se intentó acotarlo al primer caso y volvió disfrazado del segundo. La condición
+     * correcta no es "¿puede taparlas?" sino "no hay razón para dibujarlas".
+     *
+     * No cuesta nada medible: en docs/rendimiento.md está comprobado que el primer frame
+     * tarda 2-10ms tanto si la pestaña venía del warm set como si estaba fría. El warm set
+     * nunca compró velocidad de pintado; solo hacía renderizar hasta 8 vistas a la vez.
+     */
+    t.view.setVisible(id === activeId)
     t.view.setBounds(cb)
     applyRadius(t)
   }

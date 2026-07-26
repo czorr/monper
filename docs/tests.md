@@ -84,3 +84,31 @@ cosas de macOS. En Linux habría que meter `xvfb` y probaríamos algo que nadie 
 Las 9 ventanas nativas (omnibox, vault, peek, extensiones…), el chat con el agente (haría
 falta un provider falso), el REPL y las rutinas, y la instalación de una actualización
 (necesita firma). Nada de eso es inalcanzable; simplemente no está.
+
+## `pnpm build` construye también los paquetes
+
+`tests/mcp.spec.ts` lanza `packages/monper-mcp/dist/index.js` como proceso hijo: prueba el
+puente de punta a punta, y para eso el paquete tiene que estar compilado.
+
+Eso rompió CI una vez. `pnpm build` solo llamaba a `electron-vite build`, que compila la app
+pero no los paquetes de `packages/`; en local el `dist` existía de haberlo compilado a mano y
+en CI no, así que el spec arrancaba un fichero inexistente. **Cuatro tests fallando con
+`Cannot find module`.**
+
+Ahora `build` encadena `build:mcp`, y `test` llama a `build` en vez de a `electron-vite build`
+directamente. Así cualquiera que compile obtiene un árbol coherente, sin que haya que saber un
+paso extra que solo vive en el YAML de CI.
+
+`packages/` **no es un workspace de pnpm** y `monper-mcp` no tiene `node_modules` propio: se
+compila con el `typescript` y los `@types/node` de la raíz. Si algún día se le añaden
+dependencias propias, hará falta un `pnpm-workspace.yaml`.
+
+## Qué se afirma en CI y qué no
+
+`tests/layout-sync.spec.ts` **mide en CI pero no afirma**: sus umbrales son de cadencia de
+frames y el runner no tiene vsync fiable. Los números quedan en el log. Conviene saberlo antes
+de perseguir un fallo suyo: si falla, es en local y casi siempre por carga de la máquina —
+correr toda la suite a la vez basta para que el primer tick llegue tarde y se pase de los 35px.
+
+`tests/peek.spec.ts` se salta entero en CI: el peek se abre con hover intent y comprueba el
+cursor REAL del sistema, que en un runner no existe.

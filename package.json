@@ -6,14 +6,15 @@
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
-    "build": "electron-vite build",
+    "build": "electron-vite build && pnpm build:mcp",
     "start": "electron-vite preview",
     "typecheck": "rm -f *.tsbuildinfo && tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "dist": "electron-vite build && electron-builder",
     "dist:dir": "electron-vite build && electron-builder --dir",
     "dist:mac": "electron-vite build && electron-builder --mac",
-    "test": "electron-vite build && playwright test",
-    "test:only": "playwright test"
+    "test": "pnpm build && playwright test",
+    "test:only": "playwright test",
+    "build:mcp": "tsc -p packages/monper-mcp/tsconfig.json && chmod +x packages/monper-mcp/dist/index.js"
   },
   "author": "",
   "license": "MIT",

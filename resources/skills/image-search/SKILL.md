@@ -1,5 +1,6 @@
 ---
-name: image-search
+icon: photo-search
+name: "Buscar imágenes"
 description: Use when you need to search images
 autoInject:
   keywords: ["image search", "images", "photo search", "google images", "thumbnail"]

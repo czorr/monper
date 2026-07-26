@@ -1,5 +1,6 @@
 ---
-name: google-docs
+host: docs.google.com
+name: "Google Docs"
 description: Read this skill when you need to read or write Google Docs. Reading works without opening a browser tab.
 autoInject:
   keywords: ["google docs", "document"]

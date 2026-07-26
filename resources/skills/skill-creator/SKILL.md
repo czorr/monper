@@ -1,5 +1,6 @@
 ---
-name: "skill-creator"
+icon: wand
+name: "Crear skills"
 description: "Create or update Aside skills. Use when the user wants to turn reusable instructions, site instructions, workflows, domain knowledge, scripts, references, or templates into an account skill."
 ---
 

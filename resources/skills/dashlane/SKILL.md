@@ -1,5 +1,6 @@
 ---
-name: dashlane
+host: dashlane.com
+name: "Dashlane"
 description: Read this skill when the user uses Dashlane.
 ---
 # Dashlane

@@ -15,7 +15,7 @@ import {
   initPermissions, attachPermissionHandlers, stateOf, setState, requestedKeys,
   allSites, clearOrigin, clearAllOrigins
 } from './permissions'
-import { initSkills, listSkills, getSkill, toggleSkill, enabledSkills, skillsDir } from './skills'
+import { initSkills, listSkills, getSkill, toggleSkill, enabledSkills, skillsDir, resolveSkillFavicons } from './skills'
 import { initProfile, getProfile, setProfile, setAvatar } from './profile'
 import { initDownloads, attachDownloads, listDownloads, activeDownloadCount, cancelDownload, openDownload, showDownload, clearDownloads } from './downloads'
 import { credentialsFor, fillFromVault } from './autofill'
@@ -24,6 +24,7 @@ import { extensionIdFrom } from './crx'
 import { createPopover } from './popover'
 import { initRemote, remoteState, setRemoteEnabled, onRemoteState } from './remote'
 import { initFavicons, rememberFavicon, faviconFor, resolveFavicon } from './favicons'
+import { initMcpClient, reloadMcpConfig, mcpServerStates, mcpTools, configPath as mcpConfigPath, stopAllMcp } from './mcp/client'
 import { initChats, listSessions, resumeOrNew, startSession, openSession, sessionForNextMessage, saveSession, removeSession as removeChatSession } from './chats'
 import { writeJson } from './jsonfile'
 import { initRoutines, listRoutines, createWatchRoutine, setRoutineEnabled, removeRoutine as removeRoutineEntry, runRoutine } from './routines'
@@ -1138,6 +1139,29 @@ ipcMain.on('remote:set', (_e, on: boolean) => setRemoteEnabled(!!on))
  * encender el puente y quedarse conduciendo tu navegador con tus sesiones. No es teórico: es
  * el mismo agujero que ya tapamos en los permisos de sitios.
  */
+// ---- Servidores MCP externos: el agente usa herramientas que Monper no tiene ----
+ipcMain.handle('mcp:servers', (e) => (isInternalSender(e.senderFrame?.url) ? mcpServerStates() : []))
+ipcMain.handle('mcp:reload', (e) => {
+  if (!isInternalSender(e.senderFrame?.url)) return []
+  reloadMcpConfig()
+  return mcpServerStates()
+})
+/**
+ * Arranca los servidores y devuelve su estado. Es el botón "Probar" de Settings: quien añade
+ * un servidor necesita saber si funciona SIN tener que ponerse a chatear con el agente, y un
+ * fallo de arranque tiene que verse aquí y no como un "el agente no sabe hacer eso".
+ */
+ipcMain.handle('mcp:probe', async (e) => {
+  if (!isInternalSender(e.senderFrame?.url)) return []
+  await mcpTools()
+  return mcpServerStates()
+})
+ipcMain.on('mcp:openConfig', (e) => {
+  // Se abre el fichero, no la carpeta: editarlo es la forma de añadir un servidor, igual
+  // que la carpeta de skills es la forma de añadir una skill.
+  if (isInternalSender(e.senderFrame?.url)) shell.openPath(mcpConfigPath())
+})
+
 ipcMain.handle('mcp:state', (e) => {
   if (!isInternalSender(e.senderFrame?.url)) return { enabled: false, port: 0 }
   const r = remoteState()
@@ -1383,7 +1407,16 @@ ipcMain.on('ui:settings', () => openSettings())
 ipcMain.on('ui:openChat', () => win?.webContents.send('menu:action', 'toggle-chat'))
 
 // ---- Skills del agente (gestión desde Settings) ----
-ipcMain.handle('skills:list', (e) => (isInternalSender(e.senderFrame?.url) ? listSkills() : []))
+/**
+ * Dos pasadas, como `perms:list`: la primera contesta al instante con los favicons que ya
+ * están en caché y la segunda (`resolve`) va a buscar los que falten al propio sitio. Si se
+ * hiciera siempre, la lista entera esperaría al servicio más lento.
+ */
+ipcMain.handle('skills:list', async (e, resolve?: boolean) => {
+  if (!isInternalSender(e.senderFrame?.url)) return []
+  if (resolve) await resolveSkillFavicons()
+  return listSkills()
+})
 ipcMain.handle('skills:get', (e, id: string) => (isInternalSender(e.senderFrame?.url) ? getSkill(id) : null))
 ipcMain.handle('skills:toggle', (e, id: string, on: boolean) => (isInternalSender(e.senderFrame?.url) ? toggleSkill(id, on) : listSkills()))
 ipcMain.on('skills:openFolder', (e) => { if (isInternalSender(e.senderFrame?.url)) shell.openPath(skillsDir()) })
@@ -2383,6 +2416,7 @@ app.whenReady().then(() => {
     win?.webContents.send('remote:state', r)
     if (peekWin && !peekWin.isDestroyed()) peekWin.webContents.send('remote:state', r)
   })
+  initMcpClient()
   initChats()
   initHistory()
   initSkills()
@@ -2396,4 +2430,5 @@ app.whenReady().then(() => {
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })
 })
 app.on('before-quit', () => saveSessionNow())
+app.on('before-quit', () => stopAllMcp())
 app.on('window-all-closed', () => { if (!isMac) app.quit() })

@@ -1,5 +1,6 @@
 ---
-name: youtube
+host: youtube.com
+name: "YouTube"
 description: Use this skill when you need to search YouTube, read video transcripts, or inspect comments without opening YouTube manually.
 autoInject:
   keywords: ["youtube", "video transcript", "youtube comments", "youtube search"]

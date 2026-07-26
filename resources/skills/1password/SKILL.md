@@ -1,5 +1,6 @@
 ---
-name: 1password
+host: 1password.com
+name: "1Password"
 description: Read this skill when the user uses 1Password.
 ---
 # 1Password

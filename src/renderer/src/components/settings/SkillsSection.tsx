@@ -7,9 +7,9 @@ import IconFolderPlus from '~icons/tabler/folder-plus'
 import IconPencil from '~icons/tabler/pencil'
 import IconChevron from '~icons/tabler/chevron-down'
 import IconFileText from '~icons/tabler/file-text'
-import IconSparkles from '~icons/tabler/sparkles'
 import IconDots from '~icons/tabler/dots'
 import logo from '@renderer/assets/monper.png'
+import SkillIcon from './SkillIcon'
 
 const { monperTab } = window
 
@@ -56,7 +56,17 @@ export default function SkillsSection(): JSX.Element {
   const [detail, setDetail] = useState<SkillDetail | null>(null)
   const [browseOpen, setBrowseOpen] = useState(true)
 
-  useEffect(() => { monperTab.skillsList().then((s) => { setSkills(s); setSel((c) => c ?? s[0]?.id ?? null) }) }, [])
+  // Dos pasadas: pintar ya con los favicons en caché y volver a pedir resolviendo los que
+  // falten. Si se esperara a la segunda, la lista tardaría lo que tarde el sitio más lento.
+  useEffect(() => {
+    let vivo = true
+    void monperTab.skillsList()
+      .then((s) => { if (!vivo) return; setSkills(s); setSel((c) => c ?? s[0]?.id ?? null) })
+      .then(() => monperTab.skillsList(true))
+      .then((s) => { if (vivo) setSkills(s) })
+      .catch((e) => console.error('[skills] no se pudo leer la lista:', e))
+    return () => { vivo = false }
+  }, [])
   useEffect(() => { if (sel) monperTab.skillsGet(sel).then(setDetail); else setDetail(null) }, [sel])
 
   const toggle = async (id: string, on: boolean): Promise<void> => {
@@ -109,7 +119,7 @@ export default function SkillsSection(): JSX.Element {
                     (open ? 'text-text' : 'text-text-dim hover:text-text hover:bg-white/[0.03]')
                   }
                 >
-                  <IconSparkles className={'w-4 h-4 shrink-0 ' + (s.enabled ? 'text-text-dim' : 'text-text-faint opacity-50')} />
+                  <span className={s.enabled ? '' : 'opacity-45'}><SkillIcon skill={s} /></span>
                   <span className="flex-1 text-left truncate">{s.name}</span>
                   {!s.enabled && <span className="text-[10px] text-text-faint uppercase">off</span>}
                   <IconChevron className={'w-3.5 h-3.5 text-text-faint transition-transform ' + (open ? '' : '-rotate-90')} />
@@ -131,7 +141,10 @@ export default function SkillsSection(): JSX.Element {
         {detail ? (
           <div className="px-8 py-6">
             <div className="flex items-center justify-between gap-4">
-              <h1 className="text-[20px] font-semibold tracking-tight">{detail.name}</h1>
+              <div className="flex items-center gap-3 min-w-0">
+                <SkillIcon skill={detail} size="md" />
+                <h1 className="text-[20px] font-semibold tracking-tight truncate">{detail.name}</h1>
+              </div>
               <div className="flex items-center gap-2 shrink-0">
                 <Toggle on={detail.enabled} onChange={(v) => toggle(detail.id, v)} />
                 <button className="w-7 h-7 grid place-items-center rounded-md text-text-faint hover:text-text hover:bg-white/[0.06] [&>svg]:w-[18px] [&>svg]:h-[18px]"><IconDots /></button>

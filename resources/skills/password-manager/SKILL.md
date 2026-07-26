@@ -1,5 +1,6 @@
 ---
-name: password-manager
+icon: shield-lock
+name: "Gestor de contraseñas"
 description: Use Aside Password Manager when it helps with login, signup, password generation, credential storage, payment card / identity autofill on checkout forms, or querying the user's saved credentials.
 autoInject:
   keywords: ["login", "sign-in", "sign-up", "signup", "password generation", "save credential", "stored credentials", "checkout", "payment", "credit card", "card number", "billing", "로그인", "회원가입", "비밀번호 생성", "결제", "카드"]

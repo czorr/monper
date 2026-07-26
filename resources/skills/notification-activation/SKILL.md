@@ -1,5 +1,6 @@
 ---
-name: notification-activation
+icon: bell
+name: "Notificaciones web"
 description: Enable browser notifications on websites for monitoring and event-driven routine flows.
 autoInject:
   keywords:

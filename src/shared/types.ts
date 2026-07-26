@@ -195,10 +195,38 @@ export interface SkillMeta {
   builtin: boolean
   author: string
   updated: string
+  /**
+   * Identidad visual de la skill. Las dos salen del frontmatter del SKILL.md y son
+   * excluyentes: una skill de SERVICIO se reconoce por su marca, una de CAPACIDAD por un
+   * glifo. `host` gana si vienen las dos.
+   */
+  /** Dominio del servicio (`notion.so`). El favicon se pide AL PROPIO SITIO, nunca a un tercero. */
+  host: string | null
+  /** Nombre de un glifo de tabler, de la lista curada del renderer (`file-type-pdf`). */
+  icon: string | null
+  /** El favicon ya resuelto, si estaba en caché. Se rellena en el main. */
+  favicon: string | null
+  /**
+   * Capacidad que la skill NECESITA y que el navegador no tiene por sí mismo (`code`).
+   * La aporta un servidor MCP externo. Sin ella la skill no se le pasa al agente: sus
+   * instrucciones dicen cosas como `python scripts/…` y seguirlas sería imposible.
+   */
+  requires: string | null
+  /** false si `requires` no está cubierto ahora mismo. Lo calcula el main. */
+  available: boolean
 }
 export interface SkillDetail extends SkillMeta {
   /** Cuerpo Markdown del SKILL.md (instrucciones para el agente) */
   body: string
+}
+
+/** Un servidor MCP configurado por el usuario, tal y como lo ve Settings. */
+export interface McpServerInfo {
+  name: string
+  enabled: boolean
+  running: boolean
+  tools: number
+  error: string | null
 }
 
 // ---- Permisos del sitio (cámara, micrófono, etc.) ----
@@ -679,7 +707,14 @@ export interface MonperTabApi {
   openSettings: () => void
   openChat: () => void
   // ---- Skills del agente (gestión desde Settings) ----
-  skillsList: () => Promise<SkillMeta[]>
+  // ---- Servidores MCP externos (Settings → MCPs) ----
+  listMcpServers: () => Promise<McpServerInfo[]>
+  reloadMcpServers: () => Promise<McpServerInfo[]>
+  /** Arranca los servidores y devuelve su estado: el botón "Probar". */
+  probeMcpServers: () => Promise<McpServerInfo[]>
+  openMcpConfig: () => void
+  /** `resolve: true` busca los favicons que falten antes de contestar (puede tardar). */
+  skillsList: (resolve?: boolean) => Promise<SkillMeta[]>
   skillsGet: (id: string) => Promise<SkillDetail | null>
   skillsToggle: (id: string, enabled: boolean) => Promise<SkillMeta[]>
   openSkillsFolder: () => void

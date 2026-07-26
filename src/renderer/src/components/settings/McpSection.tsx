@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useState, type JSX } from 'react'
+import type { McpServerInfo } from '@shared/types'
+import IconPlug from '~icons/tabler/plug'
+import IconRefresh from '~icons/tabler/refresh'
 import IconCopy from '~icons/tabler/copy'
 import IconCheck from '~icons/tabler/check'
 import { Card, Group } from './ui'
@@ -60,6 +63,17 @@ function Copiar({ texto }: { texto: string }): JSX.Element {
 export default function McpSection(): JSX.Element {
   const [estado, setEstado] = useState<{ enabled: boolean; port: number } | null>(null)
   const [error, setError] = useState('')
+  const [servidores, setServidores] = useState<McpServerInfo[] | null>(null)
+
+  const leerServidores = useCallback(async (recargar = false): Promise<void> => {
+    try {
+      setServidores(recargar ? await monperTab.reloadMcpServers() : await monperTab.listMcpServers())
+    } catch (e) {
+      console.error('[mcp] no se pudieron leer los servidores:', e)
+      setServidores([])
+    }
+  }, [])
+  useEffect(() => { void leerServidores() }, [leerServidores])
 
   const leer = useCallback(async (): Promise<void> => {
     try {
@@ -149,6 +163,78 @@ export default function McpSection(): JSX.Element {
           <pre className="px-4 py-3.5 text-[12px] leading-relaxed text-text-dim overflow-x-auto select-text">
             {CONFIG}
           </pre>
+        </Card>
+      </Group>
+
+      {/*
+        La otra dirección, y la que hace a Monper capaz de verdad: el agente usando
+        herramientas que un navegador no debe fabricar.
+      */}
+      <Group title="Herramientas para el agente">
+        <Card>
+          <div className="px-4 py-3.5 flex items-start gap-3">
+            <div className="flex-1 min-w-0 text-[12.5px] text-text-dim leading-relaxed">
+              Monper no ejecuta Python ni toca tu disco, y no debería: es un navegador. Conecta
+              servidores MCP y el agente gana esas capacidades — un sandbox de código, ficheros,
+              una base de datos. Algunas skills las necesitan y se activan solas al tenerlas.
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => leerServidores(true)}
+                title="Releer el fichero de configuración"
+                className="w-8 h-8 grid place-items-center rounded-lg bg-white/[0.06] hover:bg-white/[0.1] text-text-dim hover:text-text transition-colors [&>svg]:w-4 [&>svg]:h-4"
+              >
+                <IconRefresh />
+              </button>
+              <button
+                onClick={async () => { setServidores(await monperTab.probeMcpServers()) }}
+                title="Arrancarlos ahora y ver si responden"
+                className="h-8 px-3 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] text-[12.5px] text-text-dim hover:text-text transition-colors"
+              >
+                Probar
+              </button>
+              <button
+                onClick={() => monperTab.openMcpConfig()}
+                className="h-8 px-3 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] text-[12.5px] text-text-dim hover:text-text transition-colors"
+              >
+                Editar configuración
+              </button>
+            </div>
+          </div>
+
+          {servidores === null && <div className="px-4 py-4 text-[13px] text-text-faint">Cargando…</div>}
+
+          {servidores?.length === 0 && (
+            <div className="px-4 py-6 flex flex-col items-center gap-2 text-center">
+              <IconPlug className="w-5 h-5 text-text-faint" />
+              <div className="text-[13.5px] text-text-dim">Ningún servidor conectado</div>
+              <div className="text-[12.5px] text-text-faint max-w-[420px] leading-relaxed">
+                Abre la configuración y añade uno. Vale cualquiera del ecosistema MCP; el
+                formato es el mismo que usa tu cliente de IA.
+              </div>
+            </div>
+          )}
+
+          {servidores?.map((sv) => (
+            <div key={sv.name} className="flex items-center gap-3 px-4 py-3">
+              <span
+                className={'w-2 h-2 rounded-full shrink-0 ' + (sv.error ? 'bg-red-400' : sv.running ? 'bg-emerald-400' : 'bg-white/25')}
+                title={sv.error ? 'con error' : sv.running ? 'en marcha' : 'se lanzará al usarlo'}
+              />
+              <div className="flex-1 min-w-0">
+                <div className="text-[13.5px] text-text truncate">{sv.name}</div>
+                <div className={'text-[12px] mt-0.5 truncate ' + (sv.error ? 'text-red-400' : 'text-text-faint')}>
+                  {/* Un servidor que no arranca no puede quedarse en silencio: sin el motivo,
+                      el usuario solo ve que el agente "no sabe" hacer algo. */}
+                  {sv.error
+                    ? sv.error
+                    : !sv.enabled ? 'desactivado en la configuración'
+                      : sv.running ? `${sv.tools} ${sv.tools === 1 ? 'herramienta' : 'herramientas'}`
+                        : 'se lanzará la primera vez que el agente lo necesite'}
+                </div>
+              </div>
+            </div>
+          ))}
         </Card>
       </Group>
 

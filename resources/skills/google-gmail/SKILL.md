@@ -1,5 +1,6 @@
 ---
-name: google-gmail
+host: mail.google.com
+name: "Gmail"
 description: Read this skill when you need to use user's Gmail. Don't have to open a browser tab.
 autoInject:
   keywords: ["gmail", "email", "mail"]

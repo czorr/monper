@@ -1,5 +1,6 @@
 ---
-name: slack
+host: slack.com
+name: "Slack"
 description: Read this when you need to use Slack.
 autoInject:
   keywords: ["slack"]

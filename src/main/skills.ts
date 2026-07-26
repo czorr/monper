@@ -2,6 +2,8 @@ import { join } from 'path'
 import { readFileSync, existsSync, mkdirSync, readdirSync, statSync } from 'fs'
 import { readJson, writeJson } from './jsonfile'
 import { app } from 'electron'
+import { faviconFor, resolveFavicon } from './favicons'
+import { mcpCapabilities } from './mcp/client'
 import type { SkillMeta, SkillDetail } from '../shared/types'
 
 // Skills built-in (empaquetadas con la app) + del usuario (userData/skills).
@@ -64,6 +66,12 @@ function readSkill(dir: string, id: string, builtin: boolean): Loaded | null {
     description: (data.description as string) || '',
     keywords: Array.isArray(kw) ? (kw as string[]) : typeof kw === 'string' && kw ? [kw] : [],
     author: (data.author as string) || (builtin ? 'Monper' : 'Tú'),
+    // Identidad visual: dominio del servicio o glifo. Ver SkillMeta.
+    host: ((data.host as string) || '').trim() || null,
+    icon: ((data.icon as string) || '').trim() || null,
+    favicon: null,
+    requires: ((data.requires as string) || '').trim() || null,
+    available: true,
     updated,
     enabled: enabled[id] ?? true,
     body
@@ -86,10 +94,24 @@ function allLoaded(): Loaded[] {
 }
 
 function toMeta(s: Loaded): SkillMeta {
-  return { id: s.id, name: s.name, description: s.description, keywords: s.keywords, enabled: s.enabled, builtin: s.builtin, author: s.author, updated: s.updated }
+  return {
+    id: s.id, name: s.name, description: s.description, keywords: s.keywords,
+    enabled: s.enabled, builtin: s.builtin, author: s.author, updated: s.updated,
+    host: s.host, icon: s.icon, favicon: s.host ? faviconFor(`https://${s.host}`) : null,
+    requires: s.requires, available: cubierta(s.requires)
+  }
 }
 
 export function listSkills(): SkillMeta[] { return allLoaded().map(toMeta) }
+
+/**
+ * Pide al propio sitio el favicon de las skills de servicio que aún no lo tengan.
+ * `resolveFavicon` ya deduplica por host y por sesión, y trae su propio timeout.
+ */
+export async function resolveSkillFavicons(): Promise<void> {
+  const hosts = [...new Set(allLoaded().map((s) => s.host).filter((h): h is string => !!h))]
+  await Promise.all(hosts.map((h) => resolveFavicon(`https://${h}`)))
+}
 export function getSkill(id: string): SkillDetail | null {
   const s = allLoaded().find((x) => x.id === id)
   if (!s) return null
@@ -101,7 +123,26 @@ export function toggleSkill(id: string, on: boolean): SkillMeta[] {
   return listSkills()
 }
 
-/** Skills habilitadas con su cuerpo — para inyectar al agente. */
+/**
+ * ¿Tenemos ahora mismo lo que la skill pide? Sin `requires`, siempre sí.
+ *
+ * Lo aportan los servidores MCP del usuario: `mcpCapabilities()` mira las herramientas que
+ * exponen y deduce si hay ejecución de código o acceso a ficheros.
+ */
+function cubierta(requires: string | null): boolean {
+  return !requires || mcpCapabilities().has(requires)
+}
+
+/**
+ * Skills habilitadas con su cuerpo — para inyectar al agente.
+ *
+ * Se filtran también las que piden una capacidad que no tenemos. Esto NO es cosmético: las
+ * de Office y PDF instruyen `python scripts/office/unpack.py` y una tool `bash`, y Monper no
+ * tiene ninguna de las dos (`run_js` es JavaScript dentro de la página). Pasárselas al
+ * agente es garantizar que intente lo imposible o que se invente que lo hizo.
+ */
 export function enabledSkills(): SkillDetail[] {
-  return allLoaded().filter((s) => s.enabled).map(({ file: _f, ...d }) => d)
+  return allLoaded()
+    .filter((s) => s.enabled && cubierta(s.requires))
+    .map(({ file: _f, ...d }) => d)
 }

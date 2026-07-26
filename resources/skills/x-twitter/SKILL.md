@@ -1,5 +1,6 @@
 ---
-name: x-twitter
+host: x.com
+name: "X (Twitter)"
 description: Read this skill when you need to use X (Twitter). Don't have to open a browser tab.
 autoInject:
   keywords: ["twitter", "tweet", "x.com"]

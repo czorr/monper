@@ -1,5 +1,6 @@
 ---
-name: notion
+host: notion.so
+name: "Notion"
 description: Read this skill when you need to use Notion. Don't have to open a browser tab.
 autoInject:
   keywords: ["notion"]

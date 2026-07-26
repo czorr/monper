@@ -1,5 +1,6 @@
 ---
-name: google-sheets
+host: sheets.google.com
+name: "Google Sheets"
 description: Read this skill when you need to read or write Google Sheets. Works without opening a browser tab for reads.
 autoInject:
   keywords: ["google sheets", "spreadsheet"]

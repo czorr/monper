@@ -1,5 +1,6 @@
 ---
-name: visual-browse
+icon: viewfinder
+name: "Navegación visual"
 description: Read this when you need a coordinate fallback for visible browser UI that snapshots, refs, or locators cannot target reliably.
 ---
 

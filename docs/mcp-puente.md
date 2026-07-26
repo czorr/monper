@@ -67,3 +67,71 @@ vuelve como `isError`, y que `fill` nunca escribe en un campo de contraseña.
   para que el cliente no tenga que reinventar el recorrido cada vez.
 - **Un techo de gasto/acciones por cliente**, para que un agente en bucle no navegue mil veces.
 - **Registro de lo que hizo cada cliente**, en la línea de los recibos verificables del agente.
+
+---
+
+# La otra dirección: Monper como CLIENTE MCP
+
+El puente de arriba da al mundo lo único que Monper tiene y nadie más puede tener: tus
+sesiones. Esto trae lo contrario — lo que a un navegador le falta y **no debería fabricar**.
+
+## El problema que lo destapó
+
+Varias skills (docx, pptx, xlsx, pdf, tax) le dicen al agente que ejecute `python scripts/…` o
+que use una tool `bash`. Medido: 13 menciones a `python` en docx, 8 en pptx, 8 en xlsx. El
+`pdf` es literal: *"Use `bash` tool with `node` + `pdf-lib`"*.
+
+**Monper no tiene ninguna de las dos.** `run_js` no es una shell: `runRepl(wc, code)` construye
+un `page` de monperwright sobre el webContents de la pestaña activa — es JavaScript *dentro de
+la página*, sin sistema de archivos ni procesos. Y esos `scripts/*.py` **ni siquiera están en
+el repo**: vienen del entorno de Claude Code, del que se copiaron los `.md` y nada más.
+
+O sea que el agente leía instrucciones imposibles. No es un fallo estético: lo más probable es
+que intente, no pueda, y **se invente que lo hizo**. Es la regla de "nunca dejes un fallo
+invisible" con el agente como víctima.
+
+## Por qué esta salida y no las otras
+
+- **Reescribir las skills en JS** (pdf.js, SheetJS) arregla leer PDF y Excel. Y nada más.
+- **Empaquetar Python** convierte el navegador en otra cosa, y ya existe: se llama Claude Code.
+- **Cliente MCP** le da al agente *cualquier* herramienta que exista —sandbox de código,
+  ficheros, bases de datos— sin que nosotros mantengamos ningún runtime. Y es simétrico con el
+  puente: **Monper cambia lo que solo él tiene por lo que le falta.**
+
+## Decisiones
+
+- **Solo stdio**, que es lo que usan los servidores MCP de escritorio y no abre puertos.
+- **Arranque perezoso**: un servidor se lanza la primera vez que el agente lo necesita, no al
+  abrir Monper. Arrancar procesos en el arranque es lo que ya se quitó del pre-warm de
+  popovers (344MB, ver [rendimiento.md](rendimiento.md)).
+- **Todo con techo de tiempo** (20s arranque, 120s llamada: un sandbox puede tardar).
+- **El motivo del fallo se guarda aparte de los vivos.** Un servidor que no arranca NO está
+  vivo, así que guardar su error solo en la instancia viva lo perdía justo en el caso que hay
+  que contar: Settings decía "parado, sin error" y el usuario no sabía si es que no se ha
+  usado o que revienta. Salió en el primer test.
+- **La autorización de arranque es concurrente-segura**: cinco tools a la vez no lanzan cinco
+  procesos (se cachea la promesa, no el resultado).
+- **JSON Schema → Zod** para que Mastra vea los parámetros. Lo que no se entiende cae a
+  `unknown` en vez de romper: perder el tipo de un argumento degrada la ayuda al modelo; tirar
+  la herramienta entera la deja inservible.
+
+## Skills que declaran lo que necesitan
+
+`requires: code` en el frontmatter. `enabledSkills()` las filtra si `mcpCapabilities()` no lo
+cubre — o sea, **no se le pasan al agente** mientras no haya con qué. Al conectar un servidor
+que ejecute código, se activan solas. Lo fija `tests/mcp-client.spec.ts`.
+
+## Qué está probado, y qué no
+
+Probado contra un servidor MCP **real** (proceso hijo, stdio, Python de verdad): que se lanza,
+que completa `initialize`, que anuncia sus herramientas, que el fallo de arranque se ve con su
+motivo, y que las skills bloqueadas se activan al aparecer la capacidad.
+
+**No** está asertado de punta a punta que el agente *invoque* una de esas tools: eso requiere
+una clave de modelo. `tools/call` viaja por el mismo `pedir()` que `initialize` y `tools/list`,
+que sí están ejercitados, pero conviene decirlo en vez de dar a entender más de lo que hay.
+
+## Lo que falta
+
+- Un techo de llamadas por servidor, para que un agente en bucle no lance mil ejecuciones.
+- Consentimiento por herramienta la primera vez, como el que ya tiene el puente para clientes.

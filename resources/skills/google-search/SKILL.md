@@ -1,5 +1,6 @@
 ---
-name: google-search
+host: google.com
+name: "Búsqueda de Google"
 description: Use this when you need to search web on Google and websearch tool is not enough
 ---
 # Google Search

@@ -1,5 +1,6 @@
 ---
-name: google-accounts
+host: accounts.google.com
+name: "Cuentas de Google"
 description: IMPORTANT- Read this skill before interacting any Google apps!
 autoInject:
   keywords: ["google", "구글", "グーグル", "谷歌"]

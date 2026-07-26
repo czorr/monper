@@ -1,5 +1,7 @@
 ---
-name: tax
+requires: code
+icon: receipt-tax
+name: "Impuestos (EE. UU. 2025)"
 description: "Federal income tax reference for Tax Year 2025 -- IRS instructions, lookup guides, and fillable PDF forms."
 ---
 # Federal Income Tax Reference (Tax Year 2025)

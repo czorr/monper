@@ -1,5 +1,6 @@
 ---
-name: draft-preview
+icon: pencil
+name: "Redactar y previsualizar"
 description: Use when the user explicitly asks for drafting content.
 ---
 

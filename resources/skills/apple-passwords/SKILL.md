@@ -1,5 +1,6 @@
 ---
-name: apple-passwords
+host: apple.com
+name: "Apple Passwords"
 description: Use Apple Passwords on macOS when the user asks for Apple/iCloud passwords, OTPs, or autofill from Apple's Passwords app.
 autoInject:
   keywords: ["Apple Passwords", "iCloud Passwords", "Passwords app", "apple password", "icloud password"]

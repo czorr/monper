@@ -1,5 +1,6 @@
 ---
-name: Resumir página
+icon: list-details
+name: "Resumir página"
 description: Cuando el usuario pide un resumen de la página actual, léela y devuelve los puntos clave en viñetas.
 keywords: [resumir, resumen, summarize, TL;DR, puntos clave]
 ---

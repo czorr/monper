@@ -1,5 +1,6 @@
 ---
-name: chrome
+host: developer.chrome.com
+name: "Chrome Extension APIs"
 description: 'Read this when you need to use Chrome extension APIs: managing bookmarks, tabs, windows, tab groups, history, downloads, or top sites.'
 ---
 # Chrome MV3 APIs

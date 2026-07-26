@@ -5,6 +5,7 @@ import { createOpenAI } from '@ai-sdk/openai'
 import { z } from 'zod'
 import type { WebContents } from 'electron'
 import { faviconFor } from '../favicons'
+import { mcpTools, callMcpTool, type McpTool } from '../mcp/client'
 import type { AIProvider, ChatMessage, ChatStep, SkillDetail } from '../../shared/types'
 import * as page from './page'
 import { runRepl } from './repl'
@@ -105,6 +106,60 @@ function deepClean<T>(v: T): T {
   return v
 }
 /** Sanea la salida de TODAS las tools en un solo punto (evita el 400 por surrogates). */
+/**
+ * Un JSON Schema de un servidor MCP → Zod, que es lo que espera Mastra.
+ *
+ * Se cubre a conciencia el subconjunto que usan los servidores reales (objeto plano con
+ * string/number/boolean/array/enum y `required`). Lo que no se entienda cae a `unknown` en
+ * vez de romper: perder el tipo de un parámetro degrada la ayuda al modelo; tirar la
+ * herramienta entera la deja inservible.
+ */
+function jsonSchemaAZod(esquema: Record<string, unknown>): z.ZodTypeAny {
+  const tipo = esquema['type']
+  const desc = typeof esquema['description'] === 'string' ? (esquema['description'] as string) : undefined
+  const con = (z0: z.ZodTypeAny): z.ZodTypeAny => (desc ? z0.describe(desc) : z0)
+  const enumerado = esquema['enum']
+  if (Array.isArray(enumerado) && enumerado.length && enumerado.every((v) => typeof v === 'string')) {
+    return con(z.enum(enumerado as [string, ...string[]]))
+  }
+  switch (tipo) {
+    case 'string': return con(z.string())
+    case 'number': case 'integer': return con(z.number())
+    case 'boolean': return con(z.boolean())
+    case 'array': {
+      const items = esquema['items']
+      return con(z.array(items && typeof items === 'object' ? jsonSchemaAZod(items as Record<string, unknown>) : z.unknown()))
+    }
+    case 'object': {
+      const props = (esquema['properties'] ?? {}) as Record<string, Record<string, unknown>>
+      const req = new Set((esquema['required'] as string[] | undefined) ?? [])
+      const forma: Record<string, z.ZodTypeAny> = {}
+      for (const [k, v] of Object.entries(props)) {
+        const z0 = jsonSchemaAZod(v)
+        forma[k] = req.has(k) ? z0 : z0.optional()
+      }
+      return con(z.object(forma))
+    }
+    default: return con(z.unknown())
+  }
+}
+
+/** Las herramientas de los servidores MCP externos, como tools del agente. */
+function mcpComoTools(externas: McpTool[]): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  for (const t of externas) {
+    const esquema = jsonSchemaAZod(t.inputSchema)
+    out[t.id] = createTool({
+      id: t.id,
+      // Se dice de dónde viene: el agente elige mejor sabiendo que es una capacidad externa.
+      description: `[${t.server}] ${t.description}`,
+      inputSchema: esquema instanceof z.ZodObject ? esquema : z.object({}),
+      execute: async (args) => callMcpTool(t.server, t.tool, (args ?? {}) as Record<string, unknown>)
+    })
+  }
+  return out
+}
+
 function sanitizeTools<T extends Record<string, unknown>>(tools: T): T {
   for (const t of Object.values(tools)) {
     const tool = t as { execute?: (...a: unknown[]) => Promise<unknown> }
@@ -116,7 +171,7 @@ function sanitizeTools<T extends Record<string, unknown>>(tools: T): T {
 }
 
 // Las page-ops como tools de Mastra (Zod). Operan sobre la pestaña activa vía BrowserControl.
-function buildTools(ctrl: BrowserControl, settings: SettingsControl, skills: SkillDetail[]) {
+function buildTools(ctrl: BrowserControl, settings: SettingsControl, skills: SkillDetail[], externas: McpTool[] = []) {
   const wc = (): WebContents => {
     const w = ctrl.getWc()
     if (!w) throw new Error('No hay pestaña activa.')
@@ -327,7 +382,15 @@ function buildTools(ctrl: BrowserControl, settings: SettingsControl, skills: Ski
       }
     })
   }
+  Object.assign(tools as Record<string, unknown>, mcpComoTools(externas))
   return sanitizeTools(tools)
+}
+
+/** Le dice al agente que esas capacidades existen y de dónde vienen. */
+function mcpSection(externas: McpTool[]): string {
+  if (!externas.length) return ''
+  const servidores = [...new Set(externas.map((t) => t.server))]
+  return `\n\nHERRAMIENTAS EXTERNAS (MCP): además del navegador tienes capacidades que aporta el usuario desde ${servidores.join(', ')}. Sus tools empiezan por "mcp__". Úsalas cuando la tarea necesite algo que el navegador no hace —ejecutar código, leer o escribir ficheros, consultar una base de datos— en vez de improvisar con run_js, que solo corre JavaScript DENTRO de la página.`
 }
 
 function skillsSection(skills: SkillDetail[]): string {
@@ -341,13 +404,13 @@ export function buildOneShotAgent(provider: AIProvider, key: string, model: stri
   return new Agent({ id: 'monper-oneshot', name: 'Monper', instructions, model: buildModel(provider, key, model) })
 }
 
-export function buildAgent(provider: AIProvider, key: string, model: string, ctrl: BrowserControl, settings: SettingsControl, skills: SkillDetail[] = []): Agent {
+export function buildAgent(provider: AIProvider, key: string, model: string, ctrl: BrowserControl, settings: SettingsControl, skills: SkillDetail[] = [], externas: McpTool[] = []): Agent {
   return new Agent({
     id: 'monper-agent',
     name: 'Monper',
-    instructions: wellFormed(SYSTEM + skillsSection(skills)), // las skills traen emojis
+    instructions: wellFormed(SYSTEM + skillsSection(skills) + mcpSection(externas)), // las skills traen emojis
     model: buildModel(provider, key, model),
-    tools: buildTools(ctrl, settings, skills)
+    tools: buildTools(ctrl, settings, skills, externas)
   })
 }
 
@@ -431,7 +494,13 @@ export async function runMastra(opts: {
   provider: AIProvider; key: string; model: string
   messages: ChatMessage[]; control: BrowserControl; settings: SettingsControl; emit: Emit; signal: AbortSignal; skills?: SkillDetail[]
 }): Promise<void> {
-  const agent = buildAgent(opts.provider, opts.key, opts.model, opts.control, opts.settings, opts.skills ?? [])
+  // Las herramientas externas se piden AQUÍ, no al abrir Monper: si nunca hablas con el
+  // agente, no se lanza ni un proceso de servidor MCP.
+  const externas = await mcpTools().catch((e) => {
+    console.error('[mcp] no se pudieron cargar las herramientas externas:', e instanceof Error ? e.message : e)
+    return [] as McpTool[]
+  })
+  const agent = buildAgent(opts.provider, opts.key, opts.model, opts.control, opts.settings, opts.skills ?? [], externas)
   // {role, content:string} es un ModelMessage válido; la unión de Mastra es demasiado estricta para inferirlo.
   // maxSteps: el default de Mastra es 5 (corta la tarea a mitad); subimos para dejar completar flujos largos.
   const messages = compactHistory(opts.messages).map(toModelMessage)

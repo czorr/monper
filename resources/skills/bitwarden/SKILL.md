@@ -1,5 +1,6 @@
 ---
-name: bitwarden
+host: bitwarden.com
+name: "Bitwarden"
 description: Read this skill when the user uses Bitwarden.
 ---
 # Bitwarden

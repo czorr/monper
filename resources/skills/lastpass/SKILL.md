@@ -1,5 +1,6 @@
 ---
-name: lastpass
+host: lastpass.com
+name: "LastPass"
 description: Read this skill when the user uses LastPass.
 ---
 # LastPass

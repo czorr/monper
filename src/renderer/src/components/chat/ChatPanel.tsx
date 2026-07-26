@@ -190,7 +190,7 @@ export default function ChatPanel({ open, onClose, inject, resizing }: Props): J
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3 [&::-webkit-scrollbar]:w-0">
         {messages.length === 0 ? (
-          <EmptyState />
+          <EmptyState provider={ctx.provider} />
         ) : (
           <div className="flex flex-col selectable">
             {messages.map((m, i) =>

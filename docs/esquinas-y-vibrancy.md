@@ -157,3 +157,84 @@ ausencia de color. Arreglado en la función y en el topbar.
 
 Lo fijan `tests/branding.spec.ts` ("el topbar va en claro sobre la vibrancy") y
 `tests/layout.spec.ts` ("no queda ninguna otra vista visible detrás").
+
+---
+
+## `setBorderRadius` instala una máscara CON UN TAMAÑO
+
+Regla nueva, y es la que faltaba en este documento:
+
+> **El recorte de `setBorderRadius` se instala con el tamaño que la vista tiene en ese
+> momento. Si la vista cambia de tamaño y no se reaplica, sigue recortando al tamaño viejo.**
+
+Eso causó un bug que se persiguió durante días: al redimensionar el panel de chat y cerrarlo,
+quedaba un hueco a la derecha con el ancho exacto del chat. Tres señales lo delataban y las
+tres apuntaban aquí una vez sabes esto:
+
+- **Persistente.** Reabrir y cerrar el chat no lo quitaba. Un frame perdido lo arregla el
+  siguiente repintado; una máscara puesta, no.
+- **Recortaba, no reflowaba.** El titular de GitHub salía partido a media palabra. Si la
+  página se hubiera quedado con el ancho viejo, habría re-maquetado el texto.
+- **Todo el estado era correcto.** El rect calculado, los bounds reales de la vista y el
+  `innerWidth` de la página. Por eso `MONPER_DEBUG_LAYOUT` decía `libre=0` mientras se veía
+  el hueco: el estado estaba bien y lo que mentía era el recorte.
+
+La secuencia exacta: con el sidebar colapsado se abre el chat (radio 0 → 14, sellado al ancho
+de entonces), se arrastra (el radio no cambia, **la máscara no se toca**), y al cerrar el chat
+el radio pasa a 14 → 0 y se sella *mientras la vista todavía es estrecha*, justo antes de que
+la animación la ensanche. La máscara se queda 640px corta.
+
+### Cómo se confirmó
+
+`MONPER_NO_RADIUS=1` (flag de diagnóstico, sigue en el repo): sin redondeo, el hueco no
+aparece. Con eso confirmado se pudo medir en test, instrumentando `setBorderRadius` para
+apuntar el ancho de cada llamada: **6/6 vueltas con la máscara a 1020 y la vista a 1660 antes
+del arreglo, 0/6 después**.
+
+Las dos hipótesis anteriores —un frame no presentado (se probó `webContents.invalidate()`) y
+las vistas ocultas sin superficie de GPU— **eran falsas**. La segunda dejó un cambio bueno por
+otro motivo (ver abajo), pero ninguna era la causa.
+
+### Corrección: reinstalar la máscara NO bastaba
+
+Lo de abajo se escribió creyendo que el resellado cerraba el caso. **No lo cerró**, y lo que
+faltaba lo aisló el usuario: el hueco aparecía **solo con los dos sidebars colapsados**, que es
+el único estado en que el radio objetivo es **0**. Con uno abierto (radio 14) nunca pasaba.
+
+> **`setBorderRadius(0)` no desinstala la máscara anterior: la deja puesta, con su tamaño.**
+
+Cuadra con los números: la última máscara de radio 14 se había instalado a `w=1261` y la
+página se cortaba exactamente ahí. Y con el log se vio que el resellado **sí** corría, sobre la
+vista activa, al ancho final (`[resellado] ... w=1660`) y aun así el hueco seguía — porque
+resellar a 0 no reinstala nada. `MONPER_NO_RADIUS=1`, que no llama nunca a `setBorderRadius`,
+sí lo hacía desaparecer: la máscara que no existe no recorta.
+
+**El arreglo real: no pedir nunca 0.** `SIN_REDONDEO = 1`. Un píxel de radio no se ve, y con
+radio > 0 la máscara sí se reinstala al tamaño nuevo. El paso intermedio del resellado forzado
+también evita el 0 (usa `r + 1`) por el mismo motivo. Lo fija `tests/layout.spec.ts` →
+"nunca se pide radio 0".
+
+El resellado se queda: hace falta igualmente para que la máscara siga al tamaño durante un
+arrastre. Simplemente no era suficiente por sí solo.
+
+### El arreglo parcial, y por qué no contradice la regla del `if`
+
+`applyRadius` sigue reaplicando **solo cuando cambia el radio**: reaplicarlo en cada layout es
+lo que trae de vuelta las muescas, y eso no se toca. Lo que se añade es `resellarRadioAlAsentarse()`,
+con debounce de 80ms y solo sobre la vista activa: cuando el tamaño deja de cambiar, si el
+ancho actual no coincide con el ancho al que se selló la máscara, se reinstala. Una vez por
+interacción, no una por frame.
+
+Cada `Tab` guarda ahora `radiusW`, el ancho con el que se instaló su máscara. Si alguna vez se
+llama a `setBorderRadius` sin pasar por `sellarRadio`, ese dato miente y el bug vuelve.
+
+Lo fija `tests/layout.spec.ts` → "la máscara del redondeado se reinstala al cambiar el tamaño".
+
+### De paso: las vistas ocultas ya no siguen el layout
+
+Persiguiendo esto salió en los logs `SharedImageManager::ProduceSkia: Trying to Produce a Skia
+representation from a non-existent mailbox`. No era la causa del hueco, pero sí una
+incoherencia real: al ocultar las vistas no activas, Chromium libera sus superficies de GPU, y
+`layoutTabs` les seguía haciendo `setBounds` a 60fps durante los arrastres. Ahora una vista
+oculta está aparcada del todo —ni se dibuja ni se redimensiona— y recibe su tamaño al
+activarse. `animateLayout` anima solo la activa por lo mismo.

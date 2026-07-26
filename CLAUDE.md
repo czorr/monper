@@ -103,6 +103,8 @@ MONPER_FAKE_UPDATE=1     # simulate the whole update cycle (UI only)
 MONPER_UPDATE_FEED=http://localhost:8788   # real detect → download → verify
 MONPER_TEAM_ID=...       # required for passkeys (needs a signed build)
 MONPER_DEBUG_TOPCOLOR=1  # log every topbar sample: reason, scrollY and colour
+MONPER_DEBUG_LAYOUT=1    # log every layout: computed content rect vs the view's real bounds
+MONPER_NO_RADIUS=1       # never round the page view (to rule the clip mask in or out)
 ```
 
 ## Read before you touch

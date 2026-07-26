@@ -145,3 +145,120 @@ test('solo la pestaña activa se dibuja, sea interna o web', async () => {
     await new Promise((r) => setTimeout(r, 25))
   }
 })
+
+test('una pestaña oculta no sigue el layout, pero se activa con el tamaño correcto', async () => {
+  // Las vistas ocultas ya no reciben `setBounds` durante un arrastre ni durante la animación:
+  // Chromium libera sus superficies de GPU al ocultarlas y redimensionarlas igual hacía
+  // escupir `SharedImageManager::ProduceSkia: ... non-existent mailbox`. El riesgo del cambio
+  // es dejarlas descuadradas, y esto es lo que lo descarta.
+  const s0 = await waitForState(h.win, (s) => s.tabs.length > 0)
+  const primera = s0.tabs[0].id
+  await api(h.win, 'newTab')
+  await api(h.win, 'go', site.url + '/b')
+  await waitForState(h.win, (s) => s.tabs.find((t) => t.id === s.activeId)?.title === 'B')
+
+  // Se cambia el layout entero mientras la primera está oculta.
+  await api(h.win, 'setChat', true)
+  await h.app.evaluate(({ ipcMain }) => ipcMain.emit('ui:setPanel', null, 'chat', 600))
+  await api(h.win, 'setChat', false)
+  await api(h.win, 'setCollapsed', true)
+  await h.win.waitForTimeout(500)
+
+  await api(h.win, 'selectTab', primera)
+  await expect
+    .poll(async () => h.app.evaluate(({ BrowserWindow }) => {
+      const w = BrowserWindow.getAllWindows().find((x) => !x.getParentWindow())!
+      const [ancho] = w.getContentSize()
+      const v = (w.contentView.children as unknown as { getBounds: () => { x: number; width: number }; getVisible: () => boolean }[])
+        .find((k) => k.getVisible())!
+      const b = v.getBounds()
+      return ancho - b.x - b.width
+    }), { timeout: 5000 })
+    .toBe(0)
+})
+
+test('la máscara del redondeado se reinstala al cambiar el tamaño', async () => {
+  /**
+   * El hueco a la derecha al cerrar el chat tras redimensionarlo.
+   *
+   * `setBorderRadius` recorta la vista, y ese recorte se instala con el tamaño que la vista
+   * tiene EN ESE MOMENTO. Se reaplicaba solo al cambiar el radio, nunca al cambiar el ancho:
+   * al cerrar el chat, el radio pasa a 0 y se sella mientras la vista aún es estrecha; luego
+   * la animación la ensancha y la máscara se queda al ancho viejo. Por eso el síntoma era
+   * RECORTE y no reflow, y por eso no se iba al reabrir el chat.
+   *
+   * Medido antes del arreglo: 6/6 vueltas con la máscara a 1020 y la vista a 1660 — 640px,
+   * exactamente `chatMax`. Después: 0/6.
+   */
+  await h.app.evaluate(({ BrowserWindow }) => {
+    const w = BrowserWindow.getAllWindows().find((x) => !x.getParentWindow())!
+    const g = globalThis as unknown as { __radios: { r: number; w: number }[] }
+    g.__radios = []
+    for (const v of w.contentView.children as unknown as {
+      setBorderRadius: (r: number) => void; getBounds: () => { width: number }
+    }[]) {
+      const orig = v.setBorderRadius.bind(v)
+      v.setBorderRadius = (r: number): void => { g.__radios.push({ r, w: v.getBounds().width }); orig(r) }
+    }
+  })
+
+  await api(h.win, 'setCollapsed', true)
+  await api(h.win, 'setChat', true)
+  await h.win.waitForTimeout(250)
+  for (let px = 300; px <= 640; px += 40) {
+    await h.app.evaluate(({ ipcMain }, v) => ipcMain.emit('ui:setPanel', null, 'chat', v), px)
+    await h.win.waitForTimeout(8)
+  }
+  await api(h.win, 'setChat', false)
+
+  await expect
+    .poll(async () => h.app.evaluate(({ BrowserWindow }) => {
+      const w = BrowserWindow.getAllWindows().find((x) => !x.getParentWindow())!
+      const g = globalThis as unknown as { __radios: { r: number; w: number }[] }
+      const v = (w.contentView.children as unknown as { getBounds: () => { width: number }; getVisible: () => boolean }[])
+        .find((k) => k.getVisible())!
+      const u = g.__radios[g.__radios.length - 1]
+      return u ? v.getBounds().width - u.w : 0
+    }), { timeout: 5000, message: 'la máscara quedó sellada a un ancho distinto del de la vista' })
+    .toBe(0)
+
+  // Y el resellado tiene que pasar por OTRO valor antes del definitivo. Sin eso, si Electron
+  // ignora un setBorderRadius con el valor que ya tiene, la llamada queda registrada y la
+  // máscara no se reinstala: el test de arriba pasaría y el hueco seguiría en pantalla.
+  const ultimas = await h.app.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows() // (solo para mantener la firma del evaluate)
+    const g = globalThis as unknown as { __radios: { r: number; w: number }[] }
+    return g.__radios.slice(-2).map((x) => x.r)
+  })
+  expect(ultimas.length, 'el resellado hace dos llamadas seguidas').toBe(2)
+  expect(ultimas[0], 'la primera pasa por otro valor para forzar la reinstalación').not.toBe(ultimas[1])
+})
+
+test('nunca se pide radio 0: ese valor no desinstala la máscara', async () => {
+  /**
+   * Aislado por el usuario: el hueco a la derecha aparecía SOLO con los dos sidebars
+   * colapsados — el único estado en que el radio objetivo era 0 — y su ancho coincidía con el
+   * de la última máscara de radio 14. `setBorderRadius(0)` no quita la máscara anterior, la
+   * deja puesta con su tamaño viejo. Con radio > 0 sí se reinstala. Por eso el "sin redondeo"
+   * es 1: un píxel no se ve, y el 0 sí se veía.
+   */
+  await h.app.evaluate(({ BrowserWindow }) => {
+    const w = BrowserWindow.getAllWindows().find((x) => !x.getParentWindow())!
+    const g = globalThis as unknown as { __ceros: number }
+    g.__ceros = 0
+    for (const v of w.contentView.children as unknown as { setBorderRadius: (r: number) => void }[]) {
+      const orig = v.setBorderRadius.bind(v)
+      v.setBorderRadius = (r: number): void => { if (r === 0) g.__ceros++; orig(r) }
+    }
+  })
+
+  // El estado que lo destapaba, y de paso el camino de vuelta.
+  await api(h.win, 'setCollapsed', true)
+  await api(h.win, 'setChat', true); await h.win.waitForTimeout(250)
+  await h.app.evaluate(({ ipcMain }) => ipcMain.emit('ui:setPanel', null, 'chat', 400))
+  await api(h.win, 'setChat', false); await h.win.waitForTimeout(500)
+  await api(h.win, 'setCollapsed', false); await h.win.waitForTimeout(500)
+
+  const ceros = await h.app.evaluate(() => (globalThis as unknown as { __ceros: number }).__ceros)
+  expect(ceros, 'pedir radio 0 deja la máscara vieja puesta y recorta la página').toBe(0)
+})

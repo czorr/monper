@@ -44,6 +44,24 @@ const TOPBAR_HEIGHT = 52
 /** Redondeo del page view. Debe coincidir con rounded-t[l/r] en Content.tsx. */
 const CONTENT_RADIUS = 14
 /**
+ * "Sin redondeo" es 1, no 0. Un píxel no se ve; el 0 sí se notaba, y mucho.
+ *
+ * `setBorderRadius(0)` **no quita la máscara anterior**: la deja instalada, con el tamaño que
+ * tenía. Por eso el hueco a la derecha al cerrar el chat aparecía SOLO con los dos sidebars
+ * colapsados —el único caso en que el radio objetivo es 0— y por eso su ancho coincidía
+ * clavado con el de la última máscara de radio 14 (medido: máscara sellada a w=1261 y la
+ * página cortada justo ahí).
+ *
+ * Descartado antes de llegar aquí, todo medido: el rect calculado, los bounds reales de la
+ * vista y el `innerWidth` de la página eran correctos; reinstalar la máscara al asentarse el
+ * tamaño se dispara y llega al ancho bueno (se ve en el log como `[resellado]`) y aun así el
+ * hueco seguía; y `MONPER_NO_RADIUS=1` —que no llama nunca a `setBorderRadius`— lo hacía
+ * desaparecer. Con radio > 0 la máscara sí se reinstala al tamaño nuevo.
+ *
+ * No hay API para desinstalarla, así que la salida es no pedir nunca 0.
+ */
+const SIN_REDONDEO = 1
+/**
  * Materiales de vibrancy, ordenados de MÁS a MENOS transparente. Definen cuán translúcido
  * se ve TODO el chrome (sidebar, panel de chat), porque esas zonas son HTML sin fondo.
  * ⌘⌥V cicla entre ellos en vivo y la elección se persiste en panels.json.
@@ -116,6 +134,8 @@ interface Tab {
   view: WebContentsView
   /** Último radio aplicado; ver applyRadius (reaplicarlo trae de vuelta las muescas). */
   radius: number | null
+  /** Ancho de la vista cuando se instaló esa máscara. Si difiere del actual, recorta mal. */
+  radiusW: number | null
   url: string
   title: string
   favicon: string | null
@@ -163,16 +183,74 @@ function contentBounds() {
   return { x: left, y: TOPBAR_HEIGHT, width: Math.max(0, w - left - right), height: Math.max(0, h - TOPBAR_HEIGHT - bottom) }
 }
 
+/**
+ * MONPER_NO_RADIUS=1: no redondear nunca la vista.
+ *
+ * Es un interruptor de diagnóstico, no una opción. Existe para decidir de una vez si el hueco
+ * a la derecha al cerrar el chat lo causa la máscara del redondeado: `setBorderRadius` recorta
+ * la vista, y `applyRadius` NO la reaplica cuando solo cambia el tamaño (ver abajo), así que
+ * una máscara instalada a un ancho y nunca actualizada explicaría lo que se ve — recorte
+ * persistente, no reflow. Con esto en 1 el hueco debe desaparecer; si sigue, no era esto.
+ */
+const NO_RADIUS = process.env['MONPER_NO_RADIUS'] === '1'
+
 function applyRadius(t: Tab) {
-  if (typeof t.view.setBorderRadius !== 'function') return
+  if (NO_RADIUS || typeof t.view.setBorderRadius !== 'function') return
   // Redondea cuando la página "flota" (sidebar izq y/o panel de chat der).
-  const r = !sidebarCollapsed || chatOpen ? CONTENT_RADIUS : 0
+  // El "sin redondeo" es 1, no 0, y no es un capricho: ver SIN_REDONDEO.
+  const r = !sidebarCollapsed || chatOpen ? CONTENT_RADIUS : SIN_REDONDEO
   // Solo cuando CAMBIA. Reaplicar el radio en cada layout hace reaparecer las muescas de las
   // esquinas; este `if` estaba en el último estado que se dio por bueno y quitarlo las trajo
   // de vuelta. Ver docs/esquinas-y-vibrancy.md.
   if (t.radius === r) return
+  sellarRadio(t, r)
+}
+
+/**
+ * Instala la máscara y apunta a qué ancho se hizo.
+ *
+ * `forzar` pasa antes por otro valor. Hace falta al RESELLAR, donde el radio no cambia: si
+ * Electron ignora un `setBorderRadius` con el mismo valor que ya tiene, la máscara se quedaría
+ * con el tamaño viejo y el resellado sería un no-op perfecto — llamada hecha, nada reinstalado.
+ * No hay getter con el que comprobarlo desde fuera, así que se fuerza.
+ */
+function sellarRadio(t: Tab, r: number, forzar = false): void {
   t.radius = r
+  t.radiusW = t.view.getBounds().width
+  // Un valor distinto, y NUNCA 0: el 0 no reinstala la máscara (ver SIN_REDONDEO), así que
+  // usarlo como paso intermedio dejaría puesta la vieja. +1 es un cambio real e invisible.
+  if (forzar) t.view.setBorderRadius(r + 1)
   t.view.setBorderRadius(r)
+  if (DEBUG_LAYOUT) console.log(`[radio]   setBorderRadius(${r})${forzar ? ' [resellado]' : ''} con la vista a w=${t.radiusW}`)
+}
+
+/**
+ * Reinstala la máscara del redondeado cuando el tamaño ha cambiado.
+ *
+ * **Este era el hueco a la derecha al cerrar el chat.** `setBorderRadius` recorta la vista, y
+ * ese recorte se instala con el tamaño que la vista tenía en ese momento. `applyRadius` solo
+ * la reaplica cuando cambia el RADIO, nunca cuando cambia el ANCHO — así que tras
+ * redimensionar el chat, la vista crecía pero seguía recortada al ancho viejo. Por eso el
+ * síntoma era recorte y no reflow (el titular de GitHub salía partido a media palabra) y por
+ * eso no se iba al reabrir el chat: la máscara seguía puesta.
+ *
+ * Confirmado con `MONPER_NO_RADIUS=1`: sin redondeo, el hueco no aparece.
+ *
+ * Va con debounce y **solo sobre la activa** a propósito. Reaplicar el radio en cada layout
+ * es exactamente lo que hace reaparecer las muescas de las esquinas (docs/esquinas-y-vibrancy.md,
+ * cuatro intentos fallidos); una sola vez cuando el tamaño se asienta, no.
+ */
+const RESELLADO_MS = 80
+let resellarTimer: NodeJS.Timeout | null = null
+function resellarRadioAlAsentarse(): void {
+  if (resellarTimer) clearTimeout(resellarTimer)
+  resellarTimer = setTimeout(() => {
+    resellarTimer = null
+    const t = activeId != null ? tabs.get(activeId) : null
+    if (!t || typeof t.view.setBorderRadius !== 'function' || t.radius === null) return
+    if (t.radiusW === t.view.getBounds().width) return
+    sellarRadio(t, t.radius, true)
+  }, RESELLADO_MS)
 }
 
 /**
@@ -205,13 +283,41 @@ function touchWarm(id: number): void {
  * revirtió: medido con `contentTracing`, no movía ni un frame descartado —así que no pagaba
  * por sí misma— y en cambio introducía un modo de fallo nuevo: en cuanto alguien cambia la
  * geometría por otra vía, la caché miente y `layoutTabs` se salta el cambio que hacía falta
- * (pasó con `ui:omnibox`, y hubo una regresión del ancho al cerrar el panel de chat que no se
- * pudo reproducir pero apuntaba aquí). Repetir un `setBounds` es barato; una vista con el
- * tamaño equivocado no.
+ * (pasó con `ui:omnibox`). Repetir un `setBounds` es barato; una vista con el tamaño
+ * equivocado no.
+ *
+ * Aquí se sospechaba también del hueco al cerrar el panel de chat, que llevaba tiempo sin
+ * reproducirse. **No era esto**: era la máscara de `setBorderRadius`, que se instala con un
+ * tamaño y no se reaplicaba al cambiar el ancho. Ver `resellarRadioAlAsentarse`.
  */
-function layoutTabs() {
+/**
+ * MONPER_DEBUG_LAYOUT=1: imprime, en cada layout, de dónde sale el rect y qué queda libre.
+ *
+ * Existe por un hueco a la derecha al cerrar el chat tras redimensionarlo que NO se pudo
+ * reproducir: se midieron las cajas del main, los estilos del DOM y los píxeles de la página,
+ * y las tres acababan correctas en todas las secuencias probadas. Sin poder reproducirlo,
+ * arreglarlo sería adivinar; esto dice qué eslabón miente cuando vuelva a pasar.
+ */
+const DEBUG_LAYOUT = process.env['MONPER_DEBUG_LAYOUT'] === '1'
+
+
+/**
+ * @param soloVisible redimensiona SOLO la vista activa. Lo usan el arrastre de los paneles y
+ * el final de la animación: tocar las ocultas ahí rompe el compositor (ver dentro del bucle).
+ */
+function layoutTabs(soloVisible = false) {
   if (!win || win.isDestroyed()) return
   const cb = contentBounds()
+  if (DEBUG_LAYOUT) {
+    const [aw] = win.getContentSize()
+    const at = activeId != null ? tabs.get(activeId) : null
+    const real = at?.view.getBounds()
+    console.log(
+      `[layout] ventana=${aw} sidebar=${sidebarCollapsed ? 'colapsado' : sidebarWidth} ` +
+      `chat=${chatOpen ? chatWidth : 'cerrado'} → calculado x=${cb.x} w=${cb.width} libre=${aw - cb.x - cb.width}` +
+      (real ? `  | vista real x=${real.x} w=${real.width} libre=${aw - real.x - real.width}` : '')
+    )
+  }
   for (const [id, t] of tabs) {
     /**
      * SOLO la activa se dibuja. Las demás son vistas apiladas en el MISMO rect, así que
@@ -227,7 +333,22 @@ function layoutTabs() {
      * tarda 2-10ms tanto si la pestaña venía del warm set como si estaba fría. El warm set
      * nunca compró velocidad de pintado; solo hacía renderizar hasta 8 vistas a la vez.
      */
-    t.view.setVisible(id === activeId)
+    const activa = id === activeId
+    t.view.setVisible(activa)
+    /**
+     * Una vista OCULTA no sigue el layout en vivo.
+     *
+     * Al ocultarlas, Chromium libera sus superficies de GPU. Redimensionarlas igualmente
+     * —y durante un arrastre eso son 60 `setBounds` por segundo sobre cada una— hacía que el
+     * proceso de GPU escupiera `SharedImageManager::ProduceSkia: Trying to Produce a Skia
+     * representation from a non-existent mailbox`, y tras ese error la vista ACTIVA se
+     * quedaba mostrando el frame del ancho viejo: el hueco a la derecha al cerrar el chat.
+     *
+     * No las deja descuadradas: `soloVisible` solo lo usan el arrastre y la animación. Al
+     * activar una pestaña, `setActive` llama a este layout completo, así que recibe su
+     * tamaño antes de mostrarse.
+     */
+    if (soloVisible && !activa) continue
     t.view.setBounds(cb)
     applyRadius(t)
   }
@@ -242,6 +363,7 @@ function layoutTabs() {
   }
   // El chrome copia esta misma posición: no anima por su cuenta (ver Content.tsx).
   publicarRect(cb)
+  resellarRadioAlAsentarse()
 }
 
 /** Manda al chrome el rect que acaba de aplicarse a la vista nativa. */
@@ -259,7 +381,12 @@ let collapseAnim: NodeJS.Timeout | null = null
 function animateLayout() {
   if (!win || win.isDestroyed() || tabs.size === 0) return
   for (const t of tabs.values()) applyRadius(t)
-  const starts = new Map([...tabs].map(([id, t]) => [id, t.view.getBounds()]))
+  // Solo se anima la ACTIVA: es la única que se dibuja, y mover las ocultas a 60fps rompía
+  // el compositor (ver el comentario de `soloVisible` en layoutTabs). Las demás reciben su
+  // tamaño en el `layoutTabs()` completo del final.
+  const activa = activeId != null ? tabs.get(activeId) : null
+  if (!activa) return
+  const inicio = activa.view.getBounds()
   const target = contentBounds()
   /**
    * El reloj arranca en el PRIMER tick, no aquí.
@@ -278,16 +405,11 @@ function animateLayout() {
     if (!t0) t0 = ahora
     const p = Math.min(1, (ahora - t0) / COLLAPSE_MS)
     const e = 1 - Math.pow(1 - p, 3) // easeOutCubic
-    let rect = { x: target.x, width: target.width }
-    for (const [id, t] of tabs) {
-      const s = starts.get(id)
-      if (!s) continue
-      rect = {
-        x: Math.round(s.x + (target.x - s.x) * e),
-        width: Math.round(s.width + (target.width - s.width) * e)
-      }
-      t.view.setBounds({ x: rect.x, y: target.y, width: rect.width, height: target.height })
+    const rect = {
+      x: Math.round(inicio.x + (target.x - inicio.x) * e),
+      width: Math.round(inicio.width + (target.width - inicio.width) * e)
     }
+    activa.view.setBounds({ x: rect.x, y: target.y, width: rect.width, height: target.height })
     // El MISMO rect al chrome, en el mismo tick. Antes el topbar lo animaba una transición
     // CSS por su cuenta: dos relojes independientes, y por mucho que coincidieran la curva y
     // la duración, siempre se veían desfasados. Ahora hay un solo animador y el topbar se
@@ -511,7 +633,7 @@ function createTab(url = newtabUrl(), activate = true, agent = false): number {
       preload: join(__dirname, '../preload/content.js')
     }
   })
-  const t: Tab = { view, radius: null, url, title: '', favicon: null, loading: false, canBack: false, canForward: false, themeColor: null, pageBg: null, recording: false, muted: false, audible: false, agent, bookmarkId: null, errorUrl: null }
+  const t: Tab = { view, radius: null, radiusW: null, url, title: '', favicon: null, loading: false, canBack: false, canForward: false, themeColor: null, pageBg: null, recording: false, muted: false, audible: false, agent, bookmarkId: null, errorUrl: null }
   // Fondo de la vista. Para una web es opaco: sin esto, al cambiar de pestaña se ve el fondo
   // de la ventana. Y es el color de la app (oscuro), NO blanco — el borde antialiaseado del
   // redondeado nativo tiñe con este color, y en blanco dibujaba un halo en las esquinas.
@@ -1026,7 +1148,9 @@ ipcMain.on('ui:setPanel', (_e, which: 'sidebar' | 'chat', width: number) => {
   const w = Math.round(width)
   if (which === 'sidebar') sidebarWidth = Math.min(L.sidebarMax, Math.max(L.sidebarMin, w))
   else chatWidth = Math.min(L.chatMax, Math.max(L.chatMin, w))
-  layoutTabs() // la vista nativa sigue al arrastre en vivo (sin animación)
+  // Solo la activa: esto llega a 60fps mientras arrastras, y redimensionar ahí las vistas
+  // ocultas (sin superficie de GPU) es lo que rompía el compositor.
+  layoutTabs(true)
   savePanels()
 })
 

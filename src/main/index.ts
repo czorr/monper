@@ -207,9 +207,21 @@ function layoutTabs() {
   if (!win || win.isDestroyed()) return
   const cb = contentBounds()
   const warm = new Set(warmOrder.slice(0, WARM_MAX))
+  /**
+   * El warm set deja renderizando varias vistas APILADAS en el mismo rect, y eso solo es
+   * invisible mientras la de encima sea opaca. Con una página interna translúcida se ven las
+   * de detrás a través de ella (settings sobre la new tab, las dos a la vez).
+   *
+   * Así que cuando la activa es translúcida, se queda ella sola. No cuesta nada medible: en
+   * `docs/rendimiento.md` está comprobado que el primer frame tarda 2-10ms tanto si la
+   * pestaña venía del warm set como si no — el warm set nunca estuvo comprando velocidad de
+   * pintado. Para las webs, que son opacas, no cambia nada.
+   */
+  const activa = activeId != null ? tabs.get(activeId) : null
+  const soloActiva = !!activa && esTranslucida(activa)
   for (const [id, t] of tabs) {
     // Visible si es la activa o está en el warm set; las demás se ocultan (no renderizan).
-    t.view.setVisible(id === activeId || warm.has(id))
+    t.view.setVisible(id === activeId || (!soloActiva && warm.has(id)))
     t.view.setBounds(cb)
     applyRadius(t)
   }
@@ -515,8 +527,11 @@ function createTab(url = newtabUrl(), activate = true, agent = false): number {
   wc.on('did-navigate', (_e, u) => { // sólo main-frame
     t.url = u; t.recording = false
     // Una pestaña cruza la frontera en los dos sentidos (newtab → web → newtab), así que el
-    // fondo se decide en cada navegación, no al crear la vista.
+    // fondo se decide en cada navegación, no al crear la vista. Y hay que rehacer el layout:
+    // volverse translúcida cambia QUÉ otras vistas pueden quedar visibles detrás (ver
+    // `soloActiva` en layoutTabs). Solo si es la activa: el resto ya no se ve.
     applyBackdrop(t)
+    if (id === activeId) layoutTabs()
     // Al navegar a algo que NO es la página de error, limpiamos el estado de error y registramos la visita.
     if (!isErrorPage(u)) { t.errorUrl = null; if (!isInternal(u)) recordVisit(u, t.title, t.favicon) }
     applyZoom(wc, u) // restaura el zoom recordado para el origen

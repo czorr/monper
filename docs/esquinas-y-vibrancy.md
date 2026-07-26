@@ -101,3 +101,42 @@ También existe `MONPER_NO_VIBRANCY=1` para aislar si algo es de composición.
 - [ ] ¿Cambié `CONTENT_RADIUS`? → ajusta `rounded-t[l/r]` en `Content.tsx` **y** el alto de la franja.
 - [ ] ¿El artefacto es solo en las esquinas? → es una capa con fondo, no el compositor.
 - [ ] Antes de teorizar: **`git diff` contra el último estado bueno.** Es lo que faltó y costó 4 intentos.
+
+---
+
+## Páginas internas translúcidas
+
+Nuestras páginas (newtab, settings, downloads, error) se dibujan sobre la vibrancy, igual que
+el sidebar y el chat. Una web NO: la transparencia es del producto, no algo que se le concede
+a cualquier sitio que cargues.
+
+Son **cuatro piezas y van juntas**. Quitar una deja un fallo visual que no parece venir de ahí:
+
+1. **`applyBackdrop(t)`** pone el fondo de la vista a `#00000000` si `isInternal(t.url)`, y a
+   `APP_BG` si no. Se llama **en cada `did-navigate`**, no al crear la vista: una pestaña
+   cruza la frontera en los dos sentidos (newtab → web → newtab).
+2. **`.page-backdrop`** (en `styles.css`) sustituye a `bg-bg` en los cuatro roots internos.
+   Es `--color-bg` al 62% — ese alpha es el mando de cuánta transparencia. Si esto vuelve a
+   ser opaco, la transparencia de la vista no se nota; si la vista recupera fondo, esto se ve
+   gris sucio sobre negro.
+3. **`pageColor: 'transparent'`** para esas pestañas, y `sampleTopStrip`/`applyTopColor` salen
+   temprano. Dos razones distintas:
+   - la **franja de costura** (regla 2) vive DEBAJO de la página; con la página translúcida se
+     vería entera, como una banda opaca de 16px bajo el topbar, en vez de solo por las muescas;
+   - `applyTopColor` le pone a la vista el color muestreado **como fondo opaco**, así que al
+     primer scroll deshacía la transparencia.
+4. **`soloActiva` en `layoutTabs`.** El warm set deja renderizando hasta 8 vistas **apiladas
+   en el mismo rect**, y eso solo es invisible mientras la de encima sea opaca. Con settings
+   activo se veía la new tab a través de él. Cuando la activa es translúcida, se queda ella
+   sola. No cuesta nada medible: el primer frame tarda 2-10ms venga del warm set o no (ver
+   [rendimiento.md](rendimiento.md)) — el warm set nunca compró velocidad de pintado.
+
+### La trampa del `luminance`
+
+`luminance('transparent')` no matcheaba ningún patrón, caía al blanco por defecto y devolvía
+**1**. Con eso el topbar entraba en modo `on-light` y ponía texto e iconos **oscuros** justo
+donde el fondo es la vibrancy oscura: invisibles. `transparent` no es un color claro, es la
+ausencia de color. Arreglado en la función y en el topbar.
+
+Lo fijan `tests/branding.spec.ts` ("el topbar va en claro sobre la vibrancy") y
+`tests/layout.spec.ts` ("no queda ninguna otra vista visible detrás").

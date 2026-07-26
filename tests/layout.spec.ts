@@ -106,3 +106,26 @@ test('la omnibox oculta la vista y la devuelve', async () => {
   await new Promise((r) => setTimeout(r, 300))
   expect(await visibles(), 'un layout con la omnibox abierta no debe dejarla oculta').toBe(antes)
 })
+
+test('con una página interna activa no queda ninguna otra vista visible detrás', async () => {
+  // Nuestras páginas se dibujan translúcidas para que se vea la vibrancy. El warm set deja
+  // renderizando varias vistas APILADAS en el mismo rect, cosa que solo es invisible mientras
+  // la de encima sea opaca: con settings activo se veía la new tab a través de él.
+  const visibles = (): Promise<number> =>
+    h.app.evaluate(({ BrowserWindow }) => {
+      const w = BrowserWindow.getAllWindows().find((x) => !x.getParentWindow())!
+      const kids = w.contentView.children as unknown as { getVisible?: () => boolean }[]
+      return kids.filter((v) => typeof v.getVisible === 'function' && v.getVisible()).length
+    })
+
+  // Dos pestañas internas: sin el arreglo, las dos quedaban visibles a la vez.
+  await api(h.win, 'newTab')
+  await api(h.win, 'openSettings')
+  await waitForState(h.win, (s) => (s.tabs.find((t) => t.id === s.activeId) as { internal?: string } | undefined)?.internal === 'settings')
+  await expect.poll(visibles, { timeout: 5000 }).toBe(1)
+
+  // Y navegar a una web devuelve el apilado del warm set: el arreglo no lo desactiva.
+  await api(h.win, 'go', site.url + '/a')
+  await waitForState(h.win, (s) => s.tabs.find((t) => t.id === s.activeId)?.title === 'A')
+  await expect.poll(visibles, { timeout: 5000 }).toBeGreaterThan(1)
+})

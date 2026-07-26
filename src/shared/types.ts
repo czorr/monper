@@ -628,10 +628,8 @@ export interface MonperTabApi {
   setVibrancy: (id: string) => void
   // ---- Actualizaciones (Settings → About) ----
   getUpdateState: () => Promise<UpdateState>
-  // ---- Control remoto (ver src/main/remote.ts) ----
-  getRemoteState: () => Promise<{ enabled: boolean; port: number }>
-  onRemoteState: (cb: (s: { enabled: boolean; port: number }) => void) => () => void
-  setRemote: (on: boolean) => void
+  // El control remoto NO se expone a las páginas internas: es un indicador del chrome y su
+  // interruptor vive ahí (ver src/main/remote.ts). Cuanta menos superficie, mejor.
   onUpdateState: (cb: (s: UpdateState) => void) => () => void
   checkUpdates: () => void
   downloadUpdate: () => void

@@ -11,7 +11,10 @@ import { runMastra, errText } from './agent/mastra'
 import { initHistory, recordVisit, updateMeta, recent as historyRecent } from './history'
 import { initWindowState, initialBounds, shouldMaximize, trackWindow } from './windowState'
 import { suggest } from './suggest'
-import { initPermissions, attachPermissionHandlers, stateOf, setState, requestedKeys } from './permissions'
+import {
+  initPermissions, attachPermissionHandlers, stateOf, setState, requestedKeys,
+  allSites, clearOrigin, clearAllOrigins
+} from './permissions'
 import { initSkills, listSkills, getSkill, toggleSkill, enabledSkills, skillsDir } from './skills'
 import { initProfile, getProfile, setProfile, setAvatar } from './profile'
 import { initDownloads, attachDownloads, listDownloads, activeDownloadCount, cancelDownload, openDownload, showDownload, clearDownloads } from './downloads'
@@ -1387,6 +1390,38 @@ ipcMain.on('siteinfo:clear', async () => {
     })
   }
   sitePopover.hide()
+})
+
+// ---- Permisos de sitios: la vista global, desde Settings ----
+// Solo para páginas internas: son datos de navegación del usuario, no algo que una web deba
+// poder leer ni tocar (misma regla que bookmarks o downloads). Hasta ahora un permiso solo se
+// veía desde el candado de SU sitio: para revocar la cámara había que volver a entrar en la
+// página que la pidió.
+/**
+ * Los favicons se sirven de la caché, que es instantánea. Resolver el de un sitio no visitado
+ * implica pedirle su HTML y puede tardar segundos: si se hiciera siempre, la lista entera
+ * esperaría al más lento. Por eso son dos pasadas — la página pinta con lo que hay y vuelve
+ * a pedirla con `resolve` para completar los que falten.
+ */
+ipcMain.handle('perms:list', async (e, resolve?: boolean) => {
+  if (!isInternalSender(e.senderFrame?.url)) return []
+  const sites = allSites()
+  if (resolve) await Promise.all(sites.filter((s) => !faviconFor(s.origin)).map((s) => resolveFavicon(s.origin)))
+  return sites.map((s) => ({ ...s, favicon: faviconFor(s.origin) }))
+})
+ipcMain.handle('perms:set', (e, origin: string, key: PermKey, state: PermState) => {
+  if (!isInternalSender(e.senderFrame?.url)) return false
+  setState(origin, key, state)
+  // Si el candado del sitio está abierto, se quedaría mostrando el estado viejo.
+  sitePopover.send('siteinfo:data', buildSiteInfo())
+  return true
+})
+ipcMain.handle('perms:clear', (e, origin: string | null) => {
+  if (!isInternalSender(e.senderFrame?.url)) return false
+  if (origin) clearOrigin(origin)
+  else clearAllOrigins()
+  sitePopover.send('siteinfo:data', buildSiteInfo())
+  return true
 })
 
 // ---- Menú de perfil: ventana nativa (flota sobre la página) ----

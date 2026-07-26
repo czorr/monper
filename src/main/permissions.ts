@@ -25,6 +25,39 @@ export function setState(origin: string, key: PermKey, state: PermState): void {
   persist()
 }
 export function requestedKeys(origin: string): PermKey[] { return [...(requested[origin] || [])] }
+
+/**
+ * Todos los orígenes con alguna decisión tomada, para la página de Settings.
+ *
+ * Hasta ahora un permiso solo se podía ver desde el candado del sitio en cuestión: para
+ * revocar la cámara de una página había que volver a entrar en ella. Un permiso concedido y
+ * olvidado que no se puede encontrar es el problema, no la pantalla que faltaba.
+ *
+ * Se omiten los `ask`: no son una decisión, son la ausencia de una.
+ */
+export function allSites(): { origin: string; perms: { key: PermKey; state: PermState }[] }[] {
+  return Object.entries(store)
+    .map(([origin, keys]) => ({
+      origin,
+      perms: (Object.entries(keys) as [PermKey, PermState][])
+        .filter(([, state]) => state === 'granted' || state === 'denied')
+        .map(([key, state]) => ({ key, state }))
+        .sort((a, b) => a.key.localeCompare(b.key))
+    }))
+    .filter((s) => s.perms.length > 0)
+    .sort((a, b) => a.origin.localeCompare(b.origin))
+}
+
+/** Olvida las decisiones de un origen: vuelve a preguntar la próxima vez. */
+export function clearOrigin(origin: string): void {
+  delete store[origin]
+  persist()
+}
+
+export function clearAllOrigins(): void {
+  store = {}
+  persist()
+}
 function markRequested(origin: string, key: PermKey): void { (requested[origin] ||= new Set()).add(key) }
 
 // Mapea un permiso de Electron a nuestras keys de UI.

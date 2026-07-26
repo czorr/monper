@@ -2,7 +2,7 @@
 
 Auditoría de lo que falta para pasar de "prototipo que funciona" a navegador
 confiable. Verificado contra el código (no hay manejo de crashes, errores de red,
-certificados, ni descartes de tabs; los permisos se auto-conceden).
+certificados, ni descartes de tabs). Lo tachado ya está hecho.
 
 Prioridad: **P0** bloquea "confiable" · **P1** importante · **P2** esperado/pulido.
 
@@ -27,11 +27,8 @@ Prioridad: **P0** bloquea "confiable" · **P1** importante · **P2** esperado/pu
 
 ## P0 — Seguridad (hoy es permisiva de más)
 
-5. **Permisos auto-concedidos.** `permissions.ts` hace `callback(true)` para
-   cámara/micrófono/geolocalización/notificaciones/portapapeles **sin preguntar**.
-   Un browser confiable **pide permiso** (prompt por origen, recordar decisión).
-   Es el hueco de seguridad más serio. Falta: prompt nativo o UI de permiso, y
-   denegar por defecto lo sensible.
+5. ~~**Permisos auto-concedidos.**~~ **Hecho.** `permissions.ts` pregunta con un diálogo
+   nativo por origen y recuerda la decisión en `permissions.json`. Ver más abajo.
 6. **Navegaciones peligrosas** desde contenido web: bloquear `file://`,
    `chrome://` y esquemas raros iniciados por páginas; validar `will-navigate`.
 
@@ -78,7 +75,7 @@ Prioridad: **P0** bloquea "confiable" · **P1** importante · **P2** esperado/pu
 
 1. **P0 confiabilidad** (1–4): páginas de error/crash/cert/no-responde. Máximo
    impacto percibido, evita "vista muerta".
-2. **P0 seguridad — permisos** (5): dejar de auto-conceder; prompt por origen.
+2. ~~**P0 seguridad — permisos** (5)~~ — hecho, con su página en Settings.
 3. **P1 sesión** (7–8): restaurar pestañas + reabrir cerrada.
 4. **P2 rendimiento — descarte de tabs** (11): acota el costo del keep-alive.
 5. **P1 descargas** (9) y **P2 UX** (14–18) en paralelo según prioridad tuya.
@@ -158,3 +155,26 @@ apagado. El siguiente paso, si esto va a producción, es pedir confirmación con
 nativo en la primera orden de cada cliente.
 
 Fijado en `security.spec.ts`: arranca apagado, y encendido tiene indicador.
+
+## Permisos: dónde se ven y quién puede tocarlos
+
+`permissions.ts` guarda una decisión por **origen** y clave (`camera`, `microphone`,
+`geolocation`, `notifications`, `clipboard`). Sin decisión previa se abre un diálogo nativo;
+`granted`/`denied` se recuerdan y `ask` es simplemente su ausencia.
+
+Durante un tiempo un permiso solo se podía ver desde el candado de **su** sitio: para revocar
+la cámara de una página había que volver a entrar en ella. Un permiso concedido y olvidado
+que no se puede encontrar es el problema, no la pantalla que faltaba. Hoy `allSites()` los
+enumera y Settings → Permissions los muestra todos, con "Olvidar" por sitio y para todos.
+
+**"Olvidar" no es "bloquear".** Borra la decisión, así que el sitio vuelve a preguntar. Se
+dice en la propia página porque las dos cosas se confunden y la diferencia importa.
+
+Los tres canales (`perms:list`, `perms:set`, `perms:clear`) pasan por `isInternalSender`.
+No es teórico: `monperTab` es el preload de **contenido**, así que existe también en una web
+cualquiera. Sin ese filtro, una página podría enumerar dónde has dado la cámara y
+concedérsela a sí misma. Lo fija `tests/security.spec.ts` → "una web no puede leer ni cambiar
+los permisos de los sitios".
+
+Lo que **no** existe todavía: qué acciones debe confirmar el agente y en qué sitios no puede
+entrar. Está en la página dicho como pendiente, no insinuado con un control que no hace nada.

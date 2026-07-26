@@ -12,6 +12,7 @@ import ProvidersSection from './ProvidersSection'
 import SkillsSection from './SkillsSection'
 import QuickActionsSection from './QuickActionsSection'
 import RoutinesSection from './RoutinesSection'
+import PermissionsSection from './PermissionsSection'
 import IconWand from '~icons/tabler/wand'
 import IconClockBolt from '~icons/tabler/clock-bolt'
 import IconPalette from '~icons/tabler/palette'
@@ -64,7 +65,7 @@ const NAV: NavGroup[] = [
       { id: 'skills', label: 'Skills', icon: <IconBolt /> },
       { id: 'memory', label: 'Memory', icon: <IconBrain />, soon: true },
       { id: 'mcps', label: 'MCPs', icon: <IconPlug />, soon: true },
-      { id: 'permissions', label: 'Permissions', icon: <IconLock />, soon: true },
+      { id: 'permissions', label: 'Permissions', icon: <IconLock /> },
       { id: 'actions', label: 'Quick actions', icon: <IconWand /> },
       { id: 'routines', label: 'Routines', icon: <IconClockBolt /> },
       { id: 'statistics', label: 'Statistics', icon: <IconChart />, soon: true },
@@ -117,11 +118,6 @@ const SOON: Partial<Record<Cat, { title: string; desc: string; bullets: string[]
       'Exponer Monper —con tus sesiones— a Claude, Cursor, etc.',
       'Permisos por servidor'
     ]
-  },
-  permissions: {
-    title: 'Permissions',
-    desc: 'Qué puede hacer cada sitio y cada agente.',
-    bullets: ['Cámara, micrófono y ubicación por sitio', 'Acciones que el agente debe confirmar', 'Sitios bloqueados para el agente']
   },
   statistics: {
     title: 'Statistics',
@@ -232,6 +228,7 @@ export default function SettingsPage(): JSX.Element {
               {cat === 'account' && <AccountPage />}
               {cat === 'general' && <GeneralPage />}
               {cat === 'privacy' && <PrivacyPage />}
+              {cat === 'permissions' && <PermissionsSection />}
               {cat === 'about' && <AboutPage />}
               {SOON[cat] && <ComingSoon cat={cat} />}
             </div>
@@ -249,11 +246,13 @@ function AIPage(): JSX.Element {
       <ProvidersSection />
       <Group title="Chat settings">
         <Card>
+          {/* Ninguno de los dos es configurable todavía: son descripciones del comportamiento
+              actual, no controles. Ver el comentario de GeneralPage. */}
           <Row label="Modelo por defecto" desc="El último proveedor usado se convierte en el default">
-            <Pill>Proveedor activo</Pill>
+            <span className="text-[13px] text-text-faint">Proveedor activo</span>
           </Row>
-          <Row label="Comportamiento de seguimiento" desc="Encolar mensajes mientras el agente corre, o corregir en caliente">
-            <Pill>Queue ⌄</Pill>
+          <Row label="Comportamiento de seguimiento" desc="Los mensajes se encolan mientras el agente corre">
+            <span className="text-[13px] text-text-faint">Queue · Pronto</span>
           </Row>
         </Card>
       </Group>
@@ -429,22 +428,29 @@ function AppearancePage(): JSX.Element {
 }
 
 function GeneralPage(): JSX.Element {
+  // El perfil sale del main, no del JSX: estuvo escrito a mano y mostraba el mismo nombre y
+  // correo a cualquiera que abriera Settings.
+  const [profile, setProfile] = useState<Profile>({ name: '', initials: '?', avatar: null })
+  useEffect(() => { monperTab.getProfile().then(setProfile).catch(() => {}) }, [])
+
   return (
     <>
       <h1 className="text-[30px] font-semibold tracking-tight mb-9">General</h1>
       <Group title="Perfil">
         <Card>
-          <Row
-            icon={<IconUser />}
-            label="Luis Carlos Zorrilla"
-            desc="lc@luiszorrilla.com"
-          />
+          <Row icon={<IconUser />} label={profile.name || 'Sin nombre'} desc="Se edita en Account" />
         </Card>
       </Group>
       <Group title="Navegación">
         <Card>
-          <Row label="Página de inicio" desc="Se abre al crear una pestaña nueva"><Pill>New tab</Pill></Row>
-          <Row label="Buscador" desc="Motor de búsqueda del omnibox"><Pill>Google ⌄</Pill></Row>
+          {/* Sin `⌄`: no hay nada que elegir todavía. Un desplegable que no despliega es peor
+              que decir "Pronto" — parece que el ajuste existe y que tú lo dejaste así. */}
+          <Row label="Página de inicio" desc="Se abre al crear una pestaña nueva">
+            <Pill>New tab</Pill>
+          </Row>
+          <Row label="Buscador" desc="Hoy siempre Google; el selector llega con el ajuste de verdad">
+            <span className="text-[13px] text-text-faint">Google · Pronto</span>
+          </Row>
         </Card>
       </Group>
     </>

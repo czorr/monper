@@ -205,6 +205,8 @@ export interface SkillDetail extends SkillMeta {
 export type PermKey = 'camera' | 'microphone' | 'geolocation' | 'notifications' | 'clipboard'
 export type PermState = 'granted' | 'denied' | 'ask'
 export interface SitePermission { key: PermKey; state: PermState }
+/** Un origen con las decisiones de permisos que el usuario ya tomó sobre él. */
+export interface PermSite { origin: string; perms: SitePermission[]; favicon: string | null }
 export interface SiteInfoData {
   url: string
   origin: string
@@ -626,6 +628,15 @@ export interface MonperTabApi {
   // ---- Apariencia (Settings) ----
   getAppearance: () => Promise<AppearanceData>
   setVibrancy: (id: string) => void
+  // ---- Permisos de sitios (Settings → Permissions) ----
+  /**
+   * `resolve: true` va a buscar al propio sitio los favicons que falten antes de contestar
+   * (hasta unos segundos). La primera llamada debe hacerse sin él para pintar ya.
+   */
+  listSitePermissions: (resolve?: boolean) => Promise<PermSite[]>
+  setSitePermission: (origin: string, key: PermKey, state: PermState) => Promise<boolean>
+  /** `null` borra las decisiones de TODOS los sitios. */
+  clearSitePermissions: (origin: string | null) => Promise<boolean>
   // ---- Actualizaciones (Settings → About) ----
   getUpdateState: () => Promise<UpdateState>
   // El control remoto NO se expone a las páginas internas: es un indicador del chrome y su

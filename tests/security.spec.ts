@@ -90,6 +90,26 @@ test('una web no alcanza node ni el runtime de Electron', async () => {
   expect(globals).toBe('undefined,undefined,undefined,undefined')
 })
 
+test('una web no puede leer ni cambiar los permisos de los sitios', async () => {
+  // `monperTab` SÍ existe en una web: es el preload de contenido. Lo que la separa de
+  // settings es `isInternalSender`, y esto es lo que lo fija. Sin ello, cualquier página
+  // podría enumerar dónde has dado la cámara y concedérsela a sí misma.
+  const origen = 'https://ejemplo-permisos.test'
+  const wcEval = async (js: string): Promise<unknown> =>
+    h.app.evaluate(async ({ webContents }, code) => {
+      const wc = webContents.getAllWebContents().find((w) => w.getURL().startsWith('http://127.0.0.1'))
+      if (!wc) throw new Error('no hay pestaña con la web de prueba')
+      return wc.executeJavaScript(code)
+    }, js)
+
+  expect(await wcEval('window.monperTab.listSitePermissions()'), 'una web no debe ver ningún sitio').toEqual([])
+  expect(
+    await wcEval(`window.monperTab.setSitePermission(${JSON.stringify(origen)}, 'camera', 'granted')`),
+    'conceder desde una web tiene que ser rechazado'
+  ).toBe(false)
+  expect(await wcEval('window.monperTab.clearSitePermissions(null)'), 'borrar todo desde una web también').toBe(false)
+})
+
 test('el control remoto arranca apagado y se ve cuando está encendido', async () => {
   // Dos garantías que van juntas: encenderlo no sobrevive al cierre de la app (nunca escucha
   // en silencio al día siguiente) y mientras esté activo hay un indicador fijo en el chrome.

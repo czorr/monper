@@ -180,3 +180,25 @@ test('los submenús del menú de perfil abren al lado, sin cerrar el padre', asy
   await h.app.evaluate(({ ipcMain }) => ipcMain.emit('profilemenu:close'))
   await expect.poll(visiblePopovers).toEqual([])
 })
+
+test('el peek se prepara al colapsar el sidebar, no al primer hover', async () => {
+  // Medido: crear su ventana y cargar peekbar.html cuesta ~230ms hasta el primer frame, y
+  // `showPeekNow` la mostraba nada más llamar a loadURL — ventana vacía y transparente todo
+  // ese rato. Con el hover-intent de 180ms encima, la primera apertura tardaba ~410ms.
+  // Colapsar es la acción que declara que vas a usar el peek, y ahí no esperas a nada.
+  const peek = (): Promise<{ existe: boolean; cargando: boolean; visible: boolean }> =>
+    h.app.evaluate(({ BrowserWindow }) => {
+      const w = BrowserWindow.getAllWindows().find((x) => x.webContents.getURL().includes('peekbar'))
+      return { existe: !!w, cargando: !!w?.webContents.isLoading(), visible: !!w?.isVisible() }
+    })
+
+  // Con el sidebar expandido no existe: esto NO es pre-crear al arrancar (ver el test de arriba).
+  await api(h.win, 'setCollapsed', false)
+  expect((await peek()).existe, 'sin colapsar no hace falta ninguna ventana').toBe(false)
+
+  await api(h.win, 'setCollapsed', true)
+  await expect.poll(async () => (await peek()).existe, { timeout: 5000 }).toBe(true)
+  // Preparada pero NO visible: se muestra cuando el hover lo pida, ya cargada.
+  await expect.poll(async () => (await peek()).cargando, { timeout: 5000 }).toBe(false)
+  expect((await peek()).visible, 'prepararla no es mostrarla').toBe(false)
+})

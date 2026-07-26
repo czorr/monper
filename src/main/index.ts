@@ -1035,6 +1035,25 @@ ipcMain.handle('ui:collapse', (_e, collapsed: boolean) => {
   lastCollapseAt = Date.now() // suprime el hover falso del botón que aparece bajo el cursor
   hidePeek()
   animateLayout()
+  /**
+   * Crear la ventana del peek AQUÍ, no en el primer hover.
+   *
+   * Medido: crearla y cargar `peekbar.html` cuesta ~230ms hasta el primer frame, y
+   * `showPeekNow` la mostraba nada más llamar a `loadURL` — o sea, ventana vacía y
+   * transparente durante todo ese rato. Con el hover-intent de 180ms encima, la primera
+   * apertura tardaba ~410ms y las siguientes ~185ms. Eso era el "la primera vez tarda
+   * muchísimo".
+   *
+   * No es pre-crear al arrancar (eso costaba 344MB y hay un test que lo prohíbe): si nunca
+   * colapsas el sidebar, esta ventana no se crea nunca. Colapsar es justo la acción que
+   * declara que vas a usar el peek, y ahí no estás esperando a nada. Además encaja con los
+   * 600ms en los que `peek:show` ignora el hover tras colapsar: para cuando puedes abrirlo,
+   * ya está cargado.
+   *
+   * Cuesta un proceso de renderer mientras el sidebar esté colapsado. No se destruye al
+   * expandir a propósito: con ⌘S se alterna constantemente y volveríamos a pagarlo.
+   */
+  if (sidebarCollapsed) ensurePeekWin()
 })
 ipcMain.handle('ui:chat', (_e, open: boolean) => { chatOpen = !!open; animateLayout() })
 // Al editar la URL, oculta la vista nativa (que se dibuja encima del DOM) para que

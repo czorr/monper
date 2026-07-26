@@ -246,3 +246,32 @@ y por poco lo doy por bueno.
 - El streaming del agente y el REPL.
 - Percepción: el "flash gris" al cambiar de pestaña es un problema de compositor, no de los
   17 ms que tarda el cambio de estado.
+
+## El peek tardaba la primera vez
+
+Síntoma: "la primera vez que apunto al botón tarda muchísimo en salir, las demás va rápido".
+
+Medido creando y cargando su ventana tres veces seguidas:
+
+| | creada | dom-ready | primer frame |
+|---|---|---|---|
+| 1ª | 18 ms | 187 ms | **232 ms** |
+| 2ª | 13 ms | 135 ms | 163 ms |
+| 3ª | 10 ms | 123 ms | 163 ms |
+
+Y `showPeekNow` llamaba a `showInactive()` **justo después** de `loadURL`, así que esos 230ms
+eran una ventana visible, vacía y transparente. Sumando el hover-intent de 180ms: ~410ms la
+primera vez contra ~185ms las siguientes, que es exactamente la diferencia que se notaba.
+
+**Arreglo: la ventana se crea al COLAPSAR el sidebar, no en el primer hover.** No es volver a
+pre-crear al arrancar —eso costaba 344MB y sigue prohibido por su test—: si nunca colapsas,
+esta ventana no se crea nunca. Colapsar es la acción que declara que vas a usar el peek, y ahí
+no estás esperando a nada. Encaja además con los 600ms en que `peek:show` ignora el hover tras
+colapsar: para cuando puedes abrirlo, ya está cargado.
+
+Cuesta un renderer mientras el sidebar esté colapsado. No se destruye al expandir a propósito:
+con ⌘S se alterna constantemente y volveríamos a pagarlo cada vez.
+
+Lo fija `tests/popovers.spec.ts` → "el peek se prepara al colapsar el sidebar, no al primer
+hover", que comprueba las dos mitades: que expandido NO existe, y que al colapsar existe,
+termina de cargar y **no** se muestra.

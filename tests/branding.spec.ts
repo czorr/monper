@@ -97,3 +97,26 @@ test('el iso se oscurece en páginas de fondo claro', async () => {
     await oscuro.close()
   }
 })
+
+test('en una página interna el topbar va en claro sobre la vibrancy', async () => {
+  // Nuestras páginas se dibujan translúcidas y mandan `pageColor: 'transparent'`. Eso no es
+  // un color claro: detrás está la vibrancy oscura de la ventana. `luminance` no sabía leer
+  // esa palabra, caía a blanco y ponía el topbar en modo claro — textos e iconos oscuros,
+  // invisibles sobre el material.
+  await api(h.win, 'openSettings')
+  await waitForState(h.win, (s) => (s.tabs.find((t) => t.id === s.activeId) as { internal?: string } | undefined)?.internal === 'settings')
+
+  const s = await waitForState(h.win, () => true)
+  expect((s.active as { pageColor?: string } | null)?.pageColor).toBe('transparent')
+
+  await expect(h.win.locator('header.on-light'), 'el topbar no debe entrar en modo claro').toHaveCount(0)
+  const lum = await h.win.evaluate(() => {
+    const el = document.querySelector('.monper-mark')
+    if (!el) return -1
+    const m = /rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(getComputedStyle(el).backgroundColor)
+    if (!m) return -1
+    const [r, g, b] = m.slice(1).map(Number)
+    return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255
+  })
+  expect(lum, 'el iso tiene que ir en claro').toBeGreaterThan(0.6)
+})

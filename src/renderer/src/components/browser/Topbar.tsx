@@ -37,7 +37,14 @@ const navBtns = 'flex gap-0.5 [-webkit-app-region:no-drag]'
 
 export default function Topbar({ active, collapsed, mac, chatOpen, editRequest, onExpand, onBack, onForward, onReload, onGo, onToggleBookmark, onToggleMute, onToggleChat, onOpenVault, onOpenExtensions, downloads, onOpenDownloads, onPeekShow, onPeekHide }: Props): JSX.Element {
   const pageColor = active?.pageColor || '#111114'
-  const onLight = luminance(pageColor) > 0.5
+  /**
+   * Una página interna manda `transparent`: detrás no hay color, hay la vibrancy de la
+   * ventana, que es oscura como el resto del chrome. `luminance` no sabe leer esa palabra y
+   * caía a blanco (1), así que el topbar entraba en modo claro y sus textos e iconos oscuros
+   * desaparecían sobre el material. Aquí no hay nada que medir: es el mismo fondo que el
+   * sidebar, y el sidebar siempre va en claro.
+   */
+  const onLight = pageColor !== 'transparent' && luminance(pageColor) > 0.5
   const canBookmark = !!active?.url // vacío en la new-tab page
 
   return (

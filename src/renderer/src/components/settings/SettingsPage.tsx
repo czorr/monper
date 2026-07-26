@@ -171,7 +171,7 @@ export default function SettingsPage(): JSX.Element {
   const [cat, setCat] = useState<Cat>(initialCat)
 
   return (
-    <div className="h-full flex bg-bg text-text select-text">
+    <div className="h-full flex page-backdrop text-text select-text">
       {/* Sub-nav de settings */}
       <nav className="w-[230px] shrink-0 border-r border-white/[0.06] px-3 py-6 overflow-y-auto [&::-webkit-scrollbar]:w-0">
         {NAV.map((group, gi) => (

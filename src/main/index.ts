@@ -308,7 +308,9 @@ function buildState(): BrowserState | null {
     active: t
       ? {
           url: t.errorUrl ?? displayUrl(t.url), internal: internalPageOf(t.url), title: t.title, canBack: t.canBack, canForward: t.canForward,
-          loading: t.loading, pageColor: t.pageBg || t.themeColor, bookmarked: isBookmarked(t.errorUrl ?? t.url),
+          // Translúcida ⇒ sin color: la franja de costura no debe pintar nada (ver applyBackdrop).
+          loading: t.loading, pageColor: esTranslucida(t) ? 'transparent' : (t.pageBg || t.themeColor),
+          bookmarked: isBookmarked(t.errorUrl ?? t.url),
           muted: t.muted, audible: t.audible
         }
       : null,
@@ -337,7 +339,29 @@ function pushState(): void {
  * Aplica el color muestreado bajo el topbar. Lo emite el preload de la página
  * (en la carga y en cada scroll), así el topbar se funde con lo que hay debajo.
  */
+/**
+ * Nuestras páginas (newtab, settings, downloads, error) se dibujan TRANSLÚCIDAS, para que se
+ * vea la vibrancy de la ventana igual que en el sidebar y el chat. Una web no: la
+ * transparencia es del producto, no algo que se le concede a cualquier sitio.
+ *
+ * Dos cosas tienen que ir juntas o se rompe:
+ *  - la vista nativa deja de tener fondo opaco (aquí);
+ *  - `pageColor` pasa a ser transparente, para que la franja de costura NO pinte. Esa franja
+ *    vive DEBAJO de la página, así que con la página translúcida se vería como una banda
+ *    opaca de 16px bajo el topbar (ver docs/esquinas-y-vibrancy.md, regla 2).
+ * Y no se muestrea el color: capturar una página transparente da un píxel que no significa
+ * nada, y `applyTopColor` volvería a ponerle fondo opaco a la vista.
+ */
+function esTranslucida(t: Tab): boolean {
+  return isInternal(t.url)
+}
+function applyBackdrop(t: Tab): void {
+  if (typeof t.view.setBackgroundColor !== 'function') return
+  t.view.setBackgroundColor(esTranslucida(t) ? '#00000000' : (rgbToHex(t.pageBg ?? '') ?? APP_BG))
+}
+
 function applyTopColor(t: Tab, c: string): void {
+  if (esTranslucida(t)) return
   if (!c || t.pageBg === c) return
   t.pageBg = c
   // Alinea el fondo opaco de la vista con el color real de la página: así el frame en
@@ -386,6 +410,7 @@ async function logCornerDiagnostics(t: Tab, sampled: string): Promise<void> {
  * y video — que es lo que usan la mayoría de los hero de las páginas.
  */
 async function sampleTopStrip(t: Tab, motivo = 'directo'): Promise<void> {
+  if (esTranslucida(t)) return // no hay color que muestrear: la página deja ver la ventana
   const b = t.view.getBounds()
   if (b.width < 8 || b.height < 8) return
   try {
@@ -468,12 +493,12 @@ function createTab(url = newtabUrl(), activate = true, agent = false): number {
       preload: join(__dirname, '../preload/content.js')
     }
   })
-  // Fondo opaco: sin esto la vista es transparente y, al cambiar de pestaña, se ve el
-  // fondo de la ventana. Arrancamos con el color de la app (oscuro), NO blanco: el borde
-  // antialiaseado del redondeado nativo tiñe con este color, y en blanco dibujaba un
-  // halo claro en las esquinas. Se ajusta al color real de la página al muestrearla.
-  if (typeof view.setBackgroundColor === 'function') view.setBackgroundColor(APP_BG)
   const t: Tab = { view, radius: null, url, title: '', favicon: null, loading: false, canBack: false, canForward: false, themeColor: null, pageBg: null, recording: false, muted: false, audible: false, agent, bookmarkId: null, errorUrl: null }
+  // Fondo de la vista. Para una web es opaco: sin esto, al cambiar de pestaña se ve el fondo
+  // de la ventana. Y es el color de la app (oscuro), NO blanco — el borde antialiaseado del
+  // redondeado nativo tiñe con este color, y en blanco dibujaba un halo en las esquinas.
+  // Para nuestras páginas internas es transparente, a propósito: ver applyBackdrop.
+  applyBackdrop(t)
   tabs.set(id, t)
   touchWarm(id) // pestaña recién creada: entra al warm set
   win!.contentView.addChildView(view)
@@ -489,6 +514,9 @@ function createTab(url = newtabUrl(), activate = true, agent = false): number {
   })
   wc.on('did-navigate', (_e, u) => { // sólo main-frame
     t.url = u; t.recording = false
+    // Una pestaña cruza la frontera en los dos sentidos (newtab → web → newtab), así que el
+    // fondo se decide en cada navegación, no al crear la vista.
+    applyBackdrop(t)
     // Al navegar a algo que NO es la página de error, limpiamos el estado de error y registramos la visita.
     if (!isErrorPage(u)) { t.errorUrl = null; if (!isInternal(u)) recordVisit(u, t.title, t.favicon) }
     applyZoom(wc, u) // restaura el zoom recordado para el origen

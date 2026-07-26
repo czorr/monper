@@ -58,6 +58,20 @@
     cursor: default; border: none; background: transparent;
     appearance: none; -webkit-appearance: none;
   }
+  /**
+   * Fondo de NUESTRAS páginas (newtab, settings, downloads, error).
+   *
+   * Es `--color-bg` con alpha, no opaco: la vista nativa de estas páginas se dibuja sin
+   * fondo (`applyBackdrop` en el main), así que lo que queda detrás es la vibrancy de la
+   * ventana — el mismo material que el sidebar y el panel de chat. Con `bg-bg` opaco se
+   * perdía, y nuestras páginas eran lo único macizo de la app.
+   *
+   * Las dos piezas van juntas: si esto vuelve a ser opaco, la transparencia de la vista no
+   * se nota; si la vista vuelve a tener fondo, esto se ve gris sucio sobre negro.
+   * El alpha es el mando de "cuánta transparencia": subirlo tapa más, bajarlo deja ver más.
+   */
+  .page-backdrop { background: color-mix(in srgb, var(--color-bg) 62%, transparent); }
+
   svg { display: block; }
   /* El chrome no es seleccionable, pero el contenido marcado como .selectable sí (chat). */
   .selectable, .selectable * { user-select: text; -webkit-user-select: text; cursor: auto; }

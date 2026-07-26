@@ -50,7 +50,7 @@ function ErrorPage(): JSX.Element {
   const retry = (): void => { if (url) monperTab.navigate(url) }
 
   return (
-    <div className="h-full w-full grid place-items-center bg-bg text-text select-none px-6">
+    <div className="h-full w-full grid place-items-center page-backdrop text-text select-none px-6">
       <div className="max-w-[440px] w-full text-center flex flex-col items-center">
         <div className="w-16 h-16 grid place-items-center rounded-2xl bg-white/[0.05] text-text-dim mb-6 [&>svg]:w-8 [&>svg]:h-8">
           <Icon />

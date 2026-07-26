@@ -65,7 +65,7 @@ export default function NewTabPage(): JSX.Element {
     'px-3 h-7 rounded-lg text-[12.5px] font-medium transition-colors ' + (on ? 'bg-white/[0.14] text-text' : 'text-text-dim hover:text-text')
 
   return (
-    <div className="min-h-full bg-bg text-text flex flex-col items-center pt-[13vh] px-6 select-none">
+    <div className="min-h-full page-backdrop text-text flex flex-col items-center pt-[13vh] px-6 select-none">
       {/* Logo con glow sutil */}
       <div className="relative mb-9">
         <div className="absolute inset-0 blur-2xl bg-white/[0.06] rounded-full scale-125" />

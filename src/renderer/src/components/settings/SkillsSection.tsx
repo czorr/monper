@@ -67,7 +67,7 @@ export default function SkillsSection(): JSX.Element {
   const actionRow = 'flex items-center gap-2.5 w-full h-8 px-2 rounded-md text-[13px] text-text-dim hover:bg-white/[0.04] hover:text-text transition-colors [&>svg]:w-4 [&>svg]:h-4 [&>svg]:text-text-faint'
 
   return (
-    <div className="h-full flex bg-bg">
+    <div className="h-full flex">
       {/* Panel de skills */}
       <div className="w-[268px] shrink-0 border-r border-white/[0.06] flex flex-col">
         <div className="flex items-center justify-between px-3.5 h-12 shrink-0">

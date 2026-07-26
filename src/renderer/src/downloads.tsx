@@ -70,7 +70,7 @@ function DownloadsPage(): JSX.Element {
   useEffect(() => { monperTab.listDownloads().then(setList); return monperTab.onDownloads(setList) }, [])
 
   return (
-    <div className="h-full overflow-y-auto bg-bg text-text select-none [&::-webkit-scrollbar]:w-0">
+    <div className="h-full overflow-y-auto page-backdrop text-text select-none [&::-webkit-scrollbar]:w-0">
       <div className="max-w-[720px] mx-auto px-8 py-12">
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-[30px] font-semibold tracking-tight">Descargas</h1>

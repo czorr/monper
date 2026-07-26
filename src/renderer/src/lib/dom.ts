@@ -7,6 +7,10 @@ export function domainOf(url: string): string {
 }
 
 export function luminance(color: string): number {
+  // `transparent` no es un color claro: no es ninguno. Lo mandan las páginas internas, que
+  // dejan ver la vibrancy oscura de la ventana. Sin este caso caía al blanco de abajo y
+  // devolvía 1, que es justo la respuesta contraria a la correcta.
+  if (color === 'transparent') return 0
   let r = 255, g = 255, b = 255
   let m = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/)
   if (m) {

@@ -129,13 +129,24 @@ export async function waitForState(
  * omnibox no pueda cargar `data:`). El puerto es 0 para que lo elija el sistema y dos
  * ejecuciones nunca choquen.
  */
-export async function serve(pages: Record<string, string>): Promise<{ url: string; close: () => Promise<void> }> {
+/**
+ * Una ruta puede ser HTML fijo o una función de la petición. La función hace falta para
+ * simular un sitio CON LOGIN: responder distinto según la cookie es la única forma de probar
+ * que algo se leyó autenticado y no de rebote.
+ */
+export type Ruta =
+  | string
+  | { status?: number; headers?: Record<string, string>; body: string }
+  | ((req: import('node:http').IncomingMessage) => { status?: number; headers?: Record<string, string>; body: string })
+
+export async function serve(pages: Record<string, Ruta>): Promise<{ url: string; close: () => Promise<void> }> {
   const { createServer } = await import('node:http')
   const server = createServer((req, res) => {
     const path = (req.url ?? '/').split('?')[0]
-    const html = pages[path]
-    if (html === undefined) { res.writeHead(404).end('not found'); return }
-    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }).end(html)
+    const ruta = pages[path]
+    if (ruta === undefined) { res.writeHead(404).end('not found'); return }
+    const r = typeof ruta === 'string' ? { body: ruta } : typeof ruta === 'function' ? ruta(req) : ruta
+    res.writeHead(r.status ?? 200, { 'content-type': 'text/html; charset=utf-8', ...(r.headers ?? {}) }).end(r.body)
   })
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', r))
   const addr = server.address()

@@ -66,6 +66,7 @@ measured, say so instead of implying it works.
 | `src/preload/` | One preload per window/feature; each `contextBridge` surface is separate |
 | `src/renderer/src/` | Chrome UI plus one entry per internal page (newtab, settings, error, downloads) and per popover |
 | `packages/monperwright/` | Publishable npm library: Playwright-shaped automation over a transport |
+| `packages/monper-mcp/` | Publishable npm MCP server: exposes the user's **logged-in** web to any MCP client |
 | `tests/` | Playwright-over-Electron smoke tests |
 
 ## Things that will surprise you
@@ -120,6 +121,7 @@ MONPER_NO_RADIUS=1       # never round the page view (to rule the clip mask in o
 | Packaging, signing, auto-update | [distribucion.md](docs/distribucion.md) |
 | Permissions, session restore, hardening | [browser-hardening.md](docs/browser-hardening.md) |
 | Where the product is going, what was dropped | [diagnostico.md](docs/diagnostico.md) |
+| The MCP bridge (the moat, and its security model) | [mcp-puente.md](docs/mcp-puente.md) |
 | What Aside has that we don't | [aside-gap-analysis.md](docs/aside-gap-analysis.md) |
 
 The documents under `docs/` are internal notes and are written in Spanish; they record *why*

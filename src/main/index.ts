@@ -1130,6 +1130,24 @@ function broadcastUpdateState(s: ReturnType<typeof getUpdateState>): void {
 ipcMain.handle('update:state', () => getUpdateState())
 ipcMain.handle('remote:get', () => { const r = remoteState(); return { enabled: r.enabled, port: r.port } })
 ipcMain.on('remote:set', (_e, on: boolean) => setRemoteEnabled(!!on))
+/**
+ * El mismo interruptor, para Settings → MCPs.
+ *
+ * Va por un canal aparte y con `isInternalSender` porque `monperTab` es el preload de
+ * CONTENIDO: existe también en cualquier web que cargues. Sin ese filtro, una página podría
+ * encender el puente y quedarse conduciendo tu navegador con tus sesiones. No es teórico: es
+ * el mismo agujero que ya tapamos en los permisos de sitios.
+ */
+ipcMain.handle('mcp:state', (e) => {
+  if (!isInternalSender(e.senderFrame?.url)) return { enabled: false, port: 0 }
+  const r = remoteState()
+  return { enabled: r.enabled, port: r.port }
+})
+ipcMain.handle('mcp:enable', (e, on: boolean) => {
+  if (!isInternalSender(e.senderFrame?.url)) return false
+  setRemoteEnabled(!!on)
+  return remoteState().enabled
+})
 ipcMain.handle('app:version', () => app.getVersion())
 ipcMain.on('update:check', () => void checkForUpdates(true, win))
 ipcMain.on('update:download', () => void downloadUpdate())
@@ -2331,10 +2349,34 @@ app.whenReady().then(() => {
   // Control remoto: apagado salvo que el usuario lo dejara encendido (ver remote.ts).
   initRemote({
     activeWc: () => activeWc(),
+    wcFor: (id) => tabs.get(id)?.view.webContents,
     listTabs: () => [...tabs.entries()].map(([id, t]) => ({ id, url: t.url, title: t.title })),
     activateTab: (id) => setActive(id),
-    newTab: (url) => createTab(url),
-    navigate: (url) => navigateActive(url)
+    // `activate` invertido: para un cliente externo lo normal es NO robar el foco.
+    newTab: (url, background) => createTab(url, !background),
+    navigate: (url) => navigateActive(url),
+    /**
+     * El permiso se pide con un diálogo nativo, no en el DOM: la vista de la página se dibuja
+     * encima del chrome, así que un modal HTML podría quedar tapado — justo el sitio donde no
+     * puede pasar. Y va con `noLink` y "No permitir" por defecto: ante la duda, que no.
+     */
+    confirmClient: async (nombre) => {
+      const { response } = await dialog.showMessageBox(win ?? undefined!, {
+        type: 'warning',
+        message: `«${nombre}» quiere conducir tu navegador`,
+        detail:
+          'Podrá abrir páginas, leerlas y actuar en los sitios donde tengas la sesión abierta, ' +
+          'igual que tú. No puede ver tus contraseñas ni usar el vault.\n\n' +
+          'Solo para esta sesión: al cerrar Monper se olvida.',
+        buttons: ['No permitir', 'Permitir'],
+        defaultId: 0,
+        cancelId: 0,
+        noLink: true
+      })
+      const ok = response === 1
+      console.log(`[remote] ${ok ? 'autorizado' : 'RECHAZADO'}: ${nombre}`)
+      return ok
+    }
   })
   // El indicador del chrome: nunca debe estar encendido sin que se vea.
   onRemoteState((r) => {

@@ -13,6 +13,7 @@ import SkillsSection from './SkillsSection'
 import QuickActionsSection from './QuickActionsSection'
 import RoutinesSection from './RoutinesSection'
 import PermissionsSection from './PermissionsSection'
+import McpSection from './McpSection'
 import IconWand from '~icons/tabler/wand'
 import IconClockBolt from '~icons/tabler/clock-bolt'
 import IconPalette from '~icons/tabler/palette'
@@ -64,7 +65,7 @@ const NAV: NavGroup[] = [
       { id: 'projects', label: 'Projects', icon: <IconFolder />, soon: true },
       { id: 'skills', label: 'Skills', icon: <IconBolt /> },
       { id: 'memory', label: 'Memory', icon: <IconBrain />, soon: true },
-      { id: 'mcps', label: 'MCPs', icon: <IconPlug />, soon: true },
+      { id: 'mcps', label: 'MCPs', icon: <IconPlug /> },
       { id: 'permissions', label: 'Permissions', icon: <IconLock /> },
       { id: 'actions', label: 'Quick actions', icon: <IconWand /> },
       { id: 'routines', label: 'Routines', icon: <IconClockBolt /> },
@@ -108,15 +109,6 @@ const SOON: Partial<Record<Cat, { title: string; desc: string; bullets: string[]
       '“¿Dónde vi ese benchmark?” sobre tu historial',
       'El agente usa lo que ya leíste como contexto',
       'Tus páginas guardadas no dan 404 nunca'
-    ]
-  },
-  mcps: {
-    title: 'MCPs',
-    desc: 'Conecta Monper con otras herramientas vía Model Context Protocol.',
-    bullets: [
-      'Usar servidores MCP como tools del agente',
-      'Exponer Monper —con tus sesiones— a Claude, Cursor, etc.',
-      'Permisos por servidor'
     ]
   },
   statistics: {
@@ -229,6 +221,7 @@ export default function SettingsPage(): JSX.Element {
               {cat === 'general' && <GeneralPage />}
               {cat === 'privacy' && <PrivacyPage />}
               {cat === 'permissions' && <PermissionsSection />}
+              {cat === 'mcps' && <McpSection />}
               {cat === 'about' && <AboutPage />}
               {SOON[cat] && <ComingSoon cat={cat} />}
             </div>

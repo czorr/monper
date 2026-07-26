@@ -639,8 +639,9 @@ export interface MonperTabApi {
   clearSitePermissions: (origin: string | null) => Promise<boolean>
   // ---- Actualizaciones (Settings → About) ----
   getUpdateState: () => Promise<UpdateState>
-  // El control remoto NO se expone a las páginas internas: es un indicador del chrome y su
-  // interruptor vive ahí (ver src/main/remote.ts). Cuanta menos superficie, mejor.
+  // ---- Puente MCP (Settings → MCPs). Canal aparte del que usa el chrome: ver mcp:state ----
+  getMcpState: () => Promise<{ enabled: boolean; port: number }>
+  setMcpEnabled: (on: boolean) => Promise<boolean>
   onUpdateState: (cb: (s: UpdateState) => void) => () => void
   checkUpdates: () => void
   downloadUpdate: () => void

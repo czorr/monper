@@ -1,0 +1,22 @@
+{
+  "name": "monper-mcp",
+  "version": "0.1.0",
+  "description": "Your logged-in web, as MCP tools. Give any AI client hands inside the sites you are already authenticated to — no API, no OAuth, nothing leaves your machine.",
+  "keywords": ["mcp", "model-context-protocol", "browser", "agent", "llm", "automation", "monper"],
+  "license": "MIT",
+  "author": "Monper",
+  "type": "commonjs",
+  "bin": { "monper-mcp": "./dist/index.js" },
+  "main": "./dist/index.js",
+  "files": ["dist", "README.md"],
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && chmod +x dist/index.js",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run clean && npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0"
+  }
+}

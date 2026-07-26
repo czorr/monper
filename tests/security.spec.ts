@@ -127,3 +127,22 @@ test('el control remoto arranca apagado y se ve cuando está encendido', async (
   await expect(pill).toHaveCount(0)
   expect((await estado()).enabled).toBe(false)
 })
+
+test('una web no puede encender el puente MCP', async () => {
+  // `monperTab` es el preload de CONTENIDO: existe en cualquier web. Sin `isInternalSender`,
+  // una página podría abrir el puente y quedarse conduciendo el navegador con tus sesiones.
+  // Es la superficie más peligrosa del producto, así que se fija aquí y no en su propio spec.
+  const wcEval = async (js: string): Promise<unknown> =>
+    h.app.evaluate(async ({ webContents }, code) => {
+      const wc = webContents.getAllWebContents().find((w) => w.getURL().startsWith('http://127.0.0.1'))
+      if (!wc) throw new Error('no hay pestaña con la web de prueba')
+      return wc.executeJavaScript(code)
+    }, js)
+
+  expect(await wcEval('window.monperTab.setMcpEnabled(true)'), 'encenderlo desde una web tiene que ser rechazado').toBe(false)
+  const estado = (await wcEval('window.monperTab.getMcpState()')) as { enabled: boolean; port: number }
+  expect(estado.enabled, 'y no debe poder ni leer si está encendido').toBe(false)
+  expect(estado.port).toBe(0)
+  // Y de verdad no se encendió: se comprueba contra el estado real, no contra lo que devolvió.
+  expect((await api<{ enabled: boolean }>(h.win, 'getRemoteState')).enabled).toBe(false)
+})

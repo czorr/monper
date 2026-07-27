@@ -11,6 +11,7 @@ import { runMastra, errText } from './agent/mastra'
 import { initHistory, recordVisit, updateMeta, recent as historyRecent } from './history'
 import { initWindowState, initialBounds, shouldMaximize, trackWindow } from './windowState'
 import { suggest } from './suggest'
+import { attachScreenShare } from './screenshare'
 import {
   initPermissions, attachPermissionHandlers, stateOf, setState, requestedKeys,
   allSites, clearOrigin, clearAllOrigins
@@ -2400,6 +2401,9 @@ app.whenReady().then(() => {
   // primera petición, o la primera página se pinta con anuncios. No se espera al motor (las
   // listas tardan): initAdblock engancha ya y rellena el motor cuando lo tiene.
   void initAdblock(ses)
+  // Compartir pantalla en videollamadas. Sin este handler Electron rechaza `getDisplayMedia`
+  // y el botón de compartir de Meet/Zoom no hace absolutamente nada.
+  attachScreenShare(ses, () => win)
   attachPermissionHandlers(ses, {
     getWindow: () => win,
     onMedia: (wc, active) => {

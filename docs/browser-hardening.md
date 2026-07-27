@@ -178,3 +178,36 @@ los permisos de los sitios".
 
 Lo que **no** existe todavía: qué acciones debe confirmar el agente y en qué sitios no puede
 entrar. Está en la página dicho como pendiente, no insinuado con un control que no hace nada.
+
+## Compartir pantalla en videollamadas
+
+**Electron no trae comportamiento por defecto para `getDisplayMedia`.** Si nadie registra un
+`setDisplayMediaRequestHandler`, la petición se rechaza y el sitio se queda esperando: en Meet,
+Zoom web o los huddles de Slack, el botón de compartir **no hacía absolutamente nada**, y sin
+un error en consola que lo explicara. Se arregla en
+[`src/main/screenshare.ts`](../src/main/screenshare.ts).
+
+Dos caminos, en este orden:
+
+1. **El selector del sistema** (`useSystemPicker: true`), en macOS 15+. Es el mejor: es la UI
+   que el usuario ya conoce del resto de apps y **la gestiona macOS**, incluido el permiso.
+   Cuando está disponible, nuestro handler ni se llama.
+2. **El nuestro**, para cuando no lo está. No hay UI de Electron para esto y un modal en el DOM
+   no serviría —la vista de la página se dibuja por encima del chrome, ver
+   [popovers.md](popovers.md)—, así que va por diálogo nativo, pantallas primero y con techo de
+   fuentes: un `showMessageBox` con 30 botones no es una UI.
+
+**El permiso se comprueba antes de ofrecer nada.** Sin el TCC de grabación de pantalla,
+`desktopCapturer` sigue devolviendo pantallas y el vídeo sale en **negro**: el usuario creería
+estar compartiendo y sus compañeros verían un rectángulo vacío. Peor que un error. Si está
+denegado se dice y se abre el panel correcto de Ajustes.
+
+Y cancelar tiene que llamar a `callback({})`: sin eso la promesa del sitio queda colgada para
+siempre y la llamada se queda con el botón girando.
+
+### Entitlements
+
+Compartir pantalla **no** necesita entitlement (solo TCC). Cámara y micrófono **sí**, y no los
+teníamos: con `hardenedRuntime: true` los textos de uso del Info.plist no bastan. Añadidos
+`com.apple.security.device.camera` y `com.apple.security.device.audio-input`, que habrían
+fallado justo al firmar y funcionando bien en desarrollo — el peor momento para descubrirlo.

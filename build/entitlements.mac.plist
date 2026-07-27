@@ -9,6 +9,19 @@
   <true/>
 
   <!--
+    Videollamadas. Con `hardenedRuntime: true` los textos de uso del Info.plist NO bastan:
+    sin estos entitlements, cámara y micrófono quedan bloqueados en el build firmado aunque
+    funcionen perfectamente en desarrollo, donde no se aplica el runtime endurecido.
+
+    Compartir pantalla NO necesita entitlement: es solo TCC (Ajustes → Privacidad →
+    Grabación de pantalla). Ver src/main/screenshare.ts.
+  -->
+  <key>com.apple.security.device.camera</key>
+  <true/>
+  <key>com.apple.security.device.audio-input</key>
+  <true/>
+
+  <!--
     Passkeys (WebAuthn con Touch ID / Secure Enclave).
     Debe coincidir EXACTAMENTE con el keychainAccessGroup que pasamos a
     session.configureWebAuthn() en src/main/index.ts:

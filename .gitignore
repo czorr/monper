@@ -6,6 +6,11 @@ out/
 dist/
 dist-electron/
 
+# Caché incremental de tsc. Va aquí y no solo en el ignore global: si no, se cuela en cada
+# commit desde cualquier otra máquina. Además `pnpm typecheck` la borra a propósito, para que
+# local y CI comprueben lo mismo, así que cambiaría en todos los diffs.
+*.tsbuildinfo
+
 # Empaquetado (electron-builder)
 release/
 

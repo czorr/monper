@@ -1,10 +1,17 @@
 import { useEffect, useRef, type RefObject } from 'react'
 import type { Suggestion } from '@shared/types'
+import { urlVisible } from '@shared/url'
 import type { Autocomplete } from './useAutocomplete'
 
-/** Base de completado de una sugerencia (URL sin protocolo / barra final). */
+/**
+ * Base de completado de una sugerencia.
+ *
+ * Tiene que ser EXACTAMENTE lo mismo que el subtexto que se muestra: si difieren, el usuario
+ * ve `mediotiempo.com` y el completado compara contra `www.mediotiempo.com`. Por eso sale de
+ * `urlVisible`, en shared, y no de una expresión regular local.
+ */
 export function completionBase(s: Suggestion): string {
-  return s.url.replace(/^https?:\/\//i, '').replace(/\/+$/, '')
+  return urlVisible(s.url)
 }
 
 export interface InlineCompletion {

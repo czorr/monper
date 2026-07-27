@@ -73,3 +73,21 @@ El interruptor del popover está **invertido** respecto a lo que se guarda: dice
 aquí" y lo que persiste es la *excepción*. Apagarlo recarga la pestaña a propósito — los
 recursos ya bloqueados no vuelven solos, y quien lo apaga lo hace porque la página está rota
 ahora.
+
+## Los tests no cargan las listas
+
+`tests/helpers.ts` arranca la app con `MONPER_NO_ADBLOCK=1`.
+
+No es cosmética. `ElectronBlocker.fromPrebuiltAdsAndTracking` descarga y parsea decenas de
+miles de filtros, y cada test lanza con un `--user-data-dir` nuevo, así que la caché está
+siempre fría: ese trabajo bloqueaba el proceso main justo mientras Playwright le hablaba y
+hacía fallar tests **que no tienen nada que ver** con el adblocker, con
+`Resulting promise was garbage collected`. Medido: **2 de cada 4 vueltas de `popovers.spec.ts`
+fallaban**; con el flag, 6 de 6 pasan, y el spec baja de ~5s a ~3s. Además ataba la suite a la
+red, que es justo lo que `serve()` existe para evitar.
+
+Los listeners **sí** se registran igual con el flag puesto: la única diferencia es que no hay
+motor, así que si algún día un test comprueba el camino de `onBeforeRequest`, sigue estando.
+
+Y no es silencioso: con el flag se imprime `[adblock] MONPER_NO_ADBLOCK=1: sin listas…`, para
+que nadie investigue por qué no bloquea.

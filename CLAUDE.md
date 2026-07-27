@@ -107,6 +107,7 @@ MONPER_TEAM_ID=...       # required for passkeys (needs a signed build)
 MONPER_DEBUG_TOPCOLOR=1  # log every topbar sample: reason, scrollY and colour
 MONPER_DEBUG_LAYOUT=1    # log every layout: computed content rect vs the view's real bounds
 MONPER_NO_RADIUS=1       # never round the page view (to rule the clip mask in or out)
+MONPER_NO_ADBLOCK=1      # skip loading filter lists (the test harness sets this)
 ```
 
 ## Read before you touch

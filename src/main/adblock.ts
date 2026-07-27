@@ -98,7 +98,25 @@ function caching(): { path: string; read: (p: string) => Promise<Uint8Array>; wr
  * favicons (ver favicons.ts): un servicio externo puede vernos pedir un recurso genérico,
  * nunca la navegación.
  */
+/**
+ * MONPER_NO_ADBLOCK=1: no cargar las listas de filtros.
+ *
+ * Lo usa la suite de tests. `fromPrebuiltAdsAndTracking` descarga y parsea decenas de miles de
+ * filtros, y cada test arranca con un `--user-data-dir` nuevo, o sea caché siempre fría: eso
+ * bloqueaba el main justo mientras Playwright le hablaba y hacía fallar tests que no tienen
+ * nada que ver ("Resulting promise was garbage collected", 2 de cada 4 vueltas). Además ataba
+ * la suite a la red.
+ *
+ * Los listeners SÍ se registran igual, para que la única diferencia sea que no hay motor.
+ */
+const SIN_LISTAS = process.env['MONPER_NO_ADBLOCK'] === '1'
+
 async function construir(): Promise<ElectronBlocker | null> {
+  if (SIN_LISTAS) {
+    // Nunca en silencio: si alguien ve que no bloquea, esta línea le dice por qué.
+    console.log('[adblock] MONPER_NO_ADBLOCK=1: sin listas de filtros, no se bloquea nada')
+    return null
+  }
   try {
     return await ElectronBlocker.fromPrebuiltAdsAndTracking(net.fetch, caching())
   } catch (err) {
@@ -166,7 +184,7 @@ export async function initAdblock(ses: Session): Promise<void> {
 
   // Las listas caducan: se refrescan cada 12 h contra la caché (si no cambiaron, no hay
   // descarga). Un adblocker con listas de hace un mes bloquea la mitad.
-  refresco = setInterval(() => { void refrescar() }, 12 * 60 * 60 * 1000)
+  if (!SIN_LISTAS) refresco = setInterval(() => { void refrescar() }, 12 * 60 * 60 * 1000)
 }
 
 async function refrescar(): Promise<void> {

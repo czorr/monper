@@ -46,6 +46,9 @@ export async function launch(
       NODE_ENV: 'test',
       // Sin vibrancy los tests no dependen del compositor de macOS.
       MONPER_NO_VIBRANCY: '1',
+      // Sin listas de filtros: descargarlas y parsearlas en cada arranque bloqueaba el main
+      // y hacía fallar tests ajenos. Ningún test comprueba el adblocker; ver adblock.ts.
+      MONPER_NO_ADBLOCK: '1',
       ...env
     }
   })

@@ -1,5 +1,6 @@
 import { net } from 'electron'
 import { faviconFor } from './favicons'
+import { urlVisible } from '../shared/url'
 import type { Suggestion } from '../shared/types'
 import * as history from './history'
 import { listBookmarks } from './bookmarks'
@@ -182,8 +183,9 @@ export async function suggest(query: string, signal?: AbortSignal): Promise<Sugg
       // Google ya devuelve la URL; el título es el del sitio, y el icono el que tengamos en
       // caché (nunca el de un tercero: ver faviconOf).
       const url = toUrl(s.text)
-      let host = s.text
-      try { host = new URL(url).hostname.replace(/^www\./, '') + new URL(url).pathname.replace(/\/$/, '') } catch { /* se muestra el texto crudo */ }
+      // La MISMA función que usa el completado inline del renderer: si aquí se quita el
+      // `www.` y allí no, se ve un dominio que luego no se autocompleta. Ya pasó.
+      const host = urlVisible(url) || s.text
       push({ kind: 'url', title: s.title || host, url, detail: host, favicon: faviconOf(url) })
       continue
     }

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type JSX } from 'react'
 import type { ActiveInfo, Suggestion } from '@shared/types'
 import { domainOf } from '@renderer/lib/dom'
 import MonperMark from '@renderer/components/ui/MonperMark'
-import { useAutocomplete } from '@renderer/components/omnibox'
+import { useAutocomplete, useInlineCompletion } from '@renderer/components/omnibox'
 
 const { monper } = window
 
@@ -13,16 +13,12 @@ interface Props {
   onGo: (url: string) => void
 }
 
-// Base de completado de una sugerencia (URL sin protocolo / barra final).
-function completionBase(s: Suggestion): string {
-  return s.url.replace(/^https?:\/\//i, '').replace(/\/+$/, '')
-}
-
 export default function UrlBar({ active, editRequest, onGo }: Props): JSX.Element {
   const [editing, setEditing] = useState(false)
-  const inputRef = useRef<HTMLInputElement>(null)
   const ac = useAutocomplete(monper.suggest)
-  const deleting = useRef(false)
+  // Completado inline compartido con la new-tab page: misma lógica, un solo sitio.
+  const ic = useInlineCompletion(ac)
+  const inputRef = ic.inputRef
 
   const startEditing = (): void => {
     ac.setQuery(active && active.url !== 'about:blank' ? active.url : '')
@@ -35,54 +31,16 @@ export default function UrlBar({ active, editRequest, onGo }: Props): JSX.Elemen
     if (editing && inputRef.current) { inputRef.current.value = ac.query; inputRef.current.focus(); inputRef.current.select() }
   }, [editing]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const onChange = (): void => { ac.setQuery(inputRef.current?.value ?? '') }
-
-  // Autocomplete inline: cuando llegan sugerencias y el usuario escribe hacia adelante,
-  // completa el input con la mejor coincidencia y selecciona la parte añadida.
-  useEffect(() => {
-    if (deleting.current) return
-    const el = inputRef.current
-    const q = ac.query.trim()
-    if (!el || !q || el.value.toLowerCase() !== q.toLowerCase()) return
-    const cand = ac.items.find((s) => {
-      if (s.kind === 'search') return false
-      const base = completionBase(s)
-      return base.toLowerCase().startsWith(q.toLowerCase()) && base.length > q.length
-    })
-    if (!cand) return
-    const base = completionBase(cand)
-    el.value = base
-    el.setSelectionRange(q.length, base.length)
-  }, [ac.items]) // eslint-disable-line react-hooks/exhaustive-deps
-
   const choose = (s: Suggestion): void => { onGo(s.url); stopEditing() }
   const submit = (): void => {
     if (ac.current) return choose(ac.current)
-    const v = inputRef.current?.value?.trim() || ac.query
+    const v = ic.value().trim() || ac.query
     onGo(v); stopEditing()
   }
-  // Vuelca la sugerencia resaltada al input (al navegar con flechas).
-  const fillFrom = (i: number): void => {
-    const s = ac.items[i]
-    const el = inputRef.current
-    if (!s || !el) return
-    const t = s.kind === 'search' ? s.title : completionBase(s)
-    el.value = t
-    el.setSelectionRange(t.length, t.length)
-  }
   const onKeyDown = (e: React.KeyboardEvent): void => {
-    const n = ac.items.length
-    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-      e.preventDefault()
-      if (!n) return
-      deleting.current = true // no re-autocompletar sobre la selección de flechas
-      const x = e.key === 'ArrowDown' ? (ac.active + 1 >= n ? 0 : ac.active + 1) : (ac.active - 1 < 0 ? n - 1 : ac.active - 1)
-      ac.setActive(x)
-      fillFrom(x)
-    } else if (e.key === 'Enter') { e.preventDefault(); submit() }
+    if (ic.onKeyDown(e)) return
+    if (e.key === 'Enter') { e.preventDefault(); submit() }
     else if (e.key === 'Escape') { if (ac.open) ac.close(); else stopEditing() }
-    else if (e.key === 'Backspace' || e.key === 'Delete') deleting.current = true
-    else if (e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey) deleting.current = false
   }
 
   // Refs frescas para los callbacks de la ventana nativa (suscritos una vez).
@@ -120,7 +78,7 @@ export default function UrlBar({ active, editRequest, onGo }: Props): JSX.Elemen
           spellCheck={false}
           autoComplete="off"
           placeholder="Busca en Google o escribe una URL"
-          onChange={onChange}
+          onChange={ic.onChange}
           onBlur={() => stopEditing()}
           onKeyDown={onKeyDown}
           className="w-full h-8 rounded-[9px] text-text text-[13px] px-3 text-left outline-none border border-border bg-bg-elev placeholder:text-text-faint select-text [&::selection]:bg-white/15 [&::selection]:text-text-dim"

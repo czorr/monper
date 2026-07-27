@@ -5,7 +5,7 @@ import IconKey from '~icons/tabler/key'
 import IconBolt from '~icons/tabler/bolt'
 import IconPalette from '~icons/tabler/palette'
 import IconArrowUpRight from '~icons/tabler/arrow-up-right'
-import { useAutocomplete, SuggestionList } from '@renderer/components/omnibox'
+import { useAutocomplete, useInlineCompletion, SuggestionList } from '@renderer/components/omnibox'
 import logo from '@renderer/assets/monper.png'
 
 const { monperTab } = window
@@ -45,19 +45,22 @@ const TASKS: Task[] = [
 export default function NewTabPage(): JSX.Element {
   const [mode, setMode] = useState<Mode>('search')
   const ac = useAutocomplete(monperTab.suggest)
+  // Mismo completado inline que la barra de direcciones (lo escrito en blanco, lo completado
+  // en gris vía `::selection`). Por eso el input es no-controlado: ver useInlineCompletion.
+  const ic = useInlineCompletion(ac)
 
   const choose = (s: Suggestion): void => monperTab.navigate(s.url)
   const submit = (): void => {
     if (mode === 'ai') { monperTab.openChat(); return }
-    if (ac.current) choose(ac.current)
-    else if (ac.query.trim()) monperTab.navigate(ac.query.trim())
+    if (ac.current) return choose(ac.current)
+    const v = ic.value().trim() || ac.query.trim()
+    if (v) monperTab.navigate(v)
   }
   const onKeyDown = (e: React.KeyboardEvent): void => {
     if (e.key === 'Tab') { e.preventDefault(); setMode((m) => (m === 'search' ? 'ai' : 'search')); return }
     if (mode === 'ai') { if (e.key === 'Enter') { e.preventDefault(); submit() }; return }
-    if (e.key === 'ArrowDown') { e.preventDefault(); ac.move(1) }
-    else if (e.key === 'ArrowUp') { e.preventDefault(); ac.move(-1) }
-    else if (e.key === 'Enter') { e.preventDefault(); submit() }
+    if (ic.onKeyDown(e)) return
+    if (e.key === 'Enter') { e.preventDefault(); submit() }
     else if (e.key === 'Escape') ac.close()
   }
 
@@ -78,11 +81,15 @@ export default function NewTabPage(): JSX.Element {
           <IconSearch className="text-text-faint shrink-0 w-[18px] h-[18px]" />
           <input
             autoFocus
-            value={ac.query}
-            onChange={(e) => ac.setQuery(e.target.value)}
+            ref={ic.inputRef}
+            type="text"
+            spellCheck={false}
+            autoComplete="off"
+            onChange={ic.onChange}
             onKeyDown={onKeyDown}
+            onBlur={ac.close}
             placeholder={mode === 'ai' ? 'Pregúntale a Monper…' : 'Busca o escribe una URL'}
-            className="flex-1 min-w-0 bg-transparent outline-none text-[14px] placeholder:text-text-faint select-text"
+            className="flex-1 min-w-0 bg-transparent outline-none text-[14px] placeholder:text-text-faint select-text [&::selection]:bg-white/15 [&::selection]:text-text-dim"
           />
           <div className="flex items-center gap-2.5 shrink-0">
             <span className="flex items-center gap-1.5 text-[11px] text-text-faint">

@@ -18,8 +18,17 @@ const KIND_ICON = { search: IconSearch, url: IconWorld, history: IconClock, book
 
 function Leading({ s }: { s: Suggestion }): JSX.Element {
   const [broken, setBroken] = useState(false)
-  if (s.kind !== 'search' && s.favicon && !broken) {
-    return <img src={s.favicon} alt="" className="w-[18px] h-[18px] rounded-[4px] object-contain" onError={() => setBroken(true)} />
+  // Una búsqueda normal lleva lupa, pero una ENTIDAD de Google (persona, empresa) sí trae
+  // foto: por eso el icono depende de que HAYA imagen, no del kind.
+  if (s.favicon && !broken) {
+    return (
+      <img
+        src={s.favicon}
+        alt=""
+        className={'w-[18px] h-[18px] ' + (s.round ? 'rounded-sm object-cover' : 'rounded-[4px] object-contain')}
+        onError={() => setBroken(true)}
+      />
+    )
   }
   const Icon = KIND_ICON[s.kind]
   return <Icon className="w-[18px] h-[18px] text-text-faint" />

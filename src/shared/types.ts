@@ -175,6 +175,8 @@ export interface Suggestion {
   /** Subtexto (dominio, "Buscar en Google", etc.) */
   detail?: string
   favicon?: string | null
+  /** El icono es la foto de una entidad (persona, equipo, película): se pinta en círculo. */
+  round?: boolean
 }
 
 export interface BrowserState {

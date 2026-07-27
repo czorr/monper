@@ -10,6 +10,7 @@ import IconMapPin from '~icons/tabler/map-pin'
 import IconBell from '~icons/tabler/bell'
 import IconClipboard from '~icons/tabler/clipboard'
 import IconTrash from '~icons/tabler/trash'
+import IconShield from '~icons/tabler/shield-check'
 import monperLogo from '@renderer/assets/monper.png'
 import './styles.css'
 
@@ -52,6 +53,25 @@ function SiteInfoWindow(): JSX.Element {
             {data.secure ? 'La conexión es segura' : 'La conexión no es segura'}
           </span>
         </div>
+      )}
+
+      {!data.internal && (
+        <>
+          <PopoverDivider />
+          <PopoverRow
+            icon={<IconShield />}
+            label="Bloquear anuncios aquí"
+            meta={
+              <div className="flex items-center gap-2">
+                {/* El número es la prueba de que sirve; sin él, el interruptor es un acto de fe. */}
+                {data.adblockOn && data.adblockBlocked > 0 && (
+                  <span className="text-[12px] text-text-faint tabular-nums">{data.adblockBlocked}</span>
+                )}
+                <PopoverToggle on={data.adblockOn} onChange={(v) => si.setAdblock(v)} />
+              </div>
+            }
+          />
+        </>
       )}
 
       {perms.length > 0 && (

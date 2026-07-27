@@ -13,6 +13,11 @@ directories:
 files:
   - out/**/*
   - package.json
+  # El adblocker es la ÚNICA dependencia que sobrevive al bundle: su código hace
+  # `require.resolve('@ghostery/adblocker-electron-preload')` al cargarse, así que el paquete
+  # tiene que existir de verdad en disco o la app no arranca (falla al cargar el módulo, no
+  # al bloquear). Sin esta línea, `pnpm dev` funciona y el DMG está muerto.
+  - node_modules/@ghostery/adblocker-electron-preload/**/*
   - '!**/*.map'
   - '!**/*.ts'
 

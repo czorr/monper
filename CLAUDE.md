@@ -61,6 +61,7 @@ measured, say so instead of implying it works.
 | `src/main/` | Main process. `index.ts` is still a god file (~1700 lines): tabs, layout, menus, IPC. |
 | `src/main/agent/` | Mastra agent, REPL (`run_js`), headless pages, one file per service in `globals/` |
 | `src/main/vault/` | Encrypted secret store. Secrets never leave the main process. |
+| `src/main/adblock.ts` | Network-level ad/tracker blocking on `persist:monper` (one webRequest listener per session — see docs) |
 | `src/main/popover.ts` | Factory for the native overlay windows |
 | `src/main/jsonfile.ts` | `readJson`/`writeJson` — every state file goes through here (atomic writes) |
 | `src/preload/` | One preload per window/feature; each `contextBridge` surface is separate |
@@ -120,6 +121,7 @@ MONPER_NO_RADIUS=1       # never round the page view (to rule the clip mask in o
 | Performance: baselines and what was optimised | [rendimiento.md](docs/rendimiento.md) |
 | Packaging, signing, auto-update | [distribucion.md](docs/distribucion.md) |
 | Permissions, session restore, hardening | [browser-hardening.md](docs/browser-hardening.md) |
+| Adblocker (red, allowlist, listas) | [adblock.md](docs/adblock.md) |
 | Where the product is going, what was dropped | [diagnostico.md](docs/diagnostico.md) |
 | The MCP bridge (the moat, and its security model) | [mcp-puente.md](docs/mcp-puente.md) |
 | What Aside has that we don't | [aside-gap-analysis.md](docs/aside-gap-analysis.md) |

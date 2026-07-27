@@ -4,7 +4,7 @@ import IconPlug from '~icons/tabler/plug'
 import IconRefresh from '~icons/tabler/refresh'
 import IconCopy from '~icons/tabler/copy'
 import IconCheck from '~icons/tabler/check'
-import { Card, Group } from './ui'
+import { Card, Group, Toggle } from './ui'
 
 const { monperTab } = window
 
@@ -125,18 +125,9 @@ export default function McpSection(): JSX.Element {
                   : 'Apagado. Se enciende a mano y no sobrevive al cierre de Monper.'}
               </div>
             </div>
-            <button
-              role="switch"
-              aria-checked={on}
-              onClick={() => cambiar(!on)}
-              disabled={!estado}
-              className={
-                'relative w-[38px] h-[22px] rounded-full shrink-0 mt-0.5 transition-colors disabled:opacity-40 ' +
-                (on ? 'bg-emerald-500/80' : 'bg-white/[0.14]')
-              }
-            >
-              <span className={'absolute top-[3px] w-4 h-4 rounded-full bg-white transition-[left] duration-150 ' + (on ? 'left-[19px]' : 'left-[3px]')} />
-            </button>
+            <div className="mt-0.5">
+              <Toggle on={on} onChange={cambiar} disabled={!estado} />
+            </div>
           </div>
 
           {/* Lo que concede, en la propia página. Encenderlo es dar manos, no marcar una casilla. */}

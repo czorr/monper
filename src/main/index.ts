@@ -23,6 +23,7 @@ import { initExtensions, listExtensions, addExtension, setExtensionEnabled, remo
 import { extensionIdFrom } from './crx'
 import { createPopover } from './popover'
 import { initRemote, remoteState, setRemoteEnabled, onRemoteState } from './remote'
+import { initAdblock, adblockState, setAdblockEnabled, setAdblockAllowed, adblockCountFor } from './adblock'
 import { initFavicons, rememberFavicon, faviconFor, resolveFavicon } from './favicons'
 import { initMcpClient, reloadMcpConfig, mcpServerStates, mcpTools, configPath as mcpConfigPath, stopAllMcp } from './mcp/client'
 import { initChats, listSessions, resumeOrNew, startSession, openSession, sessionForNextMessage, saveSession, removeSession as removeChatSession } from './chats'
@@ -1172,6 +1173,20 @@ ipcMain.handle('mcp:enable', (e, on: boolean) => {
   setRemoteEnabled(!!on)
   return remoteState().enabled
 })
+ipcMain.handle('adblock:state', (e) => {
+  if (!isInternalSender(e.senderFrame?.url)) return { enabled: false, allow: [], ready: false }
+  return adblockState()
+})
+ipcMain.handle('adblock:enable', (e, on: boolean) => {
+  if (!isInternalSender(e.senderFrame?.url)) return false
+  setAdblockEnabled(!!on)
+  return adblockState().enabled
+})
+ipcMain.handle('adblock:allow', (e, hostname: string, permitir: boolean) => {
+  if (!isInternalSender(e.senderFrame?.url)) return false
+  setAdblockAllowed(String(hostname ?? ''), !!permitir)
+  return true
+})
 ipcMain.handle('app:version', () => app.getVersion())
 ipcMain.on('update:check', () => void checkForUpdates(true, win))
 ipcMain.on('update:download', () => void downloadUpdate())
@@ -1602,7 +1617,16 @@ function buildSiteInfo(): SiteInfoData {
   const internal = isInternal(url) || !origin
   const secure = /^https:\/\//i.test(url)
   const permissions = internal ? [] : requestedKeys(origin).map((key) => ({ key, state: stateOf(origin, key) }))
-  return { url, origin, domain, secure, internal, permissions }
+  // El bloqueo "en este sitio" es el global menos la excepción del usuario: dos cosas
+  // distintas que en el popover se ven como un solo interruptor, que es como se piensan.
+  const ab = adblockState()
+  const excluido = ab.allow.some((a) => domain === a || domain.endsWith('.' + a))
+  const tab = activeId != null ? tabs.get(activeId) : null
+  return {
+    url, origin, domain, secure, internal, permissions,
+    adblockOn: ab.enabled && !excluido,
+    adblockBlocked: tab ? adblockCountFor(tab.view.webContents.id) : 0
+  }
 }
 const sitePopover = createPopover(() => win, {
   name: 'siteinfo', width: 340, height: 200,
@@ -1618,6 +1642,17 @@ ipcMain.on('siteinfo:toggle', (_e, key: PermKey, state: PermState) => {
     console.error(`[permisos] no se pudo poner ${key}=${state} en ${activeUrl()}:`, e instanceof Error ? e.message : e)
   }
   sitePopover.send('siteinfo:data', buildSiteInfo())
+})
+ipcMain.on('siteinfo:adblock', (_e, on: boolean) => {
+  const { domain } = buildSiteInfo()
+  // Aquí se invierte a propósito: el interruptor dice "bloquear aquí", y lo que se guarda es
+  // la EXCEPCIÓN. Apagarlo = añadir el dominio a la allowlist.
+  if (domain) setAdblockAllowed(domain, !on)
+  sitePopover.send('siteinfo:data', buildSiteInfo())
+  // Recargar es parte de la acción: los recursos ya bloqueados no vuelven solos, y el usuario
+  // que desactiva el bloqueo lo hace porque la página está rota AHORA.
+  const t = activeId != null ? tabs.get(activeId) : null
+  t?.view.webContents.reload()
 })
 ipcMain.on('siteinfo:clear', async () => {
   // "Borrar datos del sitio" es una acción de privacidad: si no se borró, hay que decirlo.
@@ -2361,6 +2396,10 @@ app.whenReady().then(() => {
     : process.platform === 'win32' ? 'Windows NT 10.0; Win64; x64' : 'X11; Linux x86_64'
   ses.setUserAgent(`Mozilla/5.0 (${platformUA}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${process.versions.chrome} Safari/537.36`)
   configurePasskeys()
+  // Antes que nada lo que navegue: los listeners de red tienen que estar puestos antes de la
+  // primera petición, o la primera página se pinta con anuncios. No se espera al motor (las
+  // listas tardan): initAdblock engancha ya y rellena el motor cuando lo tiene.
+  void initAdblock(ses)
   attachPermissionHandlers(ses, {
     getWindow: () => win,
     onMedia: (wc, active) => {

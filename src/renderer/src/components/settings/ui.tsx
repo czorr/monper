@@ -44,6 +44,37 @@ export function Row({
   )
 }
 
+/** Interruptor de dos estados: aquí no existe "preguntar", eso es olvidar la decisión. */
+export function Toggle({
+  on,
+  onChange,
+  disabled
+}: {
+  on: boolean
+  onChange: (v: boolean) => void
+  disabled?: boolean
+}): JSX.Element {
+  return (
+    <button
+      role="switch"
+      aria-checked={on}
+      disabled={disabled}
+      onClick={() => onChange(!on)}
+      className={
+        'relative w-[38px] h-[22px] rounded-full shrink-0 transition-colors disabled:opacity-40 ' +
+        (on ? 'bg-emerald-500/80' : 'bg-white/[0.14]')
+      }
+    >
+      <span
+        className={
+          'absolute top-[3px] w-4 h-4 rounded-full bg-white transition-[left] duration-150 ' +
+          (on ? 'left-[19px]' : 'left-[3px]')
+        }
+      />
+    </button>
+  )
+}
+
 export function Pill({ children, onClick }: { children: ReactNode; onClick?: () => void }): JSX.Element {
   return (
     <button

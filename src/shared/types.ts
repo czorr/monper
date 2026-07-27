@@ -166,6 +166,14 @@ export interface ChatStep {
 }
 
 /** Una sugerencia del autocompletado del omnibox / new tab */
+export interface AdblockInfo {
+  enabled: boolean
+  /** Dominios donde el usuario desactivó el bloqueo. */
+  allow: string[]
+  /** false mientras las listas de filtros aún no están cargadas. */
+  ready: boolean
+}
+
 export interface Suggestion {
   kind: 'history' | 'bookmark' | 'search' | 'url'
   /** Texto principal a mostrar */
@@ -244,6 +252,10 @@ export interface SiteInfoData {
   secure: boolean
   internal: boolean
   permissions: SitePermission[]
+  /** ¿Se está bloqueando en ESTE sitio? (false si el usuario lo excluyó o si está apagado) */
+  adblockOn: boolean
+  /** Cuántas peticiones se han bloqueado en esta página desde que cargó. */
+  adblockBlocked: number
 }
 // ---- Submenús del menú de perfil ----
 export type SubmenuSection = 'bookmarks' | 'downloads' | 'extensions' | 'history' | 'developers'
@@ -302,6 +314,8 @@ export interface SiteInfoWinApi {
   onData: (cb: (data: SiteInfoData) => void) => void
   reportHeight: (h: number) => void
   toggle: (key: PermKey, state: PermState) => void
+  /** Activa/desactiva el bloqueo de anuncios en el sitio que se está viendo. */
+  setAdblock: (on: boolean) => void
   clearData: () => void
   close: () => void
 }
@@ -672,6 +686,11 @@ export interface MonperTabApi {
   // ---- Puente MCP (Settings → MCPs). Canal aparte del que usa el chrome: ver mcp:state ----
   getMcpState: () => Promise<{ enabled: boolean; port: number }>
   setMcpEnabled: (on: boolean) => Promise<boolean>
+  // ---- Adblocker (Settings → Privacidad) ----
+  getAdblockState: () => Promise<AdblockInfo>
+  setAdblockEnabled: (on: boolean) => Promise<boolean>
+  /** Activa/desactiva el bloqueo en un dominio concreto. */
+  setAdblockAllowed: (hostname: string, permitir: boolean) => Promise<boolean>
   onUpdateState: (cb: (s: UpdateState) => void) => () => void
   checkUpdates: () => void
   downloadUpdate: () => void

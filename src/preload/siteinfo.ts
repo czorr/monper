@@ -8,6 +8,7 @@ const api: SiteInfoWinApi = {
   },
   reportHeight: (h: number) => ipcRenderer.send('siteinfo:height', h),
   toggle: (key: PermKey, state: PermState) => ipcRenderer.send('siteinfo:toggle', key, state),
+  setAdblock: (on: boolean) => ipcRenderer.send('siteinfo:adblock', on),
   clearData: () => ipcRenderer.send('siteinfo:clear'),
   close: () => ipcRenderer.send('siteinfo:close')
 }

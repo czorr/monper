@@ -5,6 +5,7 @@ import IconSparkles from '~icons/tabler/sparkles'
 import IconCamera from '~icons/tabler/camera'
 import IconSettings from '~icons/tabler/settings'
 import IconShield from '~icons/tabler/shield-lock'
+import IconShieldCheck from '~icons/tabler/shield-check'
 import IconInfo from '~icons/tabler/info-circle'
 import IconUser from '~icons/tabler/user'
 import IconBolt from '~icons/tabler/bolt'
@@ -13,6 +14,7 @@ import SkillsSection from './SkillsSection'
 import QuickActionsSection from './QuickActionsSection'
 import RoutinesSection from './RoutinesSection'
 import PermissionsSection from './PermissionsSection'
+import AdblockSection from './AdblockSection'
 import McpSection from './McpSection'
 import IconWand from '~icons/tabler/wand'
 import IconClockBolt from '~icons/tabler/clock-bolt'
@@ -37,7 +39,7 @@ const { monperTab } = window
 
 type Cat =
   | 'general' | 'account' | 'appearance' | 'billing' | 'privacy' | 'password' | 'ai' | 'developers'
-  | 'projects' | 'skills' | 'memory' | 'mcps' | 'permissions' | 'actions' | 'routines'
+  | 'adblock' | 'projects' | 'skills' | 'memory' | 'mcps' | 'permissions' | 'actions' | 'routines'
   | 'statistics' | 'archived' | 'notifications' | 'about'
 
 interface NavItem { id: Cat; label: string; icon: JSX.Element; soon?: boolean }
@@ -53,6 +55,7 @@ const NAV: NavGroup[] = [
       { id: 'appearance', label: 'Appearance', icon: <IconPalette /> },
       { id: 'billing', label: 'Billing', icon: <IconCreditCard />, soon: true },
       { id: 'privacy', label: 'Privacy', icon: <IconShield /> },
+      { id: 'adblock', label: 'Adblocker', icon: <IconShieldCheck /> },
       { id: 'password', label: 'Password', icon: <IconKey />, soon: true },
       { id: 'ai', label: 'AI', icon: <IconSparkles /> },
       { id: 'developers', label: 'Developers', icon: <IconCode />, soon: true },
@@ -220,6 +223,7 @@ export default function SettingsPage(): JSX.Element {
               {cat === 'account' && <AccountPage />}
               {cat === 'general' && <GeneralPage />}
               {cat === 'privacy' && <PrivacyPage />}
+              {cat === 'adblock' && <AdblockSection />}
               {cat === 'permissions' && <PermissionsSection />}
               {cat === 'mcps' && <McpSection />}
               {cat === 'about' && <AboutPage />}

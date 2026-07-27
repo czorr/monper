@@ -9,7 +9,7 @@ import IconLock from '~icons/tabler/lock-check'
 import IconWorld from '~icons/tabler/world'
 import IconSearch from '~icons/tabler/search'
 import IconChevron from '~icons/tabler/chevron-down'
-import { Card, Group } from './ui'
+import { Card, Group, Toggle } from './ui'
 
 const { monperTab } = window
 
@@ -26,27 +26,6 @@ function prettyOrigin(origin: string): string {
   try { return new URL(origin).hostname.replace(/^www\./, '') } catch { return origin }
 }
 
-/** Interruptor de dos estados: aquí no existe "preguntar", eso es olvidar la decisión. */
-function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }): JSX.Element {
-  return (
-    <button
-      role="switch"
-      aria-checked={on}
-      onClick={() => onChange(!on)}
-      className={
-        'relative w-[38px] h-[22px] rounded-full shrink-0 transition-colors ' +
-        (on ? 'bg-emerald-500/80' : 'bg-white/[0.14]')
-      }
-    >
-      <span
-        className={
-          'absolute top-[3px] w-4 h-4 rounded-full bg-white transition-[left] duration-150 ' +
-          (on ? 'left-[19px]' : 'left-[3px]')
-        }
-      />
-    </button>
-  )
-}
 
 /**
  * El favicon real del sitio, o el globo local.

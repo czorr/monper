@@ -5,7 +5,7 @@ import { join } from 'node:path'
 
 /** Estado del navegador tal y como lo recibe el renderer por `state:update`. */
 export interface BrowserStateLike {
-  tabs: { id: number; title: string; url: string; muted?: boolean }[]
+  tabs: { id: number; title: string; url: string; muted?: boolean; bookmarkId?: string | null }[]
   activeId: number | null
   [k: string]: unknown
 }

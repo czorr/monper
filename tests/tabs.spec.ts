@@ -100,3 +100,51 @@ test('el efecto de pulsación no impide cerrar una pestaña', async () => {
   await fila.locator('[title="Cerrar"]').click()
   await expect.poll(async () => (await waitForState(h.win, () => true)).tabs.length).toBe(antes - 1)
 })
+
+test('marcar una pestaña la CONVIERTE en el marcador, no la duplica', async () => {
+  /**
+   * `TabInfo.bookmarkId` es lo que hace que la pestaña se pinte en el slot del marcador y
+   * salga de "Tabs". Se ataba al ABRIR un marcador pero no al crearlo, así que al marcar
+   * salían dos filas: el marcador y la pestaña, como si fueran cosas distintas.
+   */
+  const id = await api<number>(h.win, 'newTab')
+  await api(h.win, 'go', site.url + '/otra')
+  await waitForState(h.win, (s) => s.tabs.find((t) => t.id === id)?.title === 'Otra página')
+
+  await api(h.win, 'toggleBookmark')
+  const marcadores = await api<{ id: string }[]>(h.win, 'getBookmarks')
+  const bm = marcadores.find((b) => b)!
+
+  const s = await waitForState(h.win, (st) => !!st.tabs.find((t) => t.id === id)?.bookmarkId)
+  const tab = s.tabs.find((t) => t.id === id)!
+  expect(tab.bookmarkId, 'la pestaña tiene que quedar atada al marcador que acaba de crear').toBe(bm.id)
+})
+
+test('quitar el marcador devuelve la pestaña a Tabs, no la deja invisible', async () => {
+  /**
+   * El bug de verdad, y peor que la duplicación: el sidebar excluye de "Tabs" las pestañas
+   * con `bookmarkId`. Si se borra el marcador sin soltarlas, no hay fila de marcador donde
+   * pintarlas y la pestaña sigue VIVA pero no se ve — no se puede ni seleccionar ni cerrar.
+   */
+  const id = await api<number>(h.win, 'newTab')
+  await api(h.win, 'go', site.url + '/')
+  await waitForState(h.win, (s) => s.tabs.find((t) => t.id === id)?.title === 'Hola Monper')
+  await api(h.win, 'toggleBookmark')
+  const s1 = await waitForState(h.win, (st) => !!st.tabs.find((t) => t.id === id)?.bookmarkId)
+  const bmId = s1.tabs.find((t) => t.id === id)!.bookmarkId!
+
+  // `bookmarks:remove` está restringido a páginas internas (ver isInternalSender), así que
+  // se llama desde una: es el camino real, y emitirlo a pelo no pasaría el filtro.
+  await api(h.win, 'openSettings')
+  await h.win.waitForTimeout(400)
+  await h.app.evaluate(async ({ webContents }, b) => {
+    const wc = webContents.getAllWebContents().find((w) => w.getURL().includes('settings'))
+    if (!wc) throw new Error('no hay página interna desde la que borrar')
+    return wc.executeJavaScript(`window.monperTab.removeBookmark(${JSON.stringify(b)})`)
+  }, bmId)
+
+  const s2 = await waitForState(h.win, (st) => !st.tabs.find((t) => t.id === id)?.bookmarkId)
+  const tab = s2.tabs.find((t) => t.id === id)
+  expect(tab, 'la pestaña tiene que seguir existiendo').toBeTruthy()
+  expect(tab!.bookmarkId, 'y volver a ser una pestaña normal, visible en Tabs').toBeFalsy()
+})

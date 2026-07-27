@@ -1284,7 +1284,7 @@ ipcMain.on('bookmarks:add', (e: IpcMainEvent, b: Omit<Bookmark, 'id'>) => {
 })
 ipcMain.on('bookmarks:remove', (e: IpcMainEvent, id: string) => {
   if (!isInternalSender(e.senderFrame?.url)) return
-  removeBookmark(id); broadcastBookmarks()
+  soltarTabsDelBookmark(id); removeBookmark(id); broadcastBookmarks()
 })
 ipcMain.on('tab:navigate', (_e: IpcMainEvent, url: string) => navigateActive(url))
 function abrirBookmark(id: string): void {
@@ -1322,7 +1322,7 @@ ipcMain.on('bookmark:contextMenu', (_e: IpcMainEvent, id: string) => {
     { label: 'Abrir en pestaña nueva', click: () => createTab(b.url) },
     { label: 'Copiar enlace', click: () => clipboard.writeText(b.url) },
     { type: 'separator' },
-    { label: 'Quitar de bookmarks', click: () => { removeBookmark(id); broadcastBookmarks() } }
+    { label: 'Quitar de bookmarks', click: () => { soltarTabsDelBookmark(id); removeBookmark(id); broadcastBookmarks() } }
   ]
   Menu.buildFromTemplate(template).popup({ window: win })
 })
@@ -1344,7 +1344,11 @@ ipcMain.on('tab:contextMenu', (_e: IpcMainEvent, id: number) => {
     {
       label: isBookmarked(t.url) ? 'Quitar de bookmarks' : 'Agregar a bookmarks',
       enabled: !internal,
-      click: () => { toggleBookmark(t.url, t.title || t.url, t.favicon); broadcastBookmarks() }
+      click: () => {
+        if (t.bookmarkId) soltarTabsDelBookmark(t.bookmarkId)
+        atarTabAlBookmark(t, toggleBookmark(t.url, t.title || t.url, t.favicon))
+        broadcastBookmarks()
+      }
     },
     { label: t.muted ? 'Reactivar sonido' : 'Silenciar sitio', click: () => setTabMuted(id, !t.muted) },
     { label: 'Copiar enlace', enabled: !internal, click: () => clipboard.writeText(t.url) },
@@ -1355,10 +1359,35 @@ ipcMain.on('tab:contextMenu', (_e: IpcMainEvent, id: number) => {
   ]
   Menu.buildFromTemplate(template).popup({ window: win })
 })
+/**
+ * Ata (o desata) una pestaña a su marcador.
+ *
+ * `TabInfo.bookmarkId` es lo que hace que la pestaña se pinte EN el slot del marcador y
+ * desaparezca de "Tabs". Sin esto, al marcar una pestaña salía dos veces: la fila del
+ * marcador y la de la pestaña, como si fueran cosas distintas. La atadura solo existía al
+ * ABRIR un marcador, nunca al crearlo.
+ */
+function atarTabAlBookmark(t: Tab, bm: { id: string } | null): void {
+  t.bookmarkId = bm?.id ?? null
+  pushState()
+}
+
+/**
+ * Suelta las pestañas que colgaban de un marcador que ya no existe.
+ *
+ * Sin esto quedan INVISIBLES: el sidebar las excluye de "Tabs" por tener `bookmarkId` y ya no
+ * hay fila de marcador donde pintarlas, así que la pestaña sigue viva y no se puede ni
+ * seleccionar ni cerrar. Hay que llamarlo en TODO camino que borre un marcador.
+ */
+function soltarTabsDelBookmark(id: string): void {
+  for (const t of tabs.values()) if (t.bookmarkId === id) t.bookmarkId = null
+}
+
 ipcMain.on('bookmarks:toggle', () => {
   const t = activeId != null ? tabs.get(activeId) : null
   if (!t || isNewtab(t.url)) return
-  toggleBookmark(t.url, t.title || t.url, t.favicon)
+  if (t.bookmarkId) soltarTabsDelBookmark(t.bookmarkId)
+  atarTabAlBookmark(t, toggleBookmark(t.url, t.title || t.url, t.favicon))
   broadcastBookmarks()
 })
 

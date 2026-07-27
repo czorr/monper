@@ -47,10 +47,15 @@ export function removeBookmark(id: string): void {
   persist()
 }
 
-/** Alterna el bookmark de una URL; devuelve true si quedó guardada */
-export function toggleBookmark(url: string, title: string, favicon?: string | null): boolean {
+/**
+ * Alterna el marcador de una URL.
+ *
+ * Devuelve el marcador si quedó guardada, y `null` si se quitó — no un booleano: quien llama
+ * necesita el **id** para atarle la pestaña, y con un `true` tenía que volver a buscarlo por
+ * URL. Ver `atarTabAlBookmark` en index.ts.
+ */
+export function toggleBookmark(url: string, title: string, favicon?: string | null): Bookmark | null {
   const existing = items.find((b) => b.url === url)
-  if (existing) { removeBookmark(existing.id); return false }
-  addBookmark({ url, title, favicon })
-  return true
+  if (existing) { removeBookmark(existing.id); return null }
+  return addBookmark({ url, title, favicon })
 }

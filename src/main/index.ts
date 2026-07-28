@@ -13,6 +13,7 @@ import { initWindowState, initialBounds, shouldMaximize, trackWindow } from './w
 import { suggest } from './suggest'
 import { attachScreenShare } from './screenshare'
 import { esWeb, abrirConElSistema } from './schemes'
+import { itemsDeCorrector } from './contextmenu'
 import { navegadoresDisponibles, leerMarcadores, leerHistorial, leerCredenciales, type NavegadorId } from './import/browsers'
 import {
   reservarInstanciaUnica, escucharEnlaces, initDefaultBrowser,
@@ -639,6 +640,10 @@ function createTab(url = newtabUrl(), activate = true, agent = false): number {
       partition: PARTITION,
       contextIsolation: true,
       sandbox: true,
+      // Explícito aunque sea el valor por defecto: es una decisión de producto (escribir un
+      // correo largo sin corrector se nota a los diez segundos) y no queremos que se pierda
+      // si algún día se toca este bloque. En macOS lo resuelve el corrector del sistema.
+      spellcheck: true,
       preload: join(__dirname, '../preload/content.js')
     }
   })
@@ -835,10 +840,37 @@ function reorderTabs(orderedIds: number[]): void {
 
 // Menú contextual nativo del contenido de la página (click derecho sobre un enlace,
 // imagen, selección, campo editable, o el fondo).
+/**
+ * Imprime la pestaña activa.
+ *
+ * En macOS el diálogo de impresión trae "Guardar como PDF", así que esto cubre las dos cosas
+ * y no hace falta un `printToPDF` aparte — que además obligaría a elegir carpeta y nombre
+ * nosotros, peor que el panel del sistema.
+ *
+ * El fallo se cuenta: `print` avisa por callback y quedarse callado deja al usuario esperando
+ * un diálogo que no va a salir.
+ */
+function imprimirActiva(): void {
+  const wc = activeWc()
+  if (!wc) return
+  wc.print({}, (ok, motivo) => {
+    // "cancelled" no es un fallo: es el usuario cerrando el diálogo.
+    if (!ok && motivo && motivo !== 'cancelled') {
+      console.error('[imprimir] no se pudo:', motivo)
+      dialog.showMessageBox(win ?? undefined!, {
+        type: 'error', buttons: ['OK'], message: 'No se pudo imprimir esta página', detail: motivo
+      })
+    }
+  })
+}
+
 function showPageContextMenu(wc: Electron.WebContents, p: Electron.ContextMenuParams): void {
   if (!win) return
   const nav = wc.navigationHistory
   const items: MenuItemConstructorOptions[] = []
+  if (!p.isEditable && !p.linkURL && !p.selectionText) {
+    items.push({ label: 'Imprimir…', accelerator: 'CmdOrCtrl+P', click: () => imprimirActiva() }, { type: 'separator' })
+  }
   if (p.linkURL) {
     items.push(
       { label: 'Abrir enlace en pestaña nueva', click: () => createTab(p.linkURL) },
@@ -854,6 +886,11 @@ function showPageContextMenu(wc: Electron.WebContents, p: Electron.ContextMenuPa
       { type: 'separator' }
     )
   }
+  // Sugerencias del corrector. La lógica vive en contextmenu.ts para poder probarla.
+  items.push(...itemsDeCorrector(p, {
+    reemplazar: (s) => wc.replaceMisspelling(s),
+    aprender: (w) => wc.session.addWordToSpellCheckerDictionary(w)
+  }))
   if (p.isEditable) {
     items.push(
       { role: 'cut', enabled: p.editFlags.canCut },
@@ -983,6 +1020,8 @@ function buildAppMenu(): void {
       { label: 'Nueva pestaña', accelerator: 'CmdOrCtrl+T', click: () => createTab() },
       { label: 'Reabrir pestaña cerrada', accelerator: 'CmdOrCtrl+Shift+T', click: () => reopenClosedTab() },
       { label: 'Historial', accelerator: 'CmdOrCtrl+Y', click: () => openHistory() },
+      { type: 'separator' },
+      { label: 'Imprimir…', accelerator: 'CmdOrCtrl+P', click: () => imprimirActiva() },
       { label: 'Cerrar pestaña', accelerator: 'CmdOrCtrl+W', click: () => { if (activeId != null) closeTab(activeId) } },
       { type: 'separator' },
       { label: 'Editar URL', accelerator: 'CmdOrCtrl+L', click: () => menuAction('edit-url') }

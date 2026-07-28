@@ -33,9 +33,13 @@ Auditado contra el código, no de memoria. Lo marcado como hecho está verificad
 
 ## P1 — Ausencias baratas que empujan a abrir Chrome "un momento"
 
-- [ ] **⌘P / Guardar como PDF.** Cero código hoy. Comprar algo y no poder guardar el recibo.
-- [ ] **Spellcheck.** Verificado: no está activado. Escribir un correo largo sin corrector se
-      nota a los diez segundos.
+- [x] **⌘P / Guardar como PDF.** En el menú Archivo y en el menú contextual de la página. En
+      macOS el diálogo del sistema ya trae "Guardar como PDF", así que no hace falta un
+      `printToPDF` aparte — que además nos obligaría a elegir carpeta y nombre, peor que el
+      panel del sistema. Si falla se dice; cancelar no cuenta como fallo.
+- [x] **Spellcheck.** `spellcheck: true` explícito y, sobre todo, **sugerencias en el menú
+      contextual**: el subrayado ya salía, pero sin poder hacer nada con él había que borrar
+      la palabra y reescribirla adivinando. Con "Añadir al diccionario".
 - [ ] **Gestor de marcadores.** Hoy solo la lista del sidebar: sin carpetas, sin buscar, sin
       renombrar. Empieza a doler a partir de ~20 marcadores.
 - [ ] **Multi-ventana (⌘N).** `createWindow()` existe pero solo se llama una vez.

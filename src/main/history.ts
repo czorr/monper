@@ -36,17 +36,25 @@ export function initHistory(): void {
   }
 }
 
-/** Registra (o actualiza) una visita. Se llama en did-navigate. */
-export function recordVisit(url: string, title?: string, favicon?: string | null): void {
+/**
+ * Registra (o actualiza) una visita. Se llama en did-navigate.
+ *
+ * `visitedAt` es para el IMPORTADOR: al traer el historial de otro navegador, sin él todas
+ * las páginas quedaban con la fecha de hoy y el historial entero aparecía visitado esta
+ * mañana. Se conserva la fecha más reciente de las dos, para que reimportar no rejuvenezca
+ * una página que ya visitaste aquí.
+ */
+export function recordVisit(url: string, title?: string, favicon?: string | null, visitedAt?: number): void {
   if (skip(url)) return
+  const cuando = visitedAt && visitedAt > 0 ? visitedAt : Date.now()
   const existing = items.find((h) => h.url === url)
   if (existing) {
     existing.visits += 1
-    existing.lastVisit = Date.now()
+    existing.lastVisit = Math.max(existing.lastVisit, cuando)
     if (title) existing.title = title
     if (favicon) existing.favicon = favicon
   } else {
-    items.push({ url, title: title || url, favicon, visits: 1, lastVisit: Date.now() })
+    items.push({ url, title: title || url, favicon, visits: 1, lastVisit: cuando })
   }
   persistSoon()
 }
@@ -80,4 +88,50 @@ export function search(query: string, limit = 6): HistoryEntry[] {
     .filter((h) => h.url.toLowerCase().includes(q) || h.title.toLowerCase().includes(q))
     .sort((a, b) => frecency(b) - frecency(a))
     .slice(0, limit)
+}
+
+
+// ---------------------------------------------------------------- página de historial
+
+export interface HistoryPage {
+  entries: HistoryEntry[]
+  /** Cuántas cumplen el filtro en total, para saber si queda más por cargar. */
+  total: number
+}
+
+/**
+ * Una página del historial, de más reciente a más antigua.
+ *
+ * Se pagina porque un historial real son decenas de miles de entradas: mandarlas todas por
+ * IPC congela el renderer y no cabe en pantalla de todas formas.
+ */
+export function browse(query: string, offset = 0, limit = 100): HistoryPage {
+  const q = query.trim().toLowerCase()
+  const filtrados = q
+    ? items.filter((h) => h.url.toLowerCase().includes(q) || h.title.toLowerCase().includes(q))
+    : items
+  const ordenados = [...filtrados].sort((a, b) => b.lastVisit - a.lastVisit)
+  return { entries: ordenados.slice(offset, offset + limit), total: ordenados.length }
+}
+
+/** Borra una entrada. Devuelve true si existía. */
+export function removeEntry(url: string): boolean {
+  const antes = items.length
+  items = items.filter((h) => h.url !== url)
+  if (items.length === antes) return false
+  writeJson(file, items, 'el historial', false)
+  return true
+}
+
+/**
+ * Borra el historial desde una fecha. Sin `desde`, lo borra entero.
+ *
+ * Se escribe YA y no con `persistSoon`: borrar historial es una acción de privacidad, y
+ * dejarla 1,5s en memoria es dejar una ventana en la que un cierre inesperado lo devuelve.
+ */
+export function clearHistory(desde?: number): number {
+  const antes = items.length
+  items = desde ? items.filter((h) => h.lastVisit < desde) : []
+  writeJson(file, items, 'el historial', false)
+  return antes - items.length
 }

@@ -230,6 +230,15 @@ export interface SkillDetail extends SkillMeta {
   body: string
 }
 
+/** Una entrada del historial tal y como la ve la página. */
+export interface HistoryEntryInfo {
+  url: string
+  title: string
+  favicon?: string | null
+  visits: number
+  lastVisit: number
+}
+
 /** Un servidor MCP configurado por el usuario, tal y como lo ve Settings. */
 export interface McpServerInfo {
   name: string
@@ -568,7 +577,7 @@ export interface UpdateState {
  * puede tocar datos privados por IPC y el renderer decide cuándo mostrar nuestra marca en
  * vez de un dominio. Dos listas separadas se habrían desincronizado.
  */
-export const INTERNAL_PAGES = ['newtab', 'settings', 'error', 'downloads'] as const
+export const INTERNAL_PAGES = ['newtab', 'settings', 'error', 'downloads', 'history'] as const
 export type InternalPage = (typeof INTERNAL_PAGES)[number]
 
 /** El nombre de la página interna de esa URL, o null si es un sitio web de verdad. */
@@ -687,6 +696,10 @@ export interface MonperTabApi {
   clearSitePermissions: (origin: string | null) => Promise<boolean>
   // ---- Actualizaciones (Settings → About) ----
   getUpdateState: () => Promise<UpdateState>
+  // ---- Historial ----
+  browseHistory: (query: string, offset: number, limit: number) => Promise<{ entries: HistoryEntryInfo[]; total: number }>
+  removeHistoryEntry: (url: string) => Promise<boolean>
+  clearHistory: (desde?: number) => Promise<number>
   // ---- Importar de otro navegador ----
   listImportBrowsers: () => Promise<{ id: string; nombre: string; disponible: boolean }[]>
   runImport: (id: string, que: { bookmarks: boolean; history: boolean; passwords: boolean })

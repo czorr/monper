@@ -15,17 +15,21 @@ Auditado contra el código, no de memoria. Lo marcado como hecho está verificad
 
 ## P0 — Sin esto la gente no se cambia
 
-- [ ] **Importar de otro navegador.** ← *en curso*
-      - [ ] Marcadores (Chrome, Arc, Brave, Edge, Safari)
-      - [ ] Historial
-      - [ ] **Contraseñas** — es el que más importa: el vault vacío desperdicia toda la tesis
+- [x] **Importar de otro navegador.** Marcadores, historial y contraseñas, sin dependencias
+      nuevas (`node:sqlite` viene en el Node de Electron). Solo se ofrecen los navegadores
+      **instalados y con perfil**: desinstalar uno no borra su carpeta, y detectando solo el
+      perfil se ofrecían navegadores que ya no existían.
+      - [x] Marcadores (Chrome, Arc, Brave, Edge, Safari)
+      - [x] Historial — con su fecha original
+      - [x] **Contraseñas** — es el que más importa: el vault vacío desperdicia toda la tesis
             del producto. Con contraseñas importadas, el agente puede entrar en tus sitios el
             día 1; sin ellas, el usuario tiene que reconstruir su vida antes de ver para qué
             sirve Monper.
-- [ ] **Historial navegable y buscable.** Hoy solo hay los 10 últimos en un submenú; no existe
-      `history.html`. El dato ya se guarda en cada visita: falta la puerta. Es además el primer
-      escalón de *Memory* — un historial buscable por contenido es media respuesta a
-      "¿dónde vi ese benchmark?".
+- [x] **Historial navegable y buscable.** `history.html`, agrupado por día, con búsqueda,
+      borrado por entrada y borrado total. Se llega con ⌘Y y desde el submenú de perfil.
+      Restringido a páginas internas: es el registro de todo lo que has visitado.
+      - [ ] Siguiente escalón (*Memory*): buscar por **contenido**, no solo por título y URL.
+            Es media respuesta a "¿dónde vi ese benchmark?".
 
 ## P1 — Ausencias baratas que empujan a abrir Chrome "un momento"
 

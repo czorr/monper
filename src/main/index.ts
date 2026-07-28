@@ -8,7 +8,7 @@ import { internalPageOf } from '../shared/types'
 import { initBookmarks, listBookmarks, isBookmarked, addBookmark, removeBookmark, toggleBookmark, reorderBookmarks } from './bookmarks'
 import { initAI, listProviders, addProvider, removeProvider, setActive as setActiveProvider, setModel, setEffort, getChatContext, getActiveProvider } from './ai/store'
 import { runMastra, errText } from './agent/mastra'
-import { initHistory, recordVisit, updateMeta, recent as historyRecent } from './history'
+import { initHistory, recordVisit, updateMeta, recent as historyRecent, browse as historyBrowse, removeEntry as historyRemove, clearHistory as historyClear } from './history'
 import { initWindowState, initialBounds, shouldMaximize, trackWindow } from './windowState'
 import { suggest } from './suggest'
 import { attachScreenShare } from './screenshare'
@@ -957,6 +957,7 @@ function buildAppMenu(): void {
     submenu: [
       { label: 'Nueva pestaña', accelerator: 'CmdOrCtrl+T', click: () => createTab() },
       { label: 'Reabrir pestaña cerrada', accelerator: 'CmdOrCtrl+Shift+T', click: () => reopenClosedTab() },
+      { label: 'Historial', accelerator: 'CmdOrCtrl+Y', click: () => openHistory() },
       { label: 'Cerrar pestaña', accelerator: 'CmdOrCtrl+W', click: () => { if (activeId != null) closeTab(activeId) } },
       { type: 'separator' },
       { label: 'Editar URL', accelerator: 'CmdOrCtrl+L', click: () => menuAction('edit-url') }
@@ -1146,6 +1147,13 @@ ipcMain.on('remote:set', (_e, on: boolean) => setRemoteEnabled(!!on))
  * encender el puente y quedarse conduciendo tu navegador con tus sesiones. No es teórico: es
  * el mismo agujero que ya tapamos en los permisos de sitios.
  */
+// ---- Historial ----
+// Restringido a páginas internas: es el registro de todo lo que el usuario ha visitado.
+ipcMain.handle('history:browse', (e, query: string, offset: number, limit: number) =>
+  isInternalSender(e.senderFrame?.url) ? historyBrowse(String(query ?? ''), Number(offset) || 0, Number(limit) || 100) : { entries: [], total: 0 })
+ipcMain.handle('history:remove', (e, url: string) => (isInternalSender(e.senderFrame?.url) ? historyRemove(String(url)) : false))
+ipcMain.handle('history:clear', (e, desde?: number) => (isInternalSender(e.senderFrame?.url) ? historyClear(desde) : 0))
+
 // ---- Importar de otro navegador ----
 // Todo restringido a páginas internas: son los datos más sensibles que toca la app (el
 // historial completo del usuario y sus contraseñas). Una web no puede ni preguntar.
@@ -1165,7 +1173,8 @@ ipcMain.handle('import:run', async (e, id: NavegadorId, que: { bookmarks: boolea
   }
   if (que.history) {
     try {
-      for (const v of leerHistorial(id)) { recordVisit(v.url, v.title); resumen.history++ }
+      // Con la fecha ORIGINAL: sin ella el historial importado aparecía entero como de hoy.
+      for (const v of leerHistorial(id)) { recordVisit(v.url, v.title, null, v.visitedAt); resumen.history++ }
     } catch (err) { errores.push(err instanceof Error ? err.message : String(err)) }
   }
   if (que.passwords) {
@@ -1476,6 +1485,12 @@ function broadcastDownloads(): void {
   for (const t of tabs.values()) if (t.url.includes('/downloads.html')) t.view.webContents.send('downloads:changed', list)
   win?.webContents.send('downloads:summary', { active: activeDownloadCount(), total: list.length })
 }
+/** Reutiliza la pestaña si ya está abierta, como downloads: no se acumulan historiales. */
+function openHistory(): void {
+  for (const [id, t] of tabs) if (t.url.includes('/history.html')) { setActive(id); return }
+  createTab(internalUrl('history'))
+}
+
 function openDownloads(): void {
   for (const [id, t] of tabs) if (t.url.includes('/downloads.html')) { setActive(id); return }
   createTab(internalUrl('downloads'))
@@ -2205,7 +2220,12 @@ function datosSubmenu(): SubmenuData {
     case 'history': {
       return {
         section: 'history',
-        rows: historyRecent(10).map((h) => ({
+        // `primary` es la fila de cabecera que ya usan otros submenús. Los 10 recientes son
+        // un atajo, no el historial: sin esta fila no había forma de llegar a la lista
+        // completa desde la UI.
+        rows: [
+          { id: 'todo', label: 'Ver todo el historial', icon: 'history' as const, meta: '⌘Y', action: 'history:all', primary: true },
+          ...historyRecent(10).map((h) => ({
           id: h.url,
           label: h.title || h.url,
           sub: (() => { try { return new URL(h.url).hostname.replace(/^www\./, '') } catch { return '' } })(),
@@ -2213,6 +2233,7 @@ function datosSubmenu(): SubmenuData {
           icon: 'history' as const,
           action: `history:open:${h.url}`
         }))
+        ]
       }
     }
     case 'developers': {
@@ -2334,6 +2355,7 @@ ipcMain.on('profilesubmenu:action', (_e, action: string) => {
     case 'extensions:open': openExtensionPopup(arg); break
     case 'bookmarks:open': abrirBookmark(arg); break
     case 'history:open': createTab(arg); break
+    case 'history:all': openHistory(); break
     case 'dev:devtools': toggleDevtools(); break
     case 'dev:hardReload': activeWc()?.reloadIgnoringCache(); break
     case 'dev:copyToken': clipboard.writeText(remoteState().token); break

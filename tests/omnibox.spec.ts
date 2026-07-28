@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { urlVisible } from '../src/shared/url'
+import { urlVisible, nombreDeUrl } from '../src/shared/url'
 
 /**
  * La invariante del completado inline: **lo que se muestra y lo que se completa tienen que ser
@@ -37,4 +37,23 @@ test('es idempotente: aplicarla dos veces no cambia nada', () => {
   for (const u of ['https://www.mediotiempo.com/', 'github.com/x', 'https://a.b.co/p/']) {
     expect(urlVisible(urlVisible(u))).toBe(urlVisible(u))
   }
+})
+
+test('un marcador sin título recibe el nombre del sitio, no su URL', () => {
+  /**
+   * Chromium guarda muchos marcadores con el nombre VACÍO —los que arrastras a la barra—.
+   * Medido en un perfil real: 20 de 79. Cayendo a la URL cruda, el sidebar se llenaba de
+   * `https://supabase.com/dashboard/project/sqlaum…`.
+   */
+  expect(nombreDeUrl('https://supabase.com/dashboard/project/abc')).toBe('Supabase')
+  expect(nombreDeUrl('https://www.youtube.com/')).toBe('Youtube')
+  expect(nombreDeUrl('https://vercel.com/metabrain/algo')).toBe('Vercel')
+  expect(nombreDeUrl('https://mail.google.com/mail/u/0/#inbox')).toBe('Google')
+  // TLD compuesto: sin tratarlo, `bbc.co.uk` se quedaría en "Co".
+  expect(nombreDeUrl('https://www.bbc.co.uk/news')).toBe('Bbc')
+  // En desarrollo el puerto es lo único que distingue un proyecto de otro: se conserva.
+  expect(nombreDeUrl('http://localhost:5173/')).toBe('localhost:5173')
+  expect(nombreDeUrl('http://127.0.0.1:8080/x')).toBe('127.0.0.1:8080')
+  // Basura sin romper.
+  expect(nombreDeUrl('no-es-una-url')).toBe('no-es-una-url')
 })

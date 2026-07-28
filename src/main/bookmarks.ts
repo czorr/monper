@@ -1,6 +1,7 @@
 import { join } from 'path'
 import { readJson, writeJson } from './jsonfile'
 import { app } from 'electron'
+import { nombreDeUrl } from '../shared/url'
 import type { Bookmark } from '../shared/types'
 
 let file = ''
@@ -23,6 +24,30 @@ function persist(): void {
 export function initBookmarks(): void {
   file = join(app.getPath('userData'), 'bookmarks.json')
   items = readJson<Bookmark[]>(file, [], 'los marcadores')
+  repararTitulos()
+}
+
+/**
+ * Da nombre a los marcadores que se guardaron con su propia URL como título.
+ *
+ * Los trajo el importador antes de que supiera derivar un nombre: Chromium guarda muchos
+ * marcadores con el nombre vacío y se caía a la URL cruda. Se arregla aquí y no solo en el
+ * importador para que quien ya importó no tenga que borrarlos y repetir.
+ *
+ * Solo toca los que son EXACTAMENTE su URL: un título que el usuario escribió, aunque parezca
+ * una URL, es suyo y no se toca.
+ */
+function repararTitulos(): void {
+  let cambios = 0
+  items = items.map((b) => {
+    if (b.title !== b.url) return b
+    cambios++
+    return { ...b, title: nombreDeUrl(b.url) }
+  })
+  if (cambios) {
+    console.log(`[marcadores] ${cambios} sin título: se les puso el nombre del sitio`)
+    persist()
+  }
 }
 
 export function listBookmarks(): Bookmark[] {

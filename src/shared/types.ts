@@ -683,6 +683,10 @@ export interface MonperTabApi {
   clearSitePermissions: (origin: string | null) => Promise<boolean>
   // ---- Actualizaciones (Settings → About) ----
   getUpdateState: () => Promise<UpdateState>
+  // ---- Importar de otro navegador ----
+  listImportBrowsers: () => Promise<{ id: string; nombre: string; disponible: boolean }[]>
+  runImport: (id: string, que: { bookmarks: boolean; history: boolean; passwords: boolean })
+    => Promise<{ ok: boolean; bookmarks: number; history: number; passwords: number; error?: string }>
   // ---- Navegador predeterminado ----
   /** `shouldOffer` ya tiene en cuenta si se descartó hace poco y si estamos en desarrollo. */
   getDefaultBrowser: () => Promise<{ isDefault: boolean; shouldOffer: boolean }>

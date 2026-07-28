@@ -1,0 +1,150 @@
+import { useEffect, useState, type JSX } from 'react'
+import IconDownload from '~icons/tabler/download'
+import { Card, Group } from './ui'
+
+const { monperTab } = window
+
+interface Nav { id: string; nombre: string; disponible: boolean }
+type Que = { bookmarks: boolean; history: boolean; passwords: boolean }
+type Resultado = { ok: boolean; bookmarks: number; history: number; passwords: number; error?: string }
+
+/**
+ * Settings → Import: traerte tu vida del navegador anterior.
+ *
+ * Es el feature que decide si alguien se queda. Y las contraseñas son la parte que importa:
+ * el vault vacío desperdicia toda la tesis del producto — con ellas dentro, el agente puede
+ * entrar en tus sitios el día 1.
+ *
+ * Por eso las contraseñas vienen **desmarcadas**: importarlas dispara el diálogo del Llavero
+ * de macOS y mueve secretos de sitio. Que sea un gesto consciente, no una casilla que ya
+ * venía puesta.
+ */
+export default function ImportSection(): JSX.Element {
+  const [navs, setNavs] = useState<Nav[] | null>(null)
+  const [sel, setSel] = useState<string | null>(null)
+  const [que, setQue] = useState<Que>({ bookmarks: true, history: true, passwords: false })
+  const [corriendo, setCorriendo] = useState(false)
+  const [res, setRes] = useState<Resultado | null>(null)
+
+  useEffect(() => {
+    monperTab.listImportBrowsers()
+      .then((l) => {
+        setNavs(l)
+        setSel(l.find((n) => n.disponible)?.id ?? null)
+      })
+      .catch((e) => { console.error('[import] no se pudo listar:', e); setNavs([]) })
+  }, [])
+
+  const importar = async (): Promise<void> => {
+    if (!sel) return
+    setCorriendo(true)
+    setRes(null)
+    try {
+      setRes(await monperTab.runImport(sel, que))
+    } catch (e) {
+      setRes({ ok: false, bookmarks: 0, history: 0, passwords: 0, error: e instanceof Error ? e.message : String(e) })
+    } finally {
+      setCorriendo(false)
+    }
+  }
+
+  const casilla = (k: keyof Que, label: string, nota: string): JSX.Element => (
+    <button
+      onClick={() => setQue((q) => ({ ...q, [k]: !q[k] }))}
+      className="flex items-start gap-3 w-full px-4 py-3 text-left hover:bg-white/[0.02] transition-colors"
+    >
+      <span
+        className={
+          'mt-0.5 w-[18px] h-[18px] rounded-md border grid place-items-center shrink-0 text-[11px] ' +
+          (que[k] ? 'bg-white/90 border-white/90 text-black' : 'border-white/25')
+        }
+      >
+        {que[k] ? '✓' : ''}
+      </span>
+      <span className="flex-1 min-w-0">
+        <span className="block text-[14px] text-text">{label}</span>
+        <span className="block text-[12.5px] text-text-dim mt-0.5">{nota}</span>
+      </span>
+    </button>
+  )
+
+  return (
+    <>
+      <h1 className="text-[30px] font-semibold tracking-tight mb-3">Importar</h1>
+      <p className="text-[13.5px] text-text-dim leading-relaxed mb-7">
+        Trae tus marcadores, tu historial y tus contraseñas. Con las contraseñas dentro, el
+        agente puede entrar en tus sitios desde el primer día — que es de lo que va Monper.
+      </p>
+
+      <Group title="Desde">
+        <Card>
+          {navs === null && <div className="px-4 py-4 text-[13px] text-text-faint">Buscando navegadores…</div>}
+          {navs?.every((n) => !n.disponible) && (
+            <div className="px-4 py-6 text-center">
+              <div className="text-[13.5px] text-text-dim">No hay de dónde importar</div>
+              {/* Se dice qué se buscó: si no, "no encuentro nada" es indistinguible de un fallo. */}
+              <div className="text-[12.5px] text-text-faint mt-1 max-w-[420px] mx-auto leading-relaxed">
+                Se busca Chrome, Arc, Brave, Edge y Safari — instalados y con un perfil abierto
+                alguna vez.
+              </div>
+            </div>
+          )}
+          {navs?.filter((n) => n.disponible).map((n) => (
+            <button
+              key={n.id}
+              onClick={() => setSel(n.id)}
+              className="flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-white/[0.02] transition-colors"
+            >
+              <span
+                className={
+                  'w-[18px] h-[18px] rounded-full border grid place-items-center shrink-0 ' +
+                  (sel === n.id ? 'border-white/70' : 'border-white/20')
+                }
+              >
+                {sel === n.id && <span className="w-2.5 h-2.5 rounded-full bg-white" />}
+              </span>
+              <span className="text-[14px] text-text">{n.nombre}</span>
+            </button>
+          ))}
+        </Card>
+      </Group>
+
+      <Group title="Qué traer">
+        <Card>
+          {casilla('bookmarks', 'Marcadores', 'Se añaden a los tuyos; los repetidos no se duplican.')}
+          {casilla('history', 'Historial', 'Alimenta el autocompletado de la omnibox desde el primer día.')}
+          {casilla('passwords', 'Contraseñas', 'macOS pedirá permiso para leer el Llavero. Van al vault cifrado, y el agente nunca las ve.')}
+        </Card>
+      </Group>
+
+      <button
+        onClick={importar}
+        disabled={!sel || corriendo || !(que.bookmarks || que.history || que.passwords)}
+        className="flex items-center gap-2 px-4 h-10 rounded-xl bg-white/90 text-black text-[13.5px] font-medium hover:bg-white disabled:opacity-40 disabled:bg-white/20 disabled:text-text transition-colors [&>svg]:w-4 [&>svg]:h-4"
+      >
+        <IconDownload />
+        {corriendo ? 'Importando…' : 'Importar'}
+      </button>
+
+      {/*
+        El resumen cuenta lo que entró Y lo que falló. Un resumen que solo suma éxitos miente:
+        Safari, por ejemplo, no deja leer sus marcadores sin Acceso a Disco Completo, y el
+        usuario tiene que saber por qué su importación vino a medias.
+      */}
+      {res && (
+        <div className="mt-5">
+          <Card>
+            <div className="px-4 py-3.5 text-[13.5px] text-text">
+              {res.bookmarks + res.history + res.passwords > 0
+                ? `Importado: ${res.bookmarks} marcadores, ${res.history} páginas de historial, ${res.passwords} contraseñas.`
+                : 'No se importó nada.'}
+            </div>
+            {res.error && (
+              <div className="px-4 py-3.5 text-[12.5px] text-amber-300 leading-relaxed">{res.error}</div>
+            )}
+          </Card>
+        </div>
+      )}
+    </>
+  )
+}

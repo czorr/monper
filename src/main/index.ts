@@ -12,6 +12,7 @@ import { initHistory, recordVisit, updateMeta, recent as historyRecent } from '.
 import { initWindowState, initialBounds, shouldMaximize, trackWindow } from './windowState'
 import { suggest } from './suggest'
 import { attachScreenShare } from './screenshare'
+import { navegadoresDisponibles, leerMarcadores, leerHistorial, leerCredenciales, type NavegadorId } from './import/browsers'
 import {
   reservarInstanciaUnica, escucharEnlaces, initDefaultBrowser,
   esPredeterminado, hacerPredeterminado, debeOfrecerse, descartarOferta
@@ -1145,6 +1146,42 @@ ipcMain.on('remote:set', (_e, on: boolean) => setRemoteEnabled(!!on))
  * encender el puente y quedarse conduciendo tu navegador con tus sesiones. No es teórico: es
  * el mismo agujero que ya tapamos en los permisos de sitios.
  */
+// ---- Importar de otro navegador ----
+// Todo restringido a páginas internas: son los datos más sensibles que toca la app (el
+// historial completo del usuario y sus contraseñas). Una web no puede ni preguntar.
+ipcMain.handle('import:browsers', (e) => (isInternalSender(e.senderFrame?.url) ? navegadoresDisponibles() : []))
+ipcMain.handle('import:run', async (e, id: NavegadorId, que: { bookmarks: boolean; history: boolean; passwords: boolean }) => {
+  if (!isInternalSender(e.senderFrame?.url)) return { ok: false, error: 'No permitido.' }
+  const resumen = { bookmarks: 0, history: 0, passwords: 0 }
+  const errores: string[] = []
+
+  // Cada parte va en su propio try: que Safari no deje leer sus marcadores no debe impedir
+  // importar el historial, y que fallen las contraseñas no debe tirar lo ya importado.
+  if (que.bookmarks) {
+    try {
+      for (const b of leerMarcadores(id)) { addBookmark({ url: b.url, title: b.title, favicon: faviconFor(b.url) }); resumen.bookmarks++ }
+      broadcastBookmarks()
+    } catch (err) { errores.push(err instanceof Error ? err.message : String(err)) }
+  }
+  if (que.history) {
+    try {
+      for (const v of leerHistorial(id)) { recordVisit(v.url, v.title); resumen.history++ }
+    } catch (err) { errores.push(err instanceof Error ? err.message : String(err)) }
+  }
+  if (que.passwords) {
+    try {
+      for (const c of leerCredenciales(id)) {
+        let host = c.url
+        try { host = new URL(c.url).hostname.replace(/^www\./, '') } catch { /* url rara: se usa cruda */ }
+        vault.add('web-credential', host, { username: c.username, url: c.url }, c.password)
+        resumen.passwords++
+      }
+    } catch (err) { errores.push(err instanceof Error ? err.message : String(err)) }
+  }
+  // Se devuelve lo importado Y lo que falló: un resumen que solo cuenta éxitos miente.
+  return { ok: errores.length === 0, ...resumen, error: errores.join(' · ') || undefined }
+})
+
 // ---- Navegador predeterminado ----
 // Abierto al chrome y a las páginas internas: el banner vive en la new tab y el ajuste en
 // Settings, y ninguna de las dos cosas es privada — solo dice si el sistema nos eligió.

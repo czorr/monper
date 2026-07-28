@@ -210,18 +210,19 @@ export interface Ventana {
   applyTopColor(t: Tab, c: string): void
   soltarTabsDelBookmark(id: string): void
   atarTabAlBookmark(t: Tab, bm: { id: string } | null): void
+  /** Saca la pestaña de esta ventana SIN destruirla, para que otra la adopte. */
+  desprenderTab(id: number): Tab | null
+  /** Recibe una pestaña que venía de otra ventana, con su historial y su estado intactos. */
+  adoptarTab(id: number, t: Tab): void
 }
 
 
 /**
  * Todas las ventanas abiertas, por `BrowserWindow.id`.
  *
- * `` devuelve la ENFOCADA. Es un puente para el código que todavía asume una sola
- * ventana: lo correcto en un handler IPC es resolver de quién viene el mensaje
- * (`ventanaDe(e.sender)`), porque con dos abiertas "la enfocada" puede no ser la que te
- * escribió — colapsarías el sidebar de la otra. Se migra handler a handler; hasta entonces
- * `` se comporta exactamente como antes, que es la garantía de que esta rebanada no
- * cambia nada.
+ * `vAct()` devuelve la ENFOCADA, y es el último recurso: lo correcto en un handler IPC es
+ * resolver de quién viene el mensaje con `vDe(ev)`, porque con dos ventanas abiertas "la
+ * enfocada" puede no ser la que te escribió — colapsarías el sidebar de la otra.
  */
 const RENDERER_URL = process.env['ELECTRON_RENDERER_URL']
 
@@ -240,8 +241,8 @@ function vAct(): Ventana {
  * y porque una ventana cerrada que siguiera en el registro dejaría `` devolviendo un
  * `BrowserWindow` destruido — que revienta al primer uso, no al cerrarla.
  */
-function createWindow(): Ventana {
-  const v = crearVentana()
+function createWindow(opts: { sinPestanaInicial?: boolean } = {}): Ventana {
+  const v = crearVentana(opts)
   ventanas.set(v.id, v)
   ventanaEnfocadaId = v.id
   v.win.on('focus', () => { ventanaEnfocadaId = v.id })
@@ -317,7 +318,34 @@ function reparentar(w: BrowserWindow | null, v?: Ventana): void {
   if (padre && !padre.isDestroyed()) w.setParentWindow(padre)
 }
 
-function crearVentana(): Ventana {
+/**
+ * Muda una pestaña a una ventana nueva, con su historial y su estado intactos.
+ *
+ * Devuelve false si no tiene sentido: la pestaña no existe, es del agente (no sale en el
+ * sidebar) o es la única de su ventana — sacarla dejaría la de origen creando una pestaña de
+ * bienvenida, o sea el mismo contenido repartido en dos ventanas con una vacía de propina.
+ */
+function moverTabAVentanaNueva(origen: Ventana, id: number): boolean {
+  const t = origen.tabs.get(id)
+  if (!t || t.agent) return false
+  if ([...origen.tabs.values()].filter((tb) => !tb.agent).length < 2) return false
+  const destino = createWindow({ sinPestanaInicial: true })
+  const suelta = origen.desprenderTab(id)
+  if (!suelta) { destino.win.close(); return false }
+  destino.adoptarTab(id, suelta)
+  destino.win.focus()
+  return true
+}
+
+/** Qué ventana tiene AHORA esta pestaña. Los ids de pestaña son únicos en toda la app. */
+function duenoDeTab(id: number): Ventana | null {
+  for (const v of ventanas.values()) if (v.tabs.has(id)) return v
+  return null
+}
+
+function crearVentana(opts: { sinPestanaInicial?: boolean } = {}): Ventana {
+  // Se asigna justo antes de devolver. Solo lo leen callbacks, que corren mucho después.
+  let yo: Ventana
   let win: BrowserWindow | null = null
   const tabs = new Map<number, Tab>()
   let activeId: number | null = null
@@ -781,6 +809,13 @@ function crearVentana(): Ventana {
 
   function createTab(url = newtabUrl(), activate = true, agent = false): number {
     const id = nextId++
+    /**
+     * Una pestaña puede MUDARSE a otra ventana (arrastrarla fuera, "Abrir en ventana nueva").
+     * Sus listeners viven para siempre, así que no pueden hablar con la ventana que la creó:
+     * resuelven en cada evento quién la tiene ahora. Sin esto, una pestaña arrastrada seguiría
+     * repintando el sidebar de su ventana de origen.
+     */
+    const suya = (): Ventana => duenoDeTab(id) ?? yo
     const view = new WebContentsView({
       webPreferences: {
         partition: PARTITION,
@@ -805,11 +840,11 @@ function crearVentana(): Ventana {
 
     const wc = view.webContents
     const nav = wc.navigationHistory
-    const refresh = () => { t.canBack = nav.canGoBack(); t.canForward = nav.canGoForward(); pushState() }
-    wc.on('did-start-loading', () => { t.loading = true; pushState() })
+    const refresh = () => { t.canBack = nav.canGoBack(); t.canForward = nav.canGoForward(); suya().pushState() }
+    wc.on('did-start-loading', () => { t.loading = true; suya().pushState() })
     wc.on('did-stop-loading', () => {
       t.loading = false
-      scheduleTopSample(t) // color del topbar: se remuestrea también en cada scroll
+      suya().scheduleTopSample(t) // color del topbar: se remuestrea también en cada scroll
       refresh()
     })
     wc.on('did-navigate', (_e, u) => { // sólo main-frame
@@ -819,7 +854,7 @@ function crearVentana(): Ventana {
       // volverse translúcida cambia QUÉ otras vistas pueden quedar visibles detrás (ver
       // `soloActiva` en layoutTabs). Solo si es la activa: el resto ya no se ve.
       applyBackdrop(t)
-      if (id === activeId) layoutTabs()
+      if (id === suya().activeId()) suya().layoutTabs()
       // Al navegar a algo que NO es la página de error, limpiamos el estado de error y registramos la visita.
       if (!isErrorPage(u)) { t.errorUrl = null; if (!isInternal(u)) recordVisit(u, t.title, t.favicon) }
       applyZoom(wc, u) // restaura el zoom recordado para el origen
@@ -827,17 +862,17 @@ function crearVentana(): Ventana {
       scheduleSaveSession()
     })
     wc.on('did-navigate-in-page', (_e, u, isMainFrame) => { if (isMainFrame) { t.url = u; refresh() } })
-    wc.on('page-title-updated', (_e, title) => { t.title = title; updateMeta(t.url, title); pushState() })
+    wc.on('page-title-updated', (_e, title) => { t.title = title; updateMeta(t.url, title); suya().pushState() })
     wc.on('page-favicon-updated', (_e, icons) => {
       t.favicon = icons?.[0] || null
       // Se recuerda por host: es el icono de verdad del sitio, y sirve para los marcadores sin
       // icono propio en vez de pedírselo a un tercero.
       rememberFavicon(t.url, t.favicon)
       updateMeta(t.url, undefined, t.favicon)
-      pushState()
+      suya().pushState()
     })
-    wc.on('did-change-theme-color', (_e, color) => { t.themeColor = color; pushState() })
-    wc.on('audio-state-changed', (e) => { t.audible = e.audible; pushState() })
+    wc.on('did-change-theme-color', (_e, color) => { t.themeColor = color; suya().pushState() })
+    wc.on('audio-state-changed', (e) => { t.audible = e.audible; suya().pushState() })
     // --- Confiabilidad: fallos de carga (red/DNS/certificado) y crashes → página de error ---
     wc.on('did-fail-load', (_e, code, desc, validatedURL, isMainFrame) => {
       if (!isMainFrame || code === -3) return // -3 = ERR_ABORTED (navegación reemplazada): ignorar
@@ -849,7 +884,7 @@ function crearVentana(): Ventana {
       loadErrorPage(t, { url: t.errorUrl || t.url, code: 0, desc: details.reason, kind: 'crash' })
     })
     wc.on('context-menu', (_e, params) => showPageContextMenu(wc, params))
-    wc.on('found-in-page', (_e, r) => win?.webContents.send('find:result', { matches: r.matches, active: r.activeMatchOrdinal }))
+    wc.on('found-in-page', (_e, r) => suya().win.webContents.send('find:result', { matches: r.matches, active: r.activeMatchOrdinal }))
     /**
      * Navegación a algo que no es web: `mailto:`, `tel:`, `zoommtg:`…
      *
@@ -896,7 +931,7 @@ function crearVentana(): Ventana {
       }
       // Links normales (target=_blank) → nueva pestaña.
       pushAgentEvent(`Se abrió una pestaña nueva: ${details.url}`)
-      createTab(details.url)
+      suya().createTab(details.url)
       return { action: 'deny' }
     })
 
@@ -908,10 +943,10 @@ function crearVentana(): Ventana {
       const isDevtools = k === 'f12' ||
         (input.meta && input.alt && k === 'i') ||
         ((input.control || input.meta) && input.shift && k === 'i')
-      if (isDevtools) { e.preventDefault(); toggleDevtools(); return }
+      if (isDevtools) { e.preventDefault(); suya().toggleDevtools(); return }
       // ⌘1..9 para saltar de pestaña (funciona con el foco en la página).
       if ((input.meta || input.control) && !input.alt && !input.shift && /^[1-9]$/.test(input.key)) {
-        e.preventDefault(); selectTabByIndex(Number(input.key))
+        e.preventDefault(); suya().selectTabByIndex(Number(input.key))
       }
     })
 
@@ -931,6 +966,37 @@ function crearVentana(): Ventana {
     layoutTabs()
     pushState()
     scheduleSaveSession()
+  }
+
+  /**
+   * Saca la pestaña de esta ventana sin destruirla. NO se toca el `WebContentsView` más allá
+   * de sacarlo del árbol: ese es el punto de mudar una pestaña en vez de recrearla — conserva
+   * su historial de navegación, su scroll y lo que hubiera escrito en un formulario.
+   */
+  function desprenderTab(id: number): Tab | null {
+    const t = tabs.get(id)
+    if (!t) return null
+    win!.contentView.removeChildView(t.view)
+    tabs.delete(id)
+    const wi = warmOrder.indexOf(id); if (wi >= 0) warmOrder.splice(wi, 1)
+    if (activeId === id) {
+      const visibles = [...tabs.entries()].filter(([, tb]) => !tb.agent).map(([tid]) => tid)
+      if (visibles.length) setActive(visibles[visibles.length - 1])
+      else { activeId = null; createTab() }
+    } else pushState()
+    scheduleSaveSession()
+    return t
+  }
+
+  function adoptarTab(id: number, t: Tab): void {
+    tabs.set(id, t)
+    touchWarm(id)
+    win!.contentView.addChildView(t.view)
+    // El fondo depende de si la vista es interna o web, y el redondeado se sella al tamaño de
+    // ESTA ventana: hay que rehacer los dos, no vale con heredar los de la ventana anterior.
+    applyBackdrop(t)
+    t.radius = null; t.radiusW = null
+    setActive(id)
   }
 
   // Pila de URLs de pestañas cerradas recientemente (para ⌘⇧T).
@@ -1033,7 +1099,10 @@ function crearVentana(): Ventana {
     win.webContents.on('did-finish-load', () => {
       // La sesión guardada se restaura UNA vez, en la primera ventana. Sin esto, ⌘N
       // duplicaría todas las pestañas de la sesión anterior en cada ventana nueva.
-      if (tabs.size === 0) {
+      // `sinPestanaInicial` es para la ventana que nace al arrastrar una pestaña fuera: si se
+      // creara la de bienvenida, la ventana abriría con dos y habría que cerrar una a la vista
+      // del usuario.
+      if (tabs.size === 0 && !opts.sinPestanaInicial) {
         if (!restoreSession(ventanas.get(win!.id) ?? vAct())) createTab()
       } else pushState()
       // Pre-carga las ventanas nativas de popups (site-info, menú de perfil) para que
@@ -1061,7 +1130,7 @@ function crearVentana(): Ventana {
   if (!ventana) throw new Error('no se pudo crear la ventana')
 
   // ---- Lo que el resto del main necesita de esta ventana ----
-  return {
+  const api: Ventana = {
     id: ventana.id,
     win: ventana,
     tabs,
@@ -1074,8 +1143,11 @@ function crearVentana(): Ventana {
     setChatOpen: (v: boolean) => { chatOpen = v },
     isCollapsed: () => sidebarCollapsed,
     scheduleTopSample, applyTopColor,
-    soltarTabsDelBookmark, atarTabAlBookmark
+    soltarTabsDelBookmark, atarTabAlBookmark,
+    desprenderTab, adoptarTab
   }
+  yo = api
+  return api
 }
 
 /**
@@ -1340,6 +1412,9 @@ function buildAppMenu(): void {
 
 // ---- IPC ----
 ipcMain.handle('tabs:new', (ev) => { hidePeek(); return vDe(ev).createTab() })
+// La ventana de origen es la que TIENE la pestaña, no la que envía: el id es único en toda la
+// app, así que no hay ambigüedad y así funciona igual si el mensaje llega desde otro sitio.
+ipcMain.on('tabs:tearOff', (ev, id: number) => { moverTabAVentanaNueva(duenoDeTab(id) ?? vDe(ev), id) })
 ipcMain.on('tabs:reorder', (ev, orderedIds: number[]) => vDe(ev).reorderTabs(orderedIds))
 ipcMain.handle('tabs:close', (ev, id: number) => vDe(ev).closeTab(id))
 ipcMain.handle('tabs:select', (ev, id: number) => { hidePeek(); vDe(ev).setActive(id) })
@@ -1661,6 +1736,20 @@ ipcMain.on('bookmark:contextMenu', (ev: IpcMainEvent, id: string) => {
   const template: MenuItemConstructorOptions[] = [
     { label: 'Abrir', click: () => { for (const [tid, t] of vDe(ev).tabs) { if (t.bookmarkId === id) { vDe(ev).setActive(tid); return } } const nid = vDe(ev).createTab(b.url, true); const nt = vDe(ev).tabs.get(nid); if (nt) { nt.bookmarkId = id; vDe(ev).pushState() } } },
     { label: 'Abrir en pestaña nueva', click: () => vDe(ev).createTab(b.url) },
+    {
+      // Un marcador abierto es una pestaña como otra: se muda entera, con su historial. Si no
+      // está abierto no hay nada que mudar y se abre de cero en la ventana nueva.
+      label: 'Abrir en ventana nueva',
+      click: () => {
+        const v = vDe(ev)
+        const abierta = [...v.tabs.entries()].find(([, t]) => t.bookmarkId === id)
+        if (abierta && moverTabAVentanaNueva(v, abierta[0])) return
+        const destino = createWindow({ sinPestanaInicial: true })
+        const nid = destino.createTab(b.url, true)
+        const nt = destino.tabs.get(nid)
+        if (nt) { nt.bookmarkId = id; destino.pushState() }
+      }
+    },
     { label: 'Copiar enlace', click: () => clipboard.writeText(b.url) },
     { type: 'separator' },
     { label: 'Quitar de bookmarks', click: () => { soltarTabsDelBookmark(id); removeBookmark(id); broadcastBookmarks() } }
@@ -1680,6 +1769,11 @@ ipcMain.on('tab:contextMenu', (ev: IpcMainEvent, id: number) => {
   const template: MenuItemConstructorOptions[] = [
     { label: 'Nueva pestaña', click: () => vDe(ev).createTab() },
     { label: 'Duplicar', enabled: !internal, click: () => vDe(ev).createTab(t.url) },
+    {
+      label: 'Abrir en ventana nueva',
+      enabled: [...vDe(ev).tabs.values()].filter((tb) => !tb.agent).length > 1,
+      click: () => { moverTabAVentanaNueva(vDe(ev), id) }
+    },
     { type: 'separator' },
     { label: 'Recargar', click: () => wc.reload() },
     {

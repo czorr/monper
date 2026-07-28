@@ -360,6 +360,8 @@ export interface MonperApi {
   closeTab: (id: number) => void
   selectTab: (id: number) => void
   reorderTabs: (ids: number[]) => void
+  /** Saca la pestaña a una ventana nueva, conservando su historial (arrastrarla fuera). */
+  tearOffTab: (id: number) => void
   go: (url: string) => void
   back: () => void
   forward: () => void

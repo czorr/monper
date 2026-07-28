@@ -1,18 +1,20 @@
 import { test, expect } from '@playwright/test'
-import { launch, api, waitForState, installStateListener, type Harness } from './helpers'
+import { launch, api, waitForState, installStateListener, serve, html, type Harness } from './helpers'
 import type { Page } from '@playwright/test'
 
 let h: Harness
 let segunda: Page
+let site: { url: string; close: () => Promise<void> }
 
 test.beforeAll(async () => {
+  site = await serve({ '/a': html('A'), '/b': html('B') })
   h = await launch()
   await waitForState(h.win, (s) => s.tabs.length > 0)
   await nuevaVentana()
   segunda = await otraVentana(h.win)
   await installStateListener(segunda)
 })
-test.afterAll(async () => { await h?.close() })
+test.afterAll(async () => { await h?.close(); await site?.close() })
 
 /** ⌘N no se puede pulsar desde Playwright: se dispara el propio item del menú. */
 async function nuevaVentana(): Promise<void> {
@@ -65,4 +67,52 @@ test('cerrar una pestaña en la segunda ventana no cierra nada en la primera', a
   await waitForState(b, (s) => !s.tabs.some((t) => t.id === id))
   const despA = await waitForState(h.win, (s) => s.tabs.length === antesA.tabs.length)
   expect(despA.tabs.map((t) => t.id).sort()).toEqual(antesA.tabs.map((t) => t.id).sort())
+})
+
+test('sacar una pestaña la MUDA a una ventana nueva, con su historial', async () => {
+  // Que se mude y no se recree es todo el punto: recrearla desde la URL perdería el historial
+  // de navegación, el scroll y lo que hubiera escrito en un formulario.
+  await api(h.win, 'newTab')
+  await api(h.win, 'go', site.url + '/a')
+  await waitForState(h.win, (s) => s.tabs.find((t) => t.id === s.activeId)?.title === 'A')
+  await api(h.win, 'go', site.url + '/b')
+  const antes = await waitForState(h.win, (s) => s.tabs.find((t) => t.id === s.activeId)?.title === 'B')
+  const id = antes.activeId!
+  expect((antes.active as { canBack: boolean }).canBack).toBe(true)
+
+  const ventanasAntes = h.app.windows().length
+  await h.app.evaluate(({ ipcMain }, tabId) => ipcMain.emit('tabs:tearOff', null, tabId), id)
+
+  // Ya no está en la de origen…
+  await waitForState(h.win, (s) => !s.tabs.some((t) => t.id === id))
+  // …y está en una tercera ventana, con su historial intacto.
+  const nueva = await new Promise<Page>((res, rej) => {
+    const hasta = Date.now() + 10_000
+    const mira = async (): Promise<void> => {
+      const w = h.app.windows().find((p) => p !== h.win && p !== segunda && p.url().includes('index.html'))
+      if (w) { await w.waitForLoadState('domcontentloaded'); res(w); return }
+      if (Date.now() > hasta) { rej(new Error('no apareció la ventana de la pestaña sacada')); return }
+      setTimeout(() => void mira(), 100)
+    }
+    void mira()
+  })
+  expect(h.app.windows().length).toBeGreaterThan(ventanasAntes)
+  await installStateListener(nueva)
+  const s = await waitForState(nueva, (st) => st.tabs.some((t) => t.id === id))
+  expect(s.tabs.find((x) => x.id === id)!.title).toBe('B')
+  expect(s.activeId, 'la pestaña mudada queda activa en su ventana nueva').toBe(id)
+  expect((s.active as { canBack: boolean }).canBack,
+    'si se hubiera recreado desde la URL no habría historial').toBe(true)
+})
+
+test('no se saca la única pestaña de una ventana', async () => {
+  const s0 = await waitForState(segunda, (s) => s.tabs.length > 0)
+  for (const t of s0.tabs.slice(1)) await api(segunda, 'closeTab', t.id)
+  const uno = await waitForState(segunda, (s) => s.tabs.length === 1)
+  // Se cuentan solo las ventanas de chrome: `windows()` incluye popovers, que van y vienen.
+  const chromes = (): number => h.app.windows().filter((p) => p.url().includes('index.html')).length
+  const antes = chromes()
+  await h.app.evaluate(({ ipcMain }, tabId) => ipcMain.emit('tabs:tearOff', null, tabId), uno.tabs[0].id)
+  await new Promise((r) => setTimeout(r, 400))
+  expect(chromes()).toBe(antes)
 })

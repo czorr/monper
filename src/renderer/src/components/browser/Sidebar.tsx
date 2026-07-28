@@ -187,6 +187,7 @@ export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBo
           onReorder={onReorderTabs}
           onDragTab={(id) => setArrastre({ tipo: 'tab', id: String(id) })}
           onDragEnd={limpiar}
+          onTearOff={(id) => window.monper.tearOffTab(id)}
         />
       </div>
 

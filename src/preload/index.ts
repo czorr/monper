@@ -13,6 +13,7 @@ const api: MonperApi = {
   closeTab: (id) => ipcRenderer.invoke('tabs:close', id),
   selectTab: (id) => ipcRenderer.invoke('tabs:select', id),
   reorderTabs: (ids: number[]) => ipcRenderer.send('tabs:reorder', ids),
+  tearOffTab: (id: number) => ipcRenderer.send('tabs:tearOff', id),
   go: (url) => ipcRenderer.invoke('nav:go', url),
   back: () => ipcRenderer.invoke('nav:back'),
   forward: () => ipcRenderer.invoke('nav:forward'),

@@ -45,6 +45,37 @@ dos, no queda nada a medias.
 4. **`createWindow()` de verdad, ⌘N.** Recién aquí aparece la segunda ventana.
 5. **Arrastrar una pestaña fuera** → mover el `WebContentsView` a otra ventana.
 
+## Sacar una pestaña (rebanada 5)
+
+Dos caminos a lo mismo: el menú contextual de la pestaña ("Abrir en ventana nueva") y
+arrastrarla fuera de la ventana. Los dos llaman a `moverTabAVentanaNueva`, que **muda** el
+`WebContentsView` (`desprenderTab` → `adoptarTab`) en vez de recrear la pestaña desde su URL:
+recrearla perdería el historial de navegación, el scroll y lo que hubiera escrito en un
+formulario. El test lo comprueba por `canBack`, no por la URL, justo por eso.
+
+- **Los listeners de una pestaña no pueden capturar la ventana que la creó.** Se registran una
+  vez en `createTab` y viven para siempre; si capturan `pushState`/`layoutTabs` de su ventana,
+  una pestaña mudada sigue repintando el sidebar de la ventana de origen. Resuelven al dueño
+  actual en cada evento con `suya() = duenoDeTab(id) ?? yo`. Doce listeners.
+- **La ventana de destino nace `sinPestanaInicial`**, o abriría con la de bienvenida más la
+  mudada y habría que cerrar una delante del usuario.
+- **Al adoptar hay que rehacer fondo y radio** (`applyBackdrop`, `radius = radiusW = null`): la
+  máscara del redondeado está sellada al tamaño de la ventana ANTERIOR. Es exactamente el bug
+  del hueco a la derecha, ver [esquinas-y-vibrancy.md](esquinas-y-vibrancy.md).
+- **El gesto es salirse del SIDEBAR, no de la ventana.** En una tira vertical, salirse de la
+  tira es salirse por la derecha — lo mismo que en Chrome es salirse por abajo de la horizontal.
+  Cuenta también soltar fuera de la ventana entera.
+- **El gesto no puede ser "no hubo drop".** El área de página es un `WebContentsView` por encima
+  del DOM, así que soltar sobre la página tampoco llega a ningún `drop` del chrome. La condición
+  es geométrica: el punto de `dragend` contra el rect de la lista y el de la ventana. Y el
+  margen al salir del sidebar es de 2px, no de 8: al cruzar al área de página el arrastre puede
+  terminar justo en el borde y con más holgura el gesto no se reconoce.
+- **No se saca la única pestaña**: la ventana de origen se quedaría creando una de bienvenida,
+  o sea el mismo contenido repartido en dos ventanas con una vacía de propina. El item del menú
+  sale deshabilitado, como en Chrome.
+- `tabs:tearOff` resuelve la ventana por `duenoDeTab(id)`, no por el emisor: la operación es
+  sobre una pestaña concreta y el id es único en toda la app.
+
 ## Lo que ya está hecho (rebanadas 1-4)
 
 - `crearVentana()` devuelve una `Ventana` con sus pestañas, su activa, su layout y sus

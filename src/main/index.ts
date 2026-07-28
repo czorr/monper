@@ -5,7 +5,7 @@ import type { MenuItemConstructorOptions } from 'electron'
 import type { IpcMainEvent } from 'electron'
 import type { BrowserState, Bookmark, ChatMessage, MenuAnchor, ProviderKind, InternalPage, SubmenuData, SubmenuSection } from '../shared/types'
 import { internalPageOf } from '../shared/types'
-import { initBookmarks, listBookmarks, isBookmarked, addBookmark, removeBookmark, toggleBookmark } from './bookmarks'
+import { initBookmarks, listBookmarks, isBookmarked, addBookmark, removeBookmark, toggleBookmark, reorderBookmarks } from './bookmarks'
 import { initAI, listProviders, addProvider, removeProvider, setActive as setActiveProvider, setModel, setEffort, getChatContext, getActiveProvider } from './ai/store'
 import { runMastra, errText } from './agent/mastra'
 import { initHistory, recordVisit, updateMeta, recent as historyRecent } from './history'
@@ -1435,6 +1435,27 @@ function atarTabAlBookmark(t: Tab, bm: { id: string } | null): void {
 function soltarTabsDelBookmark(id: string): void {
   for (const t of tabs.values()) if (t.bookmarkId === id) t.bookmarkId = null
 }
+
+// Sin `isInternalSender`: viene del CHROME (el sidebar), igual que `bookmarks:toggle` y
+// `bookmarks:open`. El filtro existe para que no lo llame una web, y una web no tiene este
+// preload. Reordenar no crea ni borra nada.
+/**
+ * "Esto ya no es un marcador": el gesto de arrastrarlo a Tabs.
+ *
+ * Sin `isInternalSender` por lo mismo que `bookmarks:toggle`, que ya borra marcadores desde el
+ * chrome. Y suelta las pestañas atadas ANTES de borrar: si no, la pestaña se queda invisible
+ * (el sidebar la excluye de Tabs por tener `bookmarkId` y su fila de marcador ya no existe).
+ */
+ipcMain.on('bookmarks:detach', (_e: IpcMainEvent, id: string) => {
+  soltarTabsDelBookmark(id)
+  removeBookmark(id)
+  broadcastBookmarks()
+})
+
+ipcMain.on('bookmarks:reorder', (_e: IpcMainEvent, ids: string[]) => {
+  reorderBookmarks(Array.isArray(ids) ? ids : [])
+  broadcastBookmarks()
+})
 
 ipcMain.on('bookmarks:toggle', () => {
   const t = activeId != null ? tabs.get(activeId) : null

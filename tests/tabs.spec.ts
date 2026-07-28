@@ -148,3 +148,39 @@ test('quitar el marcador devuelve la pestaña a Tabs, no la deja invisible', asy
   expect(tab, 'la pestaña tiene que seguir existiendo').toBeTruthy()
   expect(tab!.bookmarkId, 'y volver a ser una pestaña normal, visible en Tabs').toBeFalsy()
 })
+
+test('reordenar marcadores nunca pierde ninguno', async () => {
+  /**
+   * El reorden llega del sidebar como una lista de ids, y esa lista puede venir incompleta o
+   * traer basura: borraste un marcador mientras arrastrabas, o el renderer va un frame por
+   * detrás. Un reorden que pierde marcadores es peor que uno que no ordena.
+   */
+  // `toggleBookmark` ALTERNA, y estos tests comparten harness: llamarlo a ciegas sobre una
+  // página que un test anterior ya marcó la DESMARCA. Se comprueba antes de tocar.
+  for (const ruta of ['/', '/otra']) {
+    await api(h.win, 'newTab')
+    await api(h.win, 'go', site.url + ruta)
+    // Por la pestaña ACTIVA, no por "alguna": con ruta='/' casaba cualquier otra pestaña ya
+    // abierta y seguíamos antes de que esta navegara — entonces `toggleBookmark` veía todavía
+    // la new tab, caía en su guarda y no marcaba nada.
+    await waitForState(h.win, (s) => s.tabs.find((t) => t.id === s.activeId)?.url.endsWith(ruta) === true)
+    const actuales = await api<{ url: string }[]>(h.win, 'getBookmarks')
+    if (!actuales.some((b) => b.url.endsWith(ruta))) await api(h.win, 'toggleBookmark')
+  }
+
+  const antes = await api<{ id: string }[]>(h.win, 'getBookmarks')
+  expect(antes.length).toBeGreaterThanOrEqual(2)
+
+  // Se invierte, y además se cuela una id inexistente: debe ignorarse sin tirar nada.
+  const invertido = [...antes.map((b) => b.id)].reverse()
+  await api(h.win, 'reorderBookmarks', [...invertido, 'id-que-no-existe'])
+  await expect
+    .poll(async () => (await api<{ id: string }[]>(h.win, 'getBookmarks')).map((b) => b.id))
+    .toEqual(invertido)
+
+  // Y una lista PARCIAL conserva los que no venían, al final, en vez de borrarlos.
+  await api(h.win, 'reorderBookmarks', [invertido[1]])
+  const parcial = await api<{ id: string }[]>(h.win, 'getBookmarks')
+  expect(parcial.length, 'una lista incompleta no debe perder marcadores').toBe(antes.length)
+  expect(parcial[0].id).toBe(invertido[1])
+})

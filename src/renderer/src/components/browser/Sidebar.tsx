@@ -1,4 +1,4 @@
-import type { JSX } from 'react'
+import { useState, type JSX } from 'react'
 import type { BrowserState, Bookmark, Profile, UpdateState } from '@shared/types'
 import UpdatePill from './UpdatePill'
 import RemotePill from './RemotePill'
@@ -39,6 +39,53 @@ const newRowClass =
 
 export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBookmark, onOpenMenu, onCollapse, onNewTab, onSelectTab, onCloseTab, onReorderTabs, floating = false, update, onDownloadUpdate, onInstallUpdate, remote, onDisableRemote }: Props): JSX.Element {
   const noop = (): void => {}
+
+  /**
+   * Arrastre del sidebar. Vive AQUÍ y no en cada lista porque cruza las dos: soltar una
+   * pestaña sobre Bookmarks la convierte en marcador, y al revés. Con el estado dentro de
+   * cada lista, ninguna sabría qué está arrastrando la otra.
+   */
+  const [arrastre, setArrastre] = useState<{ tipo: 'tab' | 'bookmark'; id: string } | null>(null)
+  const [sobre, setSobre] = useState<string | null>(null)
+
+  const soltarEnMarcador = (destinoId: string): void => {
+    if (!arrastre) return
+    if (arrastre.tipo === 'bookmark' && arrastre.id !== destinoId) {
+      const ids = bookmarks.map((b) => b.id).filter((id) => id !== arrastre.id)
+      const at = ids.indexOf(destinoId)
+      ids.splice(at < 0 ? ids.length : at, 0, arrastre.id)
+      window.monper.reorderBookmarks(ids)
+    }
+    limpiar()
+  }
+
+  /**
+   * Pestaña soltada en Bookmarks: se marca. Es el mismo gesto que la estrella del topbar, y
+   * como marcar ata la pestaña a su marcador, la fila se mueve sola de una lista a la otra.
+   */
+  const soltarTabEnMarcadores = (): void => {
+    if (arrastre?.tipo === 'tab') window.monper.toggleBookmark()
+    limpiar()
+  }
+
+  /**
+   * Marcador soltado en Tabs: deja de ser marcador y se queda como pestaña.
+   *
+   * Se ABRE antes de quitarlo si no estaba abierto, para que el gesto no destruya nada: al
+   * soltar acabas con esa página delante, no con un marcador menos y nada a cambio.
+   */
+  const soltarMarcadorEnTabs = (): void => {
+    if (arrastre?.tipo === 'bookmark') {
+      const vivo = state.tabs.find((t) => t.bookmarkId === arrastre.id)
+      if (!vivo) window.monper.openBookmark(arrastre.id)
+      window.monper.detachBookmark(arrastre.id)
+    }
+    limpiar()
+  }
+
+  const limpiar = (): void => { setArrastre(null); setSobre(null) }
+  const resaltado = (id: string): string =>
+    sobre === id && arrastre ? 'shadow-[inset_0_2px_0_0_rgba(255,255,255,0.45)] ' : ''
   // Las pestañas ligadas a un bookmark se muestran en su slot de bookmarks, no en Tabs.
   const userTabs = state.tabs.filter((t) => !t.agent && !t.bookmarkId)
   const agentTabs = state.tabs.filter((t) => t.agent)
@@ -87,17 +134,33 @@ export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBo
       </div>
 
       {bookmarks.length > 0 && (
-        <div className="shrink-0">
+        <div
+          className="shrink-0"
+          onDragOver={(e) => { if (arrastre?.tipo === 'tab') { e.preventDefault(); setSobre('__bookmarks__') } }}
+          onDrop={() => arrastre?.tipo === 'tab' && soltarTabEnMarcadores()}
+        >
           <SectionLabel label="Bookmarks" />
           {/* pb-px: la fila pulsada baja 1px y, si es la última, sacaba scroll en este
               contenedor. Ese píxel de holgura evita la barra sin tocar el efecto. */}
           <div className="flex flex-col gap-px pb-px max-h-[35vh] overflow-y-auto [&::-webkit-scrollbar]:w-0">
             {bookmarks.map((b) => {
               const live = liveBookmark(b.id)
-              return live ? (
-                <TabRow key={b.id} tab={live} active={live.id === state.activeId} onSelect={onSelectTab} onClose={onCloseTab} />
-              ) : (
-                <BookmarkRow key={b.id} bookmark={b} onOpen={onOpenBookmark} />
+              return (
+                <div
+                  key={b.id}
+                  draggable
+                  onDragStart={() => setArrastre({ tipo: 'bookmark', id: b.id })}
+                  onDragOver={(e) => { if (arrastre) { e.preventDefault(); setSobre(b.id) } }}
+                  onDragEnd={limpiar}
+                  onDrop={() => (arrastre?.tipo === 'tab' ? soltarTabEnMarcadores() : soltarEnMarcador(b.id))}
+                  className={'rounded-lg ' + (arrastre?.id === b.id ? 'opacity-40 ' : '') + resaltado(b.id)}
+                >
+                  {live ? (
+                    <TabRow tab={live} active={live.id === state.activeId} onSelect={onSelectTab} onClose={onCloseTab} />
+                  ) : (
+                    <BookmarkRow bookmark={b} onOpen={onOpenBookmark} />
+                  )}
+                </div>
               )
             })}
           </div>
@@ -111,7 +174,21 @@ export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBo
         <span>New tab</span>
       </button>
 
-      <TabList tabs={userTabs} activeId={state.activeId} onSelect={onSelectTab} onClose={onCloseTab} onReorder={onReorderTabs} />
+      <div
+        className="flex-1 min-h-0 flex flex-col"
+        onDragOver={(e) => { if (arrastre?.tipo === 'bookmark') { e.preventDefault(); setSobre('__tabs__') } }}
+        onDrop={() => arrastre?.tipo === 'bookmark' && soltarMarcadorEnTabs()}
+      >
+        <TabList
+          tabs={userTabs}
+          activeId={state.activeId}
+          onSelect={onSelectTab}
+          onClose={onCloseTab}
+          onReorder={onReorderTabs}
+          onDragTab={(id) => setArrastre({ tipo: 'tab', id: String(id) })}
+          onDragEnd={limpiar}
+        />
+      </div>
 
       {agentTabs.length > 0 && (
         <div className="shrink-0 mt-1">

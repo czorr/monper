@@ -67,6 +67,26 @@ export function addBookmark(b: Omit<Bookmark, 'id'>): Bookmark {
   return bm
 }
 
+/**
+ * Reordena por la lista de ids que manda el sidebar.
+ *
+ * Se respeta lo que llega pero se reconstruye desde `items`: si el renderer manda una id que
+ * ya no existe (borraste el marcador en otra ventana mientras arrastrabas) se ignora, y los
+ * que no venían en la lista se conservan al final en vez de desaparecer. Un reorden nunca
+ * debe poder perder un marcador.
+ */
+export function reorderBookmarks(ids: string[]): Bookmark[] {
+  const porId = new Map(items.map((b) => [b.id, b]))
+  const ordenados: Bookmark[] = []
+  for (const id of ids) {
+    const b = porId.get(id)
+    if (b) { ordenados.push(b); porId.delete(id) }
+  }
+  items = [...ordenados, ...porId.values()]
+  persist()
+  return items
+}
+
 export function removeBookmark(id: string): void {
   items = items.filter((b) => b.id !== id)
   persist()

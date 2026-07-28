@@ -45,6 +45,8 @@ const api: MonperApi = {
   onBookmarks: (cb) => sub('bookmarks:changed', (l) => cb(l as never)),
   removeBookmark: (id: string) => ipcRenderer.send('bookmarks:remove', id),
   openBookmark: (id: string) => ipcRenderer.send('bookmarks:open', id),
+  reorderBookmarks: (ids: string[]) => ipcRenderer.send('bookmarks:reorder', ids),
+  detachBookmark: (id: string) => ipcRenderer.send('bookmarks:detach', id),
   tabContextMenu: (id: number) => ipcRenderer.send('tab:contextMenu', id),
   bookmarkContextMenu: (id: string) => ipcRenderer.send('bookmark:contextMenu', id),
   toggleMute: (id?: number) => ipcRenderer.send('tab:toggleMute', id),

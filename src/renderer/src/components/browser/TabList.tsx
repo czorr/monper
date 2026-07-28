@@ -8,9 +8,12 @@ interface Props {
   onSelect: (id: number) => void
   onClose: (id: number) => void
   onReorder: (orderedIds: number[]) => void
+  /** El sidebar necesita saber QUÉ se arrastra para permitir soltarlo en Bookmarks. */
+  onDragTab?: (id: number) => void
+  onDragEnd?: () => void
 }
 
-export default function TabList({ tabs, activeId, onSelect, onClose, onReorder }: Props): JSX.Element {
+export default function TabList({ tabs, activeId, onSelect, onClose, onReorder, onDragTab, onDragEnd }: Props): JSX.Element {
   const [dragId, setDragId] = useState<number | null>(null)
   const [overId, setOverId] = useState<number | null>(null)
 
@@ -31,9 +34,9 @@ export default function TabList({ tabs, activeId, onSelect, onClose, onReorder }
         <div
           key={t.id}
           draggable
-          onDragStart={() => setDragId(t.id)}
+          onDragStart={() => { setDragId(t.id); onDragTab?.(t.id) }}
           onDragOver={(e) => { e.preventDefault(); if (dragId != null) setOverId(t.id) }}
-          onDragEnd={() => { setDragId(null); setOverId(null) }}
+          onDragEnd={() => { setDragId(null); setOverId(null); onDragEnd?.() }}
           onDrop={() => drop(t.id)}
           className={
             'rounded-lg ' +

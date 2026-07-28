@@ -383,6 +383,10 @@ export interface MonperApi {
   removeBookmark: (id: string) => void
   /** Abre (o reactiva) el bookmark como pestaña ligada a su slot */
   openBookmark: (id: string) => void
+  /** Nuevo orden de los marcadores, por id (arrastre en el sidebar). */
+  reorderBookmarks: (ids: string[]) => void
+  /** Deja de ser marcador y se queda como pestaña (arrastrarlo a Tabs). */
+  detachBookmark: (id: string) => void
   /** Abre el menú contextual nativo de una pestaña */
   tabContextMenu: (id: number) => void
   /** Abre el menú contextual nativo de un bookmark */

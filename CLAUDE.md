@@ -124,6 +124,8 @@ MONPER_NO_ADBLOCK=1      # skip loading filter lists (the test harness sets this
 | Permissions, session restore, hardening | [browser-hardening.md](docs/browser-hardening.md) |
 | Adblocker (red, allowlist, listas) | [adblock.md](docs/adblock.md) |
 | Where the product is going, what was dropped | [diagnostico.md](docs/diagnostico.md) |
+| Launch checklist (product-level gaps) | [lanzamiento.md](docs/lanzamiento.md) |
+| Multi-window: the plan and why it's post-launch | [multiventana.md](docs/multiventana.md) |
 | The MCP bridge (the moat, and its security model) | [mcp-puente.md](docs/mcp-puente.md) |
 | What Aside has that we don't | [aside-gap-analysis.md](docs/aside-gap-analysis.md) |
 

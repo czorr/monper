@@ -47,7 +47,11 @@ Auditado contra el código, no de memoria. Lo marcado como hecho está verificad
             (hoy `Bookmark` es plano) **y** la UI del sidebar — plegar, arrastrar dentro. Con
             79 marcadores importados empieza a hacer falta, pero el sidebar es estrecho y la
             sección va capada a 35vh: conviene decidir la forma antes de escribirla.
-- [ ] **Multi-ventana (⌘N).** `createWindow()` existe pero solo se llama una vez.
+- [ ] **Multi-ventana (⌘N).** Medido: **212 referencias** a estado de una sola ventana y **82
+      de 140 handlers IPC** que lo tocan. No es un feature, es un refactor de 2-4 sesiones —
+      plan en [multiventana.md](multiventana.md). **Recomendación: después de lanzar.** Es el
+      único P1 que no se nota al abrir el navegador, y toca justo el área (layout, esquinas,
+      peek) que ya costó días y tres hipótesis falsas.
 - [x] **Picture-in-picture.** Comprobado: `document.pictureInPictureEnabled` es `true` y
       `requestPictureInPicture` existe en las pestañas. Funciona sin código nuestro; el ítem
       se cierra sin escribir nada.

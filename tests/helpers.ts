@@ -87,7 +87,7 @@ export async function api<T = unknown>(win: Page, method: string, ...args: unkno
  * reload para provocar uno nuevo — con `addInitScript` el listener ya está puesto antes
  * de que la página cargue.
  */
-async function installStateListener(win: Page): Promise<void> {
+export async function installStateListener(win: Page): Promise<void> {
   const install = (): void => {
     const w = window as never as Record<string, unknown>
     w['__testState'] = null

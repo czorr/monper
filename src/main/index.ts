@@ -1,6 +1,6 @@
 import { join } from 'path'
 import { readFileSync } from 'fs'
-import { app, BrowserWindow, Menu, Notification, WebContentsView, clipboard, dialog, ipcMain, nativeImage, net, screen, session, shell } from 'electron'
+import { app, BrowserWindow, Menu, Notification, WebContentsView, clipboard, dialog, ipcMain, nativeImage, net, screen, session, shell, type WebContents } from 'electron'
 import type { MenuItemConstructorOptions } from 'electron'
 import type { IpcMainEvent } from 'electron'
 import type { BrowserState, Bookmark, ChatMessage, MenuAnchor, ProviderKind, InternalPage, SubmenuData, SubmenuSection } from '../shared/types'
@@ -170,676 +170,914 @@ interface Tab {
 // Alto de la franja inferior reservada para la leyenda "Monper is controlling this tab".
 const CONTROLLED_STRIP = 40
 
-let win: BrowserWindow | null = null
-const tabs = new Map<number, Tab>()
-let activeId: number | null = null
-let nextId = 1
-let sidebarCollapsed = false
-let chatOpen = false
+/**
+ * Todo lo que pertenece a UNA ventana: sus pestañas, su activa, su layout y su estado de
+ * paneles. Antes eran variables de módulo, y por eso solo podía existir una ventana.
+ *
+ * Es una FACTORÍA y no una clase a propósito: las funciones de dentro pasan a ser cierres
+ * sobre ese estado, así que las ~200 referencias a `win`, `tabs` y `activeId` **no cambian**.
+ * Reescribirlas a mano en el área de layout y esquinas —que ya costó días y tres hipótesis
+ * falsas— era pedir una regresión.
+ *
+ * Lo que NO entra aquí porque es global de verdad: marcadores, historial, vault, adblock,
+ * proveedores de IA y los anchos de panel (son una preferencia, no un estado de ventana).
+ */
+export interface Ventana {
+  readonly id: number
+  readonly win: BrowserWindow
+  readonly tabs: Map<number, Tab>
+  activeId(): number | null
+  createTab(url?: string, activate?: boolean, agent?: boolean): number
+  setActive(id: number): void
+  closeTab(id: number): void
+  reopenClosedTab(): void
+  selectTabByIndex(n: number): void
+  reorderTabs(ids: number[]): void
+  activeWc(): WebContents | undefined
+  /** La pestaña activa, o undefined. Evita repetir el `activeId != null ? tabs.get(...)`. */
+  tabActiva(): Tab | undefined
+  layoutTabs(soloVisible?: boolean): void
+  layoutActive(): void
+  animateLayout(): void
+  pushState(): void
+  buildState(): BrowserState | null
+  toggleDevtools(): void
+  contentBounds(): { x: number; y: number; width: number; height: number }
+  setCollapsed(v: boolean): void
+  setChatOpen(v: boolean): void
+  isCollapsed(): boolean
+  scheduleTopSample(t: Tab): void
+  applyTopColor(t: Tab, c: string): void
+  soltarTabsDelBookmark(id: string): void
+  atarTabAlBookmark(t: Tab, bm: { id: string } | null): void
+}
 
-// Rutas de los renderers (dev usa el server de Vite, prod los archivos build)
+
+/**
+ * Todas las ventanas abiertas, por `BrowserWindow.id`.
+ *
+ * `` devuelve la ENFOCADA. Es un puente para el código que todavía asume una sola
+ * ventana: lo correcto en un handler IPC es resolver de quién viene el mensaje
+ * (`ventanaDe(e.sender)`), porque con dos abiertas "la enfocada" puede no ser la que te
+ * escribió — colapsarías el sidebar de la otra. Se migra handler a handler; hasta entonces
+ * `` se comporta exactamente como antes, que es la garantía de que esta rebanada no
+ * cambia nada.
+ */
 const RENDERER_URL = process.env['ELECTRON_RENDERER_URL']
-function loadRenderer(target: BrowserWindow, page: 'index' | 'menu') {
-  if (RENDERER_URL) target.loadURL(`${RENDERER_URL}/${page}.html`)
-  else target.loadFile(join(__dirname, `../renderer/${page}.html`))
+
+const ventanas = new Map<number, Ventana>()
+let ventanaEnfocadaId: number | null = null
+
+function vAct(): Ventana {
+  const v = (ventanaEnfocadaId != null ? ventanas.get(ventanaEnfocadaId) : null) ?? [...ventanas.values()][0]
+  if (!v) throw new Error('no hay ninguna ventana')
+  return v
+}
+/**
+ * Crea una ventana y la registra. Puede llamarse varias veces: es ⌘N.
+ *
+ * El foco se sigue con `focus`/`closed` porque `` necesita saber cuál es la de delante,
+ * y porque una ventana cerrada que siguiera en el registro dejaría `` devolviendo un
+ * `BrowserWindow` destruido — que revienta al primer uso, no al cerrarla.
+ */
+function createWindow(): Ventana {
+  const v = crearVentana()
+  ventanas.set(v.id, v)
+  ventanaEnfocadaId = v.id
+  v.win.on('focus', () => { ventanaEnfocadaId = v.id })
+  v.win.on('closed', () => {
+    // Cerrar la ventana no destruye los WebContentsView de sus pestañas: hay que hacerlo a
+    // mano o cada ⌘N + ⌘⇧W deja los procesos de renderer vivos.
+    for (const t of v.tabs.values()) {
+      if (!t.view.webContents.isDestroyed()) t.view.webContents.close()
+    }
+    v.tabs.clear()
+    ventanas.delete(v.id)
+    if (ventanaEnfocadaId === v.id) ventanaEnfocadaId = [...ventanas.keys()][0] ?? null
+  })
+  return v
 }
 
-function contentBounds() {
-  const [w, h] = win!.getContentSize()
-  const left = sidebarCollapsed ? 0 : sidebarWidth
-  const right = chatOpen ? chatWidth : 0
-  // Solo si la pestaña activa es la que el agente está controlando, reserva la franja de la leyenda.
-  const bottom = controllingActive() ? CONTROLLED_STRIP : 0
-  return { x: left, y: TOPBAR_HEIGHT, width: Math.max(0, w - left - right), height: Math.max(0, h - TOPBAR_HEIGHT - bottom) }
+/** La ventana viva, o null si todavía no hay ninguna (arranque, o todas cerradas). */
+function vActOpt(): Ventana | null {
+  return (ventanaEnfocadaId != null ? ventanas.get(ventanaEnfocadaId) : null) ?? [...ventanas.values()][0] ?? null
+}
+/** De qué ventana viene un mensaje IPC. Es lo que hay que usar en los handlers. */
+function ventanaDe(wc: WebContents): Ventana | null {
+  const w = BrowserWindow.fromWebContents(wc)
+  if (w && ventanas.has(w.id)) return ventanas.get(w.id) ?? null
+  // fromWebContents no resuelve siempre el WebContentsView de una pestaña: buscamos a mano.
+  for (const v of ventanas.values()) {
+    if (v.win.webContents === wc) return v
+    for (const t of v.tabs.values()) if (t.view.webContents === wc) return v
+  }
+  return null
+}
+/**
+ * La ventana desde la que llega un IPC. Es lo que deben usar los handlers: con dos ventanas
+ * abiertas, `vAct()` operaría sobre la enfocada, que no tiene por qué ser la que envió.
+ */
+function vDe(ev: { sender?: WebContents } | null | undefined): Ventana {
+  // `ev` puede venir sin sender: `ipcMain.emit` desde dentro del main no construye un evento.
+  return (ev?.sender ? ventanaDe(ev.sender) : null) ?? vAct()
+}
+/**
+ * El id de pestaña es único en TODA la app, no por ventana: si cada ventana empezara en 1,
+ * dos pestañas de ventanas distintas compartirían id y cualquier búsqueda global sería ambigua.
+ */
+let nextId = 1
+/** Los servicios de app (scheduler, updater) son uno solo, no uno por ventana. */
+let serviciosIniciados = false
+/**
+ * Difunde a TODAS las ventanas. Es lo correcto para el estado que es de la app y no de una
+ * ventana (marcadores, descargas, perfil, vault, actualizaciones): con dos abiertas, mandarlo
+ * solo a la enfocada deja la otra con datos viejos y sin forma de enterarse.
+ */
+function paraTodas(canal: string, ...args: unknown[]): void {
+  for (const v of ventanas.values()) {
+    if (!v.win.isDestroyed()) v.win.webContents.send(canal, ...args)
+  }
+}
+/**
+ * Las ventanas nativas que se crean una sola vez (vault, peek, store) capturan su `parent` al
+ * construirse. Con varias ventanas hay que re-parentarlas antes de mostrarlas o se quedan
+ * flotando sobre la ventana equivocada.
+ */
+/** Como `paraTodas`, pero a las pestañas internas de todas las ventanas (settings, descargas). */
+function paraPaginas(sufijoUrl: string, canal: string, ...args: unknown[]): void {
+  for (const v of ventanas.values()) {
+    for (const t of v.tabs.values()) {
+      if (t.url.includes(sufijoUrl) && !t.view.webContents.isDestroyed()) t.view.webContents.send(canal, ...args)
+    }
+  }
+}
+function reparentar(w: BrowserWindow | null, v?: Ventana): void {
+  if (!w || w.isDestroyed()) return
+  const padre = (v ?? vActOpt())?.win ?? null
+  if (padre && !padre.isDestroyed()) w.setParentWindow(padre)
 }
 
-/**
- * MONPER_NO_RADIUS=1: no redondear nunca la vista.
- *
- * Es un interruptor de diagnóstico, no una opción. Existe para decidir de una vez si el hueco
- * a la derecha al cerrar el chat lo causa la máscara del redondeado: `setBorderRadius` recorta
- * la vista, y `applyRadius` NO la reaplica cuando solo cambia el tamaño (ver abajo), así que
- * una máscara instalada a un ancho y nunca actualizada explicaría lo que se ve — recorte
- * persistente, no reflow. Con esto en 1 el hueco debe desaparecer; si sigue, no era esto.
- */
-const NO_RADIUS = process.env['MONPER_NO_RADIUS'] === '1'
+function crearVentana(): Ventana {
+  let win: BrowserWindow | null = null
+  const tabs = new Map<number, Tab>()
+  let activeId: number | null = null
+  let sidebarCollapsed = false
+  let chatOpen = false
 
-function applyRadius(t: Tab) {
-  if (NO_RADIUS || typeof t.view.setBorderRadius !== 'function') return
-  // Redondea cuando la página "flota" (sidebar izq y/o panel de chat der).
-  // El "sin redondeo" es 1, no 0, y no es un capricho: ver SIN_REDONDEO.
-  const r = !sidebarCollapsed || chatOpen ? CONTENT_RADIUS : SIN_REDONDEO
-  // Solo cuando CAMBIA. Reaplicar el radio en cada layout hace reaparecer las muescas de las
-  // esquinas; este `if` estaba en el último estado que se dio por bueno y quitarlo las trajo
-  // de vuelta. Ver docs/esquinas-y-vibrancy.md.
-  if (t.radius === r) return
-  sellarRadio(t, r)
-}
+  // Rutas de los renderers (dev usa el server de Vite, prod los archivos build)
+  function loadRenderer(target: BrowserWindow, page: 'index' | 'menu') {
+    if (RENDERER_URL) target.loadURL(`${RENDERER_URL}/${page}.html`)
+    else target.loadFile(join(__dirname, `../renderer/${page}.html`))
+  }
 
-/**
- * Instala la máscara y apunta a qué ancho se hizo.
- *
- * `forzar` pasa antes por otro valor. Hace falta al RESELLAR, donde el radio no cambia: si
- * Electron ignora un `setBorderRadius` con el mismo valor que ya tiene, la máscara se quedaría
- * con el tamaño viejo y el resellado sería un no-op perfecto — llamada hecha, nada reinstalado.
- * No hay getter con el que comprobarlo desde fuera, así que se fuerza.
- */
-function sellarRadio(t: Tab, r: number, forzar = false): void {
-  t.radius = r
-  t.radiusW = t.view.getBounds().width
-  // Un valor distinto, y NUNCA 0: el 0 no reinstala la máscara (ver SIN_REDONDEO), así que
-  // usarlo como paso intermedio dejaría puesta la vieja. +1 es un cambio real e invisible.
-  if (forzar) t.view.setBorderRadius(r + 1)
-  t.view.setBorderRadius(r)
-  if (DEBUG_LAYOUT) console.log(`[radio]   setBorderRadius(${r})${forzar ? ' [resellado]' : ''} con la vista a w=${t.radiusW}`)
-}
+  function contentBounds() {
+    const [w, h] = win!.getContentSize()
+    const left = sidebarCollapsed ? 0 : sidebarWidth
+    const right = chatOpen ? chatWidth : 0
+    // Solo si la pestaña activa es la que el agente está controlando, reserva la franja de la leyenda.
+    const bottom = controllingActive() ? CONTROLLED_STRIP : 0
+    return { x: left, y: TOPBAR_HEIGHT, width: Math.max(0, w - left - right), height: Math.max(0, h - TOPBAR_HEIGHT - bottom) }
+  }
 
-/**
- * Reinstala la máscara del redondeado cuando el tamaño ha cambiado.
- *
- * **Este era el hueco a la derecha al cerrar el chat.** `setBorderRadius` recorta la vista, y
- * ese recorte se instala con el tamaño que la vista tenía en ese momento. `applyRadius` solo
- * la reaplica cuando cambia el RADIO, nunca cuando cambia el ANCHO — así que tras
- * redimensionar el chat, la vista crecía pero seguía recortada al ancho viejo. Por eso el
- * síntoma era recorte y no reflow (el titular de GitHub salía partido a media palabra) y por
- * eso no se iba al reabrir el chat: la máscara seguía puesta.
- *
- * Confirmado con `MONPER_NO_RADIUS=1`: sin redondeo, el hueco no aparece.
- *
- * Va con debounce y **solo sobre la activa** a propósito. Reaplicar el radio en cada layout
- * es exactamente lo que hace reaparecer las muescas de las esquinas (docs/esquinas-y-vibrancy.md,
- * cuatro intentos fallidos); una sola vez cuando el tamaño se asienta, no.
- */
-const RESELLADO_MS = 80
-let resellarTimer: NodeJS.Timeout | null = null
-function resellarRadioAlAsentarse(): void {
-  if (resellarTimer) clearTimeout(resellarTimer)
-  resellarTimer = setTimeout(() => {
-    resellarTimer = null
-    const t = activeId != null ? tabs.get(activeId) : null
-    if (!t || typeof t.view.setBorderRadius !== 'function' || t.radius === null) return
-    if (t.radiusW === t.view.getBounds().width) return
-    sellarRadio(t, t.radius, true)
-  }, RESELLADO_MS)
-}
+  /**
+   * MONPER_NO_RADIUS=1: no redondear nunca la vista.
+   *
+   * Es un interruptor de diagnóstico, no una opción. Existe para decidir de una vez si el hueco
+   * a la derecha al cerrar el chat lo causa la máscara del redondeado: `setBorderRadius` recorta
+   * la vista, y `applyRadius` NO la reaplica cuando solo cambia el tamaño (ver abajo), así que
+   * una máscara instalada a un ancho y nunca actualizada explicaría lo que se ve — recorte
+   * persistente, no reflow. Con esto en 1 el hueco debe desaparecer; si sigue, no era esto.
+   */
+  const NO_RADIUS = process.env['MONPER_NO_RADIUS'] === '1'
 
-/**
- * Reposiciona TODAS las vistas al área de contenido y trae la activa al frente.
- * Mantenerlas todas vivas (mismo rect, fondo opaco) hace el cambio de pestaña
- * INSTANTÁNEO — no hay repaint por ocultar/mostrar — y sin sangrado en las esquinas
- * redondeadas: todas se recortan igual y la activa (opaca) tapa a las de atrás.
- */
-// Warm set (LRU): mantenemos vivas y compuestas solo las N pestañas más recientes.
-// Cambiar entre ellas es instantáneo (ya están pintadas); las "frías" se ocultan para
-// que dejen de renderizar (ahorra CPU/GPU/energía). Es la contraparte del keep-alive.
-/**
- * Orden de uso reciente de las pestañas (la más reciente primero).
- *
- * Ya NO decide qué se dibuja — eso es solo la activa, ver `layoutTabs`. Se mantiene porque es
- * el LRU que necesita el descarte de pestañas en segundo plano (punto 11 de
- * docs/browser-hardening.md): dormir las que llevan mucho sin tocarse.
- */
-const warmOrder: number[] = []
-function touchWarm(id: number): void {
-  const i = warmOrder.indexOf(id)
-  if (i >= 0) warmOrder.splice(i, 1)
-  warmOrder.unshift(id)
-}
+  function applyRadius(t: Tab) {
+    if (NO_RADIUS || typeof t.view.setBorderRadius !== 'function') return
+    // Redondea cuando la página "flota" (sidebar izq y/o panel de chat der).
+    // El "sin redondeo" es 1, no 0, y no es un capricho: ver SIN_REDONDEO.
+    const r = !sidebarCollapsed || chatOpen ? CONTENT_RADIUS : SIN_REDONDEO
+    // Solo cuando CAMBIA. Reaplicar el radio en cada layout hace reaparecer las muescas de las
+    // esquinas; este `if` estaba en el último estado que se dio por bueno y quitarlo las trajo
+    // de vuelta. Ver docs/esquinas-y-vibrancy.md.
+    if (t.radius === r) return
+    sellarRadio(t, r)
+  }
 
-/**
- * Aquí NO se cachea lo último aplicado.
- *
- * Se probó (caché de bounds/visible/radius para no repetir llamadas al compositor) y se
- * revirtió: medido con `contentTracing`, no movía ni un frame descartado —así que no pagaba
- * por sí misma— y en cambio introducía un modo de fallo nuevo: en cuanto alguien cambia la
- * geometría por otra vía, la caché miente y `layoutTabs` se salta el cambio que hacía falta
- * (pasó con `ui:omnibox`). Repetir un `setBounds` es barato; una vista con el tamaño
- * equivocado no.
- *
- * Aquí se sospechaba también del hueco al cerrar el panel de chat, que llevaba tiempo sin
- * reproducirse. **No era esto**: era la máscara de `setBorderRadius`, que se instala con un
- * tamaño y no se reaplicaba al cambiar el ancho. Ver `resellarRadioAlAsentarse`.
- */
-/**
- * MONPER_DEBUG_LAYOUT=1: imprime, en cada layout, de dónde sale el rect y qué queda libre.
- *
- * Existe por un hueco a la derecha al cerrar el chat tras redimensionarlo que NO se pudo
- * reproducir: se midieron las cajas del main, los estilos del DOM y los píxeles de la página,
- * y las tres acababan correctas en todas las secuencias probadas. Sin poder reproducirlo,
- * arreglarlo sería adivinar; esto dice qué eslabón miente cuando vuelva a pasar.
- */
-const DEBUG_LAYOUT = process.env['MONPER_DEBUG_LAYOUT'] === '1'
+  /**
+   * Instala la máscara y apunta a qué ancho se hizo.
+   *
+   * `forzar` pasa antes por otro valor. Hace falta al RESELLAR, donde el radio no cambia: si
+   * Electron ignora un `setBorderRadius` con el mismo valor que ya tiene, la máscara se quedaría
+   * con el tamaño viejo y el resellado sería un no-op perfecto — llamada hecha, nada reinstalado.
+   * No hay getter con el que comprobarlo desde fuera, así que se fuerza.
+   */
+  function sellarRadio(t: Tab, r: number, forzar = false): void {
+    t.radius = r
+    t.radiusW = t.view.getBounds().width
+    // Un valor distinto, y NUNCA 0: el 0 no reinstala la máscara (ver SIN_REDONDEO), así que
+    // usarlo como paso intermedio dejaría puesta la vieja. +1 es un cambio real e invisible.
+    if (forzar) t.view.setBorderRadius(r + 1)
+    t.view.setBorderRadius(r)
+    if (DEBUG_LAYOUT) console.log(`[radio]   setBorderRadius(${r})${forzar ? ' [resellado]' : ''} con la vista a w=${t.radiusW}`)
+  }
+
+  /**
+   * Reinstala la máscara del redondeado cuando el tamaño ha cambiado.
+   *
+   * **Este era el hueco a la derecha al cerrar el chat.** `setBorderRadius` recorta la vista, y
+   * ese recorte se instala con el tamaño que la vista tenía en ese momento. `applyRadius` solo
+   * la reaplica cuando cambia el RADIO, nunca cuando cambia el ANCHO — así que tras
+   * redimensionar el chat, la vista crecía pero seguía recortada al ancho viejo. Por eso el
+   * síntoma era recorte y no reflow (el titular de GitHub salía partido a media palabra) y por
+   * eso no se iba al reabrir el chat: la máscara seguía puesta.
+   *
+   * Confirmado con `MONPER_NO_RADIUS=1`: sin redondeo, el hueco no aparece.
+   *
+   * Va con debounce y **solo sobre la activa** a propósito. Reaplicar el radio en cada layout
+   * es exactamente lo que hace reaparecer las muescas de las esquinas (docs/esquinas-y-vibrancy.md,
+   * cuatro intentos fallidos); una sola vez cuando el tamaño se asienta, no.
+   */
+  const RESELLADO_MS = 80
+  let resellarTimer: NodeJS.Timeout | null = null
+  function resellarRadioAlAsentarse(): void {
+    if (resellarTimer) clearTimeout(resellarTimer)
+    resellarTimer = setTimeout(() => {
+      resellarTimer = null
+      const t = activeId != null ? tabs.get(activeId) : null
+      if (!t || typeof t.view.setBorderRadius !== 'function' || t.radius === null) return
+      if (t.radiusW === t.view.getBounds().width) return
+      sellarRadio(t, t.radius, true)
+    }, RESELLADO_MS)
+  }
+
+  /**
+   * Reposiciona TODAS las vistas al área de contenido y trae la activa al frente.
+   * Mantenerlas todas vivas (mismo rect, fondo opaco) hace el cambio de pestaña
+   * INSTANTÁNEO — no hay repaint por ocultar/mostrar — y sin sangrado en las esquinas
+   * redondeadas: todas se recortan igual y la activa (opaca) tapa a las de atrás.
+   */
+  // Warm set (LRU): mantenemos vivas y compuestas solo las N pestañas más recientes.
+  // Cambiar entre ellas es instantáneo (ya están pintadas); las "frías" se ocultan para
+  // que dejen de renderizar (ahorra CPU/GPU/energía). Es la contraparte del keep-alive.
+  /**
+   * Orden de uso reciente de las pestañas (la más reciente primero).
+   *
+   * Ya NO decide qué se dibuja — eso es solo la activa, ver `layoutTabs`. Se mantiene porque es
+   * el LRU que necesita el descarte de pestañas en segundo plano (punto 11 de
+   * docs/browser-hardening.md): dormir las que llevan mucho sin tocarse.
+   */
+  const warmOrder: number[] = []
+  function touchWarm(id: number): void {
+    const i = warmOrder.indexOf(id)
+    if (i >= 0) warmOrder.splice(i, 1)
+    warmOrder.unshift(id)
+  }
+
+  /**
+   * Aquí NO se cachea lo último aplicado.
+   *
+   * Se probó (caché de bounds/visible/radius para no repetir llamadas al compositor) y se
+   * revirtió: medido con `contentTracing`, no movía ni un frame descartado —así que no pagaba
+   * por sí misma— y en cambio introducía un modo de fallo nuevo: en cuanto alguien cambia la
+   * geometría por otra vía, la caché miente y `layoutTabs` se salta el cambio que hacía falta
+   * (pasó con `ui:omnibox`). Repetir un `setBounds` es barato; una vista con el tamaño
+   * equivocado no.
+   *
+   * Aquí se sospechaba también del hueco al cerrar el panel de chat, que llevaba tiempo sin
+   * reproducirse. **No era esto**: era la máscara de `setBorderRadius`, que se instala con un
+   * tamaño y no se reaplicaba al cambiar el ancho. Ver `resellarRadioAlAsentarse`.
+   */
+  /**
+   * MONPER_DEBUG_LAYOUT=1: imprime, en cada layout, de dónde sale el rect y qué queda libre.
+   *
+   * Existe por un hueco a la derecha al cerrar el chat tras redimensionarlo que NO se pudo
+   * reproducir: se midieron las cajas del main, los estilos del DOM y los píxeles de la página,
+   * y las tres acababan correctas en todas las secuencias probadas. Sin poder reproducirlo,
+   * arreglarlo sería adivinar; esto dice qué eslabón miente cuando vuelva a pasar.
+   */
+  const DEBUG_LAYOUT = process.env['MONPER_DEBUG_LAYOUT'] === '1'
 
 
-/**
- * @param soloVisible redimensiona SOLO la vista activa. Lo usan el arrastre de los paneles y
- * el final de la animación: tocar las ocultas ahí rompe el compositor (ver dentro del bucle).
- */
-function layoutTabs(soloVisible = false) {
-  if (!win || win.isDestroyed()) return
-  const cb = contentBounds()
-  if (DEBUG_LAYOUT) {
-    const [aw] = win.getContentSize()
+  /**
+   * @param soloVisible redimensiona SOLO la vista activa. Lo usan el arrastre de los paneles y
+   * el final de la animación: tocar las ocultas ahí rompe el compositor (ver dentro del bucle).
+   */
+  function layoutTabs(soloVisible = false) {
+    if (!win || win.isDestroyed()) return
+    const cb = contentBounds()
+    if (DEBUG_LAYOUT) {
+      const [aw] = win.getContentSize()
+      const at = activeId != null ? tabs.get(activeId) : null
+      const real = at?.view.getBounds()
+      console.log(
+        `[layout] ventana=${aw} sidebar=${sidebarCollapsed ? 'colapsado' : sidebarWidth} ` +
+        `chat=${chatOpen ? chatWidth : 'cerrado'} → calculado x=${cb.x} w=${cb.width} libre=${aw - cb.x - cb.width}` +
+        (real ? `  | vista real x=${real.x} w=${real.width} libre=${aw - real.x - real.width}` : '')
+      )
+    }
+    for (const [id, t] of tabs) {
+      /**
+       * SOLO la activa se dibuja. Las demás son vistas apiladas en el MISMO rect, así que
+       * dejarlas visibles solo era inofensivo mientras la de encima fuese opaca y ya hubiese
+       * pintado. Ninguna de las dos cosas se cumple siempre:
+       *  - una página interna es translúcida y deja ver las de detrás (settings sobre newtab);
+       *  - una pestaña recién creada tarda ~80ms en su primer frame, y en ese hueco se ve a
+       *    través de ella lo que haya debajo (medido al abrir un marcador desde settings).
+       * Se intentó acotarlo al primer caso y volvió disfrazado del segundo. La condición
+       * correcta no es "¿puede taparlas?" sino "no hay razón para dibujarlas".
+       *
+       * No cuesta nada medible: en docs/rendimiento.md está comprobado que el primer frame
+       * tarda 2-10ms tanto si la pestaña venía del warm set como si estaba fría. El warm set
+       * nunca compró velocidad de pintado; solo hacía renderizar hasta 8 vistas a la vez.
+       */
+      const activa = id === activeId
+      t.view.setVisible(activa)
+      /**
+       * Una vista OCULTA no sigue el layout en vivo.
+       *
+       * Al ocultarlas, Chromium libera sus superficies de GPU. Redimensionarlas igualmente
+       * —y durante un arrastre eso son 60 `setBounds` por segundo sobre cada una— hacía que el
+       * proceso de GPU escupiera `SharedImageManager::ProduceSkia: Trying to Produce a Skia
+       * representation from a non-existent mailbox`, y tras ese error la vista ACTIVA se
+       * quedaba mostrando el frame del ancho viejo: el hueco a la derecha al cerrar el chat.
+       *
+       * No las deja descuadradas: `soloVisible` solo lo usan el arrastre y la animación. Al
+       * activar una pestaña, `setActive` llama a este layout completo, así que recibe su
+       * tamaño antes de mostrarse.
+       */
+      if (soloVisible && !activa) continue
+      t.view.setBounds(cb)
+      applyRadius(t)
+    }
+    // La activa al frente, pero SOLO si no lo está ya: `addChildView` sobre una vista que ya
+    // cuelga del contentView la desengancha y la vuelve a enganchar, y esto se llama en cada
+    // colapso, cada apertura del chat y cada resize. Medido: 12 de 12 llamadas eran
+    // redundantes, o sea 12 re-enganches al compositor para dejar todo como estaba.
     const at = activeId != null ? tabs.get(activeId) : null
-    const real = at?.view.getBounds()
-    console.log(
-      `[layout] ventana=${aw} sidebar=${sidebarCollapsed ? 'colapsado' : sidebarWidth} ` +
-      `chat=${chatOpen ? chatWidth : 'cerrado'} → calculado x=${cb.x} w=${cb.width} libre=${aw - cb.x - cb.width}` +
-      (real ? `  | vista real x=${real.x} w=${real.width} libre=${aw - real.x - real.width}` : '')
-    )
+    if (at) {
+      const kids = win.contentView.children
+      if (kids[kids.length - 1] !== at.view) win.contentView.addChildView(at.view)
+    }
+    // El chrome copia esta misma posición: no anima por su cuenta (ver Content.tsx).
+    publicarRect(cb)
+    resellarRadioAlAsentarse()
   }
-  for (const [id, t] of tabs) {
-    /**
-     * SOLO la activa se dibuja. Las demás son vistas apiladas en el MISMO rect, así que
-     * dejarlas visibles solo era inofensivo mientras la de encima fuese opaca y ya hubiese
-     * pintado. Ninguna de las dos cosas se cumple siempre:
-     *  - una página interna es translúcida y deja ver las de detrás (settings sobre newtab);
-     *  - una pestaña recién creada tarda ~80ms en su primer frame, y en ese hueco se ve a
-     *    través de ella lo que haya debajo (medido al abrir un marcador desde settings).
-     * Se intentó acotarlo al primer caso y volvió disfrazado del segundo. La condición
-     * correcta no es "¿puede taparlas?" sino "no hay razón para dibujarlas".
-     *
-     * No cuesta nada medible: en docs/rendimiento.md está comprobado que el primer frame
-     * tarda 2-10ms tanto si la pestaña venía del warm set como si estaba fría. El warm set
-     * nunca compró velocidad de pintado; solo hacía renderizar hasta 8 vistas a la vez.
-     */
-    const activa = id === activeId
-    t.view.setVisible(activa)
-    /**
-     * Una vista OCULTA no sigue el layout en vivo.
-     *
-     * Al ocultarlas, Chromium libera sus superficies de GPU. Redimensionarlas igualmente
-     * —y durante un arrastre eso son 60 `setBounds` por segundo sobre cada una— hacía que el
-     * proceso de GPU escupiera `SharedImageManager::ProduceSkia: Trying to Produce a Skia
-     * representation from a non-existent mailbox`, y tras ese error la vista ACTIVA se
-     * quedaba mostrando el frame del ancho viejo: el hueco a la derecha al cerrar el chat.
-     *
-     * No las deja descuadradas: `soloVisible` solo lo usan el arrastre y la animación. Al
-     * activar una pestaña, `setActive` llama a este layout completo, así que recibe su
-     * tamaño antes de mostrarse.
-     */
-    if (soloVisible && !activa) continue
-    t.view.setBounds(cb)
-    applyRadius(t)
-  }
-  // La activa al frente, pero SOLO si no lo está ya: `addChildView` sobre una vista que ya
-  // cuelga del contentView la desengancha y la vuelve a enganchar, y esto se llama en cada
-  // colapso, cada apertura del chat y cada resize. Medido: 12 de 12 llamadas eran
-  // redundantes, o sea 12 re-enganches al compositor para dejar todo como estaba.
-  const at = activeId != null ? tabs.get(activeId) : null
-  if (at) {
-    const kids = win.contentView.children
-    if (kids[kids.length - 1] !== at.view) win.contentView.addChildView(at.view)
-  }
-  // El chrome copia esta misma posición: no anima por su cuenta (ver Content.tsx).
-  publicarRect(cb)
-  resellarRadioAlAsentarse()
-}
 
-/** Manda al chrome el rect que acaba de aplicarse a la vista nativa. */
-function publicarRect(r: { x: number; width: number }): void {
-  if (!win || win.isDestroyed()) return
-  const [ancho] = win.getContentSize()
-  win.webContents.send('layout:frame', { left: r.x, right: Math.max(0, ancho - r.x - r.width) })
-}
-// Alias: llamadas existentes que solo querían recolocar la vista activa.
-function layoutActive() { layoutTabs() }
+  /** Manda al chrome el rect que acaba de aplicarse a la vista nativa. */
+  function publicarRect(r: { x: number; width: number }): void {
+    if (!win || win.isDestroyed()) return
+    const [ancho] = win.getContentSize()
+    win.webContents.send('layout:frame', { left: r.x, right: Math.max(0, ancho - r.x - r.width) })
+  }
+  // Alias: llamadas existentes que solo querían recolocar la vista activa.
+  function layoutActive() { layoutTabs() }
 
-// Anima los bounds de TODAS las vistas en sync con la transición CSS del content.
-const COLLAPSE_MS = 180
-let collapseAnim: NodeJS.Timeout | null = null
-function animateLayout() {
-  if (!win || win.isDestroyed() || tabs.size === 0) return
-  for (const t of tabs.values()) applyRadius(t)
-  // Solo se anima la ACTIVA: es la única que se dibuja, y mover las ocultas a 60fps rompía
-  // el compositor (ver el comentario de `soloVisible` en layoutTabs). Las demás reciben su
-  // tamaño en el `layoutTabs()` completo del final.
-  const activa = activeId != null ? tabs.get(activeId) : null
-  if (!activa) return
-  const inicio = activa.view.getBounds()
-  const target = contentBounds()
+  // Anima los bounds de TODAS las vistas en sync con la transición CSS del content.
+  const COLLAPSE_MS = 180
+  let collapseAnim: NodeJS.Timeout | null = null
+  function animateLayout() {
+    if (!win || win.isDestroyed() || tabs.size === 0) return
+    for (const t of tabs.values()) applyRadius(t)
+    // Solo se anima la ACTIVA: es la única que se dibuja, y mover las ocultas a 60fps rompía
+    // el compositor (ver el comentario de `soloVisible` en layoutTabs). Las demás reciben su
+    // tamaño en el `layoutTabs()` completo del final.
+    const activa = activeId != null ? tabs.get(activeId) : null
+    if (!activa) return
+    const inicio = activa.view.getBounds()
+    const target = contentBounds()
+    /**
+     * El reloj arranca en el PRIMER tick, no aquí.
+     *
+     * Medido: el primer tick del intervalo llega ~34ms tarde (el main está ocupado justo
+     * después del click), y como la curva está muy cargada al principio, arrancar el reloj
+     * antes hacía que la vista nativa apareciera ya al 47% del recorrido — un salto de 112px
+     * mientras el chrome iba por 61. Se veía como si fueran a velocidades distintas.
+     * Arrancando aquí, el primer frame cae en p=0 y el retraso se paga al final, donde la
+     * curva es plana: 2px sobre 240.
+     */
+    let t0 = 0
+    if (collapseAnim) clearInterval(collapseAnim)
+    collapseAnim = setInterval(() => {
+      const ahora = Date.now()
+      if (!t0) t0 = ahora
+      const p = Math.min(1, (ahora - t0) / COLLAPSE_MS)
+      const e = 1 - Math.pow(1 - p, 3) // easeOutCubic
+      const rect = {
+        x: Math.round(inicio.x + (target.x - inicio.x) * e),
+        width: Math.round(inicio.width + (target.width - inicio.width) * e)
+      }
+      activa.view.setBounds({ x: rect.x, y: target.y, width: rect.width, height: target.height })
+      // El MISMO rect al chrome, en el mismo tick. Antes el topbar lo animaba una transición
+      // CSS por su cuenta: dos relojes independientes, y por mucho que coincidieran la curva y
+      // la duración, siempre se veían desfasados. Ahora hay un solo animador y el topbar se
+      // limita a copiar la posición de la página.
+      publicarRect(rect)
+      if (p >= 1 && collapseAnim) { clearInterval(collapseAnim); collapseAnim = null; layoutTabs() }
+    }, 1000 / 60)
+  }
+
+  // DevTools en su propia ventana (undocked): trae cerrar, redimensionar y reposicionar
+  // (dock-side) nativos, y no toca nuestro layout ni el rounding del page view.
+  function toggleDevtools(): void {
+    const wc = activeId != null ? tabs.get(activeId)?.view.webContents : undefined
+    if (!wc) return
+    if (wc.isDevToolsOpened()) wc.closeDevTools()
+    else wc.openDevTools({ mode: 'detach' })
+  }
+
   /**
-   * El reloj arranca en el PRIMER tick, no aquí.
+   * El estado actual, para poder MANDARLO y también para poder PEDIRLO.
    *
-   * Medido: el primer tick del intervalo llega ~34ms tarde (el main está ocupado justo
-   * después del click), y como la curva está muy cargada al principio, arrancar el reloj
-   * antes hacía que la vista nativa apareciera ya al 47% del recorrido — un salto de 112px
-   * mientras el chrome iba por 61. Se veía como si fueran a velocidades distintas.
-   * Arrancando aquí, el primer frame cae en p=0 y el retraso se paga al final, donde la
-   * curva es plana: 2px sobre 240.
+   * `state:update` es solo push, y eso deja fuera a cualquiera que se suscriba tarde: el peek se
+   * crea al vuelo y su React se suscribe después del `pushState()` que lo acompaña, así que
+   * salía con las pestañas de otro momento (o sin ninguna) hasta el siguiente cambio. Con
+   * `state:get` quien se suscribe pide el estado y deja de depender de llegar a tiempo.
    */
-  let t0 = 0
-  if (collapseAnim) clearInterval(collapseAnim)
-  collapseAnim = setInterval(() => {
-    const ahora = Date.now()
-    if (!t0) t0 = ahora
-    const p = Math.min(1, (ahora - t0) / COLLAPSE_MS)
-    const e = 1 - Math.pow(1 - p, 3) // easeOutCubic
-    const rect = {
-      x: Math.round(inicio.x + (target.x - inicio.x) * e),
-      width: Math.round(inicio.width + (target.width - inicio.width) * e)
+  function buildState(): BrowserState | null {
+    if (!win || win.isDestroyed()) return null
+    const t = activeId != null ? tabs.get(activeId) : null
+    const displayUrl = (u: string) => (isInternal(u) ? '' : u)
+    const state: BrowserState = {
+      activeId,
+      tabs: [...tabs.entries()].map(([id, tb]) => ({
+        id, url: tb.errorUrl ?? displayUrl(tb.url), title: tb.title || 'Nueva pestaña', favicon: tb.favicon, loading: tb.loading, recording: tb.recording, muted: tb.muted, audible: tb.audible, agent: tb.agent, bookmarkId: tb.bookmarkId, internal: internalPageOf(tb.url)
+      })),
+      active: t
+        ? {
+            url: t.errorUrl ?? displayUrl(t.url), internal: internalPageOf(t.url), title: t.title, canBack: t.canBack, canForward: t.canForward,
+            // Translúcida ⇒ sin color: la franja de costura no debe pintar nada (ver applyBackdrop).
+            loading: t.loading, pageColor: esTranslucida(t) ? 'transparent' : (t.pageBg || t.themeColor),
+            bookmarked: isBookmarked(t.errorUrl ?? t.url),
+            muted: t.muted, audible: t.audible
+          }
+        : null,
+      controlling: controllingActive()
     }
-    activa.view.setBounds({ x: rect.x, y: target.y, width: rect.width, height: target.height })
-    // El MISMO rect al chrome, en el mismo tick. Antes el topbar lo animaba una transición
-    // CSS por su cuenta: dos relojes independientes, y por mucho que coincidieran la curva y
-    // la duración, siempre se veían desfasados. Ahora hay un solo animador y el topbar se
-    // limita a copiar la posición de la página.
-    publicarRect(rect)
-    if (p >= 1 && collapseAnim) { clearInterval(collapseAnim); collapseAnim = null; layoutTabs() }
-  }, 1000 / 60)
-}
-
-// DevTools en su propia ventana (undocked): trae cerrar, redimensionar y reposicionar
-// (dock-side) nativos, y no toca nuestro layout ni el rounding del page view.
-function toggleDevtools(): void {
-  const wc = activeId != null ? tabs.get(activeId)?.view.webContents : undefined
-  if (!wc) return
-  if (wc.isDevToolsOpened()) wc.closeDevTools()
-  else wc.openDevTools({ mode: 'detach' })
-}
-
-/**
- * El estado actual, para poder MANDARLO y también para poder PEDIRLO.
- *
- * `state:update` es solo push, y eso deja fuera a cualquiera que se suscriba tarde: el peek se
- * crea al vuelo y su React se suscribe después del `pushState()` que lo acompaña, así que
- * salía con las pestañas de otro momento (o sin ninguna) hasta el siguiente cambio. Con
- * `state:get` quien se suscribe pide el estado y deja de depender de llegar a tiempo.
- */
-function buildState(): BrowserState | null {
-  if (!win || win.isDestroyed()) return null
-  const t = activeId != null ? tabs.get(activeId) : null
-  const displayUrl = (u: string) => (isInternal(u) ? '' : u)
-  const state: BrowserState = {
-    activeId,
-    tabs: [...tabs.entries()].map(([id, tb]) => ({
-      id, url: tb.errorUrl ?? displayUrl(tb.url), title: tb.title || 'Nueva pestaña', favicon: tb.favicon, loading: tb.loading, recording: tb.recording, muted: tb.muted, audible: tb.audible, agent: tb.agent, bookmarkId: tb.bookmarkId, internal: internalPageOf(tb.url)
-    })),
-    active: t
-      ? {
-          url: t.errorUrl ?? displayUrl(t.url), internal: internalPageOf(t.url), title: t.title, canBack: t.canBack, canForward: t.canForward,
-          // Translúcida ⇒ sin color: la franja de costura no debe pintar nada (ver applyBackdrop).
-          loading: t.loading, pageColor: esTranslucida(t) ? 'transparent' : (t.pageBg || t.themeColor),
-          bookmarked: isBookmarked(t.errorUrl ?? t.url),
-          muted: t.muted, audible: t.audible
-        }
-      : null,
-    controlling: controllingActive()
+    return state
   }
-  return state
-}
 
-function pushState(): void {
-  const state = buildState()
-  if (!state || !win || win.isDestroyed()) return
-  const t = activeId != null ? tabs.get(activeId) : null
-  win.webContents.send('state:update', state)
-  // El título de la ventana. No se ve en la barra (es frameless), pero sí en Mission
-  // Control, en el menú Ventana y al compartir pantalla, donde antes ponía siempre
-  // "Monper": las pestañas son WebContentsView aparte, así que el título del chrome nunca
-  // cambiaba solo.
-  win.setTitle(t?.title ? `${t.title} — Monper` : 'Monper')
-  // El peek renderiza el mismo <Sidebar/> con el mismo preload: recibe el mismo estado.
-  if (peekWin && !peekWin.isDestroyed()) peekWin.webContents.send('state:update', state)
-  // La ventana de extensiones detecta si estás en una página de la Store.
-  if (extPopover.isVisible()) sendExtensions()
-}
-
-/**
- * Aplica el color muestreado bajo el topbar. Lo emite el preload de la página
- * (en la carga y en cada scroll), así el topbar se funde con lo que hay debajo.
- */
-/**
- * Nuestras páginas (newtab, settings, downloads, error) se dibujan TRANSLÚCIDAS, para que se
- * vea la vibrancy de la ventana igual que en el sidebar y el chat. Una web no: la
- * transparencia es del producto, no algo que se le concede a cualquier sitio.
- *
- * Dos cosas tienen que ir juntas o se rompe:
- *  - la vista nativa deja de tener fondo opaco (aquí);
- *  - `pageColor` pasa a ser transparente, para que la franja de costura NO pinte. Esa franja
- *    vive DEBAJO de la página, así que con la página translúcida se vería como una banda
- *    opaca de 16px bajo el topbar (ver docs/esquinas-y-vibrancy.md, regla 2).
- * Y no se muestrea el color: capturar una página transparente da un píxel que no significa
- * nada, y `applyTopColor` volvería a ponerle fondo opaco a la vista.
- */
-function esTranslucida(t: Tab): boolean {
-  return isInternal(t.url)
-}
-function applyBackdrop(t: Tab): void {
-  if (typeof t.view.setBackgroundColor !== 'function') return
-  t.view.setBackgroundColor(esTranslucida(t) ? '#00000000' : (rgbToHex(t.pageBg ?? '') ?? APP_BG))
-}
-
-function applyTopColor(t: Tab, c: string): void {
-  if (esTranslucida(t)) return
-  if (!c || t.pageBg === c) return
-  t.pageBg = c
-  // Alinea el fondo opaco de la vista con el color real de la página: así el frame en
-  // blanco al cambiar de pestaña coincide con la página (sin flash blanco en páginas oscuras).
-  const hex = rgbToHex(c)
-  if (hex && typeof t.view.setBackgroundColor === 'function') t.view.setBackgroundColor(hex)
-  pushState()
-}
-/**
- * Diagnóstico de las esquinas: compara el color que usamos para tapar la costura contra
- * el píxel REAL de cada esquina de la página. Si no coinciden, el problema es el muestreo;
- * si coinciden, el arco es del antialiasing del compositor y el redondeado hay que quitarlo.
- * Se activa con MONPER_DEBUG_CORNERS=1.
- */
-const DEBUG_CORNERS = process.env['MONPER_DEBUG_CORNERS'] === '1'
-async function logCornerDiagnostics(t: Tab, sampled: string): Promise<void> {
-  const b = t.view.getBounds()
-  const pixel = async (x: number, y: number): Promise<string> => {
-    try {
-      const img = await t.view.webContents.capturePage({ x, y, width: 1, height: 1 })
-      const p = img.toBitmap()
-      return p.length >= 3 ? `#${[p[2], p[1], p[0]].map((n) => n.toString(16).padStart(2, '0')).join('')}` : '??'
-    } catch { return '??' }
+  function pushState(): void {
+    const state = buildState()
+    if (!state || !win || win.isDestroyed()) return
+    const t = activeId != null ? tabs.get(activeId) : null
+    win.webContents.send('state:update', state)
+    // El título de la ventana. No se ve en la barra (es frameless), pero sí en Mission
+    // Control, en el menú Ventana y al compartir pantalla, donde antes ponía siempre
+    // "Monper": las pestañas son WebContentsView aparte, así que el título del chrome nunca
+    // cambiaba solo.
+    win.setTitle(t?.title ? `${t.title} — Monper` : 'Monper')
+    // El peek renderiza el mismo <Sidebar/> con el mismo preload: recibe el mismo estado.
+    if (peekWin && !peekWin.isDestroyed()) peekWin.webContents.send('state:update', state)
+    // La ventana de extensiones detecta si estás en una página de la Store.
+    if (extPopover.isVisible()) sendExtensions()
   }
-  const [tl, tr, bl, br] = await Promise.all([
-    pixel(1, 1),
-    pixel(Math.max(0, b.width - 2), 1),
-    pixel(1, Math.max(0, b.height - 2)),
-    pixel(Math.max(0, b.width - 2), Math.max(0, b.height - 2))
-  ])
-  console.log('[esquinas]', {
-    radio: CONTENT_RADIUS,
-    usadoParaLaCostura: sampled,
-    pixelRealArribaIzq: tl,
-    pixelRealArribaDer: tr,
-    pixelRealAbajoIzq: bl,
-    pixelRealAbajoDer: br,
-    fondoApp: APP_BG,
-    coincideArribaIzq: tl.toLowerCase() === sampled.toLowerCase()
-  })
-}
 
-/**
- * Muestrea el color REAL bajo el topbar capturando una franja de 3px del render y
- * promediándola (resize 1x1). A diferencia de leer CSS, esto ve gradientes, imágenes
- * y video — que es lo que usan la mayoría de los hero de las páginas.
- */
-async function sampleTopStrip(t: Tab, motivo = 'directo'): Promise<void> {
-  if (esTranslucida(t)) return // no hay color que muestrear: la página deja ver la ventana
-  const b = t.view.getBounds()
-  if (b.width < 8 || b.height < 8) return
-  try {
-    // Muestreamos LA ESQUINA superior-izquierda, no el ancho completo: este color rellena
-    // la muesca del redondeado nativo, así que debe coincidir con el píxel de ESA esquina.
-    // Promediar toda la franja daba un color distinto en páginas con degradado o con algo
-    // claro arriba, y esa diferencia se veía como un arco en la esquina.
-    const w = Math.min(24, b.width)
-    const img = await t.view.webContents.capturePage({ x: 0, y: 0, width: w, height: 4 })
-    if (img.isEmpty()) return
-    const px = img.resize({ width: 1, height: 1, quality: 'good' }).toBitmap() // BGRA
-    if (px.length < 3) return
-    const hex = `#${[px[2], px[1], px[0]].map((n) => n.toString(16).padStart(2, '0')).join('')}`
-    if (DEBUG_CORNERS) await logCornerDiagnostics(t, hex)
-    if (DEBUG_TOPCOLOR) {
-      const y = await t.view.webContents.executeJavaScript('window.scrollY').catch(() => '?')
-      console.log(`[topcolor] ${motivo.padEnd(7)} scrollY=${String(y).padStart(6)}  ${hex}${t.pageBg === hex ? '' : '  ← cambia'}`)
-    }
-    applyTopColor(t, hex)
-  } catch { /* la vista puede estar oculta o destruida */ }
-}
-/**
- * Throttle por pestaña: el scroll dispara mucho, así que capturamos como máximo cada 100ms.
- *
- * Dos cosas que NO son opcionales, y que faltaban:
- *
- * 1. **Muestra de cierre (`again`).** Los eventos que llegaban mientras había una captura
- *    pendiente se descartaban y nadie volvía a mirar. Si el último evento del scroll caía en
- *    esa ventana, el topbar se quedaba con el color de MITAD del recorrido.
- * 2. **Muestra tras el reposo (`SETTLE_MS`).** En macOS el scroll sigue animándose después
- *    del último evento `scroll` del DOM: momentum y, al llegar arriba, el rebote elástico.
- *    Esa animación la hace el compositor y NO emite más eventos, así que la última captura
- *    veía un frame intermedio. Síntoma: al volver arriba había que mover un pelín el scroll
- *    para que cogiera el color bueno.
- */
-const DEBUG_TOPCOLOR = process.env['MONPER_DEBUG_TOPCOLOR'] === '1'
-const topSampleAt = new WeakMap<Tab, number>()
-const topSamplePending = new WeakSet<Tab>()
-const topSampleAgain = new WeakSet<Tab>()
-const topSettle = new WeakMap<Tab, NodeJS.Timeout>()
-const SETTLE_MS = 260 // margen para que el momentum y el rebote terminen
+  /**
+   * Aplica el color muestreado bajo el topbar. Lo emite el preload de la página
+   * (en la carga y en cada scroll), así el topbar se funde con lo que hay debajo.
+   */
+  /**
+   * Nuestras páginas (newtab, settings, downloads, error) se dibujan TRANSLÚCIDAS, para que se
+   * vea la vibrancy de la ventana igual que en el sidebar y el chat. Una web no: la
+   * transparencia es del producto, no algo que se le concede a cualquier sitio.
+   *
+   * Dos cosas tienen que ir juntas o se rompe:
+   *  - la vista nativa deja de tener fondo opaco (aquí);
+   *  - `pageColor` pasa a ser transparente, para que la franja de costura NO pinte. Esa franja
+   *    vive DEBAJO de la página, así que con la página translúcida se vería como una banda
+   *    opaca de 16px bajo el topbar (ver docs/esquinas-y-vibrancy.md, regla 2).
+   * Y no se muestrea el color: capturar una página transparente da un píxel que no significa
+   * nada, y `applyTopColor` volvería a ponerle fondo opaco a la vista.
+   */
+  function esTranslucida(t: Tab): boolean {
+    return isInternal(t.url)
+  }
+  function applyBackdrop(t: Tab): void {
+    if (typeof t.view.setBackgroundColor !== 'function') return
+    t.view.setBackgroundColor(esTranslucida(t) ? '#00000000' : (rgbToHex(t.pageBg ?? '') ?? APP_BG))
+  }
 
-function scheduleTopSample(t: Tab): void {
-  // Siempre se re-arma la muestra de cierre: se toma cuando el scroll deja de moverse.
-  const prev = topSettle.get(t)
-  if (prev) clearTimeout(prev)
-  topSettle.set(t, setTimeout(() => { topSettle.delete(t); void sampleTopStrip(t, 'reposo') }, SETTLE_MS))
-
-  if (topSamplePending.has(t)) { topSampleAgain.add(t); return }
-  const wait = Math.max(0, 100 - (Date.now() - (topSampleAt.get(t) ?? 0)))
-  topSamplePending.add(t)
-  setTimeout(() => {
-    topSamplePending.delete(t)
-    topSampleAt.set(t, Date.now())
-    void sampleTopStrip(t, 'scroll')
-    // Hubo eventos descartados mientras esta captura estaba pendiente: mira otra vez.
-    if (topSampleAgain.delete(t)) scheduleTopSample(t)
-  }, wait)
-}
-ipcMain.on('page:scrolled', (e) => {
-  const t = [...tabs.values()].find((tb) => tb.view.webContents === e.sender)
-  if (t && t.view.webContents.id === activeWc()?.id) scheduleTopSample(t)
-})
-
-// 'rgb(r, g, b)' / 'rgba(...)' → '#rrggbb' (ignora alpha). Devuelve null si no puede.
-function rgbToHex(c: string): string | null {
-  const m = c.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i)
-  if (!m) return /^#[0-9a-f]{6}$/i.test(c) ? c : null
-  const h = (n: string): string => Number(n).toString(16).padStart(2, '0')
-  return `#${h(m[1])}${h(m[2])}${h(m[3])}`
-}
-
-function createTab(url = newtabUrl(), activate = true, agent = false): number {
-  const id = nextId++
-  const view = new WebContentsView({
-    webPreferences: {
-      partition: PARTITION,
-      contextIsolation: true,
-      sandbox: true,
-      // Explícito aunque sea el valor por defecto: es una decisión de producto (escribir un
-      // correo largo sin corrector se nota a los diez segundos) y no queremos que se pierda
-      // si algún día se toca este bloque. En macOS lo resuelve el corrector del sistema.
-      spellcheck: true,
-      preload: join(__dirname, '../preload/content.js')
-    }
-  })
-  const t: Tab = { view, radius: null, radiusW: null, url, title: '', favicon: null, loading: false, canBack: false, canForward: false, themeColor: null, pageBg: null, recording: false, muted: false, audible: false, agent, bookmarkId: null, errorUrl: null }
-  // Fondo de la vista. Para una web es opaco: sin esto, al cambiar de pestaña se ve el fondo
-  // de la ventana. Y es el color de la app (oscuro), NO blanco — el borde antialiaseado del
-  // redondeado nativo tiñe con este color, y en blanco dibujaba un halo en las esquinas.
-  // Para nuestras páginas internas es transparente, a propósito: ver applyBackdrop.
-  applyBackdrop(t)
-  tabs.set(id, t)
-  touchWarm(id) // pestaña recién creada: entra al warm set
-  win!.contentView.addChildView(view)
-
-  const wc = view.webContents
-  const nav = wc.navigationHistory
-  const refresh = () => { t.canBack = nav.canGoBack(); t.canForward = nav.canGoForward(); pushState() }
-  wc.on('did-start-loading', () => { t.loading = true; pushState() })
-  wc.on('did-stop-loading', () => {
-    t.loading = false
-    scheduleTopSample(t) // color del topbar: se remuestrea también en cada scroll
-    refresh()
-  })
-  wc.on('did-navigate', (_e, u) => { // sólo main-frame
-    t.url = u; t.recording = false
-    // Una pestaña cruza la frontera en los dos sentidos (newtab → web → newtab), así que el
-    // fondo se decide en cada navegación, no al crear la vista. Y hay que rehacer el layout:
-    // volverse translúcida cambia QUÉ otras vistas pueden quedar visibles detrás (ver
-    // `soloActiva` en layoutTabs). Solo si es la activa: el resto ya no se ve.
-    applyBackdrop(t)
-    if (id === activeId) layoutTabs()
-    // Al navegar a algo que NO es la página de error, limpiamos el estado de error y registramos la visita.
-    if (!isErrorPage(u)) { t.errorUrl = null; if (!isInternal(u)) recordVisit(u, t.title, t.favicon) }
-    applyZoom(wc, u) // restaura el zoom recordado para el origen
-    refresh()
-    scheduleSaveSession()
-  })
-  wc.on('did-navigate-in-page', (_e, u, isMainFrame) => { if (isMainFrame) { t.url = u; refresh() } })
-  wc.on('page-title-updated', (_e, title) => { t.title = title; updateMeta(t.url, title); pushState() })
-  wc.on('page-favicon-updated', (_e, icons) => {
-    t.favicon = icons?.[0] || null
-    // Se recuerda por host: es el icono de verdad del sitio, y sirve para los marcadores sin
-    // icono propio en vez de pedírselo a un tercero.
-    rememberFavicon(t.url, t.favicon)
-    updateMeta(t.url, undefined, t.favicon)
+  function applyTopColor(t: Tab, c: string): void {
+    if (esTranslucida(t)) return
+    if (!c || t.pageBg === c) return
+    t.pageBg = c
+    // Alinea el fondo opaco de la vista con el color real de la página: así el frame en
+    // blanco al cambiar de pestaña coincide con la página (sin flash blanco en páginas oscuras).
+    const hex = rgbToHex(c)
+    if (hex && typeof t.view.setBackgroundColor === 'function') t.view.setBackgroundColor(hex)
     pushState()
-  })
-  wc.on('did-change-theme-color', (_e, color) => { t.themeColor = color; pushState() })
-  wc.on('audio-state-changed', (e) => { t.audible = e.audible; pushState() })
-  // --- Confiabilidad: fallos de carga (red/DNS/certificado) y crashes → página de error ---
-  wc.on('did-fail-load', (_e, code, desc, validatedURL, isMainFrame) => {
-    if (!isMainFrame || code === -3) return // -3 = ERR_ABORTED (navegación reemplazada): ignorar
-    if (isErrorPage(validatedURL)) return // evita bucles
-    loadErrorPage(t, { url: validatedURL || t.url, code, desc, kind: 'network' })
-  })
-  wc.on('render-process-gone', (_e, details) => {
-    if (details.reason === 'clean-exit') return
-    loadErrorPage(t, { url: t.errorUrl || t.url, code: 0, desc: details.reason, kind: 'crash' })
-  })
-  wc.on('context-menu', (_e, params) => showPageContextMenu(wc, params))
-  wc.on('found-in-page', (_e, r) => win?.webContents.send('find:result', { matches: r.matches, active: r.activeMatchOrdinal }))
+  }
   /**
-   * Navegación a algo que no es web: `mailto:`, `tel:`, `zoommtg:`…
-   *
-   * Sin esto, el `WebContentsView` intenta navegar, falla y el enlace **no hace nada**. Se le
-   * pasa al sistema si el esquema está en la lista blanca, y en cualquier caso se cancela la
-   * navegación: dejarla seguir deja la pestaña en un estado roto.
-   *
-   * Esto cubre además el punto pendiente de `will-navigate` del hardening: `file:` y
-   * `javascript:` iniciados por una página se bloquean aquí.
+   * Diagnóstico de las esquinas: compara el color que usamos para tapar la costura contra
+   * el píxel REAL de cada esquina de la página. Si no coinciden, el problema es el muestreo;
+   * si coinciden, el arco es del antialiasing del compositor y el redondeado hay que quitarlo.
+   * Se activa con MONPER_DEBUG_CORNERS=1.
    */
-  wc.on('will-navigate', (e, url) => {
-    if (esWeb(url)) return
-    e.preventDefault()
-    abrirConElSistema(url)
+  const DEBUG_CORNERS = process.env['MONPER_DEBUG_CORNERS'] === '1'
+  async function logCornerDiagnostics(t: Tab, sampled: string): Promise<void> {
+    const b = t.view.getBounds()
+    const pixel = async (x: number, y: number): Promise<string> => {
+      try {
+        const img = await t.view.webContents.capturePage({ x, y, width: 1, height: 1 })
+        const p = img.toBitmap()
+        return p.length >= 3 ? `#${[p[2], p[1], p[0]].map((n) => n.toString(16).padStart(2, '0')).join('')}` : '??'
+      } catch { return '??' }
+    }
+    const [tl, tr, bl, br] = await Promise.all([
+      pixel(1, 1),
+      pixel(Math.max(0, b.width - 2), 1),
+      pixel(1, Math.max(0, b.height - 2)),
+      pixel(Math.max(0, b.width - 2), Math.max(0, b.height - 2))
+    ])
+    console.log('[esquinas]', {
+      radio: CONTENT_RADIUS,
+      usadoParaLaCostura: sampled,
+      pixelRealArribaIzq: tl,
+      pixelRealArribaDer: tr,
+      pixelRealAbajoIzq: bl,
+      pixelRealAbajoDer: br,
+      fondoApp: APP_BG,
+      coincideArribaIzq: tl.toLowerCase() === sampled.toLowerCase()
+    })
+  }
+
+  /**
+   * Muestrea el color REAL bajo el topbar capturando una franja de 3px del render y
+   * promediándola (resize 1x1). A diferencia de leer CSS, esto ve gradientes, imágenes
+   * y video — que es lo que usan la mayoría de los hero de las páginas.
+   */
+  async function sampleTopStrip(t: Tab, motivo = 'directo'): Promise<void> {
+    if (esTranslucida(t)) return // no hay color que muestrear: la página deja ver la ventana
+    const b = t.view.getBounds()
+    if (b.width < 8 || b.height < 8) return
+    try {
+      // Muestreamos LA ESQUINA superior-izquierda, no el ancho completo: este color rellena
+      // la muesca del redondeado nativo, así que debe coincidir con el píxel de ESA esquina.
+      // Promediar toda la franja daba un color distinto en páginas con degradado o con algo
+      // claro arriba, y esa diferencia se veía como un arco en la esquina.
+      const w = Math.min(24, b.width)
+      const img = await t.view.webContents.capturePage({ x: 0, y: 0, width: w, height: 4 })
+      if (img.isEmpty()) return
+      const px = img.resize({ width: 1, height: 1, quality: 'good' }).toBitmap() // BGRA
+      if (px.length < 3) return
+      const hex = `#${[px[2], px[1], px[0]].map((n) => n.toString(16).padStart(2, '0')).join('')}`
+      if (DEBUG_CORNERS) await logCornerDiagnostics(t, hex)
+      if (DEBUG_TOPCOLOR) {
+        const y = await t.view.webContents.executeJavaScript('window.scrollY').catch(() => '?')
+        console.log(`[topcolor] ${motivo.padEnd(7)} scrollY=${String(y).padStart(6)}  ${hex}${t.pageBg === hex ? '' : '  ← cambia'}`)
+      }
+      applyTopColor(t, hex)
+    } catch { /* la vista puede estar oculta o destruida */ }
+  }
+  /**
+   * Throttle por pestaña: el scroll dispara mucho, así que capturamos como máximo cada 100ms.
+   *
+   * Dos cosas que NO son opcionales, y que faltaban:
+   *
+   * 1. **Muestra de cierre (`again`).** Los eventos que llegaban mientras había una captura
+   *    pendiente se descartaban y nadie volvía a mirar. Si el último evento del scroll caía en
+   *    esa ventana, el topbar se quedaba con el color de MITAD del recorrido.
+   * 2. **Muestra tras el reposo (`SETTLE_MS`).** En macOS el scroll sigue animándose después
+   *    del último evento `scroll` del DOM: momentum y, al llegar arriba, el rebote elástico.
+   *    Esa animación la hace el compositor y NO emite más eventos, así que la última captura
+   *    veía un frame intermedio. Síntoma: al volver arriba había que mover un pelín el scroll
+   *    para que cogiera el color bueno.
+   */
+  const DEBUG_TOPCOLOR = process.env['MONPER_DEBUG_TOPCOLOR'] === '1'
+  const topSampleAt = new WeakMap<Tab, number>()
+  const topSamplePending = new WeakSet<Tab>()
+  const topSampleAgain = new WeakSet<Tab>()
+  const topSettle = new WeakMap<Tab, NodeJS.Timeout>()
+  const SETTLE_MS = 260 // margen para que el momentum y el rebote terminen
+
+  function scheduleTopSample(t: Tab): void {
+    // Siempre se re-arma la muestra de cierre: se toma cuando el scroll deja de moverse.
+    const prev = topSettle.get(t)
+    if (prev) clearTimeout(prev)
+    topSettle.set(t, setTimeout(() => { topSettle.delete(t); void sampleTopStrip(t, 'reposo') }, SETTLE_MS))
+
+    if (topSamplePending.has(t)) { topSampleAgain.add(t); return }
+    const wait = Math.max(0, 100 - (Date.now() - (topSampleAt.get(t) ?? 0)))
+    topSamplePending.add(t)
+    setTimeout(() => {
+      topSamplePending.delete(t)
+      topSampleAt.set(t, Date.now())
+      void sampleTopStrip(t, 'scroll')
+      // Hubo eventos descartados mientras esta captura estaba pendiente: mira otra vez.
+      if (topSampleAgain.delete(t)) scheduleTopSample(t)
+    }, wait)
+  }
+  ipcMain.on('page:scrolled', (e) => {
+    const t = [...tabs.values()].find((tb) => tb.view.webContents === e.sender)
+    if (t && t.view.webContents.id === activeWc()?.id) scheduleTopSample(t)
   })
 
-  wc.setWindowOpenHandler((details) => {
-    // `<a href="mailto:…" target="_blank">` llega por aquí, no por will-navigate.
-    if (!esWeb(details.url)) {
-      abrirConElSistema(details.url)
-      return { action: 'deny' as const }
-    }
-    const feats = details.features || ''
-    // Popups reales (OAuth, pagos…) → ventana de verdad, que conserva window.opener /
-    // postMessage / window.close. OJO: muchos flujos hacen window.open(url, 'name') SIN
-    // dimensiones, lo que llega como 'foreground-tab': abrirlo como pestaña rompe el
-    // callback (opener = null) y el login falla en silencio. Por eso miramos la URL.
-    const isPopup =
-      details.disposition === 'new-window' ||
-      details.disposition === 'other' ||
-      /\b(width|height|popup)\b/i.test(feats) ||
-      isAuthUrl(details.url)
-    console.log('[popup]', { url: details.url, disposition: details.disposition, feats, isPopup })
-    if (isPopup) {
-      pushAgentEvent(`Se abrió una ventana emergente: ${details.url}`)
-      return {
-        action: 'allow',
-        overrideBrowserWindowOptions: {
-          width: 500, height: 640, resizable: true, minimizable: true, maximizable: false,
-          fullscreenable: false, autoHideMenuBar: true, title: 'Monper',
-          webPreferences: { partition: PARTITION, contextIsolation: true, sandbox: true }
+  // 'rgb(r, g, b)' / 'rgba(...)' → '#rrggbb' (ignora alpha). Devuelve null si no puede.
+  function rgbToHex(c: string): string | null {
+    const m = c.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i)
+    if (!m) return /^#[0-9a-f]{6}$/i.test(c) ? c : null
+    const h = (n: string): string => Number(n).toString(16).padStart(2, '0')
+    return `#${h(m[1])}${h(m[2])}${h(m[3])}`
+  }
+
+  function createTab(url = newtabUrl(), activate = true, agent = false): number {
+    const id = nextId++
+    const view = new WebContentsView({
+      webPreferences: {
+        partition: PARTITION,
+        contextIsolation: true,
+        sandbox: true,
+        // Explícito aunque sea el valor por defecto: es una decisión de producto (escribir un
+        // correo largo sin corrector se nota a los diez segundos) y no queremos que se pierda
+        // si algún día se toca este bloque. En macOS lo resuelve el corrector del sistema.
+        spellcheck: true,
+        preload: join(__dirname, '../preload/content.js')
+      }
+    })
+    const t: Tab = { view, radius: null, radiusW: null, url, title: '', favicon: null, loading: false, canBack: false, canForward: false, themeColor: null, pageBg: null, recording: false, muted: false, audible: false, agent, bookmarkId: null, errorUrl: null }
+    // Fondo de la vista. Para una web es opaco: sin esto, al cambiar de pestaña se ve el fondo
+    // de la ventana. Y es el color de la app (oscuro), NO blanco — el borde antialiaseado del
+    // redondeado nativo tiñe con este color, y en blanco dibujaba un halo en las esquinas.
+    // Para nuestras páginas internas es transparente, a propósito: ver applyBackdrop.
+    applyBackdrop(t)
+    tabs.set(id, t)
+    touchWarm(id) // pestaña recién creada: entra al warm set
+    win!.contentView.addChildView(view)
+
+    const wc = view.webContents
+    const nav = wc.navigationHistory
+    const refresh = () => { t.canBack = nav.canGoBack(); t.canForward = nav.canGoForward(); pushState() }
+    wc.on('did-start-loading', () => { t.loading = true; pushState() })
+    wc.on('did-stop-loading', () => {
+      t.loading = false
+      scheduleTopSample(t) // color del topbar: se remuestrea también en cada scroll
+      refresh()
+    })
+    wc.on('did-navigate', (_e, u) => { // sólo main-frame
+      t.url = u; t.recording = false
+      // Una pestaña cruza la frontera en los dos sentidos (newtab → web → newtab), así que el
+      // fondo se decide en cada navegación, no al crear la vista. Y hay que rehacer el layout:
+      // volverse translúcida cambia QUÉ otras vistas pueden quedar visibles detrás (ver
+      // `soloActiva` en layoutTabs). Solo si es la activa: el resto ya no se ve.
+      applyBackdrop(t)
+      if (id === activeId) layoutTabs()
+      // Al navegar a algo que NO es la página de error, limpiamos el estado de error y registramos la visita.
+      if (!isErrorPage(u)) { t.errorUrl = null; if (!isInternal(u)) recordVisit(u, t.title, t.favicon) }
+      applyZoom(wc, u) // restaura el zoom recordado para el origen
+      refresh()
+      scheduleSaveSession()
+    })
+    wc.on('did-navigate-in-page', (_e, u, isMainFrame) => { if (isMainFrame) { t.url = u; refresh() } })
+    wc.on('page-title-updated', (_e, title) => { t.title = title; updateMeta(t.url, title); pushState() })
+    wc.on('page-favicon-updated', (_e, icons) => {
+      t.favicon = icons?.[0] || null
+      // Se recuerda por host: es el icono de verdad del sitio, y sirve para los marcadores sin
+      // icono propio en vez de pedírselo a un tercero.
+      rememberFavicon(t.url, t.favicon)
+      updateMeta(t.url, undefined, t.favicon)
+      pushState()
+    })
+    wc.on('did-change-theme-color', (_e, color) => { t.themeColor = color; pushState() })
+    wc.on('audio-state-changed', (e) => { t.audible = e.audible; pushState() })
+    // --- Confiabilidad: fallos de carga (red/DNS/certificado) y crashes → página de error ---
+    wc.on('did-fail-load', (_e, code, desc, validatedURL, isMainFrame) => {
+      if (!isMainFrame || code === -3) return // -3 = ERR_ABORTED (navegación reemplazada): ignorar
+      if (isErrorPage(validatedURL)) return // evita bucles
+      loadErrorPage(t, { url: validatedURL || t.url, code, desc, kind: 'network' })
+    })
+    wc.on('render-process-gone', (_e, details) => {
+      if (details.reason === 'clean-exit') return
+      loadErrorPage(t, { url: t.errorUrl || t.url, code: 0, desc: details.reason, kind: 'crash' })
+    })
+    wc.on('context-menu', (_e, params) => showPageContextMenu(wc, params))
+    wc.on('found-in-page', (_e, r) => win?.webContents.send('find:result', { matches: r.matches, active: r.activeMatchOrdinal }))
+    /**
+     * Navegación a algo que no es web: `mailto:`, `tel:`, `zoommtg:`…
+     *
+     * Sin esto, el `WebContentsView` intenta navegar, falla y el enlace **no hace nada**. Se le
+     * pasa al sistema si el esquema está en la lista blanca, y en cualquier caso se cancela la
+     * navegación: dejarla seguir deja la pestaña en un estado roto.
+     *
+     * Esto cubre además el punto pendiente de `will-navigate` del hardening: `file:` y
+     * `javascript:` iniciados por una página se bloquean aquí.
+     */
+    wc.on('will-navigate', (e, url) => {
+      if (esWeb(url)) return
+      e.preventDefault()
+      abrirConElSistema(url)
+    })
+
+    wc.setWindowOpenHandler((details) => {
+      // `<a href="mailto:…" target="_blank">` llega por aquí, no por will-navigate.
+      if (!esWeb(details.url)) {
+        abrirConElSistema(details.url)
+        return { action: 'deny' as const }
+      }
+      const feats = details.features || ''
+      // Popups reales (OAuth, pagos…) → ventana de verdad, que conserva window.opener /
+      // postMessage / window.close. OJO: muchos flujos hacen window.open(url, 'name') SIN
+      // dimensiones, lo que llega como 'foreground-tab': abrirlo como pestaña rompe el
+      // callback (opener = null) y el login falla en silencio. Por eso miramos la URL.
+      const isPopup =
+        details.disposition === 'new-window' ||
+        details.disposition === 'other' ||
+        /\b(width|height|popup)\b/i.test(feats) ||
+        isAuthUrl(details.url)
+      console.log('[popup]', { url: details.url, disposition: details.disposition, feats, isPopup })
+      if (isPopup) {
+        pushAgentEvent(`Se abrió una ventana emergente: ${details.url}`)
+        return {
+          action: 'allow',
+          overrideBrowserWindowOptions: {
+            width: 500, height: 640, resizable: true, minimizable: true, maximizable: false,
+            fullscreenable: false, autoHideMenuBar: true, title: 'Monper',
+            webPreferences: { partition: PARTITION, contextIsolation: true, sandbox: true }
+          }
         }
       }
-    }
-    // Links normales (target=_blank) → nueva pestaña.
-    pushAgentEvent(`Se abrió una pestaña nueva: ${details.url}`)
-    createTab(details.url)
-    return { action: 'deny' }
-  })
+      // Links normales (target=_blank) → nueva pestaña.
+      pushAgentEvent(`Se abrió una pestaña nueva: ${details.url}`)
+      createTab(details.url)
+      return { action: 'deny' }
+    })
 
-  // Manejo de teclas a nivel de la vista (funciona aunque la página tenga el foco):
-  // F12 / ⌘⌥I / Ctrl+Shift+I alternan las DevTools acopladas.
-  wc.on('before-input-event', (e, input) => {
-    if (input.type !== 'keyDown') return
-    const k = input.key.toLowerCase()
-    const isDevtools = k === 'f12' ||
-      (input.meta && input.alt && k === 'i') ||
-      ((input.control || input.meta) && input.shift && k === 'i')
-    if (isDevtools) { e.preventDefault(); toggleDevtools(); return }
-    // ⌘1..9 para saltar de pestaña (funciona con el foco en la página).
-    if ((input.meta || input.control) && !input.alt && !input.shift && /^[1-9]$/.test(input.key)) {
-      e.preventDefault(); selectTabByIndex(Number(input.key))
-    }
-  })
+    // Manejo de teclas a nivel de la vista (funciona aunque la página tenga el foco):
+    // F12 / ⌘⌥I / Ctrl+Shift+I alternan las DevTools acopladas.
+    wc.on('before-input-event', (e, input) => {
+      if (input.type !== 'keyDown') return
+      const k = input.key.toLowerCase()
+      const isDevtools = k === 'f12' ||
+        (input.meta && input.alt && k === 'i') ||
+        ((input.control || input.meta) && input.shift && k === 'i')
+      if (isDevtools) { e.preventDefault(); toggleDevtools(); return }
+      // ⌘1..9 para saltar de pestaña (funciona con el foco en la página).
+      if ((input.meta || input.control) && !input.alt && !input.shift && /^[1-9]$/.test(input.key)) {
+        e.preventDefault(); selectTabByIndex(Number(input.key))
+      }
+    })
 
-  wc.loadURL(url)
-  if (activate) setActive(id)
-  else { layoutTabs(); pushState() } // dimensiona la nueva (queda detrás de la activa)
-  return id
-}
-
-function setActive(id: number) {
-  if (!tabs.has(id)) return
-  if (signinTabId != null && signinTabId !== id) hideSignin() // el prompt era de otra pestaña
-  activeId = id
-  touchWarm(id) // la activa entra/sube en el warm set
-  const at = tabs.get(id)
-  if (at) scheduleTopSample(at) // recolorea el topbar con la pestaña recién activada
-  layoutTabs()
-  pushState()
-  scheduleSaveSession()
-}
-
-// Pila de URLs de pestañas cerradas recientemente (para ⌘⇧T).
-const closedStack: string[] = []
-
-function closeTab(id: number) {
-  const t = tabs.get(id)
-  if (!t) return
-  // Recuerda la URL para poder reabrirla (solo http(s), no agent tabs).
-  const u = t.errorUrl ?? t.url
-  if (!t.agent && /^https?:\/\//i.test(u)) { closedStack.push(u); if (closedStack.length > 25) closedStack.shift() }
-  win!.contentView.removeChildView(t.view)
-  t.view.webContents.close()
-  tabs.delete(id)
-  const wi = warmOrder.indexOf(id); if (wi >= 0) warmOrder.splice(wi, 1)
-  if (activeId === id) {
-    // Se activa la última pestaña VISIBLE. Las del agente no salen en el sidebar, así que
-    // saltar a una de ellas parece que no ha pasado nada: la lista se queda vacía y el
-    // contenido cambia a algo que el usuario no abrió.
-    const visibles = [...tabs.entries()].filter(([, t]) => !t.agent).map(([tid]) => tid)
-    if (visibles.length) setActive(visibles[visibles.length - 1])
-    else createTab()
-  } else {
-    pushState()
+    wc.loadURL(url)
+    if (activate) setActive(id)
+    else { layoutTabs(); pushState() } // dimensiona la nueva (queda detrás de la activa)
+    return id
   }
-  scheduleSaveSession()
+
+  function setActive(id: number) {
+    if (!tabs.has(id)) return
+    if (signinTabId != null && signinTabId !== id) hideSignin() // el prompt era de otra pestaña
+    activeId = id
+    touchWarm(id) // la activa entra/sube en el warm set
+    const at = tabs.get(id)
+    if (at) scheduleTopSample(at) // recolorea el topbar con la pestaña recién activada
+    layoutTabs()
+    pushState()
+    scheduleSaveSession()
+  }
+
+  // Pila de URLs de pestañas cerradas recientemente (para ⌘⇧T).
+  const closedStack: string[] = []
+
+  function closeTab(id: number) {
+    const t = tabs.get(id)
+    if (!t) return
+    // Recuerda la URL para poder reabrirla (solo http(s), no agent tabs).
+    const u = t.errorUrl ?? t.url
+    if (!t.agent && /^https?:\/\//i.test(u)) { closedStack.push(u); if (closedStack.length > 25) closedStack.shift() }
+    win!.contentView.removeChildView(t.view)
+    t.view.webContents.close()
+    tabs.delete(id)
+    const wi = warmOrder.indexOf(id); if (wi >= 0) warmOrder.splice(wi, 1)
+    if (activeId === id) {
+      // Se activa la última pestaña VISIBLE. Las del agente no salen en el sidebar, así que
+      // saltar a una de ellas parece que no ha pasado nada: la lista se queda vacía y el
+      // contenido cambia a algo que el usuario no abrió.
+      const visibles = [...tabs.entries()].filter(([, t]) => !t.agent).map(([tid]) => tid)
+      if (visibles.length) setActive(visibles[visibles.length - 1])
+      else createTab()
+    } else {
+      pushState()
+    }
+    scheduleSaveSession()
+  }
+
+  function reopenClosedTab(): void {
+    const u = closedStack.pop()
+    if (u) createTab(u, true)
+  }
+
+  // ⌘1..8 → n-ésima pestaña; ⌘9 → última (como en Chrome).
+  function selectTabByIndex(n: number): void {
+    const ids = [...tabs.keys()]
+    if (!ids.length) return
+    const idx = n >= 9 ? ids.length - 1 : Math.min(n - 1, ids.length - 1)
+    setActive(ids[idx])
+  }
+
+  // Reordena las pestañas al orden dado (los ids no incluidos quedan al final, en su orden actual).
+  function reorderTabs(orderedIds: number[]): void {
+    const seen = new Set<number>()
+    const entries: [number, Tab][] = []
+    for (const id of orderedIds) { const t = tabs.get(id); if (t) { entries.push([id, t]); seen.add(id) } }
+    for (const [id, t] of tabs) if (!seen.has(id)) entries.push([id, t])
+    tabs.clear()
+    for (const [id, t] of entries) tabs.set(id, t)
+    pushState()
+    scheduleSaveSession()
+  }
+
+  // Menú contextual nativo del contenido de la página (click derecho sobre un enlace,
+  // imagen, selección, campo editable, o el fondo).
+
+  function iniciar(): void {
+    win = new BrowserWindow({
+      // Tamaño/posición recordados de la sesión anterior (o default centrado).
+      ...initialBounds(1440 + SIDEBAR_DEFAULT, 900 + TOPBAR_HEIGHT),
+      minWidth: 720,
+      minHeight: 480,
+      show: false,
+      // Fondo transparente en mac para que la vibrancy se vea a través del sidebar y de
+      // las muescas del redondeado del page view.
+      ...(isMac && !NO_VIBRANCY && vibrancyMaterial !== 'none'
+        ? {
+            vibrancy: vibrancyMaterial,
+            visualEffectState: 'active' as const,
+            backgroundColor: '#00000000'
+          }
+        : { backgroundColor: APP_BG }),
+      titleBarStyle: isMac ? 'hiddenInset' : 'default',
+      // y=20: el semáforo mide 12px, así que su centro cae en 26 — el mismo que los iconos del
+      // topbar y los del sidebar, que comparten banda. Con y=17 caía en 23 y se veía desalineado.
+      trafficLightPosition: isMac ? { x: 15, y: 20 } : undefined,
+      ...(isMac ? {} : { icon: appIcon }),
+      webPreferences: { preload: join(__dirname, '../preload/index.js'), contextIsolation: true, sandbox: false }
+    })
+
+    if (shouldMaximize()) win.maximize()
+    win.once('ready-to-show', () => {
+      // Se reaplica el material ELEGIDO. Antes había aquí un `setVibrancy('under-window')` fijo
+      // que pisaba la preferencia guardada y también ignoraba MONPER_NO_VIBRANCY: el selector
+      // de Settings solo surtía efecto si lo cambiabas en vivo.
+      if (isMac && !NO_VIBRANCY && vibrancyMaterial !== 'none') win!.setVibrancy(vibrancyMaterial)
+      win!.show()
+    })
+    if (win) trackWindow(win)
+
+    loadRenderer(win!, 'index')
+    win.on('resize', () => { layoutActive(); hideOmni(); if (peekWin && !peekWin.isDestroyed() && peekWin.isVisible()) placePeekWin() })
+    win.on('move', hideOmni)
+    // ⌘1..9 cuando el foco está en el chrome (no en una página).
+    win.webContents.on('before-input-event', (e, input) => {
+      if (input.type === 'keyDown' && (input.meta || input.control) && !input.alt && !input.shift && /^[1-9]$/.test(input.key)) {
+        e.preventDefault(); selectTabByIndex(Number(input.key))
+      }
+    })
+    win.webContents.on('did-finish-load', () => {
+      // La sesión guardada se restaura UNA vez, en la primera ventana. Sin esto, ⌘N
+      // duplicaría todas las pestañas de la sesión anterior en cada ventana nueva.
+      if (tabs.size === 0) {
+        if (!restoreSession(ventanas.get(win!.id) ?? vAct())) createTab()
+      } else pushState()
+      // Pre-carga las ventanas nativas de popups (site-info, menú de perfil) para que
+      // abran instantáneo — crearlas en el primer click era lento (2-3 clicks).
+      // NO se pre-crean los popovers. Se hacía para que el primer click fuera instantáneo,
+      // pero eso arrastraba 3 procesos de renderer desde el arranque. Medido:
+      //   con pre-warm:  primer abrir 31ms, 919MB de base, 4 ventanas
+      //   sin pre-warm:  primer abrir 63ms, 575MB de base, 1 ventana
+      // 344MB por 30ms que nadie percibe, una sola vez. Y el motivo original —que el popover
+      // saliera VACÍO en el primer click— era otro bug, ya resuelto en createPopover
+      // (reenvía sus datos en did-finish-load). Verificado: abre con sus 10 filas a la primera.
+      // Si vuelves a pre-crear, mide antes.
+      // Servicios globales, no por ventana: el scheduler y el updater son uno solo.
+      if (!serviciosIniciados) {
+        serviciosIniciados = true
+        if (win) initRoutines(win, broadcastRoutines) // scheduler de rutinas (necesita la ventana)
+        onUpdateState(broadcastUpdateState)
+        void initUpdater() // comprobación silenciosa de actualizaciones
+      }
+    })
+  }
+
+  iniciar()
+  const ventana = win as BrowserWindow | null
+  if (!ventana) throw new Error('no se pudo crear la ventana')
+
+  // ---- Lo que el resto del main necesita de esta ventana ----
+  return {
+    id: ventana.id,
+    win: ventana,
+    tabs,
+    activeId: () => activeId,
+    createTab, setActive, closeTab, reopenClosedTab, selectTabByIndex, reorderTabs,
+    activeWc: () => (activeId != null ? tabs.get(activeId)?.view.webContents : undefined),
+    tabActiva: () => (activeId != null ? tabs.get(activeId) ?? undefined : undefined),
+    layoutTabs, layoutActive, animateLayout, pushState, buildState, toggleDevtools, contentBounds,
+    setCollapsed: (v: boolean) => { sidebarCollapsed = v },
+    setChatOpen: (v: boolean) => { chatOpen = v },
+    isCollapsed: () => sidebarCollapsed,
+    scheduleTopSample, applyTopColor,
+    soltarTabsDelBookmark, atarTabAlBookmark
+  }
 }
 
-function reopenClosedTab(): void {
-  const u = closedStack.pop()
-  if (u) createTab(u, true)
-}
-
-// ⌘1..8 → n-ésima pestaña; ⌘9 → última (como en Chrome).
-function selectTabByIndex(n: number): void {
-  const ids = [...tabs.keys()]
-  if (!ids.length) return
-  const idx = n >= 9 ? ids.length - 1 : Math.min(n - 1, ids.length - 1)
-  setActive(ids[idx])
-}
-
-// Reordena las pestañas al orden dado (los ids no incluidos quedan al final, en su orden actual).
-function reorderTabs(orderedIds: number[]): void {
-  const seen = new Set<number>()
-  const entries: [number, Tab][] = []
-  for (const id of orderedIds) { const t = tabs.get(id); if (t) { entries.push([id, t]); seen.add(id) } }
-  for (const [id, t] of tabs) if (!seen.has(id)) entries.push([id, t])
-  tabs.clear()
-  for (const [id, t] of entries) tabs.set(id, t)
-  pushState()
-  scheduleSaveSession()
-}
-
-// Menú contextual nativo del contenido de la página (click derecho sobre un enlace,
-// imagen, selección, campo editable, o el fondo).
 /**
  * Imprime la pestaña activa.
  *
@@ -857,7 +1095,7 @@ function imprimirActiva(): void {
     // "cancelled" no es un fallo: es el usuario cerrando el diálogo.
     if (!ok && motivo && motivo !== 'cancelled') {
       console.error('[imprimir] no se pudo:', motivo)
-      dialog.showMessageBox(win ?? undefined!, {
+      dialog.showMessageBox(vActOpt()?.win ?? undefined!, {
         type: 'error', buttons: ['OK'], message: 'No se pudo imprimir esta página', detail: motivo
       })
     }
@@ -865,7 +1103,7 @@ function imprimirActiva(): void {
 }
 
 function showPageContextMenu(wc: Electron.WebContents, p: Electron.ContextMenuParams): void {
-  if (!win) return
+  if (!vActOpt()?.win) return
   const nav = wc.navigationHistory
   const items: MenuItemConstructorOptions[] = []
   if (!p.isEditable && !p.linkURL && !p.selectionText) {
@@ -873,14 +1111,14 @@ function showPageContextMenu(wc: Electron.WebContents, p: Electron.ContextMenuPa
   }
   if (p.linkURL) {
     items.push(
-      { label: 'Abrir enlace en pestaña nueva', click: () => createTab(p.linkURL) },
+      { label: 'Abrir enlace en pestaña nueva', click: () => vAct().createTab(p.linkURL) },
       { label: 'Copiar dirección del enlace', click: () => clipboard.writeText(p.linkURL) },
       { type: 'separator' }
     )
   }
   if (p.mediaType === 'image' && p.srcURL) {
     items.push(
-      { label: 'Abrir imagen en pestaña nueva', click: () => createTab(p.srcURL) },
+      { label: 'Abrir imagen en pestaña nueva', click: () => vAct().createTab(p.srcURL) },
       { label: 'Copiar dirección de la imagen', click: () => clipboard.writeText(p.srcURL) },
       { label: 'Guardar imagen', click: () => wc.downloadURL(p.srcURL) },
       { type: 'separator' }
@@ -903,7 +1141,7 @@ function showPageContextMenu(wc: Electron.WebContents, p: Electron.ContextMenuPa
     const sel = p.selectionText.trim().slice(0, 40)
     items.push(
       { role: 'copy' },
-      { label: `Buscar "${sel}" en Google`, click: () => createTab('https://www.google.com/search?q=' + encodeURIComponent(p.selectionText)) },
+      { label: `Buscar "${sel}" en Google`, click: () => vAct().createTab('https://www.google.com/search?q=' + encodeURIComponent(p.selectionText)) },
       { type: 'separator' }
     )
   }
@@ -915,24 +1153,29 @@ function showPageContextMenu(wc: Electron.WebContents, p: Electron.ContextMenuPa
     { label: 'Copiar dirección de la página', click: () => clipboard.writeText(wc.getURL()) },
     { label: 'Inspeccionar elemento', click: () => wc.inspectElement(p.x, p.y) }
   )
-  Menu.buildFromTemplate(items).popup({ window: win })
+  Menu.buildFromTemplate(items).popup({ window: vActOpt()?.win })
 }
 
 // ---- Restauración de sesión: persistir las pestañas abiertas y reabrirlas al arrancar ----
 function sessionFile(): string { return join(app.getPath('userData'), 'session.json') }
 let saveSessionTimer: NodeJS.Timeout | null = null
 
-function collectSession(): { urls: string[]; activeIndex: number } {
+interface SesionVentana { urls: string[]; activeIndex: number }
+function collectVentana(v: Ventana): SesionVentana {
   const urls: string[] = []
   let activeIndex = 0
-  for (const [id, t] of tabs) {
+  for (const [id, t] of v.tabs) {
     if (t.agent) continue // las pestañas del agente no se persisten
     const u = t.errorUrl ?? t.url
     if (!/^https?:\/\//i.test(u)) continue // solo http(s); las internas se re-crean como new tab
-    if (id === activeId) activeIndex = urls.length
+    if (id === v.activeId()) activeIndex = urls.length
     urls.push(u)
   }
   return { urls, activeIndex }
+}
+function collectSession(): { ventanas: SesionVentana[] } {
+  const grupos = [...ventanas.values()].map(collectVentana).filter((g) => g.urls.length > 0)
+  return { ventanas: grupos }
 }
 function saveSessionNow(): void {
   writeJson(sessionFile(), collectSession(), 'la sesión (pestañas abiertas)', false)
@@ -941,14 +1184,31 @@ function scheduleSaveSession(): void {
   if (saveSessionTimer) clearTimeout(saveSessionTimer)
   saveSessionTimer = setTimeout(saveSessionNow, 800)
 }
-function restoreSession(): boolean {
-  let data: { urls: string[]; activeIndex: number }
-  try { data = JSON.parse(readFileSync(sessionFile(), 'utf-8')) } catch { return false }
-  if (!Array.isArray(data.urls) || data.urls.length === 0) return false
-  for (const u of data.urls) createTab(u, false)
-  const ids = [...tabs.keys()]
-  const target = ids[Math.min(Math.max(0, data.activeIndex ?? 0), ids.length - 1)]
-  if (target != null) setActive(target)
+/**
+ * Cola de ventanas por restaurar. La primera ventana se queda con el primer grupo y abre una
+ * ventana por cada grupo restante; cada una toma el suyo al terminar de cargar.
+ */
+let colaSesion: SesionVentana[] | null = null
+function leerSesion(): SesionVentana[] {
+  let data: unknown
+  try { data = JSON.parse(readFileSync(sessionFile(), 'utf-8')) } catch { return [] }
+  const d = data as { ventanas?: SesionVentana[]; urls?: string[]; activeIndex?: number }
+  // Formato viejo (una lista plana de urls): era de una sola ventana.
+  if (Array.isArray(d?.urls)) return d.urls.length ? [{ urls: d.urls, activeIndex: d.activeIndex ?? 0 }] : []
+  return Array.isArray(d?.ventanas) ? d.ventanas.filter((g) => Array.isArray(g?.urls) && g.urls.length > 0) : []
+}
+function restoreSession(v: Ventana): boolean {
+  if (colaSesion === null) {
+    colaSesion = leerSesion()
+    // Las ventanas extra se piden aquí, no dentro del bucle de abajo: cada una se sirve sola.
+    for (let i = 1; i < colaSesion.length; i++) setTimeout(() => createWindow(), 0)
+  }
+  const grupo = colaSesion.shift()
+  if (!grupo) return false
+  for (const u of grupo.urls) v.createTab(u, false)
+  const ids = [...v.tabs.keys()]
+  const target = ids[Math.min(Math.max(0, grupo.activeIndex ?? 0), ids.length - 1)]
+  if (target != null) v.setActive(target)
   return true
 }
 
@@ -965,7 +1225,7 @@ function normalizeUrl(raw: string): string | null {
 
 // WebContents de la pestaña activa (para acciones de navegación del menú).
 function activeWc() {
-  return activeId != null ? tabs.get(activeId)?.view.webContents : undefined
+  return vAct().activeWc()
 }
 
 // ---- Zoom por sitio (recordado por origen) ----
@@ -977,7 +1237,7 @@ function applyZoom(wc: Electron.WebContents, url: string): void {
   wc.setZoomLevel(z)
 }
 function changeZoom(delta: number | 'reset'): void {
-  const t = activeId != null ? tabs.get(activeId) : null
+  const t = vAct().tabActiva()
   if (!t) return
   const origin = originOfUrl(t.errorUrl ?? t.url)
   const cur = zoomByOrigin.get(origin) ?? 0
@@ -992,7 +1252,7 @@ function changeZoom(delta: number | 'reset'): void {
 }
 // Envía una acción al renderer del chrome (toggles de estado: sidebar / chat / URL).
 function menuAction(action: string): void {
-  win?.webContents.send('menu:action', action)
+  vActOpt()?.win?.webContents.send('menu:action', action)
 }
 
 function buildAppMenu(): void {
@@ -1000,7 +1260,7 @@ function buildAppMenu(): void {
     label: 'Monper',
     submenu: [
       { role: 'about', label: 'Acerca de Monper' },
-      { label: 'Buscar actualizaciones…', click: () => void checkForUpdates(true, win) },
+      { label: 'Buscar actualizaciones…', click: () => void checkForUpdates(true, vActOpt()?.win) },
       { type: 'separator' },
       { label: 'Ajustes…', accelerator: 'CmdOrCtrl+,', click: () => openSettings() },
       { type: 'separator' },
@@ -1017,13 +1277,14 @@ function buildAppMenu(): void {
   const fileMenu: MenuItemConstructorOptions = {
     label: 'Archivo',
     submenu: [
-      { label: 'Nueva pestaña', accelerator: 'CmdOrCtrl+T', click: () => createTab() },
-      { label: 'Reabrir pestaña cerrada', accelerator: 'CmdOrCtrl+Shift+T', click: () => reopenClosedTab() },
+      { label: 'Nueva ventana', accelerator: 'CmdOrCtrl+N', click: () => { createWindow() } },
+      { label: 'Nueva pestaña', accelerator: 'CmdOrCtrl+T', click: () => vAct().createTab() },
+      { label: 'Reabrir pestaña cerrada', accelerator: 'CmdOrCtrl+Shift+T', click: () => vAct().reopenClosedTab() },
       { label: 'Historial', accelerator: 'CmdOrCtrl+Y', click: () => openHistory() },
       { label: 'Marcadores', accelerator: 'CmdOrCtrl+Alt+B', click: () => openBookmarksManager() },
       { type: 'separator' },
       { label: 'Imprimir…', accelerator: 'CmdOrCtrl+P', click: () => imprimirActiva() },
-      { label: 'Cerrar pestaña', accelerator: 'CmdOrCtrl+W', click: () => { if (activeId != null) closeTab(activeId) } },
+      { label: 'Cerrar pestaña', accelerator: 'CmdOrCtrl+W', click: () => { const id = vAct().activeId(); if (id != null) vAct().closeTab(id) } },
       { type: 'separator' },
       { label: 'Editar URL', accelerator: 'CmdOrCtrl+L', click: () => menuAction('edit-url') }
     ]
@@ -1060,7 +1321,7 @@ function buildAppMenu(): void {
       { label: 'Ask Monper', accelerator: 'CmdOrCtrl+J', click: () => menuAction('toggle-chat') },
       { type: 'separator' },
       { role: 'togglefullscreen', label: 'Pantalla completa' },
-      { label: 'Herramientas de desarrollo', accelerator: 'F12', click: () => toggleDevtools() }
+      { label: 'Herramientas de desarrollo', accelerator: 'F12', click: () => vAct().toggleDevtools() }
     ]
   }
 
@@ -1076,80 +1337,20 @@ function buildAppMenu(): void {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template))
 }
 
-function createWindow() {
-  win = new BrowserWindow({
-    // Tamaño/posición recordados de la sesión anterior (o default centrado).
-    ...initialBounds(1440 + SIDEBAR_DEFAULT, 900 + TOPBAR_HEIGHT),
-    minWidth: 720,
-    minHeight: 480,
-    show: false,
-    // Fondo transparente en mac para que la vibrancy se vea a través del sidebar y de
-    // las muescas del redondeado del page view.
-    ...(isMac && !NO_VIBRANCY && vibrancyMaterial !== 'none'
-      ? {
-          vibrancy: vibrancyMaterial,
-          visualEffectState: 'active' as const,
-          backgroundColor: '#00000000'
-        }
-      : { backgroundColor: APP_BG }),
-    titleBarStyle: isMac ? 'hiddenInset' : 'default',
-    // y=20: el semáforo mide 12px, así que su centro cae en 26 — el mismo que los iconos del
-    // topbar y los del sidebar, que comparten banda. Con y=17 caía en 23 y se veía desalineado.
-    trafficLightPosition: isMac ? { x: 15, y: 20 } : undefined,
-    ...(isMac ? {} : { icon: appIcon }),
-    webPreferences: { preload: join(__dirname, '../preload/index.js'), contextIsolation: true, sandbox: false }
-  })
-
-  if (shouldMaximize()) win.maximize()
-  win.once('ready-to-show', () => {
-    // Se reaplica el material ELEGIDO. Antes había aquí un `setVibrancy('under-window')` fijo
-    // que pisaba la preferencia guardada y también ignoraba MONPER_NO_VIBRANCY: el selector
-    // de Settings solo surtía efecto si lo cambiabas en vivo.
-    if (isMac && !NO_VIBRANCY && vibrancyMaterial !== 'none') win!.setVibrancy(vibrancyMaterial)
-    win!.show()
-  })
-  trackWindow(win)
-
-  loadRenderer(win, 'index')
-  win.on('resize', () => { layoutActive(); hideOmni(); if (peekWin && !peekWin.isDestroyed() && peekWin.isVisible()) placePeekWin() })
-  win.on('move', hideOmni)
-  // ⌘1..9 cuando el foco está en el chrome (no en una página).
-  win.webContents.on('before-input-event', (e, input) => {
-    if (input.type === 'keyDown' && (input.meta || input.control) && !input.alt && !input.shift && /^[1-9]$/.test(input.key)) {
-      e.preventDefault(); selectTabByIndex(Number(input.key))
-    }
-  })
-  win.webContents.on('did-finish-load', () => {
-    if (tabs.size === 0) { if (!restoreSession()) createTab() } else pushState()
-    // Pre-carga las ventanas nativas de popups (site-info, menú de perfil) para que
-    // abran instantáneo — crearlas en el primer click era lento (2-3 clicks).
-    // NO se pre-crean los popovers. Se hacía para que el primer click fuera instantáneo,
-    // pero eso arrastraba 3 procesos de renderer desde el arranque. Medido:
-    //   con pre-warm:  primer abrir 31ms, 919MB de base, 4 ventanas
-    //   sin pre-warm:  primer abrir 63ms, 575MB de base, 1 ventana
-    // 344MB por 30ms que nadie percibe, una sola vez. Y el motivo original —que el popover
-    // saliera VACÍO en el primer click— era otro bug, ya resuelto en createPopover
-    // (reenvía sus datos en did-finish-load). Verificado: abre con sus 10 filas a la primera.
-    // Si vuelves a pre-crear, mide antes.
-    initRoutines(win!, broadcastRoutines) // scheduler de rutinas (necesita la ventana)
-    onUpdateState(broadcastUpdateState)
-    void initUpdater() // comprobación silenciosa de actualizaciones
-  })
-}
 
 // ---- IPC ----
-ipcMain.handle('tabs:new', () => { hidePeek(); return createTab() })
-ipcMain.on('tabs:reorder', (_e, orderedIds: number[]) => reorderTabs(orderedIds))
-ipcMain.handle('tabs:close', (_e, id: number) => closeTab(id))
-ipcMain.handle('tabs:select', (_e, id: number) => { hidePeek(); setActive(id) })
-ipcMain.handle('nav:go', (_e, raw: string) => {
+ipcMain.handle('tabs:new', (ev) => { hidePeek(); return vDe(ev).createTab() })
+ipcMain.on('tabs:reorder', (ev, orderedIds: number[]) => vDe(ev).reorderTabs(orderedIds))
+ipcMain.handle('tabs:close', (ev, id: number) => vDe(ev).closeTab(id))
+ipcMain.handle('tabs:select', (ev, id: number) => { hidePeek(); vDe(ev).setActive(id) })
+ipcMain.handle('nav:go', (ev, raw: string) => {
   const url = normalizeUrl(raw)
-  const t = activeId != null ? tabs.get(activeId) : null
+  const t = vDe(ev).tabActiva()
   if (url && t) t.view.webContents.loadURL(url)
 })
-ipcMain.handle('nav:back', () => { const t = activeId != null ? tabs.get(activeId) : null; if (t?.view.webContents.navigationHistory.canGoBack()) t.view.webContents.navigationHistory.goBack() })
-ipcMain.handle('nav:forward', () => { const t = activeId != null ? tabs.get(activeId) : null; if (t?.view.webContents.navigationHistory.canGoForward()) t.view.webContents.navigationHistory.goForward() })
-ipcMain.handle('nav:reload', () => { const t = activeId != null ? tabs.get(activeId) : null; t?.view.webContents.reload() })
+ipcMain.handle('nav:back', (ev) => { const t = vDe(ev).tabActiva(); if (t?.view.webContents.navigationHistory.canGoBack()) t.view.webContents.navigationHistory.goBack() })
+ipcMain.handle('nav:forward', (ev) => { const t = vDe(ev).tabActiva(); if (t?.view.webContents.navigationHistory.canGoForward()) t.view.webContents.navigationHistory.goForward() })
+ipcMain.handle('nav:reload', (ev) => { const t = vDe(ev).tabActiva(); t?.view.webContents.reload() })
 // ---- Anchos de los paneles (redimensionables, persistidos) ----
 function panelsFile(): string { return join(app.getPath('userData'), 'panels.json') }
 function loadPanels(): void {
@@ -1170,7 +1371,7 @@ function savePanels(): void {
     writeJson(panelsFile(), { sidebar: sidebarWidth, chat: chatWidth, vibrancy: vibrancyMaterial }, 'el tamaño de los paneles', false)
   }, 400)
 }
-ipcMain.handle('state:get', () => buildState())
+ipcMain.handle('state:get', (ev) => vDe(ev).buildState())
 ipcMain.handle('ui:panels', () => ({ sidebar: sidebarWidth, chat: chatWidth, limits: PANEL_LIMITS }))
 
 // ---- Apariencia: nivel de transparencia del chrome (sidebar y panel de chat) ----
@@ -1185,19 +1386,19 @@ const VIBRANCY_OPTIONS: { id: VibrancySetting; label: string; desc: string }[] =
 ]
 /** Aplica el ajuste en vivo. 'none' quita la vibrancy y pone fondo opaco. */
 function applyVibrancy(v: VibrancySetting): void {
-  if (!win || win.isDestroyed() || !isMac) return
+  if (!vActOpt()?.win || vActOpt()?.win.isDestroyed() || !isMac) return
   if (v === 'none') {
-    win.setVibrancy(null)
-    win.setBackgroundColor(APP_BG)
+    vActOpt()?.win.setVibrancy(null)
+    vActOpt()?.win.setBackgroundColor(APP_BG)
   } else {
-    win.setBackgroundColor('#00000000') // necesario para que el material se vea
-    win.setVibrancy(v)
+    vActOpt()?.win.setBackgroundColor('#00000000') // necesario para que el material se vea
+    vActOpt()?.win.setVibrancy(v)
   }
 }
 // ---- Actualizaciones: estado compartido con el chrome (pill) y con Settings ----
 function broadcastUpdateState(s: ReturnType<typeof getUpdateState>): void {
-  win?.webContents.send('update:state', s)
-  for (const t of tabs.values()) {
+  paraTodas('update:state', s)
+  for (const t of vAct().tabs.values()) {
     if (t.url.includes('/settings.html')) t.view.webContents.send('update:state', s)
   }
 }
@@ -1273,7 +1474,7 @@ ipcMain.handle('browser:default', () => ({ isDefault: esPredeterminado(), should
 ipcMain.handle('browser:makeDefault', () => {
   const r = hacerPredeterminado()
   // El estado cambia sin que nadie nos avise: se reenvía para que la UI no se quede vieja.
-  win?.webContents.send('browser:defaultChanged', { isDefault: esPredeterminado(), shouldOffer: debeOfrecerse() })
+  paraTodas('browser:defaultChanged', { isDefault: esPredeterminado(), shouldOffer: debeOfrecerse() })
   return r
 })
 ipcMain.on('browser:dismissDefault', () => descartarOferta())
@@ -1326,7 +1527,7 @@ ipcMain.handle('adblock:allow', (e, hostname: string, permitir: boolean) => {
   return true
 })
 ipcMain.handle('app:version', () => app.getVersion())
-ipcMain.on('update:check', () => void checkForUpdates(true, win))
+ipcMain.on('update:check', () => void checkForUpdates(true, vActOpt()?.win))
 ipcMain.on('update:download', () => void downloadUpdate())
 ipcMain.on('update:install', () => installUpdate())
 
@@ -1338,22 +1539,25 @@ ipcMain.on('ui:setVibrancy', (e, v: VibrancySetting) => {
   applyVibrancy(v)
   savePanels()
 })
-ipcMain.on('ui:setPanel', (_e, which: 'sidebar' | 'chat', width: number) => {
+ipcMain.on('ui:setPanel', (ev, which: 'sidebar' | 'chat', width: number) => {
   const L = PANEL_LIMITS
   const w = Math.round(width)
   if (which === 'sidebar') sidebarWidth = Math.min(L.sidebarMax, Math.max(L.sidebarMin, w))
   else chatWidth = Math.min(L.chatMax, Math.max(L.chatMin, w))
   // Solo la activa: esto llega a 60fps mientras arrastras, y redimensionar ahí las vistas
   // ocultas (sin superficie de GPU) es lo que rompía el compositor.
-  layoutTabs(true)
+  vDe(ev).layoutTabs(true)
   savePanels()
 })
 
-ipcMain.handle('ui:collapse', (_e, collapsed: boolean) => {
-  sidebarCollapsed = !!collapsed
+ipcMain.handle('ui:collapse', (ev, collapsed: boolean) => {
+  // Primer handler migrado a resolver el emisor: con dos ventanas, `` podría no ser la
+  // que mandó el mensaje y colapsarías el sidebar de la otra.
+  const v = vDe(ev)
+  v.setCollapsed(!!collapsed)
   lastCollapseAt = Date.now() // suprime el hover falso del botón que aparece bajo el cursor
   hidePeek()
-  animateLayout()
+  vDe(ev).animateLayout()
   /**
    * Crear la ventana del peek AQUÍ, no en el primer hover.
    *
@@ -1372,13 +1576,13 @@ ipcMain.handle('ui:collapse', (_e, collapsed: boolean) => {
    * Cuesta un proceso de renderer mientras el sidebar esté colapsado. No se destruye al
    * expandir a propósito: con ⌘S se alterna constantemente y volveríamos a pagarlo.
    */
-  if (sidebarCollapsed) ensurePeekWin()
+  if (vDe(ev).isCollapsed()) ensurePeekWin()
 })
-ipcMain.handle('ui:chat', (_e, open: boolean) => { chatOpen = !!open; animateLayout() })
+ipcMain.handle('ui:chat', (ev, open: boolean) => { vDe(ev).setChatOpen(!!open); vDe(ev).animateLayout() })
 // Al editar la URL, oculta la vista nativa (que se dibuja encima del DOM) para que
 // el dropdown del omnibox sea visible; se restaura al cerrar el editor.
-ipcMain.on('ui:omnibox', (_e, open: boolean) => {
-  const t = activeId != null ? tabs.get(activeId) : null
+ipcMain.on('ui:omnibox', (ev, open: boolean) => {
+  const t = vDe(ev).tabActiva()
   if (t) t.view.setVisible(!open)
 })
 
@@ -1401,16 +1605,16 @@ function conFavicon(list: Bookmark[]): Bookmark[] {
 
 function broadcastBookmarks(): void {
   const list = conFavicon(listBookmarks())
-  for (const t of tabs.values()) {
+  for (const t of vAct().tabs.values()) {
     if (isNewtab(t.url)) t.view.webContents.send('bookmarks:changed', list)
   }
-  win?.webContents.send('bookmarks:changed', list) // sidebar del chrome
+  paraTodas('bookmarks:changed', list) // sidebar del chrome
   if (peekWin && !peekWin.isDestroyed()) peekWin.webContents.send('bookmarks:changed', list)
-  pushState() // refresca el estado "bookmarked" del chrome
+  vAct().pushState() // refresca el estado "bookmarked" del chrome
 }
 function navigateActive(raw: string): void {
   const url = normalizeUrl(raw)
-  const t = activeId != null ? tabs.get(activeId) : null
+  const t = vAct().tabActiva()
   if (url && t) t.view.webContents.loadURL(url)
 }
 
@@ -1429,53 +1633,53 @@ function abrirBookmark(id: string): void {
   if (!b) return
   hidePeek()
   // Si ya hay una pestaña viva para este bookmark, actívala; si no, crea una ligada a su slot.
-  for (const [tid, t] of tabs) if (t.bookmarkId === id) { setActive(tid); return }
-  const tabId = createTab(b.url, true)
-  const t = tabs.get(tabId)
-  if (t) { t.bookmarkId = id; pushState() }
+  for (const [tid, t] of vAct().tabs) if (t.bookmarkId === id) { vAct().setActive(tid); return }
+  const tabId = vAct().createTab(b.url, true)
+  const t = vAct().tabs.get(tabId)
+  if (t) { t.bookmarkId = id; vAct().pushState() }
 }
 ipcMain.on('bookmarks:open', (_e: IpcMainEvent, id: string) => abrirBookmark(id))
 
 function setTabMuted(id: number, muted: boolean): void {
-  const t = tabs.get(id)
+  const t = vAct().tabs.get(id)
   if (!t) return
   t.view.webContents.setAudioMuted(muted)
   t.muted = muted
-  pushState()
+  vAct().pushState()
 }
-ipcMain.on('tab:toggleMute', (_e: IpcMainEvent, id?: number) => {
-  const tid = id ?? activeId
+ipcMain.on('tab:toggleMute', (ev: IpcMainEvent, id?: number) => {
+  const tid = id ?? vDe(ev).activeId()
   if (tid == null) return
-  const t = tabs.get(tid)
+  const t = vDe(ev).tabs.get(tid)
   if (t) setTabMuted(tid, !t.muted)
 })
 
 // Menú contextual nativo de un bookmark (click derecho en el BookmarkRow).
-ipcMain.on('bookmark:contextMenu', (_e: IpcMainEvent, id: string) => {
+ipcMain.on('bookmark:contextMenu', (ev: IpcMainEvent, id: string) => {
   const b = listBookmarks().find((x) => x.id === id)
-  if (!b || !win) return
+  if (!b || !vActOpt()?.win) return
   const template: MenuItemConstructorOptions[] = [
-    { label: 'Abrir', click: () => { for (const [tid, t] of tabs) { if (t.bookmarkId === id) { setActive(tid); return } } const nid = createTab(b.url, true); const nt = tabs.get(nid); if (nt) { nt.bookmarkId = id; pushState() } } },
-    { label: 'Abrir en pestaña nueva', click: () => createTab(b.url) },
+    { label: 'Abrir', click: () => { for (const [tid, t] of vDe(ev).tabs) { if (t.bookmarkId === id) { vDe(ev).setActive(tid); return } } const nid = vDe(ev).createTab(b.url, true); const nt = vDe(ev).tabs.get(nid); if (nt) { nt.bookmarkId = id; vDe(ev).pushState() } } },
+    { label: 'Abrir en pestaña nueva', click: () => vDe(ev).createTab(b.url) },
     { label: 'Copiar enlace', click: () => clipboard.writeText(b.url) },
     { type: 'separator' },
     { label: 'Quitar de bookmarks', click: () => { soltarTabsDelBookmark(id); removeBookmark(id); broadcastBookmarks() } }
   ]
-  Menu.buildFromTemplate(template).popup({ window: win })
+  Menu.buildFromTemplate(template).popup({ window: vDe(ev).win })
 })
 
 // Menú contextual nativo de una pestaña (click derecho en el TabRow).
-ipcMain.on('tab:contextMenu', (_e: IpcMainEvent, id: number) => {
-  const t = tabs.get(id)
-  if (!t || !win) return
+ipcMain.on('tab:contextMenu', (ev: IpcMainEvent, id: number) => {
+  const t = vDe(ev).tabs.get(id)
+  if (!t || !vActOpt()?.win) return
   const wc = t.view.webContents
-  const ids = [...tabs.keys()]
+  const ids = [...vDe(ev).tabs.keys()]
   const below = ids.slice(ids.indexOf(id) + 1)
   const others = ids.filter((x) => x !== id)
   const internal = isInternal(t.url)
   const template: MenuItemConstructorOptions[] = [
-    { label: 'Nueva pestaña', click: () => createTab() },
-    { label: 'Duplicar', enabled: !internal, click: () => createTab(t.url) },
+    { label: 'Nueva pestaña', click: () => vDe(ev).createTab() },
+    { label: 'Duplicar', enabled: !internal, click: () => vDe(ev).createTab(t.url) },
     { type: 'separator' },
     { label: 'Recargar', click: () => wc.reload() },
     {
@@ -1490,11 +1694,11 @@ ipcMain.on('tab:contextMenu', (_e: IpcMainEvent, id: number) => {
     { label: t.muted ? 'Reactivar sonido' : 'Silenciar sitio', click: () => setTabMuted(id, !t.muted) },
     { label: 'Copiar enlace', enabled: !internal, click: () => clipboard.writeText(t.url) },
     { type: 'separator' },
-    { label: 'Cerrar', click: () => closeTab(id) },
-    { label: 'Cerrar otras', enabled: others.length > 0, click: () => others.forEach(closeTab) },
-    { label: 'Cerrar las de abajo', enabled: below.length > 0, click: () => below.forEach(closeTab) }
+    { label: 'Cerrar', click: () => vDe(ev).closeTab(id) },
+    { label: 'Cerrar otras', enabled: others.length > 0, click: () => others.forEach((x) => vDe(ev).closeTab(x)) },
+    { label: 'Cerrar las de abajo', enabled: below.length > 0, click: () => below.forEach((x) => vDe(ev).closeTab(x)) }
   ]
-  Menu.buildFromTemplate(template).popup({ window: win })
+  Menu.buildFromTemplate(template).popup({ window: vDe(ev).win })
 })
 /**
  * Ata (o desata) una pestaña a su marcador.
@@ -1506,7 +1710,7 @@ ipcMain.on('tab:contextMenu', (_e: IpcMainEvent, id: number) => {
  */
 function atarTabAlBookmark(t: Tab, bm: { id: string } | null): void {
   t.bookmarkId = bm?.id ?? null
-  pushState()
+  vAct().pushState()
 }
 
 /**
@@ -1517,7 +1721,7 @@ function atarTabAlBookmark(t: Tab, bm: { id: string } | null): void {
  * seleccionar ni cerrar. Hay que llamarlo en TODO camino que borre un marcador.
  */
 function soltarTabsDelBookmark(id: string): void {
-  for (const t of tabs.values()) if (t.bookmarkId === id) t.bookmarkId = null
+  for (const t of vAct().tabs.values()) if (t.bookmarkId === id) t.bookmarkId = null
 }
 
 // Sin `isInternalSender`: viene del CHROME (el sidebar), igual que `bookmarks:toggle` y
@@ -1541,8 +1745,8 @@ ipcMain.on('bookmarks:reorder', (_e: IpcMainEvent, ids: string[]) => {
   broadcastBookmarks()
 })
 
-ipcMain.on('bookmarks:toggle', () => {
-  const t = activeId != null ? tabs.get(activeId) : null
+ipcMain.on('bookmarks:toggle', (ev) => {
+  const t = vDe(ev).tabActiva()
   if (!t || isNewtab(t.url)) return
   if (t.bookmarkId) soltarTabsDelBookmark(t.bookmarkId)
   atarTabAlBookmark(t, toggleBookmark(t.url, t.title || t.url, t.favicon))
@@ -1550,31 +1754,31 @@ ipcMain.on('bookmarks:toggle', () => {
 })
 
 // Reenvía la interacción con la página al chrome, para cerrar el menú de perfil.
-ipcMain.on('tab:pointerdown', () => { if (win && !win.isDestroyed()) win.webContents.send('page:pointerdown') })
+ipcMain.on('tab:pointerdown', () => { if (vActOpt()?.win && !vActOpt()?.win.isDestroyed()) vActOpt()?.win.webContents.send('page:pointerdown') })
 
 // Acciones del menú de perfil
-ipcMain.on('ui:devtools', () => toggleDevtools())
+ipcMain.on('ui:devtools', (ev) => vDe(ev).toggleDevtools())
 // ---- Descargas ----
 function broadcastDownloads(): void {
   const list = listDownloads()
-  for (const t of tabs.values()) if (t.url.includes('/downloads.html')) t.view.webContents.send('downloads:changed', list)
-  win?.webContents.send('downloads:summary', { active: activeDownloadCount(), total: list.length })
+  paraPaginas('/downloads.html', 'downloads:changed', list)
+  paraTodas('downloads:summary', { active: activeDownloadCount(), total: list.length })
 }
 /** Reutiliza la pestaña si ya está abierta, como downloads: no se acumulan historiales. */
 function openHistory(): void {
-  for (const [id, t] of tabs) if (t.url.includes('/history.html')) { setActive(id); return }
-  createTab(internalUrl('history'))
+  for (const [id, t] of vAct().tabs) if (t.url.includes('/history.html')) { vAct().setActive(id); return }
+  vAct().createTab(internalUrl('history'))
 }
 
 /** Igual que historial y descargas: reutiliza la pestaña si ya está abierta. */
 function openBookmarksManager(): void {
-  for (const [id, t] of tabs) if (t.url.includes('/bookmarks.html')) { setActive(id); return }
-  createTab(internalUrl('bookmarks'))
+  for (const [id, t] of vAct().tabs) if (t.url.includes('/bookmarks.html')) { vAct().setActive(id); return }
+  vAct().createTab(internalUrl('bookmarks'))
 }
 
 function openDownloads(): void {
-  for (const [id, t] of tabs) if (t.url.includes('/downloads.html')) { setActive(id); return }
-  createTab(internalUrl('downloads'))
+  for (const [id, t] of vAct().tabs) if (t.url.includes('/downloads.html')) { vAct().setActive(id); return }
+  vAct().createTab(internalUrl('downloads'))
 }
 ipcMain.handle('downloads:list', () => listDownloads())
 ipcMain.handle('downloads:summary', () => ({ active: activeDownloadCount(), total: listDownloads().length }))
@@ -1599,7 +1803,7 @@ ipcMain.handle('quickactions:remove', (e, id: string) => (isInternalSender(e.sen
 // Ejecuta una acción: arma el prompt (plantilla + selección) y lo manda al chat del agente.
 function runAgentPrompt(prompt: string): void {
   if (!prompt.trim()) return
-  win?.webContents.send('chat:prefill', prompt)
+  vActOpt()?.win?.webContents.send('chat:prefill', prompt)
 }
 ipcMain.on('quickaction:run', (_e, id: string, selection: string) => {
   const a = getQuickAction(id)
@@ -1611,15 +1815,15 @@ ipcMain.on('quickaction:runFree', (_e, instruction: string, selection: string) =
 function openSettings(section?: string): void {
   const hash = section ? `#${section}` : ''
   // Si ya hay una pestaña de settings, actívala (y navega a la sección si se pidió); si no, ábrela.
-  for (const [id, t] of tabs) if (t.url.includes('/settings.html')) {
-    setActive(id)
+  for (const [id, t] of vAct().tabs) if (t.url.includes('/settings.html')) {
+    vAct().setActive(id)
     if (section) t.view.webContents.loadURL(internalUrl('settings') + hash)
     return
   }
-  createTab(internalUrl('settings') + hash)
+  vAct().createTab(internalUrl('settings') + hash)
 }
 ipcMain.on('ui:settings', () => openSettings())
-ipcMain.on('ui:openChat', () => win?.webContents.send('menu:action', 'toggle-chat'))
+ipcMain.on('ui:openChat', () => vActOpt()?.win?.webContents.send('menu:action', 'toggle-chat'))
 
 // ---- Skills del agente (gestión desde Settings) ----
 /**
@@ -1639,7 +1843,7 @@ ipcMain.on('skills:openFolder', (e) => { if (isInternalSender(e.senderFrame?.url
 // ---- Perfil ----
 function broadcastProfile(): void {
   const p = getProfile()
-  win?.webContents.send('profile:changed', p)
+  paraTodas('profile:changed', p)
   if (peekWin && !peekWin.isDestroyed()) peekWin.webContents.send('profile:changed', p)
   pmPopover.send('profilemenu:profile', p)
 }
@@ -1688,7 +1892,7 @@ const VAULT_H = 380
 function ensureVaultWin(): BrowserWindow {
   if (vaultWin && !vaultWin.isDestroyed()) return vaultWin
   vaultWin = new BrowserWindow({
-    parent: win!, width: VAULT_W, height: VAULT_H, show: false,
+    parent: vActOpt()?.win!, width: VAULT_W, height: VAULT_H, show: false,
     frame: false, resizable: false, movable: false, minimizable: false, maximizable: false,
     fullscreenable: false, hasShadow: true, roundedCorners: true, backgroundColor: '#1b1b1f',
     webPreferences: { preload: join(__dirname, '../preload/vaultwin.js'), contextIsolation: true, sandbox: false }
@@ -1700,7 +1904,7 @@ function ensureVaultWin(): BrowserWindow {
 }
 
 function notifyVault(): void {
-  win?.webContents.send('vault:changed', vault.list())
+  paraTodas('vault:changed', vault.list())
   if (vaultWin && !vaultWin.isDestroyed() && vaultWin.isVisible()) vaultWin.webContents.send('vault:items', vault.list())
 }
 
@@ -1711,7 +1915,7 @@ function notifyVault(): void {
 function reportVaultError(e: unknown): void {
   const detail = e instanceof Error ? e.message : String(e)
   console.error('[vault]', detail)
-  dialog.showMessageBox(win ?? undefined!, {
+  dialog.showMessageBox(vActOpt()?.win ?? undefined!, {
     type: 'error', buttons: ['OK'], message: 'No se pudo guardar en el Vault', detail
   })
 }
@@ -1739,17 +1943,17 @@ async function faviconImage(url: string | null): Promise<Electron.NativeImage | 
     return img.isEmpty() ? undefined : img
   } catch { return undefined }
 }
-ipcMain.on('vault:capture', async (e, cred: { username: string; password: string }) => {
-  const origin = ((): string => { try { return new URL(e.senderFrame?.url || '').origin } catch { return '' } })()
+ipcMain.on('vault:capture', async (ev, cred: { username: string; password: string }) => {
+  const origin = ((): string => { try { return new URL(ev.senderFrame?.url || '').origin } catch { return '' } })()
   if (!origin || !/^https?:/.test(origin) || !cred?.password) return
   const host = origin.replace(/^https?:\/\//, '').replace(/^www\./, '')
   const existing = vault.findCredential(origin)
   // Ya guardada con la misma contraseña → no molestar.
   if (existing && vault.getSecret(existing.id) === cred.password) return
-  const t = [...tabs.values()].find((tb) => tb.view.webContents === e.sender)
+  const t = [...vDe(ev).tabs.values()].find((tb) => tb.view.webContents === ev.sender)
   const icon = await faviconImage(t?.favicon ?? null)
   const update = !!existing
-  const { response } = await dialog.showMessageBox(win ?? undefined!, {
+  const { response } = await dialog.showMessageBox(vActOpt()?.win ?? undefined!, {
     type: 'question',
     icon,
     message: update ? `¿Actualizar la contraseña de ${host}?` : `¿Guardar la contraseña de ${host} en tu Vault?`,
@@ -1766,9 +1970,10 @@ ipcMain.on('vault:capture', async (e, cred: { username: string; password: string
   } catch (err) { reportVaultError(err); return }
   notifyVault()
 })
-ipcMain.on('vault:open', (_e, anchor: MenuAnchor) => {
+ipcMain.on('vault:open', (ev, anchor: MenuAnchor) => {
   const w = ensureVaultWin()
-  const cb = win!.getContentBounds()
+  reparentar(w)
+  const cb = vDe(ev).win.getContentBounds()
   const x = Math.round(cb.x + (anchor?.x ?? 0) + (anchor?.width ?? 0) - VAULT_W)
   const y = Math.round(cb.y + (anchor?.y ?? 0) + (anchor?.height ?? 0) + 6)
   w.setBounds({ x: Math.max(cb.x + 8, x), y, width: VAULT_W, height: VAULT_H })
@@ -1776,16 +1981,16 @@ ipcMain.on('vault:open', (_e, anchor: MenuAnchor) => {
   w.show(); w.focus()
 })
 ipcMain.on('vault:closeWindow', () => { if (vaultWin && !vaultWin.isDestroyed()) vaultWin.hide() })
-ipcMain.on('vault:manage', () => {
+ipcMain.on('vault:manage', (ev) => {
   if (vaultWin && !vaultWin.isDestroyed()) vaultWin.hide()
-  for (const [id, t] of tabs) if (t.url.includes('/settings.html')) { setActive(id); return }
-  createTab(internalUrl('settings'))
+  for (const [id, t] of vDe(ev).tabs) if (t.url.includes('/settings.html')) { vDe(ev).setActive(id); return }
+  vDe(ev).createTab(internalUrl('settings'))
 })
 
 // ---- Omnibox: ventana nativa del dropdown de sugerencias (flota sobre la página) ----
 // focusable:false → clicks no le roban el foco al input del chrome; la página no se toca.
 let lastOmniData: unknown = null
-const omniPopover = createPopover(() => win, {
+const omniPopover = createPopover(() => vActOpt()?.win ?? null, {
   // width solo es el ancho con el que nace la ventana (para que el renderer no mida a
   // 24px); el real lo pone el anchor en cada show.
   name: 'omni', width: 420, widthFromAnchor: true, offsetY: -2,
@@ -1800,12 +2005,12 @@ ipcMain.on('omni:show', (_e, rect: MenuAnchor, data) => {
 })
 ipcMain.on('omni:update', (_e, data) => { lastOmniData = data; omniPopover.send('omni:data', data) })
 ipcMain.on('omni:hide', hideOmni)
-ipcMain.on('omni:choose', (_e, i: number) => win?.webContents.send('omni:chosen', i))
-ipcMain.on('omni:hover', (_e, i: number) => win?.webContents.send('omni:hovered', i))
+ipcMain.on('omni:choose', (_e, i: number) => vActOpt()?.win?.webContents.send('omni:chosen', i))
+ipcMain.on('omni:hover', (_e, i: number) => vActOpt()?.win?.webContents.send('omni:hovered', i))
 
 // ---- Site info: popup nativo de info/permisos del sitio (anclado al pill del dominio) ----
 function activeUrl(): string {
-  const t = activeId != null ? tabs.get(activeId) : null
+  const t = vAct().tabActiva()
   return t?.url || ''
 }
 function buildSiteInfo(): SiteInfoData {
@@ -1821,14 +2026,14 @@ function buildSiteInfo(): SiteInfoData {
   // distintas que en el popover se ven como un solo interruptor, que es como se piensan.
   const ab = adblockState()
   const excluido = ab.allow.some((a) => domain === a || domain.endsWith('.' + a))
-  const tab = activeId != null ? tabs.get(activeId) : null
+  const tab = vAct().tabActiva()
   return {
     url, origin, domain, secure, internal, permissions,
     adblockOn: ab.enabled && !excluido,
     adblockBlocked: tab ? adblockCountFor(tab.view.webContents.id) : 0
   }
 }
-const sitePopover = createPopover(() => win, {
+const sitePopover = createPopover(() => vActOpt()?.win ?? null, {
   name: 'siteinfo', width: 340, height: 200,
   preload: 'siteinfo', page: 'siteinfo',
   data: { channel: 'siteinfo:data', get: buildSiteInfo }
@@ -1843,7 +2048,7 @@ ipcMain.on('siteinfo:toggle', (_e, key: PermKey, state: PermState) => {
   }
   sitePopover.send('siteinfo:data', buildSiteInfo())
 })
-ipcMain.on('siteinfo:adblock', (_e, on: boolean) => {
+ipcMain.on('siteinfo:adblock', (ev, on: boolean) => {
   const { domain } = buildSiteInfo()
   // Aquí se invierte a propósito: el interruptor dice "bloquear aquí", y lo que se guarda es
   // la EXCEPCIÓN. Apagarlo = añadir el dominio a la allowlist.
@@ -1851,7 +2056,7 @@ ipcMain.on('siteinfo:adblock', (_e, on: boolean) => {
   sitePopover.send('siteinfo:data', buildSiteInfo())
   // Recargar es parte de la acción: los recursos ya bloqueados no vuelven solos, y el usuario
   // que desactiva el bloqueo lo hace porque la página está rota AHORA.
-  const t = activeId != null ? tabs.get(activeId) : null
+  const t = vDe(ev).tabActiva()
   t?.view.webContents.reload()
 })
 ipcMain.on('siteinfo:clear', async () => {
@@ -1862,7 +2067,7 @@ ipcMain.on('siteinfo:clear', async () => {
   } catch (e) {
     const detail = e instanceof Error ? e.message : String(e)
     console.error('[siteinfo] no se pudieron borrar los datos de', activeUrl(), detail)
-    dialog.showMessageBox(win ?? undefined!, {
+    dialog.showMessageBox(vActOpt()?.win ?? undefined!, {
       type: 'error', buttons: ['OK'],
       message: 'No se pudieron borrar los datos del sitio', detail
     })
@@ -1903,7 +2108,7 @@ ipcMain.handle('perms:clear', (e, origin: string | null) => {
 })
 
 // ---- Menú de perfil: ventana nativa (flota sobre la página) ----
-const pmPopover = createPopover(() => win, {
+const pmPopover = createPopover(() => vActOpt()?.win ?? null, {
   name: 'profilemenu', width: 264, height: 380,
   preload: 'profilemenu', page: 'profilemenu',
   data: { channel: 'profilemenu:profile', get: getProfile },
@@ -1928,7 +2133,7 @@ let lastCollapseAt = 0
 function ensurePeekWin(): BrowserWindow {
   if (peekWin && !peekWin.isDestroyed()) return peekWin
   peekWin = new BrowserWindow({
-    parent: win!, width: PEEK_W, height: 200, show: false, frame: false, transparent: true,
+    parent: vActOpt()?.win!, width: PEEK_W, height: 200, show: false, frame: false, transparent: true,
     resizable: false, movable: false, minimizable: false, maximizable: false,
     fullscreenable: false, hasShadow: false, skipTaskbar: true, backgroundColor: '#00000000',
     acceptFirstMouse: true, // clicks funcionan sin activar la ventana (no roba foco)
@@ -1938,9 +2143,15 @@ function ensurePeekWin(): BrowserWindow {
   else peekWin.loadFile(join(__dirname, '../renderer/peekbar.html'))
   return peekWin
 }
+/**
+ * El peek se coloca contra la ventana que lo pidió, no contra la enfocada: se abre al pasar el
+ * ratón por encima, y en macOS el ratón puede estar sobre una ventana que no tiene el foco.
+ */
+let peekVentanaId: number | null = null
 function placePeekWin(): void {
-  if (!peekWin || peekWin.isDestroyed() || !win) return
-  const cb = win.getContentBounds()
+  const v = (peekVentanaId != null ? ventanas.get(peekVentanaId) : null) ?? vActOpt()
+  if (!peekWin || peekWin.isDestroyed() || !v) return
+  const cb = v.win.getContentBounds()
   // Del topbar hasta abajo, pegado a la izquierda. El margen "flotante" lo da el padding
   // del propio panel (CSS); la ventana ocupa desde debajo del topbar hasta el fondo.
   peekWin.setBounds({
@@ -1970,7 +2181,7 @@ function hidePeek(): void {
     if (!peekWin || peekWin.isDestroyed() || !peekWin.isVisible()) return
     const hadFocus = peekWin.isFocused()
     peekWin.hide()
-    if (hadFocus) win?.focus() // devuelve el foco al navegador
+    if (hadFocus) vActOpt()?.win?.focus() // devuelve el foco al navegador
   }, PEEK_OUT_MS)
 }
 // El cursor está sobre el botón o el panel (con margen para cruzar el hueco entre ambos).
@@ -2005,18 +2216,21 @@ function showPeekNow(): void {
   // Si volvió el ratón mientras se retraía, se cancela la retirada y entra otra vez.
   if (peekHideTimer) { clearTimeout(peekHideTimer); peekHideTimer = null }
   const w = ensurePeekWin()
-  pushState() // refresca el <Sidebar/> del peek con el estado actual
+  const vp = (peekVentanaId != null ? ventanas.get(peekVentanaId) : null) ?? vAct()
+  reparentar(w, vp)
+  vp.pushState() // refresca el <Sidebar/> del peek con el estado actual
   placePeekWin()
   w.showInactive() // NO roba el foco: el botón de expandir sigue clickeable y sin resaltar items
   w.webContents.send('peek:shown') // dispara la animación de entrada
   startPeekPoll()
 }
-ipcMain.on('peek:show', (_e, anchor: MenuAnchor) => {
-  if (!sidebarCollapsed) return // solo tiene sentido con el sidebar colapsado
+ipcMain.on('peek:show', (ev, anchor: MenuAnchor) => {
+  if (!vDe(ev).isCollapsed()) return // solo tiene sentido con el sidebar colapsado
   // Al colapsar, el botón de expandir aparece justo debajo del cursor y dispara un
   // mouseenter falso: ignoramos el hover inmediatamente después de colapsar.
   if (Date.now() - lastCollapseAt < 600) return
-  const cb = win!.getContentBounds()
+  peekVentanaId = vDe(ev).id
+  const cb = vDe(ev).win.getContentBounds()
   peekButtonRect = { x: cb.x + anchor.x, y: cb.y + anchor.y, w: anchor.width, h: anchor.height }
   if (peekWin && !peekWin.isDestroyed() && peekWin.isVisible()) {
     // Puede estar VISIBLE pero retrayéndose: si el ratón vuelve ahora hay que cancelar la
@@ -2035,7 +2249,7 @@ ipcMain.on('peek:show', (_e, anchor: MenuAnchor) => {
   peekOpenTimer = setTimeout(() => {
     peekOpenTimer = null
     const r = peekButtonRect
-    if (!r || !sidebarCollapsed) return
+    if (!r || !vDe(ev).isCollapsed()) return
     const p = screen.getCursorScreenPoint()
     if (p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h) showPeekNow()
   }, 180)
@@ -2071,9 +2285,7 @@ function configurePasskeys(): void {
 // ---- Rutinas (vigilar páginas y avisar) ----
 function broadcastRoutines(): void {
   const list = listRoutines()
-  for (const t of tabs.values()) {
-    if (t.url.includes('/settings.html')) t.view.webContents.send('routines:changed', list)
-  }
+  paraPaginas('/settings.html', 'routines:changed', list)
 }
 ipcMain.handle('routines:list', (e) => (isInternalSender(e.senderFrame?.url) ? listRoutines() : []))
 ipcMain.handle('routines:create', async (e, input: { url: string; request: string; minutes: number }) => {
@@ -2095,7 +2307,7 @@ let extInstalling = false
 function extensionsData(): unknown {
   const items = listExtensions()
   // ¿La pestaña activa es la página de una extensión en la Chrome Web Store?
-  const url = activeId != null ? tabs.get(activeId)?.url ?? '' : ''
+  const url = vAct().tabActiva()?.url ?? ''
   const isStore = /chromewebstore\.google\.com|chrome\.google\.com\/webstore/.test(url)
   const id = isStore ? extensionIdFrom(url) : null
   return {
@@ -2104,7 +2316,7 @@ function extensionsData(): unknown {
     installing: extInstalling
   }
 }
-const extPopover = createPopover(() => win, {
+const extPopover = createPopover(() => vActOpt()?.win ?? null, {
   name: 'extensions', width: 320, height: 240, align: 'center',
   preload: 'extensionswin', page: 'extensions',
   data: { channel: 'extensions:data', get: extensionsData }
@@ -2123,9 +2335,9 @@ function openExtensionPopup(path: string): void {
   const ui = extensionUi(path)
   if (!ui?.popup) return
   if (extPopupWin && !extPopupWin.isDestroyed()) extPopupWin.destroy()
-  const cb = win!.getContentBounds()
+  const cb = vAct().win.getContentBounds()
   extPopupWin = new BrowserWindow({
-    parent: win!, width: 400, height: 600, show: false, frame: false,
+    parent: vActOpt()?.win!, width: 400, height: 600, show: false, frame: false,
     resizable: false, movable: false, minimizable: false, maximizable: false,
     fullscreenable: false, skipTaskbar: true, roundedCorners: true, backgroundColor: '#ffffff',
     x: Math.round(cb.x + cb.width - 420), y: Math.round(cb.y + TOPBAR_HEIGHT),
@@ -2140,24 +2352,24 @@ ipcMain.on('extensions:openPopup', (_e, path: string) => {
   openExtensionPopup(path)
 })
 // Menú "…" de una extensión: sus opciones + acciones del navegador.
-ipcMain.on('extensions:menu', (_e, path: string) => {
+ipcMain.on('extensions:menu', (ev, path: string) => {
   const ui = extensionUi(path)
   const items: MenuItemConstructorOptions[] = [
     { label: 'Abrir', enabled: !!ui?.popup, click: () => { extPopover.hide(); openExtensionPopup(path) } },
-    { label: 'Opciones', enabled: !!ui?.options, click: () => { extPopover.hide(); if (ui?.options) createTab(ui.options) } },
+    { label: 'Opciones', enabled: !!ui?.options, click: () => { extPopover.hide(); if (ui?.options) vDe(ev).createTab(ui.options) } },
     { type: 'separator' },
     { label: 'Quitar de Monper', click: () => { removeExt(path); sendExtensions() } }
   ]
-  Menu.buildFromTemplate(items).popup({ window: extPopover.window ?? win! })
+  Menu.buildFromTemplate(items).popup({ window: extPopover.window ?? vActOpt()?.win! })
 })
-ipcMain.on('extensions:browseStore', () => {
-  createTab('https://chromewebstore.google.com/category/extensions')
+ipcMain.on('extensions:browseStore', (ev) => {
+  vDe(ev).createTab('https://chromewebstore.google.com/category/extensions')
   extPopover.hide()
 })
-ipcMain.on('extensions:installFromStore', async (e) => {
+ipcMain.on('extensions:installFromStore', async (ev) => {
   // La petición puede venir del popup del puzzle o del botón inyectado en la Store.
-  const fromTab = [...tabs.values()].find((t) => t.view.webContents === e.sender)
-  const url = fromTab?.url || (activeId != null ? tabs.get(activeId)?.url ?? '' : '')
+  const fromTab = [...vDe(ev).tabs.values()].find((t) => t.view.webContents === ev.sender)
+  const url = fromTab?.url || (vDe(ev).tabActiva()?.url ?? '')
   extInstalling = true; sendExtensions()
   const r = await installFromStore(url)
   extInstalling = false; sendExtensions()
@@ -2166,7 +2378,7 @@ ipcMain.on('extensions:installFromStore', async (e) => {
     fromTab.view.webContents.send('extensions:installResult', r)
   }
   if (!r.ok && r.error) {
-    const parent = extPopover.isVisible() ? extPopover.window : win
+    const parent = extPopover.isVisible() ? extPopover.window : vActOpt()?.win
     dialog.showMessageBox(parent!, {
       type: 'error', buttons: ['OK'],
       message: 'No se pudo añadir la extensión',
@@ -2177,7 +2389,7 @@ ipcMain.on('extensions:installFromStore', async (e) => {
   }
 })
 async function importarExtensionDesdeCarpeta(): Promise<void> {
-  const parent = extPopover.window ?? win
+  const parent = extPopover.window ?? vActOpt()?.win
   const res = await dialog.showOpenDialog(parent!, {
     title: 'Elige la carpeta de la extensión',
     properties: ['openDirectory']
@@ -2197,7 +2409,7 @@ const SIGNIN_W = 360
 let signinTabId: number | null = null
 let signinCreds: unknown = null
 const signinDismissed = new Set<string>() // orígenes descartados en esta sesión
-const signinPopover = createPopover(() => win, {
+const signinPopover = createPopover(() => vActOpt()?.win ?? null, {
   name: 'signin', width: SIGNIN_W, height: 160,
   focusable: false, // aparece sobre la página sin robarle el foco al formulario
   preload: 'signin', page: 'signin',
@@ -2209,16 +2421,16 @@ const signinPopover = createPopover(() => win, {
  * panel (PAD) lo compensa el +12 de la x.
  */
 function showSignin(): void {
-  const cb = contentBounds()
+  const cb = vAct().contentBounds()
   signinPopover.show({ x: cb.x + 16 + 12, y: cb.y + 12, width: 0, height: 0 })
 }
 function hideSignin(): void { signinTabId = null; signinPopover.hide() }
-ipcMain.on('autofill:loginForm', (e, hasForm: boolean) => {
-  const entry = [...tabs.entries()].find(([, t]) => t.view.webContents === e.sender)
+ipcMain.on('autofill:loginForm', (ev, hasForm: boolean) => {
+  const entry = [...vDe(ev).tabs.entries()].find(([, t]) => t.view.webContents === ev.sender)
   if (!entry) return
   const [id, t] = entry
   if (!hasForm) { if (signinTabId === id) hideSignin(); return }
-  if (id !== activeId) return
+  if (id !== vDe(ev).activeId()) return
   const origin = ((): string => { try { return new URL(t.url).origin } catch { return '' } })()
   if (!origin || signinDismissed.has(origin)) return
   const creds = credentialsFor(origin)
@@ -2227,13 +2439,13 @@ ipcMain.on('autofill:loginForm', (e, hasForm: boolean) => {
   signinCreds = creds
   showSignin()
 })
-ipcMain.on('signin:fill', async (_e, itemId: string) => {
-  const t = signinTabId != null ? tabs.get(signinTabId) : null
+ipcMain.on('signin:fill', async (ev, itemId: string) => {
+  const t = signinTabId != null ? vDe(ev).tabs.get(signinTabId) : null
   hideSignin()
   if (t) await fillFromVault(t.view.webContents, itemId) // el secreto nunca sale del main
 })
-ipcMain.on('signin:dismiss', () => {
-  const t = signinTabId != null ? tabs.get(signinTabId) : null
+ipcMain.on('signin:dismiss', (ev) => {
+  const t = signinTabId != null ? vDe(ev).tabs.get(signinTabId) : null
   // Si la URL no es parseable no hay origen que recordar; el popup ya se cierra igual.
   if (t) { try { signinDismissed.add(new URL(t.url).origin) } catch { /* sin origen: no se recuerda */ } }
   hideSignin()
@@ -2347,7 +2559,7 @@ function datosSubmenu(): SubmenuData {
   }
 }
 
-const submenuPopover = createPopover(() => win, {
+const submenuPopover = createPopover(() => vActOpt()?.win ?? null, {
   name: 'profilesubmenu', width: 300, height: 180,
   offsetY: 0,
   activateOnShow: false, // se abre con el ratón aún sobre el padre; ver el sondeo de abajo
@@ -2400,16 +2612,16 @@ function sondearSubmenu(): void {
  */
 /** Abre el gestor de extensiones anclado al botón del topbar (o al centro si no lo hay). */
 function abrirExtensionesDesdeMenu(): void {
-  const cb = win?.getContentBounds()
+  const cb = vActOpt()?.win?.getContentBounds()
   extPopover.show({ x: Math.round((cb?.width ?? 800) / 2) - 20, y: TOPBAR_HEIGHT - 8, width: 40, height: 28 })
 }
 
-ipcMain.on('profilemenu:submenu', (_e, section: SubmenuSection, rect: { top: number; height: number }) => {
+ipcMain.on('profilemenu:submenu', (ev, section: SubmenuSection, rect: { top: number; height: number }) => {
   const pm = pmPopover.window
-  if (!pm || !win) return
+  if (!pm || !vActOpt()?.win) return
   submenuSección = section
   const pmb = pm.getBounds()
-  const cb = win.getContentBounds()
+  const cb = vDe(ev).win.getContentBounds()
   const PAD = 12
   submenuPopover.show({
     x: pmb.x + pmb.width - PAD + 6 - cb.x,
@@ -2421,7 +2633,7 @@ ipcMain.on('profilemenu:submenu', (_e, section: SubmenuSection, rect: { top: num
   sondearSubmenu()
 })
 ipcMain.on('profilemenu:submenuClose', () => submenuPopover.hide())
-ipcMain.on('profilesubmenu:action', (_e, action: string) => {
+ipcMain.on('profilesubmenu:action', (ev, action: string) => {
   const [grupo, verbo, ...resto] = action.split(':')
   const arg = resto.join(':')
   // El toggle es la excepción: cerrar el menú al pulsarlo impediría ver que cambió.
@@ -2441,28 +2653,28 @@ ipcMain.on('profilesubmenu:action', (_e, action: string) => {
     case 'extensions:open': openExtensionPopup(arg); break
     case 'bookmarks:open': abrirBookmark(arg); break
     case 'bookmarks:all': openBookmarksManager(); break
-    case 'history:open': createTab(arg); break
+    case 'history:open': vDe(ev).createTab(arg); break
     case 'history:all': openHistory(); break
-    case 'dev:devtools': toggleDevtools(); break
+    case 'dev:devtools': vDe(ev).toggleDevtools(); break
     case 'dev:hardReload': activeWc()?.reloadIgnoringCache(); break
     case 'dev:copyToken': clipboard.writeText(remoteState().token); break
   }
 })
 
-ipcMain.on('profilemenu:action', (_e, name: string) => {
+ipcMain.on('profilemenu:action', (ev, name: string) => {
   pmPopover.hide()
   switch (name) {
     case 'new-tab':
     case 'bookmarks': openBookmarksManager(); break
     case 'settings': openSettings(); break
     case 'downloads': openDownloads(); break
-    case 'developers': toggleDevtools(); break
+    case 'developers': vDe(ev).toggleDevtools(); break
     // TODO: new-profile, switch-profile, extensions, history, incognito
   }
 })
 
 // ---- Proveedores de IA (gestión desde la página de Settings, sender-validada) ----
-function notifyChatContext(): void { win?.webContents.send('chat:contextChanged', getChatContext()) }
+function notifyChatContext(): void { vActOpt()?.win?.webContents.send('chat:contextChanged', getChatContext()) }
 ipcMain.handle('providers:list', (e) => (isInternalSender(e.senderFrame?.url) ? listProviders() : []))
 ipcMain.handle('providers:add', (e, input: { label: string; kind: ProviderKind; baseUrl?: string }, apiKey: string) => {
   if (!isInternalSender(e.senderFrame?.url)) { console.warn('[providers:add] denegado, sender:', e.senderFrame?.url); return listProviders() }
@@ -2494,21 +2706,21 @@ let agentRunning = false
 let controlledTabId: number | null = null
 // La leyenda de control solo se muestra en la pestaña que el agente controla de verdad.
 function controllingActive(): boolean {
-  return agentRunning && activeId != null && activeId === controlledTabId
+  return agentRunning && vAct().activeId() != null && vAct().activeId() === controlledTabId
 }
 function setAgentRunning(on: boolean): void {
   if (agentRunning === on) return
   agentRunning = on
-  controlledTabId = on ? activeId : null // arranca controlando la pestaña activa
-  layoutActive() // ajusta la franja inferior de la vista nativa
-  pushState()
+  controlledTabId = on ? vAct().activeId() : null // arranca controlando la pestaña activa
+  vAct().layoutActive() // ajusta la franja inferior de la vista nativa
+  vAct().pushState()
 }
 // El agente movió su foco a otra pestaña (open_tab/switch_tab): sigue la leyenda.
 function setControlledTab(id: number): void {
   if (!agentRunning) return
   controlledTabId = id
-  layoutActive()
-  pushState()
+  vAct().layoutActive()
+  vAct().pushState()
 }
 // Cola de eventos asíncronos del navegador (popups, descargas) para steering del agente.
 let agentEvents: string[] = []
@@ -2525,25 +2737,25 @@ ipcMain.on('chats:save', (_e, id: string, messages) => saveSession(id, messages)
 ipcMain.on('chats:remove', (_e, id: string) => removeChatSession(id))
 // "Take over": el usuario retoma el control → aborta el agente.
 ipcMain.on('agent:takeOver', () => { chatAbort?.abort() })
-ipcMain.handle('chat:send', async (_e, messages: ChatMessage[]) => {
+ipcMain.handle('chat:send', async (ev, messages: ChatMessage[]) => {
   const active = getActiveProvider()
-  if (!active) { win?.webContents.send('chat:error', 'No hay proveedor de IA conectado. Conéctalo en Settings.'); return }
+  if (!active) { vActOpt()?.win?.webContents.send('chat:error', 'No hay proveedor de IA conectado. Conéctalo en Settings.'); return }
   chatAbort?.abort()
   agentEvents = [] // limpia eventos viejos al iniciar un turno
   chatAbort = new AbortController()
   setAgentRunning(true)
-  const send = (ch: string, payload?: unknown): void => { win?.webContents.send(ch, payload) }
+  const send = (ch: string, payload?: unknown): void => { vActOpt()?.win?.webContents.send(ch, payload) }
   try {
     // Agente Mastra con herramientas: opera la pestaña activa + gestión de pestañas (anthropic y openai).
     await runMastra({
       provider: active.provider, key: active.key, model: active.model,
       messages, signal: chatAbort.signal, skills: enabledSkills(),
       control: {
-        getWc: () => (activeId != null ? tabs.get(activeId)?.view.webContents : undefined),
-        listTabs: () => [...tabs.entries()].map(([id, t]) => ({ id, title: t.title, url: t.url, active: id === activeId })),
-        openTab: (url) => { const id = createTab(url, true, true); setControlledTab(id); return id },
-        switchTab: (id) => { if (!tabs.has(id)) return false; setActive(id); setControlledTab(id); return true },
-        closeTab: (id) => { if (!tabs.has(id)) return false; closeTab(id); return true },
+        getWc: () => (vDe(ev).tabActiva()?.view.webContents),
+        listTabs: () => [...vDe(ev).tabs.entries()].map(([id, t]) => ({ id, title: t.title, url: t.url, active: id === vDe(ev).activeId() })),
+        openTab: (url) => { const id = vDe(ev).createTab(url, true, true); setControlledTab(id); return id },
+        switchTab: (id) => { if (!vDe(ev).tabs.has(id)) return false; vDe(ev).setActive(id); setControlledTab(id); return true },
+        closeTab: (id) => { if (!vDe(ev).tabs.has(id)) return false; vDe(ev).closeTab(id); return true },
         drainEvents: () => { const e = agentEvents; agentEvents = []; return e }
       },
       settings: {
@@ -2580,7 +2792,7 @@ ipcMain.handle('chat:send', async (_e, messages: ChatMessage[]) => {
 
 // ⌘⌥V cicla los materiales de vibrancy en vivo (ver VIBRANCY_MATERIALS arriba).
 ipcMain.on('ui:cycleVibrancy', () => {
-  if (!win || !isMac) return
+  if (!vActOpt()?.win || !isMac) return
   // Cicla solo entre materiales; 'none' se elige desde Settings.
   const i = VIBRANCY_MATERIALS.indexOf(vibrancyMaterial as VibrancyMaterial)
   vibrancyMaterial = VIBRANCY_MATERIALS[(i + 1) % VIBRANCY_MATERIALS.length]
@@ -2628,12 +2840,12 @@ app.whenReady().then(() => {
   void initAdblock(ses)
   // Compartir pantalla en videollamadas. Sin este handler Electron rechaza `getDisplayMedia`
   // y el botón de compartir de Meet/Zoom no hace absolutamente nada.
-  attachScreenShare(ses, () => win)
+  attachScreenShare(ses, () => vActOpt()?.win ?? null)
   attachPermissionHandlers(ses, {
-    getWindow: () => win,
+    getWindow: () => vActOpt()?.win ?? null,
     onMedia: (wc, active) => {
-      for (const tb of tabs.values()) {
-        if (tb.view.webContents === wc) { tb.recording = active; pushState(); break }
+      for (const tb of vAct().tabs.values()) {
+        if (tb.view.webContents === wc) { tb.recording = active; vAct().pushState(); break }
       }
     }
   })
@@ -2650,11 +2862,11 @@ app.whenReady().then(() => {
   // Control remoto: apagado salvo que el usuario lo dejara encendido (ver remote.ts).
   initRemote({
     activeWc: () => activeWc(),
-    wcFor: (id) => tabs.get(id)?.view.webContents,
-    listTabs: () => [...tabs.entries()].map(([id, t]) => ({ id, url: t.url, title: t.title })),
-    activateTab: (id) => setActive(id),
+    wcFor: (id) => vAct().tabs.get(id)?.view.webContents,
+    listTabs: () => [...vAct().tabs.entries()].map(([id, t]) => ({ id, url: t.url, title: t.title })),
+    activateTab: (id) => vAct().setActive(id),
     // `activate` invertido: para un cliente externo lo normal es NO robar el foco.
-    newTab: (url, background) => createTab(url, !background),
+    newTab: (url, background) => vAct().createTab(url, !background),
     navigate: (url) => navigateActive(url),
     /**
      * El permiso se pide con un diálogo nativo, no en el DOM: la vista de la página se dibuja
@@ -2662,7 +2874,7 @@ app.whenReady().then(() => {
      * puede pasar. Y va con `noLink` y "No permitir" por defecto: ante la duda, que no.
      */
     confirmClient: async (nombre) => {
-      const { response } = await dialog.showMessageBox(win ?? undefined!, {
+      const { response } = await dialog.showMessageBox(vActOpt()?.win ?? undefined!, {
         type: 'warning',
         message: `«${nombre}» quiere conducir tu navegador`,
         detail:
@@ -2681,7 +2893,7 @@ app.whenReady().then(() => {
   })
   // El indicador del chrome: nunca debe estar encendido sin que se vea.
   onRemoteState((r) => {
-    win?.webContents.send('remote:state', r)
+    vActOpt()?.win?.webContents.send('remote:state', r)
     if (peekWin && !peekWin.isDestroyed()) peekWin.webContents.send('remote:state', r)
   })
   initMcpClient()
@@ -2696,7 +2908,7 @@ app.whenReady().then(() => {
   initAI()
   createWindow()
   // Ya hay ventana: se entregan los enlaces que llegaron mientras arrancaba.
-  initDefaultBrowser((url) => { createTab(url, true); win?.focus() })
+  initDefaultBrowser((url) => { vAct().createTab(url, true); vActOpt()?.win?.focus() })
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })
 })
 app.on('before-quit', () => saveSessionNow())

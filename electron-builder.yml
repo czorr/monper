@@ -49,6 +49,15 @@ mac:
     NSMicrophoneUsageDescription: Monper necesita el micrófono para los sitios web que lo usen, como videollamadas.
     NSLocationWhenInUseUsageDescription: Monper comparte tu ubicación solo con los sitios a los que se lo autorices.
 
+# Sin esto macOS NO ofrece Monper en Ajustes → Escritorio y Dock → Navegador web
+# predeterminado: el sistema lista las apps que declaran manejar http/https, y `LSSetDefault…`
+# (lo que hay detrás de `setAsDefaultProtocolClient`) falla si la app no lo declara.
+protocols:
+  - name: Web
+    schemes:
+      - http
+      - https
+
 dmg:
   artifactName: ${productName}-${version}-${arch}.dmg
 

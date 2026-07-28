@@ -7,6 +7,7 @@ import IconPalette from '~icons/tabler/palette'
 import IconArrowUpRight from '~icons/tabler/arrow-up-right'
 import { useAutocomplete, useInlineCompletion, SuggestionList } from '@renderer/components/omnibox'
 import logo from '@renderer/assets/monper.png'
+import DefaultBrowserBanner from './DefaultBrowserBanner'
 
 const { monperTab } = window
 
@@ -74,6 +75,8 @@ export default function NewTabPage(): JSX.Element {
         <div className="absolute inset-0 blur-2xl bg-white/[0.06] rounded-full scale-125" />
         <img src={logo} alt="Monper" className="relative w-[68px] h-[68px] object-contain" />
       </div>
+
+      <DefaultBrowserBanner />
 
       {/* Search box */}
       <div className="relative w-full max-w-[600px] mb-16">

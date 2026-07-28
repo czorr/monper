@@ -428,7 +428,14 @@ function GeneralPage(): JSX.Element {
   // El perfil sale del main, no del JSX: estuvo escrito a mano y mostraba el mismo nombre y
   // correo a cualquiera que abriera Settings.
   const [profile, setProfile] = useState<Profile>({ name: '', initials: '?', avatar: null })
+  const [pred, setPred] = useState<{ isDefault: boolean; shouldOffer: boolean } | null>(null)
+  const [errPred, setErrPred] = useState('')
   useEffect(() => { monperTab.getProfile().then(setProfile).catch(() => {}) }, [])
+  useEffect(() => {
+    monperTab.getDefaultBrowser()
+      .then(setPred)
+      .catch((e) => { console.error('[predeterminado] no se pudo consultar:', e); setErrPred('No se pudo consultar el estado.') })
+  }, [])
 
   return (
     <>
@@ -438,6 +445,31 @@ function GeneralPage(): JSX.Element {
           <Row icon={<IconUser />} label={profile.name || 'Sin nombre'} desc="Se edita en Account" />
         </Card>
       </Group>
+      <Group title="Navegador predeterminado">
+        <Card>
+          <Row
+            label={pred?.isDefault ? 'Monper es tu navegador predeterminado' : 'Monper no es tu navegador predeterminado'}
+            desc={errPred || (pred?.isDefault
+              ? 'Los enlaces de otras apps se abren aquí.'
+              : 'Los enlaces que abras desde otras apps no llegarán a Monper.')}
+          >
+            {pred && !pred.isDefault && (
+              <button
+                onClick={async () => {
+                  const r = await monperTab.makeDefaultBrowser()
+                  if (r.ok) setPred({ ...pred, isDefault: true })
+                  // Si el sistema lo rechaza hay que decir por qué: si no, el botón parece roto.
+                  else setErrPred(r.error || 'El sistema no aceptó el cambio.')
+                }}
+                className="shrink-0 h-9 px-3.5 rounded-lg bg-white/90 text-black text-[13px] font-medium hover:bg-white transition-colors"
+              >
+                Usar Monper
+              </button>
+            )}
+          </Row>
+        </Card>
+      </Group>
+
       <Group title="Navegación">
         <Card>
           {/* Sin `⌄`: no hay nada que elegir todavía. Un desplegable que no despliega es peor

@@ -13,6 +13,10 @@ import { initWindowState, initialBounds, shouldMaximize, trackWindow } from './w
 import { suggest } from './suggest'
 import { attachScreenShare } from './screenshare'
 import {
+  reservarInstanciaUnica, escucharEnlaces, initDefaultBrowser,
+  esPredeterminado, hacerPredeterminado, debeOfrecerse, descartarOferta
+} from './defaultbrowser'
+import {
   initPermissions, attachPermissionHandlers, stateOf, setState, requestedKeys,
   allSites, clearOrigin, clearAllOrigins
 } from './permissions'
@@ -1141,6 +1145,18 @@ ipcMain.on('remote:set', (_e, on: boolean) => setRemoteEnabled(!!on))
  * encender el puente y quedarse conduciendo tu navegador con tus sesiones. No es teórico: es
  * el mismo agujero que ya tapamos en los permisos de sitios.
  */
+// ---- Navegador predeterminado ----
+// Abierto al chrome y a las páginas internas: el banner vive en la new tab y el ajuste en
+// Settings, y ninguna de las dos cosas es privada — solo dice si el sistema nos eligió.
+ipcMain.handle('browser:default', () => ({ isDefault: esPredeterminado(), shouldOffer: debeOfrecerse() }))
+ipcMain.handle('browser:makeDefault', () => {
+  const r = hacerPredeterminado()
+  // El estado cambia sin que nadie nos avise: se reenvía para que la UI no se quede vieja.
+  win?.webContents.send('browser:defaultChanged', { isDefault: esPredeterminado(), shouldOffer: debeOfrecerse() })
+  return r
+})
+ipcMain.on('browser:dismissDefault', () => descartarOferta())
+
 // ---- Servidores MCP externos: el agente usa herramientas que Monper no tiene ----
 ipcMain.handle('mcp:servers', (e) => (isInternalSender(e.senderFrame?.url) ? mcpServerStates() : []))
 ipcMain.handle('mcp:reload', (e) => {
@@ -2406,7 +2422,20 @@ ipcMain.on('ui:cycleVibrancy', () => {
   console.log('[vibrancy]', vibrancyMaterial, '· ⌘⌥V para el siguiente')
 })
 
+/**
+ * Antes que nada, y en este orden.
+ *
+ * El lock tiene que pedirse antes de crear nada: si otra instancia ya lo tiene, este proceso
+ * debe morir sin tocar los JSON del perfil (dos instancias sobre el mismo `userData` se pisan
+ * los marcadores y el vault). Y los listeners de enlaces van antes de `ready` porque en macOS
+ * `open-url` se dispara mientras la app todavía arranca.
+ */
+if (reservarInstanciaUnica()) {
+  escucharEnlaces()
+}
+
 app.whenReady().then(() => {
+  if (!app.hasSingleInstanceLock() && app.isPackaged) return // otra instancia manda
   // En dev muestra nuestro icono en el dock (mac) en vez del de Electron.
   if (isMac && app.dock) app.dock.setIcon(appIcon)
   // Panel "Acerca de Monper" con nuestra info en vez de la de Electron.
@@ -2499,6 +2528,8 @@ app.whenReady().then(() => {
   vault.initVault()
   initAI()
   createWindow()
+  // Ya hay ventana: se entregan los enlaces que llegaron mientras arrancaba.
+  initDefaultBrowser((url) => { createTab(url, true); win?.focus() })
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })
 })
 app.on('before-quit', () => saveSessionNow())

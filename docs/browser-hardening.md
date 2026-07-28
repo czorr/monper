@@ -211,3 +211,42 @@ Compartir pantalla **no** necesita entitlement (solo TCC). Cámara y micrófono 
 teníamos: con `hardenedRuntime: true` los textos de uso del Info.plist no bastan. Añadidos
 `com.apple.security.device.camera` y `com.apple.security.device.audio-input`, que habrían
 fallado justo al firmar y funcionando bien en desarrollo — el peor momento para descubrirlo.
+
+## Navegador predeterminado
+
+Lo visible es un banner en la new tab y una fila en Settings → General. Lo que de verdad hay
+que resolver es **qué pasa cuando otra app te manda un enlace**, y ahí había tres trampas.
+Vive en [`src/main/defaultbrowser.ts`](../src/main/defaultbrowser.ts).
+
+1. **Una sola instancia.** Sin `requestSingleInstanceLock`, cada enlace que abras desde Mail o
+   Slack lanza un Monper **nuevo**. Dos instancias sobre el mismo `userData` escriben los
+   mismos JSON y la última en guardar gana: **pierdes marcadores y vault**. Es el fallo más
+   caro y no se ve hasta que ya pasó. El lock se pide ANTES de crear nada; si no se obtiene, el
+   proceso muere sin tocar el perfil.
+2. **La URL llega antes de que exista la ventana.** En macOS, abrir un enlace con la app
+   cerrada dispara `open-url` **antes** de `ready`. Se encolan y se entregan cuando hay dónde.
+3. **Cada plataforma la entrega distinto.** macOS por `open-url`; Windows y Linux en `argv`,
+   tanto al arrancar como en `second-instance` — donde además hay que traer la ventana al
+   frente, porque el usuario acaba de pedir algo.
+
+**En desarrollo no se ofrece, a propósito.** `electron .` corre dentro de Electron.app, así que
+`setAsDefaultProtocolClient` registraría **Electron** como tu navegador: los enlaces acabarían
+en un binario de desarrollo que un día borras. `hacerPredeterminado` devuelve el motivo en vez
+de fallar mudo, y el banner no aparece.
+
+**El banner no insiste.** No sale si ya lo somos, y si lo descartas no vuelve en un mes. Que un
+navegador pregunte esto en cada arranque es lo que hace que la gente odie estos banners.
+
+### Empaquetado
+
+`electron-builder.yml` declara `protocols` con http/https. **Sin eso macOS ni lista a Monper**
+en Ajustes → Escritorio y Dock → Navegador web predeterminado: el sistema solo ofrece apps que
+declaran manejar esos esquemas, y `LSSetDefaultHandlerForURLScheme` falla si la app no lo hace.
+
+### Qué está probado
+
+[`tests/defaultbrowser.spec.ts`](../tests/defaultbrowser.spec.ts) simula el `open-url` del
+sistema: que abre una pestaña **nueva** (no reemplaza la que había) y queda al frente, que un
+esquema que no es web —`file://`, `javascript:`— **no** abre nada, y que en desarrollo no se
+ofrece. Lo que no se puede probar aquí es el lock ni el diálogo del sistema: hacen falta dos
+procesos y una app firmada.

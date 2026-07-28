@@ -683,6 +683,11 @@ export interface MonperTabApi {
   clearSitePermissions: (origin: string | null) => Promise<boolean>
   // ---- Actualizaciones (Settings → About) ----
   getUpdateState: () => Promise<UpdateState>
+  // ---- Navegador predeterminado ----
+  /** `shouldOffer` ya tiene en cuenta si se descartó hace poco y si estamos en desarrollo. */
+  getDefaultBrowser: () => Promise<{ isDefault: boolean; shouldOffer: boolean }>
+  makeDefaultBrowser: () => Promise<{ ok: boolean; error?: string }>
+  dismissDefaultBrowser: () => void
   // ---- Puente MCP (Settings → MCPs). Canal aparte del que usa el chrome: ver mcp:state ----
   getMcpState: () => Promise<{ enabled: boolean; port: number }>
   setMcpEnabled: (on: boolean) => Promise<boolean>

@@ -43,8 +43,19 @@ export interface ActiveInfo {
 export interface Bookmark {
   id: string
   title: string
+  /** Vacía en una carpeta: una carpeta agrupa, no se abre. */
   url: string
   favicon?: string | null
+  /**
+   * Una carpeta. El árbol es de UN nivel a propósito: el sidebar es estrecho y anidar
+   * carpetas dentro de carpetas dejaría los títulos en dos caracteres. Si algún día hace
+   * falta más profundidad, `parentId` ya la soporta; lo que hay que revisar es la UI.
+   */
+  folder?: boolean
+  /** Carpeta que lo contiene. Ausente o null = en la raíz. */
+  parentId?: string | null
+  /** Solo carpetas: plegada en el sidebar. */
+  collapsed?: boolean
 }
 
 /** Perfil del usuario (editable en Settings → Account) */
@@ -396,6 +407,12 @@ export interface MonperApi {
   openBookmark: (id: string) => void
   /** Nuevo orden de los marcadores, por id (arrastre en el sidebar). */
   reorderBookmarks: (ids: string[]) => void
+  newBookmarkFolder: (title: string) => Promise<Bookmark>
+  /** Solo el título: cambiar la URL sigue siendo cosa de las páginas internas. */
+  renameBookmark: (id: string, title: string) => void
+  /** Mueve un marcador a una carpeta, o a la raíz con `null`. */
+  moveBookmark: (id: string, parentId: string | null) => void
+  collapseBookmarkFolder: (id: string, collapsed: boolean) => void
   /** Deja de ser marcador y se queda como pestaña (arrastrarlo a Tabs). */
   detachBookmark: (id: string) => void
   /** Abre el menú contextual nativo de una pestaña */
@@ -700,6 +717,8 @@ export interface MonperTabApi {
   getUpdateState: () => Promise<UpdateState>
   /** Renombrar o corregir la URL de un marcador. Devuelve null si la URL no es válida. */
   updateBookmark: (id: string, cambios: { title?: string; url?: string }) => Promise<Bookmark | null>
+  newBookmarkFolder: (title: string) => Promise<Bookmark>
+  moveBookmark: (id: string, parentId: string | null) => void
   // ---- Historial ----
   browseHistory: (query: string, offset: number, limit: number) => Promise<{ entries: HistoryEntryInfo[]; total: number }>
   removeHistoryEntry: (url: string) => Promise<boolean>

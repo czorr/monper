@@ -6,6 +6,8 @@ import AccountPill from './AccountPill'
 import TabList from './TabList'
 import TabRow from './TabRow'
 import BookmarkRow from './BookmarkRow'
+import BookmarkFolderRow from './BookmarkFolderRow'
+import IconFolderPlus from '~icons/tabler/folder-plus'
 import { IconButton, SectionLabel } from '@renderer/components/ui'
 import { PlusIcon, SidebarIcon } from '@renderer/lib/icons'
 import monperPng from '@renderer/assets/monper.png' // el PNG a pelo: aquí el fondo es siempre oscuro
@@ -47,14 +49,58 @@ export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBo
    */
   const [arrastre, setArrastre] = useState<{ tipo: 'tab' | 'bookmark'; id: string } | null>(null)
   const [sobre, setSobre] = useState<string | null>(null)
+  /** Carpeta recién creada: entra en modo renombrar sola. */
+  const [carpetaNueva, setCarpetaNueva] = useState<string | null>(null)
+
+  // Un nivel: raíz y, dentro de cada carpeta, sus marcadores. Ver `Bookmark.folder`.
+  const raiz = bookmarks.filter((b) => !b.parentId)
+  const hijosDe = (id: string): Bookmark[] => bookmarks.filter((b) => b.parentId === id)
+
+  const nuevaCarpeta = async (): Promise<void> => {
+    const f = await window.monper.newBookmarkFolder('Nueva carpeta')
+    setCarpetaNueva(f.id)
+  }
+
+  /**
+   * Marcador soltado sobre una CARPETA: se mete dentro.
+   *
+   * Una carpeta no se mete en otra (el árbol es de un nivel), así que ese caso se reordena como
+   * siempre en vez de no hacer nada — quedarse quieto al soltar parece que la app se colgó.
+   */
+  const soltarEnCarpeta = (folderId: string): void => {
+    if (arrastre?.tipo === 'bookmark' && arrastre.id !== folderId) {
+      const b = bookmarks.find((x) => x.id === arrastre.id)
+      if (b && !b.folder) window.monper.moveBookmark(arrastre.id, folderId)
+      else soltarEnMarcador(folderId)
+    } else if (arrastre?.tipo === 'tab') soltarTabEnMarcadores()
+    limpiar()
+  }
 
   const soltarEnMarcador = (destinoId: string): void => {
     if (!arrastre) return
     if (arrastre.tipo === 'bookmark' && arrastre.id !== destinoId) {
+      // Soltar sobre un marcador es "ponte aquí", así que además de la posición hereda la
+      // carpeta del destino: arrastrar uno de dentro de una carpeta a la raíz lo saca. Sin
+      // esto se movía de sitio pero seguía dentro, y parecía que el arrastre no había hecho nada.
+      const origen = bookmarks.find((b) => b.id === arrastre.id)
+      const destino = bookmarks.find((b) => b.id === destinoId)
+      if (origen && !origen.folder && (origen.parentId ?? null) !== (destino?.parentId ?? null)) {
+        window.monper.moveBookmark(arrastre.id, destino?.parentId ?? null)
+      }
       const ids = bookmarks.map((b) => b.id).filter((id) => id !== arrastre.id)
       const at = ids.indexOf(destinoId)
       ids.splice(at < 0 ? ids.length : at, 0, arrastre.id)
       window.monper.reorderBookmarks(ids)
+    }
+    limpiar()
+  }
+
+  /** Soltar en la cabecera de la sección: sale de su carpeta y vuelve a la raíz. */
+  const soltarEnRaiz = (): void => {
+    if (arrastre?.tipo === 'tab') return soltarTabEnMarcadores()
+    if (arrastre?.tipo === 'bookmark') {
+      const b = bookmarks.find((x) => x.id === arrastre.id)
+      if (b && !b.folder && b.parentId) window.monper.moveBookmark(arrastre.id, null)
     }
     limpiar()
   }
@@ -84,6 +130,28 @@ export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBo
   }
 
   const limpiar = (): void => { setArrastre(null); setSobre(null) }
+
+  /** Un marcador normal. Se pinta en la raíz y dentro de una carpeta, de ahí que esté extraído. */
+  const filaMarcador = (b: Bookmark): JSX.Element => {
+    const live = liveBookmark(b.id)
+    return (
+      <div
+        key={b.id}
+        draggable
+        onDragStart={() => setArrastre({ tipo: 'bookmark', id: b.id })}
+        onDragOver={(e) => { if (arrastre) { e.preventDefault(); setSobre(b.id) } }}
+        onDragEnd={limpiar}
+        onDrop={(e) => { e.stopPropagation(); arrastre?.tipo === 'tab' ? soltarTabEnMarcadores() : soltarEnMarcador(b.id) }}
+        className={'rounded-lg ' + (arrastre?.id === b.id ? 'opacity-40 ' : '') + resaltado(b.id)}
+      >
+        {live ? (
+          <TabRow tab={live} active={live.id === state.activeId} onSelect={onSelectTab} onClose={onCloseTab} />
+        ) : (
+          <BookmarkRow bookmark={b} onOpen={onOpenBookmark} />
+        )}
+      </div>
+    )
+  }
   const resaltado = (id: string): string =>
     sobre === id && arrastre ? 'shadow-[inset_0_2px_0_0_rgba(255,255,255,0.45)] ' : ''
   // Las pestañas ligadas a un bookmark se muestran en su slot de bookmarks, no en Tabs.
@@ -136,32 +204,47 @@ export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBo
       {bookmarks.length > 0 && (
         <div
           className="shrink-0"
-          onDragOver={(e) => { if (arrastre?.tipo === 'tab') { e.preventDefault(); setSobre('__bookmarks__') } }}
-          onDrop={() => arrastre?.tipo === 'tab' && soltarTabEnMarcadores()}
+          onDragOver={(e) => { if (arrastre) { e.preventDefault(); setSobre('__bookmarks__') } }}
+          onDrop={soltarEnRaiz}
         >
-          <SectionLabel label="Bookmarks" />
+          <SectionLabel label="Bookmarks" action={{ label: <IconFolderPlus className="w-[15px] h-[15px]" />, title: 'Nueva carpeta', onClick: () => void nuevaCarpeta() }} />
           {/* pb-px: la fila pulsada baja 1px y, si es la última, sacaba scroll en este
               contenedor. Ese píxel de holgura evita la barra sin tocar el efecto. */}
           <div className="flex flex-col gap-px pb-px max-h-[35vh] overflow-y-auto [&::-webkit-scrollbar]:w-0">
-            {bookmarks.map((b) => {
-              const live = liveBookmark(b.id)
-              return (
-                <div
-                  key={b.id}
-                  draggable
-                  onDragStart={() => setArrastre({ tipo: 'bookmark', id: b.id })}
-                  onDragOver={(e) => { if (arrastre) { e.preventDefault(); setSobre(b.id) } }}
-                  onDragEnd={limpiar}
-                  onDrop={() => (arrastre?.tipo === 'tab' ? soltarTabEnMarcadores() : soltarEnMarcador(b.id))}
-                  className={'rounded-lg ' + (arrastre?.id === b.id ? 'opacity-40 ' : '') + resaltado(b.id)}
-                >
-                  {live ? (
-                    <TabRow tab={live} active={live.id === state.activeId} onSelect={onSelectTab} onClose={onCloseTab} />
-                  ) : (
-                    <BookmarkRow bookmark={b} onOpen={onOpenBookmark} />
-                  )}
-                </div>
-              )
+            {raiz.map((b) => {
+              if (b.folder) {
+                const hijos = hijosDe(b.id)
+                const plegada = !!b.collapsed
+                return (
+                  <div key={b.id}>
+                    <div
+                      draggable
+                      onDragStart={() => setArrastre({ tipo: 'bookmark', id: b.id })}
+                      onDragOver={(e) => { if (arrastre) { e.preventDefault(); setSobre(b.id) } }}
+                      onDragEnd={limpiar}
+                      onDrop={(e) => { e.stopPropagation(); soltarEnCarpeta(b.id) }}
+                      className={'rounded-lg ' + (arrastre?.id === b.id ? 'opacity-40 ' : '') + resaltado(b.id)}
+                    >
+                      <BookmarkFolderRow
+                        folder={b}
+                        count={hijos.length}
+                        collapsed={plegada}
+                        onToggle={() => window.monper.collapseBookmarkFolder(b.id, !plegada)}
+                        autoRename={carpetaNueva === b.id}
+                        onRenamed={() => setCarpetaNueva(null)}
+                      />
+                    </div>
+                    {/* Sangrado con una guía: sin ella, con el sidebar estrecho, no se ve dónde
+                        acaba una carpeta y empieza la siguiente. */}
+                    {!plegada && hijos.length > 0 && (
+                      <div className="ml-[13px] pl-1.5 border-l border-white/[0.08] flex flex-col gap-px">
+                        {hijos.map((h) => filaMarcador(h))}
+                      </div>
+                    )}
+                  </div>
+                )
+              }
+              return filaMarcador(b)
             })}
           </div>
         </div>

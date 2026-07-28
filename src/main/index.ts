@@ -5,7 +5,7 @@ import type { MenuItemConstructorOptions } from 'electron'
 import type { IpcMainEvent } from 'electron'
 import type { BrowserState, Bookmark, ChatMessage, MenuAnchor, ProviderKind, InternalPage, SubmenuData, SubmenuSection } from '../shared/types'
 import { internalPageOf } from '../shared/types'
-import { initBookmarks, listBookmarks, isBookmarked, addBookmark, removeBookmark, toggleBookmark, reorderBookmarks, updateBookmark } from './bookmarks'
+import { initBookmarks, listBookmarks, isBookmarked, addBookmark, removeBookmark, toggleBookmark, reorderBookmarks, updateBookmark, createFolder, moveBookmark, setFolderCollapsed } from './bookmarks'
 import { initAI, listProviders, addProvider, removeProvider, setActive as setActiveProvider, setModel, setEffort, getChatContext, getActiveProvider } from './ai/store'
 import { runMastra, errText } from './agent/mastra'
 import { initHistory, recordVisit, updateMeta, recent as historyRecent, browse as historyBrowse, removeEntry as historyRemove, clearHistory as historyClear } from './history'
@@ -1538,7 +1538,15 @@ ipcMain.handle('import:run', async (e, id: NavegadorId, que: { bookmarks: boolea
   // importar el historial, y que fallen las contraseñas no debe tirar lo ya importado.
   if (que.bookmarks) {
     try {
-      for (const b of leerMarcadores(id)) { addBookmark({ url: b.url, title: b.title, favicon: faviconFor(b.url) }); resumen.bookmarks++ }
+      // Se respeta el árbol del navegador de origen: una carpeta allí es una carpeta aquí.
+      // `createFolder` reutiliza la que ya exista con ese nombre, así que reimportar no
+      // acaba con tres "Trabajo".
+      for (const b of leerMarcadores(id)) {
+        const carpeta = b.carpeta ? createFolder(b.carpeta) : null
+        const bm = addBookmark({ url: b.url, title: b.title, favicon: faviconFor(b.url) })
+        if (carpeta && (bm.parentId ?? null) === null) moveBookmark(bm.id, carpeta.id)
+        resumen.bookmarks++
+      }
       broadcastBookmarks()
     } catch (err) { errores.push(err instanceof Error ? err.message : String(err)) }
   }
@@ -1856,6 +1864,31 @@ ipcMain.on('bookmarks:detach', (_e: IpcMainEvent, id: string) => {
 
 ipcMain.on('bookmarks:reorder', (_e: IpcMainEvent, ids: string[]) => {
   reorderBookmarks(Array.isArray(ids) ? ids : [])
+  broadcastBookmarks()
+})
+
+// ---- Carpetas de marcadores ----
+/**
+ * Renombrar desde el chrome. Existe aparte de `bookmarks:update` a propósito: ese solo lo
+ * pueden usar las páginas internas y además deja cambiar la URL. Aquí solo entra el título, que
+ * es organización pura — la misma categoría que reordenar o mover, que el sidebar ya hace.
+ */
+ipcMain.on('bookmarks:rename', (_e, id: string, title: string) => {
+  if (updateBookmark(String(id), { title: String(title ?? '') })) broadcastBookmarks()
+})
+ipcMain.handle('bookmarks:newFolder', (_e, title: string) => {
+  const f = createFolder(String(title ?? ''))
+  broadcastBookmarks()
+  return f
+})
+ipcMain.on('bookmarks:move', (_e, id: string, parentId: string | null) => {
+  if (!moveBookmark(String(id), parentId ? String(parentId) : null)) return
+  broadcastBookmarks()
+})
+// Plegar una carpeta se persiste: si al reabrir Monper volvieran todas desplegadas, plegarlas
+// no serviría de nada — que es justo para lo que se pliegan con 79 marcadores.
+ipcMain.on('bookmarks:collapse', (_e, id: string, collapsed: boolean) => {
+  setFolderCollapsed(String(id), !!collapsed)
   broadcastBookmarks()
 })
 

@@ -43,15 +43,18 @@ Auditado contra el código, no de memoria. Lo marcado como hecho está verificad
 - [x] **Gestor de marcadores.** Página propia (⌘⌥B) con búsqueda, renombrar y corregir la URL.
       Antes no había forma de arreglar un título malo sin borrar y volver a crear, perdiendo
       el orden.
-      - [ ] **Carpetas**: decisión de diseño pendiente, no olvido. Cambia el modelo de datos
-            (hoy `Bookmark` es plano) **y** la UI del sidebar — plegar, arrastrar dentro. Con
-            79 marcadores importados empieza a hacer falta, pero el sidebar es estrecho y la
-            sección va capada a 35vh: conviene decidir la forma antes de escribirla.
-- [ ] **Multi-ventana (⌘N).** Medido: **212 referencias** a estado de una sola ventana y **82
-      de 140 handlers IPC** que lo tocan. No es un feature, es un refactor de 2-4 sesiones —
-      plan en [multiventana.md](multiventana.md). **Recomendación: después de lanzar.** Es el
-      único P1 que no se nota al abrir el navegador, y toca justo el área (layout, esquinas,
-      peek) que ya costó días y tres hipótesis falsas.
+      - [x] **Carpetas.** Plegables en el sidebar, decidido así porque es donde de verdad se
+            usan los marcadores. `Bookmark` gana `folder`, `parentId` y `collapsed`; el árbol es
+            de **un nivel** a propósito (el sidebar es estrecho: anidar dejaría los títulos en
+            dos caracteres). Invariante heredada del reorden y ahora con test: **organizar nunca
+            pierde un marcador** — borrar una carpeta devuelve lo de dentro a la raíz.
+            El importador recrea las carpetas del navegador de origen, aplanando a un nivel:
+            medido contra Brave, 79 marcadores en 7 carpetas.
+- [x] **Multi-ventana (⌘N).** Hecho, las cinco rebanadas — ver [multiventana.md](multiventana.md).
+      Se recomendaba dejarlo para después de lanzar por riesgo (toca layout, esquinas y peek);
+      se hizo igual por decisión de producto: "es algo básico". Incluye sacar una pestaña a una
+      ventana nueva **mudando** el `WebContentsView`, no recreándolo, para no perder el
+      historial. La suite pasó de 118 a 124 en verde.
 - [x] **Picture-in-picture.** Comprobado: `document.pictureInPictureEnabled` es `true` y
       `requestPictureInPicture` existe en las pestañas. Funciona sin código nuestro; el ítem
       se cierra sin escribir nada.

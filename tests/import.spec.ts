@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { existsSync } from 'fs'
 import { homedir } from 'os'
 import { join } from 'path'
-import { navegadoresDisponibles, appInstalada } from '../src/main/import/browsers'
+import { navegadoresDisponibles, appInstalada, leerMarcadores } from '../src/main/import/browsers'
 
 /**
  * Detección de navegadores para importar.
@@ -46,4 +46,25 @@ test('siempre se devuelven todos los navegadores conocidos, marcados', () => {
   // presentación, y un futuro "no encuentro mi navegador" puede enseñar los descartados.
   const ids = navegadoresDisponibles().map((n) => n.id).sort()
   expect(ids).toEqual(['arc', 'brave', 'chrome', 'edge', 'safari'])
+})
+
+test('los marcadores traen la carpeta del navegador de origen, aplanada a un nivel', () => {
+  /**
+   * Chromium anida sin límite y nuestro árbol es de UN nivel: `Trabajo/Clientes/Acme` tiene que
+   * acabar en `Trabajo`, la carpeta que el usuario reconoce. Lo que no puede pasar es que un
+   * marcador se pierda por no tener dónde ponerlo, ni que las raíces del sistema
+   * (`bookmark_bar`, `other`) se cuelen como si fueran carpetas del usuario.
+   */
+  for (const n of navegadoresDisponibles().filter((x) => x.disponible && x.id !== 'safari')) {
+    const ms = leerMarcadores(n.id)
+    if (ms.length === 0) continue
+    for (const m of ms) {
+      expect(typeof m.url === 'string' && /^https?:/i.test(m.url), `${n.nombre}: url rara`).toBe(true)
+      expect(m.carpeta === null || m.carpeta === undefined || typeof m.carpeta === 'string').toBe(true)
+      if (typeof m.carpeta === 'string') {
+        expect(m.carpeta.trim().length, `${n.nombre}: carpeta con nombre vacío`).toBeGreaterThan(0)
+        expect(['bookmark_bar', 'other', 'synced']).not.toContain(m.carpeta)
+      }
+    }
+  }
 })

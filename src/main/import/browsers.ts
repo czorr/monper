@@ -28,7 +28,12 @@ export interface Navegador {
   disponible: boolean
 }
 
-export interface MarcadorImportado { title: string; url: string }
+export interface MarcadorImportado {
+  title: string
+  url: string
+  /** Carpeta del navegador de origen, o null si estaba suelto. Se aplana a un nivel. */
+  carpeta?: string | null
+}
 export interface VisitaImportada { url: string; title: string; visitedAt: number }
 export interface CredencialImportada { url: string; username: string; password: string }
 
@@ -80,11 +85,24 @@ export function navegadoresDisponibles(): Navegador[] {
 
 interface NodoChromium { type?: string; name?: string; url?: string; children?: NodoChromium[] }
 
-function aplanarChromium(n: NodoChromium, out: MarcadorImportado[]): void {
+/**
+ * Recorre el árbol de Chromium quedándose con la carpeta de PRIMER nivel.
+ *
+ * Chromium anida sin límite; nuestro árbol es de un nivel (ver `Bookmark.folder`). Un marcador
+ * en `Trabajo/Clientes/Acme` acaba en `Trabajo`: es la carpeta que el usuario reconoce, y así
+ * ninguno se pierde por no tener dónde ponerlo. Las raíces (`bookmark_bar`, `other`…) no
+ * cuentan como carpeta: lo que cuelga de ellas va suelto.
+ */
+function aplanarChromium(n: NodoChromium, out: MarcadorImportado[], carpeta: string | null = null): void {
   // Chromium guarda muchos marcadores SIN nombre (los que arrastras a la barra). Caer a la
   // URL cruda llenaba el sidebar de `https://supabase.com/dashboard/…`; ver nombreDeUrl.
-  if (n.type === 'url' && n.url && /^https?:/i.test(n.url)) out.push({ title: n.name?.trim() || nombreDeUrl(n.url), url: n.url })
-  for (const h of n.children ?? []) aplanarChromium(h, out)
+  if (n.type === 'url' && n.url && /^https?:/i.test(n.url)) {
+    out.push({ title: n.name?.trim() || nombreDeUrl(n.url), url: n.url, carpeta })
+  }
+  for (const h of n.children ?? []) {
+    const hija = h.type === 'folder' && carpeta === null ? (h.name?.trim() || null) : carpeta
+    aplanarChromium(h, out, hija)
+  }
 }
 
 /**
@@ -106,15 +124,23 @@ function marcadoresSafari(): MarcadorImportado[] {
     )
   }
   const out: MarcadorImportado[] = []
-  const recorrer = (n: unknown): void => {
+  const recorrer = (n: unknown, carpeta: string | null = null): void => {
     if (!n || typeof n !== 'object') return
     const o = n as Record<string, unknown>
     const url = typeof o['URLString'] === 'string' ? (o['URLString'] as string) : null
     if (url && /^https?:/i.test(url)) {
       const meta = o['URIDictionary'] as Record<string, unknown> | undefined
-      out.push({ title: ((meta?.['title'] as string) || '').trim() || nombreDeUrl(url), url })
+      out.push({ title: ((meta?.['title'] as string) || '').trim() || nombreDeUrl(url), url, carpeta })
     }
-    for (const h of (o['Children'] as unknown[]) ?? []) recorrer(h)
+    for (const h of (o['Children'] as unknown[]) ?? []) {
+      // Igual que en Chromium: solo la carpeta de primer nivel. `BookmarksBar` y `BookmarksMenu`
+      // son contenedores del sistema, no carpetas que el usuario haya creado.
+      const ho = (h && typeof h === 'object' ? h : {}) as Record<string, unknown>
+      const tipo = ho['WebBookmarkType']
+      const nombre = typeof ho['Title'] === 'string' ? (ho['Title'] as string).trim() : ''
+      const esCarpeta = tipo === 'WebBookmarkTypeList' && nombre && !/^Bookmarks(Bar|Menu)$/i.test(nombre)
+      recorrer(h, carpeta === null && esCarpeta ? nombre : carpeta)
+    }
   }
   recorrer(JSON.parse(json))
   return out
@@ -126,7 +152,7 @@ export function leerMarcadores(id: NavegadorId): MarcadorImportado[] {
   if (!existsSync(p)) return []
   const raiz = JSON.parse(readFileSync(p, 'utf8')) as { roots?: Record<string, NodoChromium> }
   const out: MarcadorImportado[] = []
-  for (const r of Object.values(raiz.roots ?? {})) if (r && typeof r === 'object') aplanarChromium(r, out)
+  for (const r of Object.values(raiz.roots ?? {})) if (r && typeof r === 'object') aplanarChromium(r, out, null)
   return out
 }
 

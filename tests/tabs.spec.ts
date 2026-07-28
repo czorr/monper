@@ -184,3 +184,18 @@ test('reordenar marcadores nunca pierde ninguno', async () => {
   expect(parcial.length, 'una lista incompleta no debe perder marcadores').toBe(antes.length)
   expect(parcial[0].id).toBe(invertido[1])
 })
+
+test('New tab abre con el foco YA en su input', async () => {
+  // No basta con el `autoFocus` del DOM: el `WebContentsView` no tiene el foco de teclado al
+  // crearse —lo tiene el chrome— y escribir no llegaba a ninguna parte hasta hacer clic.
+  const id = await api<number>(h.win, 'newTab')
+  await waitForState(h.win, (s) => s.activeId === id)
+
+  await expect
+    .poll(async () => h.app.evaluate(async ({ webContents }) => {
+      const wc = webContents.getAllWebContents().find((w) => w.getURL().includes('newtab') && w.isFocused())
+      if (!wc) return 'ninguna vista de newtab tiene el foco'
+      return String(await wc.executeJavaScript('document.activeElement?.tagName'))
+    }), { timeout: 8000 })
+    .toBe('INPUT')
+})

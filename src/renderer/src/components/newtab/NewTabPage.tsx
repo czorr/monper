@@ -1,4 +1,4 @@
-import { useState, type JSX } from 'react'
+import { useEffect, useState, type JSX } from 'react'
 import type { Suggestion } from '@shared/types'
 import IconSearch from '~icons/tabler/search'
 import IconKey from '~icons/tabler/key'
@@ -50,6 +50,16 @@ export default function NewTabPage(): JSX.Element {
   // en gris vía `::selection`). Por eso el input es no-controlado: ver useInlineCompletion.
   const ic = useInlineCompletion(ac)
 
+  // `autoFocus` solo actúa al montar, y en ese momento la vista puede no tener el foco todavía
+  // (lo da el main al activarla, ver `enfocarSiNewtab`). Así el input lo recupera también
+  // cuando se vuelve a esta pestaña desde otra.
+  useEffect(() => {
+    const enfocar = (): void => ic.inputRef.current?.focus()
+    enfocar()
+    window.addEventListener('focus', enfocar)
+    return () => window.removeEventListener('focus', enfocar)
+  }, [ic.inputRef])
+
   const choose = (s: Suggestion): void => monperTab.navigate(s.url)
   const submit = (): void => {
     if (mode === 'ai') { monperTab.openChat(); return }
@@ -79,9 +89,9 @@ export default function NewTabPage(): JSX.Element {
       <DefaultBrowserBanner />
 
       {/* Search box */}
-      <div className="relative w-full max-w-[600px] mb-16">
-        <div className="flex items-center gap-3 h-[52px] px-4 rounded-2xl bg-white/[0.05] border border-white/10 focus-within:border-white/25 shadow-xl shadow-black/20 transition-colors">
-          <IconSearch className="text-text-faint shrink-0 w-[18px] h-[18px]" />
+      <div className="relative w-full max-w-[760px] mb-16">
+        <div className="flex items-center gap-3.5 h-[64px] px-5 rounded-[20px] bg-white/[0.05] border border-white/10 focus-within:border-white/25 shadow-xl shadow-black/20 transition-colors">
+          <IconSearch className="text-text-faint shrink-0 w-[21px] h-[21px]" />
           <input
             autoFocus
             ref={ic.inputRef}
@@ -92,7 +102,7 @@ export default function NewTabPage(): JSX.Element {
             onKeyDown={onKeyDown}
             onBlur={ac.close}
             placeholder={mode === 'ai' ? 'Pregúntale a Monper…' : 'Busca o escribe una URL'}
-            className="flex-1 min-w-0 bg-transparent outline-none text-[14px] placeholder:text-text-faint select-text [&::selection]:bg-white/15 [&::selection]:text-text-dim"
+            className="flex-1 min-w-0 bg-transparent outline-none text-[16.5px] placeholder:text-text-faint select-text [&::selection]:bg-white/15 [&::selection]:text-text-dim"
           />
           <div className="flex items-center gap-2.5 shrink-0">
             <span className="flex items-center gap-1.5 text-[11px] text-text-faint">

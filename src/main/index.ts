@@ -207,6 +207,8 @@ export interface Ventana {
   setChatOpen(v: boolean): void
   isCollapsed(): boolean
   scheduleTopSample(t: Tab): void
+  /** Pone el foco de teclado en el input de New tab, si esa pestaña es la activa. */
+  enfocarNewtab(id: number): void
   applyTopColor(t: Tab, c: string): void
   soltarTabsDelBookmark(id: string): void
   atarTabAlBookmark(t: Tab, bm: { id: string } | null): void
@@ -845,6 +847,8 @@ function crearVentana(opts: { sinPestanaInicial?: boolean } = {}): Ventana {
     wc.on('did-stop-loading', () => {
       t.loading = false
       suya().scheduleTopSample(t) // color del topbar: se remuestrea también en cada scroll
+      // Al activarla la página aún no había cargado: el input no existía. Se reintenta aquí.
+      suya().enfocarNewtab(id)
       refresh()
     })
     wc.on('did-navigate', (_e, u) => { // sólo main-frame
@@ -956,6 +960,21 @@ function crearVentana(opts: { sinPestanaInicial?: boolean } = {}): Ventana {
     return id
   }
 
+  /**
+   * La página de New tab se abre para escribir en ella, así que el foco de teclado tiene que
+   * estar YA en su input. `autoFocus` del DOM no basta: el `WebContentsView` no tiene el foco
+   * —lo tiene el chrome— y escribir no llegaba a ninguna parte hasta hacer clic.
+   *
+   * Solo para New tab: enfocar la vista en CADA cambio de pestaña le robaría el foco a la barra
+   * de direcciones, que es justo lo contrario de lo que se quiere al navegar.
+   */
+  function enfocarSiNewtab(id: number): void {
+    const t = tabs.get(id)
+    if (!t || id !== activeId) return
+    if (internalPageOf(t.url) !== 'newtab') return
+    if (!t.view.webContents.isDestroyed()) t.view.webContents.focus()
+  }
+
   function setActive(id: number) {
     if (!tabs.has(id)) return
     if (signinTabId != null && signinTabId !== id) hideSignin() // el prompt era de otra pestaña
@@ -965,6 +984,7 @@ function crearVentana(opts: { sinPestanaInicial?: boolean } = {}): Ventana {
     if (at) scheduleTopSample(at) // recolorea el topbar con la pestaña recién activada
     layoutTabs()
     pushState()
+    enfocarSiNewtab(id)
     scheduleSaveSession()
   }
 
@@ -1142,7 +1162,7 @@ function crearVentana(opts: { sinPestanaInicial?: boolean } = {}): Ventana {
     setCollapsed: (v: boolean) => { sidebarCollapsed = v },
     setChatOpen: (v: boolean) => { chatOpen = v },
     isCollapsed: () => sidebarCollapsed,
-    scheduleTopSample, applyTopColor,
+    scheduleTopSample, applyTopColor, enfocarNewtab: enfocarSiNewtab,
     soltarTabsDelBookmark, atarTabAlBookmark,
     desprenderTab, adoptarTab
   }

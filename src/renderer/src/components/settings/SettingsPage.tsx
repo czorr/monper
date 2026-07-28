@@ -34,14 +34,13 @@ import IconPuzzle from '~icons/tabler/puzzle'
 import IconUsers from '~icons/tabler/users'
 import IconMessage from '~icons/tabler/message'
 import IconArrowUpRight from '~icons/tabler/arrow-up-right'
-import IconDownload from '~icons/tabler/download'
 import { Card, Group, Row, Pill } from './ui'
 
 const { monperTab } = window
 
 type Cat =
   | 'general' | 'account' | 'appearance' | 'billing' | 'privacy' | 'password' | 'ai' | 'developers'
-  | 'adblock' | 'import' | 'projects' | 'skills' | 'memory' | 'mcps' | 'permissions' | 'actions' | 'routines'
+  | 'adblock' | 'projects' | 'skills' | 'memory' | 'mcps' | 'permissions' | 'actions' | 'routines'
   | 'statistics' | 'archived' | 'notifications' | 'about'
 
 interface NavItem { id: Cat; label: string; icon: JSX.Element; soon?: boolean }
@@ -53,7 +52,6 @@ const NAV: NavGroup[] = [
     title: 'Settings',
     items: [
       { id: 'general', label: 'General', icon: <IconSettings /> },
-      { id: 'import', label: 'Importar', icon: <IconDownload /> },
       { id: 'account', label: 'Account', icon: <IconUser /> },
       { id: 'appearance', label: 'Appearance', icon: <IconPalette /> },
       { id: 'billing', label: 'Billing', icon: <IconCreditCard />, soon: true },
@@ -229,7 +227,6 @@ export default function SettingsPage(): JSX.Element {
               {cat === 'adblock' && <AdblockSection />}
               {cat === 'permissions' && <PermissionsSection />}
               {cat === 'mcps' && <McpSection />}
-              {cat === 'import' && <ImportSection />}
               {cat === 'about' && <AboutPage />}
               {SOON[cat] && <ComingSoon cat={cat} />}
             </div>
@@ -473,6 +470,10 @@ function GeneralPage(): JSX.Element {
           </Row>
         </Card>
       </Group>
+
+      {/* Importar vive aquí y no en el nav: se hace una vez al llegar, no es un sitio al que
+          se vuelve. Como pestaña propia tenía un peso permanente que no le corresponde. */}
+      <ImportSection />
 
       <Group title="Navegación">
         <Card>

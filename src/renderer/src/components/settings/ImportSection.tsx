@@ -9,15 +9,13 @@ type Que = { bookmarks: boolean; history: boolean; passwords: boolean }
 type Resultado = { ok: boolean; bookmarks: number; history: number; passwords: number; error?: string }
 
 /**
- * Settings → Import: traerte tu vida del navegador anterior.
+ * Bloque de importación, embebido en Settings → General.
  *
- * Es el feature que decide si alguien se queda. Y las contraseñas son la parte que importa:
- * el vault vacío desperdicia toda la tesis del producto — con ellas dentro, el agente puede
- * entrar en tus sitios el día 1.
+ * Sin `<h1>` propio a propósito: no es una sección del nav, es algo que haces UNA vez al
+ * llegar. Tenerlo como pestaña propia le daba un peso permanente que no le corresponde.
  *
- * Por eso las contraseñas vienen **desmarcadas**: importarlas dispara el diálogo del Llavero
- * de macOS y mueve secretos de sitio. Que sea un gesto consciente, no una casilla que ya
- * venía puesta.
+ * Las contraseñas vienen **desmarcadas**: importarlas dispara el diálogo del Llavero de macOS
+ * y mueve secretos de sitio. Que sea un gesto consciente, no una casilla que ya venía puesta.
  */
 export default function ImportSection(): JSX.Element {
   const [navs, setNavs] = useState<Nav[] | null>(null)
@@ -70,22 +68,16 @@ export default function ImportSection(): JSX.Element {
 
   return (
     <>
-      <h1 className="text-[30px] font-semibold tracking-tight mb-3">Importar</h1>
-      <p className="text-[13.5px] text-text-dim leading-relaxed mb-7">
-        Trae tus marcadores, tu historial y tus contraseñas. Con las contraseñas dentro, el
-        agente puede entrar en tus sitios desde el primer día — que es de lo que va Monper.
-      </p>
-
-      <Group title="Desde">
+      <Group title="Importar de otro navegador">
         <Card>
           {navs === null && <div className="px-4 py-4 text-[13px] text-text-faint">Buscando navegadores…</div>}
           {navs?.every((n) => !n.disponible) && (
             <div className="px-4 py-6 text-center">
               <div className="text-[13.5px] text-text-dim">No hay de dónde importar</div>
               {/* Se dice qué se buscó: si no, "no encuentro nada" es indistinguible de un fallo. */}
+              {/* Se dice qué se buscó: si no, "no encuentro nada" es indistinguible de un fallo. */}
               <div className="text-[12.5px] text-text-faint mt-1 max-w-[420px] mx-auto leading-relaxed">
-                Se busca Chrome, Arc, Brave, Edge y Safari — instalados y con un perfil abierto
-                alguna vez.
+                Se buscó Chrome, Arc, Brave, Edge y Safari.
               </div>
             </div>
           )}
@@ -111,9 +103,9 @@ export default function ImportSection(): JSX.Element {
 
       <Group title="Qué traer">
         <Card>
-          {casilla('bookmarks', 'Marcadores', 'Se añaden a los tuyos; los repetidos no se duplican.')}
-          {casilla('history', 'Historial', 'Alimenta el autocompletado de la omnibox desde el primer día.')}
-          {casilla('passwords', 'Contraseñas', 'macOS pedirá permiso para leer el Llavero. Van al vault cifrado, y el agente nunca las ve.')}
+          {casilla('bookmarks', 'Marcadores', 'Los repetidos no se duplican.')}
+          {casilla('history', 'Historial', 'Mejora el autocompletado de la barra de direcciones.')}
+          {casilla('passwords', 'Contraseñas', 'macOS te pedirá permiso. Van al vault cifrado.')}
         </Card>
       </Group>
 
@@ -127,9 +119,9 @@ export default function ImportSection(): JSX.Element {
       </button>
 
       {/*
-        El resumen cuenta lo que entró Y lo que falló. Un resumen que solo suma éxitos miente:
-        Safari, por ejemplo, no deja leer sus marcadores sin Acceso a Disco Completo, y el
-        usuario tiene que saber por qué su importación vino a medias.
+        El resumen cuenta lo que entró Y lo que falló. Uno que solo suma éxitos miente: Safari,
+        por ejemplo, no deja leer sus marcadores sin Acceso a Disco Completo, y el usuario tiene
+        que saber por qué su importación vino a medias.
       */}
       {res && (
         <div className="mt-5">

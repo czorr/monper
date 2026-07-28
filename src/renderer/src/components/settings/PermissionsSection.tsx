@@ -165,8 +165,7 @@ export default function PermissionsSection(): JSX.Element {
     <>
       <h1 className="text-[30px] font-semibold tracking-tight mb-3">Permissions</h1>
       <p className="text-[13.5px] text-text-dim leading-relaxed mb-7">
-        Los sitios sobre los que ya has decidido algo. Olvidar un sitio no le quita el acceso
-        para siempre: hace que vuelva a preguntarte la próxima vez que lo pida.
+        Los sitios sobre los que ya has decidido algo. Al olvidarlos, volverán a preguntarte.
       </p>
 
       {error && (
@@ -198,7 +197,7 @@ export default function PermissionsSection(): JSX.Element {
               <div className="text-[13.5px] text-text-dim">Ningún sitio te ha pedido permisos todavía</div>
               <div className="text-[12.5px] text-text-faint max-w-[380px] leading-relaxed">
                 Cuando una página pida la cámara, el micrófono o tu ubicación, tu respuesta
-                aparecerá aquí y podrás cambiarla.
+                aparecerá aquí.
               </div>
             </div>
           )}

@@ -103,9 +103,7 @@ export default function McpSection(): JSX.Element {
     <>
       <h1 className="text-[30px] font-semibold tracking-tight mb-3">MCPs</h1>
       <p className="text-[13.5px] text-text-dim leading-relaxed mb-7">
-        Toda la IA del mundo choca contra el mismo muro: lee la web pública y nada más. Tus
-        facturas, tus dashboards, tus herramientas internas — detrás de un login que ningún
-        agente en la nube puede cruzar. Monper ya está dentro. Esto lo abre a tus otras IAs.
+        Conecta Monper con otras IAs y con herramientas externas.
       </p>
 
       {error && (
@@ -130,13 +128,15 @@ export default function McpSection(): JSX.Element {
             </div>
           </div>
 
-          {/* Lo que concede, en la propia página. Encenderlo es dar manos, no marcar una casilla. */}
+          {/*
+            Esto sí se queda: no es explicar cómo funciona, es decirle al usuario qué está
+            concediendo. Encender el puente da a otro proceso acceso a sus sesiones abiertas,
+            y esa frase es la diferencia entre una decisión y un descuido.
+          */}
           <div className="px-4 py-3.5 text-[12.5px] text-text-dim leading-relaxed">
-            Mientras esté encendido, un cliente autorizado puede abrir páginas y actuar en los
-            sitios donde tengas la sesión abierta, igual que tú. La primera vez que uno lo
-            intente, Monper te preguntará por su nombre. <strong className="text-text">Nunca</strong> puede
-            leer el vault ni escribir contraseñas, y verás un indicador fijo en el sidebar
-            mientras esté activo.
+            Un cliente autorizado podrá abrir páginas y actuar en los sitios donde tengas la
+            sesión abierta. Te preguntaremos la primera vez que lo intente.
+            <strong className="text-text"> Nunca</strong> accede a tus contraseñas.
           </div>
         </Card>
       </Group>
@@ -145,9 +145,7 @@ export default function McpSection(): JSX.Element {
         <Card>
           <div className="px-4 py-3.5 flex items-center gap-3">
             <div className="flex-1 min-w-0 text-[12.5px] text-text-dim leading-relaxed">
-              Pega esto en la config MCP de Claude Code, Cursor o el cliente que uses. No hace
-              falta copiar ningún token: <code className="text-text-dim">monper-mcp</code> lo lee
-              de la carpeta de Monper.
+              Pégalo en la configuración MCP de Claude Code, Cursor o el cliente que uses.
             </div>
             <Copiar texto={CONFIG} />
           </div>
@@ -157,17 +155,12 @@ export default function McpSection(): JSX.Element {
         </Card>
       </Group>
 
-      {/*
-        La otra dirección, y la que hace a Monper capaz de verdad: el agente usando
-        herramientas que un navegador no debe fabricar.
-      */}
       <Group title="Herramientas para el agente">
         <Card>
           <div className="px-4 py-3.5 flex items-start gap-3">
             <div className="flex-1 min-w-0 text-[12.5px] text-text-dim leading-relaxed">
-              Monper no ejecuta Python ni toca tu disco, y no debería: es un navegador. Conecta
-              servidores MCP y el agente gana esas capacidades — un sandbox de código, ficheros,
-              una base de datos. Algunas skills las necesitan y se activan solas al tenerlas.
+              Añade servidores para que el agente pueda ejecutar código, leer ficheros o
+              consultar bases de datos.
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <button
@@ -200,8 +193,7 @@ export default function McpSection(): JSX.Element {
               <IconPlug className="w-5 h-5 text-text-faint" />
               <div className="text-[13.5px] text-text-dim">Ningún servidor conectado</div>
               <div className="text-[12.5px] text-text-faint max-w-[420px] leading-relaxed">
-                Abre la configuración y añade uno. Vale cualquiera del ecosistema MCP; el
-                formato es el mismo que usa tu cliente de IA.
+                Añade uno desde «Editar configuración».
               </div>
             </div>
           )}

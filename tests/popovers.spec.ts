@@ -82,19 +82,23 @@ test('solo hay un popover abierto a la vez', async () => {
 test('el alto que reporta el renderer mueve la ventana', async () => {
   await api(h.win, 'openProfileMenu', { x: 40, y: 60, width: 32, height: 32 })
   await expect.poll(visiblePopovers).toHaveLength(1)
-  // Hay que esperar a que el panel haya reportado SU alto antes de inyectar uno falso: si
-  // no, su medición llega después y gana. (Esto se coló como test inestable, no como bug.)
-  let anterior = -1
+  /**
+   * Se REINYECTA en cada vuelta del poll, no una sola vez.
+   *
+   * El panel reporta su propio alto cuando termina de medirse, y eso puede llegar DESPUÉS de
+   * nuestra inyección y pisarla: bajo carga el test fallaba viendo el alto real del panel en
+   * vez de los 524. Esperar a que "se estabilice" antes de inyectar no basta — el avatar y los
+   * datos de la cuenta llegan por IPC y vuelven a mover el alto en cualquier momento.
+   *
+   * Reinyectando, el orden deja de importar y se sigue comprobando lo mismo: que el alto que
+   * reporta el renderer mueve la ventana.
+   */
   await expect
     .poll(async () => {
-      const h0 = (await visiblePopovers())[0]?.height ?? 0
-      const estable = h0 > 24 && h0 === anterior
-      anterior = h0
-      return estable
+      await h.app.evaluate(({ ipcMain }) => ipcMain.emit('profilemenu:height', null, 500))
+      return (await visiblePopovers())[0]?.height
     })
-    .toBe(true)
-  await h.app.evaluate(({ ipcMain }) => ipcMain.emit('profilemenu:height', null, 500))
-  await expect.poll(async () => (await visiblePopovers())[0]?.height).toBe(500 + 24)
+    .toBe(500 + 24)
   await h.app.evaluate(({ ipcMain }) => ipcMain.emit('profilemenu:close'))
 })
 

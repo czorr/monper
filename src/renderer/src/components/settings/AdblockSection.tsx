@@ -56,9 +56,7 @@ export default function AdblockSection(): JSX.Element {
     <>
       <h1 className="text-[30px] font-semibold tracking-tight mb-3">Adblocker</h1>
       <p className="text-[13.5px] text-text-dim leading-relaxed mb-7">
-        Los anuncios y rastreadores se bloquean antes de salir de tu máquina: la petición al
-        servidor de publicidad no llega a hacerse. Las listas de filtros se descargan y se
-        guardan aquí; qué páginas visitas no sale de Monper.
+        Bloquea anuncios y rastreadores antes de que salgan de tu máquina.
       </p>
 
       {error && (
@@ -89,9 +87,8 @@ export default function AdblockSection(): JSX.Element {
           </div>
 
           <div className="px-4 py-3.5 text-[12.5px] text-text-dim leading-relaxed">
-            Se bloquea la petición, no se recompone la página: algún sitio puede dejar un hueco
-            donde estaba el anuncio. Si una web se rompe de verdad, desactívalo solo ahí desde el
-            nombre del sitio en la barra de direcciones.
+            Si un sitio se rompe, desactívalo solo ahí desde el candado de la barra de
+            direcciones.
           </div>
         </Card>
       </Group>

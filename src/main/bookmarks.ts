@@ -87,6 +87,29 @@ export function reorderBookmarks(ids: string[]): Bookmark[] {
   return items
 }
 
+/**
+ * Renombrar o cambiar la URL de un marcador.
+ *
+ * Falta desde siempre y con 79 marcadores importados se nota: no había forma de arreglar un
+ * título malo ni de corregir una URL sin borrar y volver a crear —perdiendo el orden—.
+ *
+ * Un título vacío NO se acepta: dejaría una fila en blanco imposible de volver a encontrar.
+ * Si llega vacío se cae al nombre del sitio, igual que al importar.
+ */
+export function updateBookmark(id: string, cambios: { title?: string; url?: string }): Bookmark | null {
+  const b = items.find((x) => x.id === id)
+  if (!b) return null
+  if (cambios.url !== undefined) {
+    const url = cambios.url.trim()
+    // Una URL vacía o sin esquema convertiría el marcador en algo que no se puede abrir.
+    if (!/^https?:\/\//i.test(url)) return null
+    b.url = url
+  }
+  if (cambios.title !== undefined) b.title = cambios.title.trim() || nombreDeUrl(b.url)
+  persist()
+  return b
+}
+
 export function removeBookmark(id: string): void {
   items = items.filter((b) => b.id !== id)
   persist()

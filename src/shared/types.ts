@@ -577,7 +577,7 @@ export interface UpdateState {
  * puede tocar datos privados por IPC y el renderer decide cuándo mostrar nuestra marca en
  * vez de un dominio. Dos listas separadas se habrían desincronizado.
  */
-export const INTERNAL_PAGES = ['newtab', 'settings', 'error', 'downloads', 'history'] as const
+export const INTERNAL_PAGES = ['newtab', 'settings', 'error', 'downloads', 'history', 'bookmarks'] as const
 export type InternalPage = (typeof INTERNAL_PAGES)[number]
 
 /** El nombre de la página interna de esa URL, o null si es un sitio web de verdad. */
@@ -696,6 +696,8 @@ export interface MonperTabApi {
   clearSitePermissions: (origin: string | null) => Promise<boolean>
   // ---- Actualizaciones (Settings → About) ----
   getUpdateState: () => Promise<UpdateState>
+  /** Renombrar o corregir la URL de un marcador. Devuelve null si la URL no es válida. */
+  updateBookmark: (id: string, cambios: { title?: string; url?: string }) => Promise<Bookmark | null>
   // ---- Historial ----
   browseHistory: (query: string, offset: number, limit: number) => Promise<{ entries: HistoryEntryInfo[]; total: number }>
   removeHistoryEntry: (url: string) => Promise<boolean>

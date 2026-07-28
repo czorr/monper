@@ -44,6 +44,7 @@ const api: MonperTabApi = {
   setProfile: (name) => ipcRenderer.invoke('profile:set', name),
   setAvatar: (dataUrl) => ipcRenderer.invoke('profile:setAvatar', dataUrl),
   getAppearance: () => ipcRenderer.invoke('ui:appearance'),
+  updateBookmark: (id, cambios) => ipcRenderer.invoke('bookmarks:update', id, cambios),
   browseHistory: (query, offset, limit) => ipcRenderer.invoke('history:browse', query, offset, limit),
   removeHistoryEntry: (url) => ipcRenderer.invoke('history:remove', url),
   clearHistory: (desde) => ipcRenderer.invoke('history:clear', desde),

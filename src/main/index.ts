@@ -5,7 +5,7 @@ import type { MenuItemConstructorOptions } from 'electron'
 import type { IpcMainEvent } from 'electron'
 import type { BrowserState, Bookmark, ChatMessage, MenuAnchor, ProviderKind, InternalPage, SubmenuData, SubmenuSection } from '../shared/types'
 import { internalPageOf } from '../shared/types'
-import { initBookmarks, listBookmarks, isBookmarked, addBookmark, removeBookmark, toggleBookmark, reorderBookmarks } from './bookmarks'
+import { initBookmarks, listBookmarks, isBookmarked, addBookmark, removeBookmark, toggleBookmark, reorderBookmarks, updateBookmark } from './bookmarks'
 import { initAI, listProviders, addProvider, removeProvider, setActive as setActiveProvider, setModel, setEffort, getChatContext, getActiveProvider } from './ai/store'
 import { runMastra, errText } from './agent/mastra'
 import { initHistory, recordVisit, updateMeta, recent as historyRecent, browse as historyBrowse, removeEntry as historyRemove, clearHistory as historyClear } from './history'
@@ -1020,6 +1020,7 @@ function buildAppMenu(): void {
       { label: 'Nueva pestaña', accelerator: 'CmdOrCtrl+T', click: () => createTab() },
       { label: 'Reabrir pestaña cerrada', accelerator: 'CmdOrCtrl+Shift+T', click: () => reopenClosedTab() },
       { label: 'Historial', accelerator: 'CmdOrCtrl+Y', click: () => openHistory() },
+      { label: 'Marcadores', accelerator: 'CmdOrCtrl+Alt+B', click: () => openBookmarksManager() },
       { type: 'separator' },
       { label: 'Imprimir…', accelerator: 'CmdOrCtrl+P', click: () => imprimirActiva() },
       { label: 'Cerrar pestaña', accelerator: 'CmdOrCtrl+W', click: () => { if (activeId != null) closeTab(activeId) } },
@@ -1211,6 +1212,16 @@ ipcMain.on('remote:set', (_e, on: boolean) => setRemoteEnabled(!!on))
  * encender el puente y quedarse conduciendo tu navegador con tus sesiones. No es teórico: es
  * el mismo agujero que ya tapamos en los permisos de sitios.
  */
+// ---- Gestor de marcadores ----
+// Solo páginas internas: crear/editar/borrar marcadores no es algo que una web deba poder
+// hacer, igual que `bookmarks:add` y `bookmarks:remove`.
+ipcMain.handle('bookmarks:update', (e, id: string, cambios: { title?: string; url?: string }) => {
+  if (!isInternalSender(e.senderFrame?.url)) return null
+  const b = updateBookmark(String(id), cambios ?? {})
+  if (b) broadcastBookmarks()
+  return b
+})
+
 // ---- Historial ----
 // Restringido a páginas internas: es el registro de todo lo que el usuario ha visitado.
 ipcMain.handle('history:browse', (e, query: string, offset: number, limit: number) =>
@@ -1553,6 +1564,12 @@ function broadcastDownloads(): void {
 function openHistory(): void {
   for (const [id, t] of tabs) if (t.url.includes('/history.html')) { setActive(id); return }
   createTab(internalUrl('history'))
+}
+
+/** Igual que historial y descargas: reutiliza la pestaña si ya está abierta. */
+function openBookmarksManager(): void {
+  for (const [id, t] of tabs) if (t.url.includes('/bookmarks.html')) { setActive(id); return }
+  createTab(internalUrl('bookmarks'))
 }
 
 function openDownloads(): void {
@@ -2272,13 +2289,18 @@ function datosSubmenu(): SubmenuData {
       const items = conFavicon(listBookmarks())
       return {
         section: 'bookmarks',
-        rows: items.slice(0, 12).map((b) => ({
+        // Los 12 primeros son un atajo, no la lista: con 79 marcadores importados hacía falta
+        // una puerta al gestor, igual que en historial.
+        rows: [
+          { id: 'todos', label: 'Gestionar marcadores', icon: 'bookmark' as const, meta: '⌘⌥B', action: 'bookmarks:all', primary: true },
+          ...items.slice(0, 12).map((b) => ({
           id: b.id,
           label: b.title || b.url,
           image: b.favicon ?? null,
           icon: 'bookmark' as const,
           action: `bookmarks:open:${b.id}`
         }))
+        ]
       }
     }
     case 'history': {
@@ -2418,6 +2440,7 @@ ipcMain.on('profilesubmenu:action', (_e, action: string) => {
     case 'extensions:import': void importarExtensionDesdeCarpeta(); break
     case 'extensions:open': openExtensionPopup(arg); break
     case 'bookmarks:open': abrirBookmark(arg); break
+    case 'bookmarks:all': openBookmarksManager(); break
     case 'history:open': createTab(arg); break
     case 'history:all': openHistory(); break
     case 'dev:devtools': toggleDevtools(); break
@@ -2430,7 +2453,7 @@ ipcMain.on('profilemenu:action', (_e, name: string) => {
   pmPopover.hide()
   switch (name) {
     case 'new-tab':
-    case 'bookmarks': createTab(); break
+    case 'bookmarks': openBookmarksManager(); break
     case 'settings': openSettings(); break
     case 'downloads': openDownloads(); break
     case 'developers': toggleDevtools(); break

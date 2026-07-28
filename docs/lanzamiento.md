@@ -40,11 +40,17 @@ Auditado contra el código, no de memoria. Lo marcado como hecho está verificad
 - [x] **Spellcheck.** `spellcheck: true` explícito y, sobre todo, **sugerencias en el menú
       contextual**: el subrayado ya salía, pero sin poder hacer nada con él había que borrar
       la palabra y reescribirla adivinando. Con "Añadir al diccionario".
-- [ ] **Gestor de marcadores.** Hoy solo la lista del sidebar: sin carpetas, sin buscar, sin
-      renombrar. Empieza a doler a partir de ~20 marcadores.
+- [x] **Gestor de marcadores.** Página propia (⌘⌥B) con búsqueda, renombrar y corregir la URL.
+      Antes no había forma de arreglar un título malo sin borrar y volver a crear, perdiendo
+      el orden.
+      - [ ] **Carpetas**: decisión de diseño pendiente, no olvido. Cambia el modelo de datos
+            (hoy `Bookmark` es plano) **y** la UI del sidebar — plegar, arrastrar dentro. Con
+            79 marcadores importados empieza a hacer falta, pero el sidebar es estrecho y la
+            sección va capada a 35vh: conviene decidir la forma antes de escribirla.
 - [ ] **Multi-ventana (⌘N).** `createWindow()` existe pero solo se llama una vez.
-- [ ] **Picture-in-picture.** *Comprobar antes de tocar nada*: Chromium trae el botón en sus
-      controles de vídeo y es posible que ya funcione sin código nuestro.
+- [x] **Picture-in-picture.** Comprobado: `document.pictureInPictureEnabled` es `true` y
+      `requestPictureInPicture` existe en las pestañas. Funciona sin código nuestro; el ítem
+      se cierra sin escribir nada.
 
 ## P2 — Lo que yo no haría, y por qué (pero queda escrito)
 

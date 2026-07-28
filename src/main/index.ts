@@ -12,6 +12,7 @@ import { initHistory, recordVisit, updateMeta, recent as historyRecent, browse a
 import { initWindowState, initialBounds, shouldMaximize, trackWindow } from './windowState'
 import { suggest } from './suggest'
 import { attachScreenShare } from './screenshare'
+import { esWeb, abrirConElSistema } from './schemes'
 import { navegadoresDisponibles, leerMarcadores, leerHistorial, leerCredenciales, type NavegadorId } from './import/browsers'
 import {
   reservarInstanciaUnica, escucharEnlaces, initDefaultBrowser,
@@ -698,7 +699,28 @@ function createTab(url = newtabUrl(), activate = true, agent = false): number {
   })
   wc.on('context-menu', (_e, params) => showPageContextMenu(wc, params))
   wc.on('found-in-page', (_e, r) => win?.webContents.send('find:result', { matches: r.matches, active: r.activeMatchOrdinal }))
+  /**
+   * Navegación a algo que no es web: `mailto:`, `tel:`, `zoommtg:`…
+   *
+   * Sin esto, el `WebContentsView` intenta navegar, falla y el enlace **no hace nada**. Se le
+   * pasa al sistema si el esquema está en la lista blanca, y en cualquier caso se cancela la
+   * navegación: dejarla seguir deja la pestaña en un estado roto.
+   *
+   * Esto cubre además el punto pendiente de `will-navigate` del hardening: `file:` y
+   * `javascript:` iniciados por una página se bloquean aquí.
+   */
+  wc.on('will-navigate', (e, url) => {
+    if (esWeb(url)) return
+    e.preventDefault()
+    abrirConElSistema(url)
+  })
+
   wc.setWindowOpenHandler((details) => {
+    // `<a href="mailto:…" target="_blank">` llega por aquí, no por will-navigate.
+    if (!esWeb(details.url)) {
+      abrirConElSistema(details.url)
+      return { action: 'deny' as const }
+    }
     const feats = details.features || ''
     // Popups reales (OAuth, pagos…) → ventana de verdad, que conserva window.opener /
     // postMessage / window.close. OJO: muchos flujos hacen window.open(url, 'name') SIN
@@ -897,6 +919,9 @@ function normalizeUrl(raw: string): string | null {
   const url = String(raw || '').trim()
   if (!url) return null
   if (/^https?:\/\//i.test(url)) return url
+  // Escribir `mailto:alguien@sitio.com` en la barra abría una BÚSQUEDA de eso en Google.
+  // Si el sistema se hace cargo, no hay nada que navegar.
+  if (abrirConElSistema(url)) return null
   if (/^[\w-]+(\.[\w-]+)+(\/.*)?$/.test(url) || url === 'localhost' || url.startsWith('localhost:')) return 'https://' + url
   return 'https://www.google.com/search?q=' + encodeURIComponent(url)
 }

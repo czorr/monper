@@ -29,8 +29,9 @@ Prioridad: **P0** bloquea "confiable" · **P1** importante · **P2** esperado/pu
 
 5. ~~**Permisos auto-concedidos.**~~ **Hecho.** `permissions.ts` pregunta con un diálogo
    nativo por origen y recuerda la decisión en `permissions.json`. Ver más abajo.
-6. **Navegaciones peligrosas** desde contenido web: bloquear `file://`,
-   `chrome://` y esquemas raros iniciados por páginas; validar `will-navigate`.
+6. ~~**Navegaciones peligrosas** desde contenido web.~~ **Hecho** junto con el soporte de
+   `mailto:`/`tel:`: ver abajo. `will-navigate` valida el esquema y `file:`, `javascript:` y
+   cualquier desconocido se bloquean.
 
 ## P1 — Sesión y datos (lo que se espera "de un browser")
 
@@ -250,3 +251,39 @@ sistema: que abre una pestaña **nueva** (no reemplaza la que había) y queda al
 esquema que no es web —`file://`, `javascript:`— **no** abre nada, y que en desarrollo no se
 ofrece. Lo que no se puede probar aquí es el lock ni el diálogo del sistema: hacen falta dos
 procesos y una app firmada.
+
+
+## Esquemas que no son web (`mailto:`, `tel:`…)
+
+Un `WebContentsView` no sabe navegarlos: la navegación falla y el enlace **no hace nada**, sin
+un solo error que lo explique. Escribir un correo desde una web o abrir un enlace de Zoom era
+imposible. Vive en [`src/main/schemes.ts`](../src/main/schemes.ts).
+
+Llegan por **tres caminos distintos** y hay que cubrir los tres, cosa que no es obvia:
+
+| Camino | Cuándo |
+|---|---|
+| `will-navigate` | `<a href="mailto:…">` normal |
+| `setWindowOpenHandler` | el mismo enlace con `target="_blank"` — NO pasa por will-navigate |
+| `normalizeUrl` | escribirlo en la barra de direcciones |
+
+El tercero era su propio bug: `normalizeUrl` mandaba a Google todo lo que no fuera http(s), así
+que teclear `mailto:x@y.com` acababa en una **búsqueda de ese texto**.
+
+### Lista blanca, no filtro de peligrosos
+
+`shell.openExternal` con lo que venga de una página es un agujero conocido: hay esquemas que
+**ejecutan** cosas (`ms-msdt:` en Windows) y `file:` daría acceso al disco a través del visor
+del sistema. Una web hostil solo necesita un `location.href`.
+
+Por eso `PERMITIDOS` es una lista cerrada. **Criterio para añadir uno: que PIDA algo (componer
+un mensaje, abrir una app), no que EJECUTE algo.** Ante la duda se queda fuera — el coste de
+omitir un esquema es que un enlace no funcione; el de colar el equivocado es ejecución
+arbitraria. `PROHIBIDOS` existe además como red por si alguien añade uno por descuido.
+
+Y la navegación **se cancela siempre**, se abra o no: dejarla seguir deja la pestaña en un
+estado roto aunque el sistema sí haya abierto el correo.
+
+Lo fija `tests/schemes.spec.ts`, que sustituye `shell.openExternal` para no abrir Mail en cada
+ejecución y comprueba a quién se le pasa y a quién no — que es exactamente la decisión de
+seguridad.

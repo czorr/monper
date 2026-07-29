@@ -2432,11 +2432,31 @@ ipcMain.on('peek:hide', hidePeek)
  * `keychain-access-groups` que incluya este mismo grupo (ver build/entitlements.mac.plist).
  */
 const BUNDLE_ID = 'com.monper.app'
+/**
+ * El equipo con el que se firmaría: el PERSONAL (`MRWANXY92L`), no el de la organización.
+ *
+ * No se usa por defecto a propósito. Firmar con este equipo y el entitlement
+ * `keychain-access-groups` **impide que la app arranque**: es un entitlement restringido y
+ * macOS solo lo concede con un `embedded.provisionprofile` que lo autorice. Medido: la app
+ * firmada moría al lanzar, sin mensaje (AMFI), y solo se veía "Monper no se puede abrir".
+ *
+ * Cuando exista el perfil de aprovisionamiento, esto pasa a ser el valor por defecto.
+ * Ver docs/pendiente-passkeys-firma.md.
+ */
+const TEAM_ID = 'MRWANXY92L'
 function configurePasskeys(): void {
   if (!isMac || typeof app.configureWebAuthn !== 'function') return
-  const teamId = process.env['MONPER_TEAM_ID'] // Apple Developer Team ID
+  /**
+   * Hace falta pedirlo explícitamente con `MONPER_TEAM_ID`.
+   *
+   * Ni en `dev` (el binario de Electron no lleva nuestro entitlement) ni en un build ad-hoc
+   * (sin equipo) el grupo de llavero es válido. Configurarlo igual no es neutral: se le
+   * estaría diciendo a Chromium que use un autenticador que no puede abrir el llavero, y eso
+   * deja WebAuthn roto en vez de simplemente ausente.
+   */
+  const teamId = process.env['MONPER_TEAM_ID']
   if (!teamId) {
-    console.log('[passkeys] MONPER_TEAM_ID no definido: passkeys deshabilitados (requiere firma con entitlement).')
+    console.log(`[passkeys] deshabilitadas: requieren firmar con ${TEAM_ID} + provisioning profile (ver docs/pendiente-passkeys-firma.md).`)
     return
   }
   try {

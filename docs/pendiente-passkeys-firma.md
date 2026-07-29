@@ -1,72 +1,94 @@
-# Pendiente: passkeys (WebAuthn) + firma de código
+# Passkeys (WebAuthn) y firma de código
 
-El soporte de passkeys ya está **implementado en el código**, pero queda **bloqueado**
-hasta tener una cuenta de Apple Developer. Este doc resume qué hay hecho, qué falta y
-cómo activarlo cuando tengas el Team ID.
+**Estado: passkeys firmadas, para uso local.** Este doc decía que estaba bloqueado por "no
+tener cuenta de Apple Developer". Era falso: el llavero ya tenía dos certificados
+`Apple Development` válidos. El Team ID que supuestamente faltaba estaba ahí desde el
+principio; lo que no existía era la conexión con el build.
+
+Lección para la próxima: antes de anotar algo como bloqueado por una dependencia externa,
+comprobar que de verdad falta — `security find-identity -v -p codesigning`.
 
 ## Estado
 
 | | |
 |---|---|
-| Código en la app | ✅ hecho — `configurePasskeys()` en [`src/main/index.ts`](../src/main/index.ts) |
-| Entitlements | ✅ hecho — [`build/entitlements.mac.plist`](../build/entitlements.mac.plist) |
-| Apple Team ID | ❌ **falta** (no lo tenemos aún) |
-| Config de empaquetado/firma | ❌ **falta** (no hay electron-builder/forge en el repo) |
+| Código en la app | ✅ `configurePasskeys()` en [`src/main/index.ts`](../src/main/index.ts) |
+| Entitlements | ✅ [`build/entitlements.mac.plist`](../build/entitlements.mac.plist) |
+| Team ID | ✅ `MRWANXY92L` (personal) |
+| Firma local | ✅ `identity` en [`electron-builder.yml`](../electron-builder.yml) |
+| Notarizar y distribuir | ❌ pide `Developer ID Application` (cuenta de pago) |
 
-Hoy, al arrancar, el main loguea:
+## Qué se puede y qué no con un certificado "Apple Development"
+
+Se **puede**: firmar, ejecutar la app en este Mac y que macOS conceda el entitlement
+`keychain-access-groups` — que es lo único que las passkeys necesitan.
+
+No se **puede**: notarizar. Sin notarización la app abre aquí, pero en otro Mac Gatekeeper la
+bloquea. Para distribuir hace falta `Developer ID Application`, y eso sí requiere el Apple
+Developer Program de pago. O sea: **las passkeys en local nunca dependieron de pagar**;
+distribuir sí.
+
+## Las tres piezas tienen que coincidir
+
+El Team ID aparece en tres sitios, y si no cuadran macOS falla **en silencio**: no hay error,
+simplemente los sitios dejan de ofrecer passkey.
+
+1. `TEAM_ID` en `src/main/index.ts` → forma el `keychainAccessGroup`.
+2. `keychain-access-groups` en `build/entitlements.mac.plist`.
+3. La `identity` de `electron-builder.yml`, cuyo equipo debe ser el mismo.
+
+Dos trampas dentro de esto:
+
+- **`$(AppIdentifierPrefix)` no vale aquí.** Esa variable solo la expanden las herramientas de
+  Xcode; electron-builder la firma literal y deja un grupo inválido. El Team ID va escrito.
+- **El Team ID no puede venir solo de `process.env`.** Una app empaquetada no hereda el
+  entorno del shell, así que leerlo de `MONPER_TEAM_ID` hacía que las passkeys funcionaran
+  lanzando desde terminal y no al abrir desde el Dock. Ahora es constante; la variable solo
+  sirve para forzar otro equipo al probar.
+
+## En desarrollo no se configuran, a propósito
+
+`pnpm dev` corre el binario de Electron, que no lleva nuestro entitlement.
+`configurePasskeys()` **no llama** a `app.configureWebAuthn` ahí, y no es pereza: pedirle a
+Chromium un autenticador de plataforma que no puede abrir el llavero deja WebAuthn peor que
+ausente — roto en vez de simplemente no disponible. El log lo dice:
 
 ```
-[passkeys] MONPER_TEAM_ID no definido: passkeys deshabilitados (requiere firma con entitlement).
+[passkeys] en desarrollo no se configuran (la app no está firmada). Prueba en el build firmado.
 ```
 
-…y la app sigue funcionando normal (sin passkeys). No crashea.
+## Cómo comprobarlo
 
-## Por qué no funcionan todavía
+Lanzar el build firmado desde terminal, que es donde se ve el log:
 
-Electron **no habilita el autenticador de plataforma por defecto**: hasta llamar a
-`app.configureWebAuthn(...)`, `PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()`
-devuelve `false` y los sitios ni siquiera ofrecen la opción de passkey.
+```bash
+./release/mac-arm64/Monper.app/Contents/MacOS/Monper
+```
 
-Ya hacemos esa llamada, pero macOS exige que el **keychain access group** usado
-(`<TEAM_ID>.com.monper.app.webauthn`) esté declarado en el entitlement
-`keychain-access-groups` de una app **firmada** con ese Team ID. En desarrollo, el
-binario de Electron no lleva nuestro entitlement, así que no aplica.
+Debe aparecer `[passkeys] Touch ID habilitado para WebAuthn.` Después, en la consola de
+cualquier página:
 
-## Qué hacer cuando tengas el Team ID
+```js
+PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()  // true
+```
 
-1. **Definir el Team ID** (10 caracteres, del portal de Apple Developer):
-   ```bash
-   export MONPER_TEAM_ID=XXXXXXXXXX
-   ```
-   Conviene moverlo a `.env` / la config de build para no depender del shell.
+Y para verificar la firma sin ejecutar nada:
 
-2. **Verificar el bundle id.** El código usa `BUNDLE_ID = 'com.monper.app'`
-   (en `src/main/index.ts`). Debe coincidir con el `appId` del empaquetador y con el
-   entitlement.
+```bash
+codesign -dv release/mac-arm64/Monper.app                      # TeamIdentifier=MRWANXY92L
+codesign -d --entitlements - --xml release/mac-arm64/Monper.app # el grupo del llavero
+```
 
-3. **Agregar empaquetado + firma** (no existe todavía). Con `electron-builder`, algo así:
-   ```yaml
-   appId: com.monper.app
-   productName: Monper
-   mac:
-     hardenedRuntime: true
-     entitlements: build/entitlements.mac.plist
-     entitlementsInherit: build/entitlements.mac.plist
-   ```
-   `$(AppIdentifierPrefix)` en el plist se resuelve al Team ID al firmar; si tu
-   herramienta no lo expande, escribe el Team ID literal.
+## Limitaciones que siguen
 
-4. **Probar en la app firmada** (no en `dev`): abrir un sitio con passkeys
-   (p. ej. github.com, google.com) y verificar que aparece el prompt de Touch ID.
-   En consola debe verse `[passkeys] Touch ID habilitado para WebAuthn.`
+- Las passkeys de Touch ID son **device-bound**: no se sincronizan por iCloud Keychain.
+- Requieren Secure Enclave (Apple Silicon, o Intel con T2).
+- Solo macOS. Windows/Linux necesitan otra ruta.
+- El certificado **caduca el 17 de abril de 2027**; al renovarlo, comprobar que el Team ID
+  sigue siendo el mismo.
 
-## Limitaciones a tener en cuenta
+## Qué identidad usar
 
-- Las passkeys de Touch ID son **device-bound**: **no** se sincronizan por iCloud Keychain.
-- Requieren Mac con **Secure Enclave** (Apple Silicon, o Intel con chip T2).
-- Solo aplica a **macOS** (`@platform darwin`). Windows/Linux necesitarían otra ruta.
-
-## Archivos involucrados
-
-- `src/main/index.ts` → `configurePasskeys()` y `BUNDLE_ID`
-- `build/entitlements.mac.plist` → `keychain-access-groups`
+Se firma con el equipo **personal** (`MRWANXY92L`). El llavero tiene también uno de
+organización (`NSMK2YAHUW`, AI Founders Inc.) que **no** se usa: Monper no es un proyecto de
+empresa.

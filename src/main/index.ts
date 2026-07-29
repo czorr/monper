@@ -32,6 +32,7 @@ import { extensionIdFrom } from './crx'
 import { createPopover } from './popover'
 import { initRemote, remoteState, setRemoteEnabled, onRemoteState } from './remote'
 import { initAdblock, adblockState, setAdblockEnabled, setAdblockAllowed, adblockCountFor } from './adblock'
+import { attachChromeHints } from './chromehints'
 import { initFavicons, rememberFavicon, faviconFor, resolveFavicon } from './favicons'
 import { initMcpClient, reloadMcpConfig, mcpServerStates, mcpTools, configPath as mcpConfigPath, stopAllMcp } from './mcp/client'
 import { initChats, listSessions, resumeOrNew, startSession, openSession, sessionForNextMessage, saveSession, removeSession as removeChatSession } from './chats'
@@ -3002,6 +3003,8 @@ app.whenReady().then(() => {
     ? 'Macintosh; Intel Mac OS X 10_15_7'
     : process.platform === 'win32' ? 'Windows NT 10.0; Win64; x64' : 'X11; Linux x86_64'
   ses.setUserAgent(`Mozilla/5.0 (${platformUA}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${process.versions.chrome} Safari/537.36`)
+  // La UA de texto no basta: Client Hints es una fuente aparte y delataba "Chromium".
+  attachChromeHints(ses, process.versions.chrome)
   configurePasskeys()
   // Antes que nada lo que navegue: los listeners de red tienen que estar puestos antes de la
   // primera petición, o la primera página se pinta con anuncios. No se espera al motor (las

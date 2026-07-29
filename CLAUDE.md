@@ -62,6 +62,7 @@ measured, say so instead of implying it works.
 | `src/main/agent/` | Mastra agent, REPL (`run_js`), headless pages, one file per service in `globals/` |
 | `src/main/vault/` | Encrypted secret store. Secrets never leave the main process. |
 | `src/main/adblock.ts` | Network-level ad/tracker blocking on `persist:monper` (one webRequest listener per session — see docs) |
+| `src/main/chromehints.ts` | `Sec-CH-UA` rewritten to say "Google Chrome" — paired with `preload/chromeIdentity.ts`; both read `shared/chrome.ts` |
 | `src/main/popover.ts` | Factory for the native overlay windows |
 | `src/main/jsonfile.ts` | `readJson`/`writeJson` — every state file goes through here (atomic writes) |
 | `src/preload/` | One preload per window/feature; each `contextBridge` surface is separate |
@@ -123,6 +124,7 @@ MONPER_NO_ADBLOCK=1      # skip loading filter lists (the test harness sets this
 | Packaging, signing, auto-update | [distribucion.md](docs/distribucion.md) |
 | Permissions, session restore, hardening | [browser-hardening.md](docs/browser-hardening.md) |
 | Adblocker (red, allowlist, listas) | [adblock.md](docs/adblock.md) |
+| Por qué decimos ser Chrome (login de Google) | [identidad-chrome.md](docs/identidad-chrome.md) |
 | Where the product is going, what was dropped | [diagnostico.md](docs/diagnostico.md) |
 | Launch checklist (product-level gaps) | [lanzamiento.md](docs/lanzamiento.md) |
 | Multi-window: the plan and why it's post-launch | [multiventana.md](docs/multiventana.md) |

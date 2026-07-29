@@ -4,6 +4,7 @@ import { setupSelectionUI } from './selectionUI'
 import { setupPasswordCapture } from './passwordCapture'
 import { setupTopColor } from './topColor'
 import { setupStoreInstall } from './storeInstall'
+import { setupChromeIdentity } from './chromeIdentity'
 
 const api: MonperTabApi = {
   navigate: (url) => ipcRenderer.send('tab:navigate', url),
@@ -104,6 +105,8 @@ function safeSetup(name: string, fn: () => void): void {
   try { fn() } catch (e) { console.warn(`[monper] fallo al iniciar ${name}:`, e) }
 }
 
+// El primero: si la página lee la identidad antes de que la alineemos, ya la vio mal.
+safeSetup('chromeIdentity', setupChromeIdentity) // Sec-CH-UA coherente en JS (ver shared/chrome.ts)
 safeSetup('selection', setupSelectionUI)      // acciones rápidas sobre texto seleccionado
 safeSetup('passwordCapture', setupPasswordCapture) // ofrecer guardar credenciales
 safeSetup('topColor', setupTopColor)          // color bajo el topbar al hacer scroll

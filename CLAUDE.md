@@ -75,7 +75,7 @@ measured, say so instead of implying it works.
 
 - **Native overlay windows are not optional.** Pages are `WebContentsView`, which draws
   *above* the DOM, so a positioned `div` ends up underneath. Popovers must be real windows.
-  Five of them come from `createPopover`; four are bespoke for stated reasons —
+  Seven of them come from `createPopover`; four are bespoke for stated reasons —
   see [docs/popovers.md](docs/popovers.md).
 - **A control next to the content edge only works on the chrome side.** The page view starts
   exactly at the edge and draws above the DOM, so anything past it gets neither pointer

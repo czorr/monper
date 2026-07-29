@@ -35,6 +35,8 @@ En el renderer, envolver todo en `PopoverPanel` con `onHeight` y usar `PopoverRo
 | Ventana | Origen | Notas |
 |---|---|---|
 | Site info | factoría | `align: left` |
+| Petición de permiso | factoría | `align: left`, anclada a la barra del dominio: se pide donde luego se cambia. Ver abajo |
+| Descargas | factoría | `align: right` |
 | Menú de perfil | factoría | |
 | Extensiones | factoría | `align: center` |
 | Omnibox | factoría | `focusable: false`, `widthFromAnchor` (mide lo que el input) |
@@ -130,7 +132,7 @@ sienta otra cosa. Si en el futuro alguien "termina la unificación", va a romper
 
 Site info y el menú de perfil creaban la ventana con el ancho del panel **sin sumar el
 margen de la sombra** (`PAD * 2`), así que su panel salía 24px más estrecho que el diseño
-—y que el del resto. Ahora los cinco de la factoría usan la misma regla:
+—y que el del resto. Ahora los siete de la factoría usan la misma regla:
 `ventana = panel + 24`. El vault, por ser opaco y con sombra nativa, no lleva ese margen.
 
 `width` en la omnibox es solo el ancho con el que nace la ventana (para que el renderer no
@@ -159,3 +161,37 @@ se abre— y "Ver todas" sigue llevando al listado completo.
 - `fmtBytes` se movió a [`src/shared/bytes.ts`](../src/shared/bytes.ts). Estaba duplicado entre
   la página y el popover, y dos copias garantizan que un día el mismo archivo se vea como
   "1.4 MB" en un sitio y "1,4 MB" en el otro.
+
+## La petición de permiso no la ancla el main
+
+Cámara, micrófono, ubicación y compañía se pedían con `dialog.showMessageBox`: una caja del
+sistema, centrada, modal, que no se parece a nada del producto y —lo importante— aparece lejos
+del pill del dominio, que es donde ese permiso vive después. El usuario decidía sin llegar a
+ver dónde volver a cambiarlo.
+
+Ahora se pregunta en un popover anclado a la barra del dominio. Con un detalle de
+arquitectura: **dónde cae el pill solo lo sabe el DOM del chrome**, así que el main no puede
+posicionarlo por su cuenta. El flujo es un ida y vuelta:
+
+1. `askPermission` (main) manda `perm:ask` a la ventana que pregunta.
+2. El `UrlBar` mide su contenedor y contesta `perm:anchor` con el rect.
+3. El main muestra el popover ahí y espera la respuesta por `permask:answer`.
+
+Se ancla al **contenedor de la barra**, no al pill: el pill no existe mientras se edita la
+URL, y una petición de permiso no puede depender de dónde tuviera el usuario el cursor.
+
+Con **multiventana**, la ventana que importa es la que PIDE el permiso, no la activa: se busca
+en `ventanas` aquella cuya pestaña activa es el `webContents` solicitante. Anclarlo a la activa
+pondría el panel sobre un chrome que no es el del sitio que pregunta, señalando el dominio
+equivocado.
+
+Tres casos que no son el feliz, y por qué se resuelven así:
+
+- **La pide una pestaña de fondo** (o de otra ventana) → `unavailable`, y cae al diálogo
+  nativo. Anclar al pill el permiso de otra pestaña señalaría un dominio que no es el suyo.
+- **El chrome no contesta en 1,5 s** (ventana oculta, arranque) → `unavailable` e igualmente
+  diálogo. Una petición de permiso no puede quedarse colgada en silencio. Al expirar se
+  descarta también el anclaje: si el chrome contesta tarde, mostraría un popover huérfano.
+- **El usuario cierra el popover sin pulsar** → se deniega ESTA vez y **no se guarda nada**.
+  Un descuido no es una decisión; persistirlo como `denied` condenaría al sitio para siempre
+  sin que nadie lo hubiera elegido.

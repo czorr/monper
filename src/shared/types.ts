@@ -330,6 +330,21 @@ export interface ProfileMenuWinApi {
 }
 
 /** API expuesta a la ventana nativa de info del sitio */
+/** Lo que el popover de permiso necesita saber para preguntar. */
+export interface PermAskData {
+  domain: string
+  /** Qué se pide, ya redactado: "usar tu cámara", "saber tu ubicación". */
+  label: string
+  keys: PermKey[]
+}
+
+export interface PermAskWinApi {
+  onData: (cb: (data: PermAskData) => void) => void
+  reportHeight: (h: number) => void
+  /** Responde y recuerda la decisión para este origen. */
+  answer: (granted: boolean) => void
+}
+
 export interface SiteInfoWinApi {
   onData: (cb: (data: SiteInfoData) => void) => void
   reportHeight: (h: number) => void
@@ -409,6 +424,12 @@ export interface MonperApi {
   onOmniHovered: (cb: (index: number) => void) => () => void
   /** Abre el popup nativo de info/permisos del sitio, anclado al pill del dominio */
   openSiteInfo: (anchor: MenuAnchor) => void
+  /**
+   * El main pide permiso para un sitio: el chrome responde con `permAnchor` diciendo dónde
+   * está el pill del dominio, porque esa posición solo la sabe el DOM del chrome.
+   */
+  onPermAsk: (cb: () => void) => () => void
+  permAnchor: (anchor: MenuAnchor) => void
   /** Abre el menú de perfil (ventana nativa), anclado al account pill */
   openProfileMenu: (anchor: MenuAnchor) => void
   // ---- Peek del sidebar (hover del botón expandir con sidebar colapsado) ----
@@ -823,6 +844,7 @@ declare global {
     vaultwin: VaultWinApi
     omniwin: OmniWinApi
     siteinfo: SiteInfoWinApi
+    permask: PermAskWinApi
     profilemenu: ProfileMenuWinApi
     profilesubmenu: SubmenuWinApi
     peekbar: PeekWinApi

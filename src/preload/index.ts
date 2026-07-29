@@ -27,6 +27,8 @@ const api: MonperApi = {
   onOmniChosen: (cb: (i: number) => void) => sub('omni:chosen', (i) => cb(i as number)),
   onOmniHovered: (cb: (i: number) => void) => sub('omni:hovered', (i) => cb(i as number)),
   openSiteInfo: (anchor) => ipcRenderer.send('siteinfo:open', anchor),
+  onPermAsk: (cb: () => void) => sub('perm:ask', () => cb()),
+  permAnchor: (anchor) => ipcRenderer.send('perm:anchor', anchor),
   openProfileMenu: (anchor) => ipcRenderer.send('profilemenu:open', anchor),
   peekShow: (anchor) => ipcRenderer.send('peek:show', anchor),
   peekMaybeHide: () => ipcRenderer.send('peek:maybeHide'),

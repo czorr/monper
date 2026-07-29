@@ -96,12 +96,23 @@ function prettyOrigin(origin: string): string {
 interface PermOptions {
   onMedia?: (wc: WebContents, active: boolean) => void
   getWindow?: () => BrowserWindow | null
+  /**
+   * Pregunta al usuario y resuelve con la decisión.
+   *
+   * - `true`/`false`: el usuario decidió, y se recuerda.
+   * - `'dismissed'`: cerró el popover sin decidir. Se deniega ESTA vez y no se guarda nada —
+   *   un descuido no es una decisión, y persistirlo condenaría al sitio para siempre sin que
+   *   nadie lo haya elegido.
+   * - `'unavailable'`: no había dónde preguntar (petición de una pestaña en segundo plano).
+   *   Se cae al diálogo nativo: es feo, pero perder una petición en silencio es peor.
+   */
+  ask?: (origin: string, keys: PermKey[], label: string, wc: WebContents | null) => Promise<boolean | 'dismissed' | 'unavailable'>
 }
 
 /** Engancha los handlers de permisos a la sesión del partition.
  *  Ya NO auto-concede: para cámara/mic/geo/etc. pregunta al usuario (por origen) y recuerda. */
 export function attachPermissionHandlers(ses: Session, opts: PermOptions = {}): void {
-  const { onMedia, getWindow } = opts
+  const { onMedia, getWindow, ask } = opts
   ses.setPermissionRequestHandler(async (wc, permission, callback, details) => {
     const origin = originOf((details as { requestingUrl?: string })?.requestingUrl || wc?.getURL() || '')
     const keys = toKeys(permission, details as { mediaTypes?: string[] })
@@ -116,7 +127,20 @@ export function attachPermissionHandlers(ses: Session, opts: PermOptions = {}): 
       return
     }
 
-    // Sin decisión: preguntar con un diálogo nativo.
+    // Sin decisión: preguntar. Lo normal es el popover anclado al pill del dominio, que es
+    // donde el usuario mira y donde luego podrá cambiarlo. El diálogo modal de abajo es el
+    // último recurso.
+    if (ask) {
+      const r = await ask(origin, keys, labelFor(keys), wc ?? null)
+      if (r === 'dismissed') { callback(false); return }
+      if (r !== 'unavailable') {
+        for (const k of keys) setState(origin, k, r ? 'granted' : 'denied')
+        callback(r)
+        if (r && onMedia && wc && keys.some((k) => k === 'camera' || k === 'microphone')) onMedia(wc, true)
+        return
+      }
+    }
+
     const parent = getWindow?.() || undefined
     const messageOpts = {
       type: 'none' as const,

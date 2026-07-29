@@ -43,6 +43,20 @@ export default function UrlBar({ active, editRequest, onGo }: Props): JSX.Elemen
     else if (e.key === 'Escape') { if (ac.open) ac.close(); else stopEditing() }
   }
 
+  /**
+   * El main quiere pedir un permiso y necesita saber dónde cae el pill del dominio: solo el
+   * DOM del chrome lo sabe. Se responde con el rect de la barra entera y no con el del pill
+   * porque el pill no existe mientras se edita la URL — y una petición de permiso no puede
+   * depender de si el usuario tenía el cursor en la barra.
+   */
+  const barraRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    return monper.onPermAsk(() => {
+      const r = barraRef.current?.getBoundingClientRect()
+      if (r) monper.permAnchor({ x: r.left, y: r.top, width: r.width, height: r.height })
+    })
+  }, [])
+
   // Refs frescas para los callbacks de la ventana nativa (suscritos una vez).
   const ref = useRef({ items: ac.items, setActive: ac.setActive, choose })
   ref.current = { items: ac.items, setActive: ac.setActive, choose }
@@ -70,7 +84,7 @@ export default function UrlBar({ active, editRequest, onGo }: Props): JSX.Elemen
   const title = active && active.title && active.title !== domain ? active.title : ''
 
   return (
-    <div className="flex-1 flex min-w-0 [-webkit-app-region:no-drag]">
+    <div ref={barraRef} className="flex-1 flex min-w-0 [-webkit-app-region:no-drag]">
       {editing ? (
         <input
           ref={inputRef}

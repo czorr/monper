@@ -42,7 +42,7 @@ import { initUpdater, checkForUpdates, downloadUpdate, installUpdate, getUpdateS
 import { initQuickActions, listQuickActions, saveQuickAction, removeQuickAction, getQuickAction, fillTemplate } from './quickactions'
 import * as vault from './vault/store'
 import type { VaultItemType } from '../shared/vault'
-import type { SiteInfoData, PermKey, PermState } from '../shared/types'
+import type { SiteInfoData, PermKey, PermState, PermAskData } from '../shared/types'
 import appIcon from '../renderer/src/assets/icon.png?asset'
 
 // Anchos redimensionables por el usuario (el renderer los aplica a --spacing-sidebar/panel).
@@ -2178,6 +2178,104 @@ ipcMain.on('omni:hide', hideOmni)
 ipcMain.on('omni:choose', (_e, i: number) => vActOpt()?.win?.webContents.send('omni:chosen', i))
 ipcMain.on('omni:hover', (_e, i: number) => vActOpt()?.win?.webContents.send('omni:hovered', i))
 
+// ---- Petición de permiso: popover anclado al pill del dominio ----
+/**
+ * Un `dialog.showMessageBox` para pedir la cámara es una caja del sistema, centrada, que
+ * detiene la ventana entera y no se parece a nada de lo que hay alrededor. Y sobre todo:
+ * aparece lejos del sitio donde ese permiso vive después (el pill del dominio), así que no
+ * enseña dónde volver a cambiarlo.
+ *
+ * Aquí se pregunta donde el usuario está mirando. El main no sabe dónde cae el pill —eso es
+ * DOM del chrome—, así que se lo pregunta: manda `perm:ask` y el chrome contesta con el rect
+ * por `perm:anchor`. Si no contesta (ventana oculta, chrome aún cargando), se resuelve
+ * `unavailable` y permissions.ts cae al diálogo de siempre.
+ */
+interface PermPendiente {
+  data: PermAskData
+  resolve: (r: boolean | 'dismissed' | 'unavailable') => void
+  respondido: boolean
+  /** La ventana que pregunta: es donde se ancla el popover. */
+  ventana: Ventana
+}
+let permPend: PermPendiente | null = null
+
+/**
+ * El popover cuelga de la ventana QUE PIDE el permiso, no de la activa.
+ *
+ * Con varias ventanas abiertas no son lo mismo: anclarlo a la activa pondría el panel sobre
+ * un chrome que no es el del sitio que pregunta, señalando el dominio equivocado.
+ */
+const permPopover = createPopover(() => permPend?.ventana.win ?? vActOpt()?.win ?? null, {
+  name: 'permask', width: 320, height: 132,
+  preload: 'permask', page: 'permask',
+  align: 'left',
+  data: { channel: 'permask:data', get: () => permPend?.data ?? null },
+  onHide: () => {
+    // Cerrado sin pulsar nada: se deniega esta vez, sin recordar nada.
+    if (permPend && !permPend.respondido) {
+      const p = permPend
+      permPend = null
+      p.resolve('dismissed')
+    }
+  }
+}, RENDERER_URL)
+
+function askPermission(
+  origin: string,
+  keys: PermKey[],
+  label: string,
+  wc: WebContents | null
+): Promise<boolean | 'dismissed' | 'unavailable'> {
+  /**
+   * Se busca la ventana donde vive la pestaña que pide el permiso, y se exige que sea la
+   * pestaña ACTIVA de ESA ventana.
+   *
+   * Anclar al pill el permiso de una pestaña de fondo señalaría un dominio que no es el que
+   * pregunta; y con varias ventanas, mirar solo la activa global fallaría en cuanto la
+   * petición viniera de otra.
+   */
+  const ventana = wc
+    ? [...ventanas.values()].find((v) => v.tabActiva()?.view.webContents.id === wc.id)
+    : undefined
+  if (!ventana || permPend) return Promise.resolve('unavailable')
+
+  let domain = origin
+  try { domain = new URL(origin).hostname.replace(/^www\./, '') } catch { /* origen raro: se muestra tal cual */ }
+
+  return new Promise((resolve) => {
+    permPend = { data: { domain, label, keys }, resolve, respondido: false, ventana }
+    // El chrome contesta con el rect del pill; si no lo hace, no dejamos la petición colgada.
+    const timer = setTimeout(() => {
+      // Se descarta también el anclaje: si el chrome contesta tarde, mostraría un popover
+      // huérfano —sin petición viva— y el usuario vería un panel vacío.
+      anclaPermiso = null
+      if (permPend && !permPend.respondido) {
+        const p = permPend
+        permPend = null
+        p.resolve('unavailable')
+      }
+    }, 1500)
+    anclaPermiso = (anchor) => { clearTimeout(timer); permPopover.show(anchor) }
+    ventana.win.webContents.send('perm:ask')
+  })
+}
+
+/** Lo rellena `askPermission` mientras espera el rect del chrome. */
+let anclaPermiso: ((anchor: MenuAnchor) => void) | null = null
+ipcMain.on('perm:anchor', (_e, anchor: MenuAnchor) => {
+  const f = anclaPermiso
+  anclaPermiso = null
+  f?.(anchor)
+})
+ipcMain.on('permask:answer', (_e, granted: boolean) => {
+  const p = permPend
+  if (!p) return
+  p.respondido = true
+  permPend = null
+  permPopover.hide()
+  p.resolve(!!granted)
+})
+
 // ---- Site info: popup nativo de info/permisos del sitio (anclado al pill del dominio) ----
 function activeUrl(): string {
   const t = vAct().tabActiva()
@@ -3035,6 +3133,7 @@ app.whenReady().then(() => {
   attachScreenShare(ses, () => vActOpt()?.win ?? null)
   attachPermissionHandlers(ses, {
     getWindow: () => vActOpt()?.win ?? null,
+    ask: askPermission,
     onMedia: (wc, active) => {
       for (const tb of vAct().tabs.values()) {
         if (tb.view.webContents === wc) { tb.recording = active; vAct().pushState(); break }

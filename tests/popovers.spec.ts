@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { launch, api, type Harness } from './helpers'
+import { launch, api, waitForState, type Harness } from './helpers'
 
 /**
  * Los popovers son ventanas nativas (la vista de la página se dibuja encima del DOM, así
@@ -205,4 +205,30 @@ test('el peek se prepara al colapsar el sidebar, no al primer hover', async () =
   // Preparada pero NO visible: se muestra cuando el hover lo pida, ya cargada.
   await expect.poll(async () => (await peek()).cargando, { timeout: 5000 }).toBe(false)
   expect((await peek()).visible, 'prepararla no es mostrarla').toBe(false)
+})
+
+test('el botón de descargas abre un popover, no la página de descargas', async () => {
+  /**
+   * Antes ese botón llevaba directamente a la página de todas las descargas: para comprobar si
+   * lo que acabas de bajar terminó, perdías de vista lo que estabas leyendo. Lo que se afirma
+   * aquí es justo eso — se abre una ventana nativa y NO se crea ninguna pestaña.
+   */
+  const antes = await waitForState(h.win, (s) => s.tabs.length > 0)
+
+  await api(h.win, 'openDownloadsPopover', { x: 600, y: 20, width: 28, height: 28 })
+  await expect.poll(visiblePopovers).toHaveLength(1)
+  const [p] = await visiblePopovers()
+  expect(p.width).toBe(320 + 24) // panel + el margen de la sombra (PAD * 2)
+
+  const despues = await waitForState(h.win, (s) => s.tabs.length === antes.tabs.length)
+  expect(despues.tabs.length, 'el popover no debe abrir la página de descargas').toBe(antes.tabs.length)
+
+  // Y "Ver todas" sí lleva a la página: el popover se cierra y aparece la pestaña.
+  await h.app.evaluate(({ ipcMain }) => ipcMain.emit('downloadspop:all'))
+  await expect.poll(visiblePopovers).toEqual([])
+  await expect
+    .poll(async () => h.app.evaluate(({ webContents }) =>
+      webContents.getAllWebContents().some((w) => w.getURL().includes('downloads.html'))
+    ), { timeout: 8000 })
+    .toBe(true)
 })

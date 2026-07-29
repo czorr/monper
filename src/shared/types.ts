@@ -340,6 +340,26 @@ export interface SiteInfoWinApi {
   close: () => void
 }
 
+/**
+ * Popover de descargas del topbar.
+ *
+ * Antes ese botón abría directamente la página de todas las descargas: para ver si el archivo
+ * que acabas de bajar terminó, te cambiaba de página. Un popover contesta esa pregunta sin
+ * moverte de sitio, y el enlace al listado completo sigue estando abajo.
+ */
+export interface DownloadsPopApi {
+  onData: (cb: (list: DownloadEntry[]) => void) => void
+  reportHeight: (h: number) => void
+  /** Abre el archivo con la app del sistema. */
+  open: (id: string) => void
+  /** Lo enseña en el Finder. */
+  reveal: (id: string) => void
+  cancel: (id: string) => void
+  clear: () => void
+  /** Va a la página con el historial completo de descargas. */
+  seeAll: () => void
+}
+
 /** Rectángulo (coords de la ventana) para posicionar la ventana nativa del omnibox */
 export interface OmniRect { x: number; y: number; width: number; height: number }
 /** Datos que el chrome envía a la ventana nativa del omnibox */
@@ -423,6 +443,8 @@ export interface MonperApi {
   toggleMute: (id?: number) => void
   openDevtools: () => void
   openDownloads: () => void
+  /** Popover del botón del topbar; `openDownloads` sigue abriendo la página completa. */
+  openDownloadsPopover: (anchor: MenuAnchor) => void
   /** Resumen de descargas (para el icono del topbar) */
   onDownloadsSummary: (cb: (s: DownloadsSummary) => void) => () => void
   getDownloadsSummary: () => Promise<DownloadsSummary>
@@ -806,5 +828,6 @@ declare global {
     peekbar: PeekWinApi
     signin: SigninWinApi
     extensionswin: ExtensionsWinApi
+    downloadspop: DownloadsPopApi
   }
 }

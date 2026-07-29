@@ -28,7 +28,7 @@ interface Props {
   onOpenVault: (rect: DOMRect) => void
   onOpenExtensions: (rect: DOMRect) => void
   downloads: DownloadsSummary
-  onOpenDownloads: () => void
+  onOpenDownloads: (rect: DOMRect) => void
   onPeekShow: (rect: DOMRect) => void
   onPeekHide: () => void
 }
@@ -82,7 +82,7 @@ export default function Topbar({ active, collapsed, mac, chatOpen, editRequest, 
         )}
 
         {downloads.total > 0 && (
-          <IconButton title="Descargas" onClick={onOpenDownloads}>
+          <IconButton title="Descargas" onClick={(e) => onOpenDownloads((e.currentTarget as HTMLElement).getBoundingClientRect())}>
             <span className="relative flex items-center justify-center [&>svg]:w-[18px] [&>svg]:h-[18px]">
               <IconDownload />
               {downloads.active > 0 && (

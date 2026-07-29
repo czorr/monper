@@ -37,7 +37,8 @@ export default defineConfig({
           profilesubmenu: resolve(__dirname, 'src/preload/profilesubmenu.ts'),
           peekbar: resolve(__dirname, 'src/preload/peekbar.ts'),
           signin: resolve(__dirname, 'src/preload/signin.ts'),
-          extensionswin: resolve(__dirname, 'src/preload/extensionswin.ts')
+          extensionswin: resolve(__dirname, 'src/preload/extensionswin.ts'),
+          downloadspop: resolve(__dirname, 'src/preload/downloadspop.ts')
         },
         output: cjsOutput
       }
@@ -69,7 +70,8 @@ export default defineConfig({
           profilesubmenu: resolve(__dirname, 'src/renderer/profilesubmenu.html'),
           peekbar: resolve(__dirname, 'src/renderer/peekbar.html'),
           signin: resolve(__dirname, 'src/renderer/signin.html'),
-          extensions: resolve(__dirname, 'src/renderer/extensions.html')
+          extensions: resolve(__dirname, 'src/renderer/extensions.html'),
+          downloadspop: resolve(__dirname, 'src/renderer/downloadspop.html')
         }
       }
     },

@@ -1910,6 +1910,9 @@ function broadcastDownloads(): void {
   const list = listDownloads()
   paraPaginas('/downloads.html', 'downloads:changed', list)
   paraTodas('downloads:summary', { active: activeDownloadCount(), total: list.length })
+  // El popover se refresca EN VIVO: se abre justo para mirar cómo va una descarga, así que si
+  // solo recibiera datos al abrirse, la barra de progreso se quedaría congelada delante.
+  downloadsPopover.send('downloadspop:data', list)
 }
 /** Reutiliza la pestaña si ya está abierta, como downloads: no se acumulan historiales. */
 function openHistory(): void {
@@ -1934,6 +1937,25 @@ ipcMain.on('downloads:open', (_e, id: string) => openDownload(id))
 ipcMain.on('downloads:show', (_e, id: string) => showDownload(id))
 ipcMain.on('downloads:clear', () => clearDownloads())
 ipcMain.on('ui:downloads', () => openDownloads())
+
+/**
+ * Popover de descargas del botón del topbar.
+ *
+ * Ese botón abría la PÁGINA de todas las descargas: para comprobar si el archivo que acabas de
+ * bajar terminó, te cambiaba de página y perdías lo que estabas viendo. El popover contesta esa
+ * pregunta donde estás, y "Ver todas" sigue llevando al listado completo.
+ */
+const downloadsPopover = createPopover(() => vActOpt()?.win ?? null, {
+  name: 'downloadspop', width: 320, height: 180,
+  preload: 'downloadspop', page: 'downloadspop', align: 'right',
+  data: { channel: 'downloadspop:data', get: () => listDownloads() }
+}, RENDERER_URL)
+ipcMain.on('downloadspop:open', (_e, anchor: MenuAnchor) => downloadsPopover.show(anchor))
+ipcMain.on('downloadspop:open-file', (_e, id: string) => { openDownload(String(id)); downloadsPopover.hide() })
+ipcMain.on('downloadspop:reveal', (_e, id: string) => { showDownload(String(id)); downloadsPopover.hide() })
+ipcMain.on('downloadspop:cancel', (_e, id: string) => cancelDownload(String(id)))
+ipcMain.on('downloadspop:clear', () => { clearDownloads(); downloadsPopover.hide() })
+ipcMain.on('downloadspop:all', () => { downloadsPopover.hide(); openDownloads() })
 
 // ---- Buscar en página ----
 ipcMain.on('find:start', (_e, query: string, opts: { forward: boolean; findNext: boolean }) => {

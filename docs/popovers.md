@@ -4,7 +4,7 @@ Los overlays de Monper **tienen** que ser ventanas nativas: la vista de la pági
 (`WebContentsView`) se dibuja encima del DOM, así que un `div` posicionado queda debajo.
 
 Eran 9 ventanas hechas a mano, cada una con su propio posicionamiento, su auto-cierre, su
-medición de alto y su diseño de filas. Hoy **5 salen de una factoría común** y 4 siguen a
+medición de alto y su diseño de filas. Hoy **6 salen de una factoría común** y 4 siguen a
 mano por motivos concretos.
 
 - Main: [`src/main/popover.ts`](../src/main/popover.ts) — `createPopover()`.
@@ -142,3 +142,20 @@ mida a 24px); el real lo pone el anchor en cada `show`.
 (ya no se pre-crean: costaba 344MB de base, ver [rendimiento.md](rendimiento.md)), que cada uno
 se crea en el primer uso y luego se reutiliza, que abren con el ancho correcto, que se cierran desde el renderer, que solo hay uno
 abierto a la vez, que el alto reportado mueve la ventana y que la omnibox no roba el foco.
+
+## Descargas (`downloadspop`)
+
+El botón de descargas del topbar abría la **página** de todas las descargas. Para contestar
+"¿terminó lo que acabo de bajar?" te cambiaba de página y perdías lo que estabas leyendo. Ahora
+abre un popover con las 6 últimas —las que están bajando primero, que son el motivo por el que
+se abre— y "Ver todas" sigue llevando al listado completo.
+
+- **Se refresca en vivo.** `broadcastDownloads()` le manda la lista además de a las páginas: se
+  abre justo para mirar cómo va una descarga, y con datos solo al abrirse la barra de progreso
+  se quedaba congelada delante del usuario.
+- **La barra de progreso es el FONDO de la fila**, no un elemento aparte: en 320px de ancho, una
+  barra propia obliga a partir el nombre del archivo en dos líneas.
+- Una descarga en curso no responde al clic: abrir un archivo a medias es peor que no responder.
+- `fmtBytes` se movió a [`src/shared/bytes.ts`](../src/shared/bytes.ts). Estaba duplicado entre
+  la página y el popover, y dos copias garantizan que un día el mismo archivo se vea como
+  "1.4 MB" en un sitio y "1,4 MB" en el otro.

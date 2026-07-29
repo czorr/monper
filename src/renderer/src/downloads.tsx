@@ -7,16 +7,9 @@ import IconX from '~icons/tabler/x'
 import IconTrash from '~icons/tabler/trash'
 import './styles.css'
 
-const { monperTab } = window
+import { fmtBytes } from '@shared/bytes'
 
-function fmtBytes(n: number): string {
-  if (!n || n < 0) return ''
-  const u = ['B', 'KB', 'MB', 'GB']
-  let i = 0
-  let v = n
-  while (v >= 1024 && i < u.length - 1) { v /= 1024; i++ }
-  return `${v.toFixed(v < 10 && i > 0 ? 1 : 0)} ${u[i]}`
-}
+const { monperTab } = window
 
 function Row({ d }: { d: DownloadEntry }): JSX.Element {
   const pct = d.total > 0 ? Math.min(100, Math.round((d.received / d.total) * 100)) : 0

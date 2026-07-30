@@ -34,6 +34,16 @@ const api: MonperTabApi = {
   vaultList: () => ipcRenderer.invoke('vault:list'),
   vaultAdd: (type, label, data, secret) => ipcRenderer.invoke('vault:add', type, label, data, secret),
   vaultRemove: (id) => ipcRenderer.invoke('vault:remove', id),
+  vaultUpdate: (id, patch) => ipcRenderer.invoke('vault:update', id, patch),
+  vaultAvailable: () => ipcRenderer.invoke('vault:available'),
+  vaultCopy: (id) => ipcRenderer.invoke('vault:copy', id),
+  vaultReveal: (id) => ipcRenderer.invoke('vault:reveal', id),
+  vaultFavicons: () => ipcRenderer.invoke('vault:favicons'),
+  onVaultChanged: (cb) => {
+    const h = (_e: unknown, list: unknown): void => cb(list as never)
+    ipcRenderer.on('vault:changed', h)
+    return () => { ipcRenderer.removeListener('vault:changed', h) }
+  },
   suggest: (query) => ipcRenderer.invoke('omni:suggest', query) as Promise<Suggestion[]>,
   openSettings: () => ipcRenderer.send('ui:settings'),
   openChat: () => ipcRenderer.send('ui:openChat'),

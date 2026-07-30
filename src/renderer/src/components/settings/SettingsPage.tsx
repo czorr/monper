@@ -15,6 +15,7 @@ import QuickActionsSection from './QuickActionsSection'
 import RoutinesSection from './RoutinesSection'
 import PermissionsSection from './PermissionsSection'
 import AdblockSection from './AdblockSection'
+import PasswordSection from './PasswordSection'
 import McpSection from './McpSection'
 import ImportSection from './ImportSection'
 import IconWand from '~icons/tabler/wand'
@@ -57,7 +58,7 @@ const NAV: NavGroup[] = [
       { id: 'billing', label: 'Billing', icon: <IconCreditCard />, soon: true },
       { id: 'privacy', label: 'Privacy', icon: <IconShield /> },
       { id: 'adblock', label: 'Adblocker', icon: <IconShieldCheck /> },
-      { id: 'password', label: 'Password', icon: <IconKey />, soon: true },
+      { id: 'password', label: 'Password', icon: <IconKey /> },
       { id: 'ai', label: 'AI', icon: <IconSparkles /> },
       { id: 'developers', label: 'Developers', icon: <IconCode />, soon: true },
       { id: 'about', label: 'About', icon: <IconInfo /> }
@@ -86,15 +87,6 @@ const SOON: Partial<Record<Cat, { title: string; desc: string; bullets: string[]
     title: 'Billing',
     desc: 'Tu plan y consumo.',
     bullets: ['Plan y método de pago', 'Consumo de tokens por proveedor', 'Límites de gasto para el agente']
-  },
-  password: {
-    title: 'Password',
-    desc: 'El gestor de contraseñas de Monper, hoy accesible desde el candado del topbar.',
-    bullets: [
-      'Ver y editar credenciales guardadas',
-      'El agente rellena sin ver nunca el secreto',
-      'Importar desde 1Password, Bitwarden o Chrome'
-    ]
   },
   developers: {
     title: 'Developers',
@@ -225,6 +217,7 @@ export default function SettingsPage(): JSX.Element {
               {cat === 'general' && <GeneralPage />}
               {cat === 'privacy' && <PrivacyPage />}
               {cat === 'adblock' && <AdblockSection />}
+              {cat === 'password' && <PasswordSection />}
               {cat === 'permissions' && <PermissionsSection />}
               {cat === 'mcps' && <McpSection />}
               {cat === 'about' && <AboutPage />}

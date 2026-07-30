@@ -150,3 +150,54 @@ primer arranque; `activeId`/`model`/`effort` quedan como chat settings.
 3. **UI de Passwords/Tokens/Secrets** en Settings.
 4. **Autofill** de credenciales web (inyección + matching por origin).
 5. **Herramientas del agente** para usar credenciales/tokens con gating.
+
+## Settings → Password (la pantalla del vault)
+
+Hasta que existió, al vault solo se llegaba por el candado del topbar: un popover para rellenar
+rápido, no para ver qué tienes guardado, renombrarlo ni limpiarlo. El importador ya traía las
+contraseñas de Chrome y **desaparecían en un cajón sin puerta**.
+
+### Ver la contraseña: la única excepción al principio 1
+
+Al principio esta pantalla **no** dejaba ver el secreto, precisamente por el principio 1. Se
+cambió por decisión de producto, a sabiendas: **un gestor de contraseñas en el que no puedes
+mirar tu propia contraseña no es un gestor.** Queda como la ÚNICA excepción, y acotada:
+
+- `vault:reveal` va **de una en una y solo al pulsar**. No existe ningún canal que vuelque el
+  vault entero — el listado sigue sin llevar secretos, y eso es lo que impide un escape
+  accidental. Hay tests que lo afirman.
+- Lleva `isInternalSender`, como borrar o editar.
+- **Nunca se registra.** Un `console.log` ahí dejaría la contraseña en disco para siempre.
+- El renderer la tapa sola a los 15 s.
+- **El agente sigue sin verla**: el canal vive en el preload de páginas internas, al que el
+  modelo no tiene acceso. Lo que cambia es qué puede ver el USUARIO, no el modelo.
+
+Copiar (`vault:copy`) se queda y sigue siendo la vía recomendada: descifra **en el main** y
+escribe directo en el portapapeles, así el valor ni siquiera entra en el DOM.
+
+- El portapapeles **se limpia solo a los 30 s**, y solo si sigue conteniendo lo que copiamos —
+  si el usuario copió otra cosa mientras tanto, vaciarlo le destruiría su portapapeles.
+- Editar toca solo la metadata (nombre, usuario). **La contraseña no se edita ahí**: cambiarla
+  es cosa del sitio, y Monper la vuelve a capturar en el siguiente login; un campo aquí solo
+  desincronizaría las dos.
+- Los `••••••••` de cada fila son decorativos y de longitud fija a propósito: pintar la longitud
+  real filtraría cuánto mide la contraseña a quien mire la pantalla de lejos. Al revelarla se
+  pinta **monoespaciada**: una proporcional confunde `l` con `1` y `O` con `0` justo cuando más
+  caro sale.
+- El icono de cada credencial es el **favicon real** del sitio, de la caché local de sitios
+  visitados. Nunca se le pide a un tercero: mandarle a Google la lista de dominios donde el
+  usuario tiene cuenta sería lo contrario de lo que promete este panel. Va por un canal aparte
+  (`vault:favicons`) y no dentro de `data`, que es lo que se persiste.
+- **Alta manual** (`Añadir`): lo normal es que una credencial entre sola al hacer login, pero
+  hay dos casos en que no —sitios que no disparan la captura, y todo lo que no es un login—.
+  Sin ella el vault solo se llenaba por accidente. El sitio **se normaliza a un origen**
+  (`github.com` → `https://github.com`): `findCredential` busca por origen exacto, así que
+  guardarlo a medias crea una credencial que no va a coincidir nunca, y eso es un fallo
+  silencioso. Las API keys **no** se dan de alta aquí: se guardan solas al conectar un proveedor
+  y duplicarlas dejaría dos fuentes de verdad.
+- Las cuatro acciones de una fila aparecen **juntas al hover**, como en el gestor de marcadores.
+  Tener ojo y copiar siempre visibles y editar/borrar solo al hover eran dos reglas distintas en
+  la misma fila. Excepción: con la contraseña a la vista no se esconden, o no habría forma de
+  volver a taparla salvo esperar los 15 s.
+- `vault:copy`, `vault:update` y `vault:available` llevan `isInternalSender`, como el resto de
+  la gestión. El chrome no tiene siquiera el método en su preload, y hay un test que lo afirma.

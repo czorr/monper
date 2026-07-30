@@ -2109,6 +2109,86 @@ ipcMain.handle('vault:remove', (e, id: string) => {
   vault.remove(id); notifyVault(); notifyChatContext()
   return vault.list()
 })
+ipcMain.handle('vault:update', (e, id: string, patch: { label?: string; data?: Record<string, string>; secret?: string }) => {
+  if (!isInternalSender(e.senderFrame?.url)) return vault.list()
+  try { vault.update(String(id), patch ?? {}) } catch (err) { reportVaultError(err) }
+  notifyVault(); notifyChatContext()
+  return vault.list()
+})
+ipcMain.handle('vault:available', () => vault.isAvailable())
+
+/**
+ * Devuelve el secreto EN CLARO para enseñarlo en pantalla.
+ *
+ * Es la única excepción al principio 1 del vault ("el secreto no cruza el IPC"), y es
+ * deliberada: un gestor de contraseñas en el que no puedes mirar tu propia contraseña no es
+ * un gestor. Decisión de producto, tomada a sabiendas — ver docs/vault-architecture.md.
+ *
+ * Lo que la acota:
+ * - Solo páginas internas (`isInternalSender`), igual que borrar o editar.
+ * - **Se pide de una en una y solo al pulsar.** No hay forma de volcar el vault entero: el
+ *   listado sigue sin llevar secretos, que es lo que impide un escape accidental.
+ * - Nunca se registra. Un `console.log` aquí lo dejaría en disco para siempre.
+ * - El renderer lo esconde solo a los 15 s (ver PasswordSection).
+ *
+ * Lo que NO cambia: el agente sigue sin verlo. Este canal es del preload de páginas internas,
+ * al que el modelo no tiene acceso.
+ */
+ipcMain.handle('vault:reveal', (e, id: string) => {
+  if (!isInternalSender(e.senderFrame?.url)) return null
+  return vault.getSecret(String(id))
+})
+
+/**
+ * Favicons de las credenciales web, por origen.
+ *
+ * Van aparte y no dentro de `VaultItemMeta.data` a propósito: `data` es lo que se PERSISTE en
+ * vault.json, y un icono cacheado no es metadata del secreto — se recalcula solo cuando visitas
+ * el sitio. Solo salen los ya conocidos: nunca se le pide el icono a un tercero.
+ */
+ipcMain.handle('vault:favicons', (e) => {
+  if (!isInternalSender(e.senderFrame?.url)) return {}
+  const out: Record<string, string> = {}
+  for (const i of vault.list()) {
+    const origin = i.data.origin
+    if (!origin) continue
+    const f = faviconFor(origin)
+    if (f) out[origin] = f
+  }
+  return out
+})
+
+/**
+ * Segundos que el secreto vive en el portapapeles antes de borrarse solo.
+ *
+ * Lo que se copia de aquí es una contraseña: dejarla ahí indefinidamente la expone a lo
+ * siguiente que lea el portapapeles, que en macOS es cualquier app. 30 s es de sobra para
+ * pegarla y poco para olvidarla.
+ */
+const CLIP_TTL = 30_000
+let clipTimer: NodeJS.Timeout | null = null
+/**
+ * Copia el secreto al portapapeles DESDE EL MAIN.
+ *
+ * No hay "ver contraseña" y no es un olvido: el principio del vault es que el secreto no
+ * cruza el IPC ni pasa por un renderer (ver docs/vault-architecture.md). Descifrar aquí y
+ * escribir directo en el portapapeles lo respeta — el renderer solo se entera de si salió
+ * bien. Devuelve booleano, nunca el valor.
+ */
+ipcMain.handle('vault:copy', (e, id: string) => {
+  if (!isInternalSender(e.senderFrame?.url)) return false
+  const secreto = vault.getSecret(String(id))
+  if (!secreto) return false
+  clipboard.writeText(secreto)
+  if (clipTimer) clearTimeout(clipTimer)
+  clipTimer = setTimeout(() => {
+    clipTimer = null
+    // Solo se borra si sigue estando LO QUE COPIAMOS: si el usuario copió otra cosa mientras
+    // tanto, vaciarlo le destruiría su portapapeles.
+    if (clipboard.readText() === secreto) clipboard.clear()
+  }, CLIP_TTL)
+  return true
+})
 
 // ---- "¿Guardar contraseña?" al enviar un login ----
 async function faviconImage(url: string | null): Promise<Electron.NativeImage | undefined> {
@@ -2158,10 +2238,11 @@ ipcMain.on('vault:open', (ev, anchor: MenuAnchor) => {
   w.show(); w.focus()
 })
 ipcMain.on('vault:closeWindow', () => { if (vaultWin && !vaultWin.isDestroyed()) vaultWin.hide() })
-ipcMain.on('vault:manage', (ev) => {
+// "Gestionar" cae en la sección Password, no en el índice de Settings: antes te dejaba en
+// General y había que buscar dónde estaba lo que acababas de pedir.
+ipcMain.on('vault:manage', () => {
   if (vaultWin && !vaultWin.isDestroyed()) vaultWin.hide()
-  for (const [id, t] of vDe(ev).tabs) if (t.url.includes('/settings.html')) { vDe(ev).setActive(id); return }
-  vDe(ev).createTab(internalUrl('settings'))
+  openSettings('password')
 })
 
 // ---- Omnibox: ventana nativa del dropdown de sugerencias (flota sobre la página) ----

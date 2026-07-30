@@ -834,6 +834,22 @@ export interface MonperTabApi {
   vaultList: () => Promise<VaultItemMeta[]>
   vaultAdd: (type: VaultItemType, label: string, data: Record<string, string>, secret: string) => Promise<VaultItemMeta[]>
   vaultRemove: (id: string) => Promise<VaultItemMeta[]>
+  vaultUpdate: (id: string, patch: { label?: string; data?: Record<string, string>; secret?: string }) => Promise<VaultItemMeta[]>
+  /** `false` = el keychain no está disponible: no se puede guardar nada cifrado. */
+  vaultAvailable: () => Promise<boolean>
+  /**
+   * Copia el secreto al portapapeles. Devuelve si salió bien, NUNCA el valor: el secreto no
+   * cruza el IPC (ver docs/vault-architecture.md). Por eso no hay "ver contraseña".
+   */
+  vaultCopy: (id: string) => Promise<boolean>
+  /**
+   * El secreto en claro, para enseñarlo. Única excepción a "el secreto no cruza el IPC", y
+   * deliberada: sin esto no es un gestor de contraseñas. Se pide de una en una, nunca en lote.
+   */
+  vaultReveal: (id: string) => Promise<string | null>
+  /** Iconos de las credenciales web, por origen. Solo los ya conocidos; nunca a un tercero. */
+  vaultFavicons: () => Promise<Record<string, string>>
+  onVaultChanged: (cb: (items: VaultItemMeta[]) => void) => () => void
   // ---- Autocompletado del omnibox / new tab ----
   suggest: (query: string) => Promise<Suggestion[]>
   // ---- Acciones del new tab ----

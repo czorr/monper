@@ -1,6 +1,8 @@
 import { test, expect } from '@playwright/test'
 import { launch, api, waitForState, installStateListener, serve, html, type Harness } from './helpers'
 import type { Page } from '@playwright/test'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 
 let h: Harness
 let segunda: Page
@@ -115,4 +117,20 @@ test('no se saca la única pestaña de una ventana', async () => {
   await h.app.evaluate(({ ipcMain }, tabId) => ipcMain.emit('tabs:tearOff', null, tabId), uno.tabs[0].id)
   await new Promise((r) => setTimeout(r, 400))
   expect(chromes()).toBe(antes)
+})
+
+test('la sesión nunca guarda una página interna, aunque en dev sean http', async () => {
+  /**
+   * `pnpm dev` sirve las páginas internas desde `http://localhost:5173`, y dev comparte perfil
+   * con la app instalada. El filtro de sesión solo miraba el esquema, así que la New tab de dev
+   * se guardaba y la app EMPAQUETADA arrancaba pidiendo un servidor que no existe:
+   * ERR_CONNECTION_REFUSED en su propia página de bienvenida.
+   */
+  const userData = await h.app.evaluate(({ app }) => app.getPath('userData'))
+  let guardada = ''
+  try { guardada = readFileSync(join(userData, 'session.json'), 'utf-8') } catch { /* aún no existe */ }
+  // Puede no existir todavía; lo que no puede es contener una interna.
+  for (const p of ['newtab.html', 'settings.html', 'downloads.html', 'history.html', 'bookmarks.html', 'error.html']) {
+    expect(guardada, `la sesión guardó ${p}`).not.toContain(p)
+  }
 })

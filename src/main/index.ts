@@ -1260,7 +1260,14 @@ function collectVentana(v: Ventana): SesionVentana {
   for (const [id, t] of v.tabs) {
     if (t.agent) continue // las pestañas del agente no se persisten
     const u = t.errorUrl ?? t.url
-    if (!/^https?:\/\//i.test(u)) continue // solo http(s); las internas se re-crean como new tab
+    // Solo http(s), y nunca una página interna: se re-crean como new tab.
+    //
+    // El `isInternal` no es redundante con el esquema. En producción las internas son `file://`
+    // y el primer test ya las descartaba, pero en DEV se sirven desde `http://localhost:5173`
+    // y pasaban el filtro. Como `pnpm dev` y la app instalada comparten perfil, la sesión de
+    // dev acababa guardada y la app empaquetada arrancaba pidiendo un servidor que no existe:
+    // ERR_CONNECTION_REFUSED en la cara del usuario, en su propia página de bienvenida.
+    if (!/^https?:\/\//i.test(u) || isInternal(u)) continue
     if (id === v.activeId()) activeIndex = urls.length
     urls.push(u)
   }

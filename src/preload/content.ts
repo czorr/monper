@@ -5,6 +5,7 @@ import { setupPasswordCapture } from './passwordCapture'
 import { setupTopColor } from './topColor'
 import { setupStoreInstall } from './storeInstall'
 import { setupChromeIdentity } from './chromeIdentity'
+import { setupPipSource } from './pipSource'
 
 const api: MonperTabApi = {
   navigate: (url) => ipcRenderer.send('tab:navigate', url),
@@ -88,6 +89,8 @@ const api: MonperTabApi = {
   getAdblockState: () => ipcRenderer.invoke('adblock:state'),
   setAdblockEnabled: (on) => ipcRenderer.invoke('adblock:enable', on),
   setAdblockAllowed: (hostname, permitir) => ipcRenderer.invoke('adblock:allow', hostname, permitir),
+  getPipState: () => ipcRenderer.invoke('pip:state'),
+  setPipEnabled: (on) => ipcRenderer.invoke('pip:enable', on),
   listSitePermissions: (resolve) => ipcRenderer.invoke('perms:list', resolve),
   setSitePermission: (origin, key, state) => ipcRenderer.invoke('perms:set', origin, key, state),
   clearSitePermissions: (origin) => ipcRenderer.invoke('perms:clear', origin),
@@ -130,6 +133,7 @@ function safeSetup(name: string, fn: () => void): void {
 
 // El primero: si la página lee la identidad antes de que la alineemos, ya la vio mal.
 safeSetup('chromeIdentity', setupChromeIdentity) // Sec-CH-UA coherente en JS (ver shared/chrome.ts)
+safeSetup('pip', setupPipSource)                // picture-in-picture propio (ver main/pip.ts)
 safeSetup('selection', setupSelectionUI)      // acciones rápidas sobre texto seleccionado
 safeSetup('passwordCapture', setupPasswordCapture) // ofrecer guardar credenciales
 safeSetup('topColor', setupTopColor)          // color bajo el topbar al hacer scroll

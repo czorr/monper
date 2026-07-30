@@ -428,6 +428,24 @@ export interface PermAskWinApi {
   answer: (granted: boolean) => void
 }
 
+/** Lo que la pestaña manda a la ventana del PiP para arrancar la conexión. */
+export interface PipOferta {
+  /** Oferta SDP serializada. El vídeo NO pasa por el main: va directo por WebRTC. */
+  sdp: string
+  origen: string
+  titulo: string
+  pausado: boolean
+}
+
+export interface PipWinApi {
+  onOferta: (cb: (d: PipOferta) => void) => void
+  /** Respuesta SDP de vuelta a la pestaña. */
+  responder: (sdp: string) => void
+  comando: (cmd: 'play' | 'pause' | 'cerrar') => void
+  /** Cierra el PiP y trae al frente la pestaña de la que salió. */
+  volver: () => void
+}
+
 export interface SiteInfoWinApi {
   onData: (cb: (data: SiteInfoData) => void) => void
   reportHeight: (h: number) => void
@@ -876,6 +894,9 @@ export interface MonperTabApi {
   setAdblockEnabled: (on: boolean) => Promise<boolean>
   /** Activa/desactiva el bloqueo en un dominio concreto. */
   setAdblockAllowed: (hostname: string, permitir: boolean) => Promise<boolean>
+  // ---- Picture-in-Picture (Settings → General) ----
+  getPipState: () => Promise<{ enabled: boolean }>
+  setPipEnabled: (on: boolean) => Promise<boolean>
   onUpdateState: (cb: (s: UpdateState) => void) => () => void
   checkUpdates: () => void
   downloadUpdate: () => void
@@ -967,6 +988,7 @@ declare global {
     vaultwin: VaultWinApi
     omniwin: OmniWinApi
     siteinfo: SiteInfoWinApi
+    pipwin: PipWinApi
     permask: PermAskWinApi
     profilemenu: ProfileMenuWinApi
     profilesubmenu: SubmenuWinApi

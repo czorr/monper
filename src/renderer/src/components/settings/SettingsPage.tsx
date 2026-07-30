@@ -37,7 +37,7 @@ import IconPuzzle from '~icons/tabler/puzzle'
 import IconUsers from '~icons/tabler/users'
 import IconMessage from '~icons/tabler/message'
 import IconArrowUpRight from '~icons/tabler/arrow-up-right'
-import { Card, Group, Row, Pill } from './ui'
+import { Card, Group, Row, Pill, Toggle } from './ui'
 
 const { monperTab } = window
 
@@ -416,6 +416,11 @@ function GeneralPage(): JSX.Element {
   const [profile, setProfile] = useState<Profile>({ name: '', initials: '?', avatar: null })
   const [pred, setPred] = useState<{ isDefault: boolean; shouldOffer: boolean } | null>(null)
   const [errPred, setErrPred] = useState('')
+  // null = todavía no se sabe; el interruptor va deshabilitado hasta tener el valor real.
+  const [pip, setPip] = useState<boolean | null>(null)
+  useEffect(() => {
+    monperTab.getPipState().then((r) => setPip(r.enabled)).catch((e) => console.error('[pip] no se pudo leer el estado:', e))
+  }, [])
   useEffect(() => { monperTab.getProfile().then(setProfile).catch(() => {}) }, [])
   useEffect(() => {
     monperTab.getDefaultBrowser()
@@ -452,6 +457,27 @@ function GeneralPage(): JSX.Element {
                 Usar Monper
               </button>
             )}
+          </Row>
+        </Card>
+      </Group>
+
+      <Group title="Vídeo">
+        <Card>
+          <Row
+            label="Picture in picture"
+            desc={pip
+              ? 'Al sacar un vídeo del reproductor, flota en una ventana propia siempre encima.'
+              : 'Los vídeos se quedan en su pestaña.'}
+          >
+            <Toggle
+              on={pip === true}
+              disabled={pip === null}
+              onChange={async (v) => {
+                setPip(v) // respuesta inmediata
+                try { setPip(await monperTab.setPipEnabled(v)) }
+                catch (e) { console.error('[pip] no se pudo cambiar:', e); monperTab.getPipState().then((r) => setPip(r.enabled)).catch(() => {}) }
+              }}
+            />
           </Row>
         </Card>
       </Group>

@@ -36,6 +36,7 @@ import { createPopover } from './popover'
 import { initRemote, remoteState, setRemoteEnabled, onRemoteState } from './remote'
 import { initAdblock, adjuntarAdblock, adblockState, setAdblockEnabled, setAdblockAllowed, adblockCountFor } from './adblock'
 import { attachChromeHints } from './chromehints'
+import { initPip, attachPip, pipState, setPipEnabled } from './pip'
 import { initFavicons, rememberFavicon, faviconFor, resolveFavicon } from './favicons'
 import { initMcpClient, reloadMcpConfig, mcpServerStates, mcpTools, configPath as mcpConfigPath, stopAllMcp } from './mcp/client'
 import { initChats, listSessions, searchSessions, archiveSession, renameSession, resumeOrNew, startSession, openSession, sessionForNextMessage, saveSession, removeSession as removeChatSession } from './chats'
@@ -219,6 +220,8 @@ export interface Ventana {
   /** La pestaña activa, o undefined. Evita repetir el `activeId != null ? tabs.get(...)`. */
   tabActiva(): Tab | undefined
   layoutTabs(soloVisible?: boolean): void
+  /** Un vídeo de la pestaña activa entra o sale de pantalla completa. */
+  setHtmlFullscreen(on: boolean): void
   layoutActive(): void
   animateLayout(): void
   pushState(): void
@@ -438,6 +441,8 @@ function crearVentana(opts: { sinPestanaInicial?: boolean; incognito?: boolean }
   let activeId: number | null = null
   let sidebarCollapsed = false
   let chatOpen = false
+  /** Un vídeo de la pestaña activa está en pantalla completa (ver `setHtmlFullscreen`). */
+  let htmlFullscreen = false
 
   // Rutas de los renderers (dev usa el server de Vite, prod los archivos build)
   function loadRenderer(target: BrowserWindow, page: 'index' | 'menu') {
@@ -447,6 +452,9 @@ function crearVentana(opts: { sinPestanaInicial?: boolean; incognito?: boolean }
 
   function contentBounds() {
     const [w, h] = win!.getContentSize()
+    // Vídeo en pantalla completa: la vista se come la ventana entera. Ni topbar, ni sidebar,
+    // ni chat, ni la franja del agente — en pantalla completa no hay chrome que valga.
+    if (htmlFullscreen) return { x: 0, y: 0, width: w, height: h }
     const left = sidebarCollapsed ? 0 : sidebarWidth
     const right = chatOpen ? chatWidth : 0
     // Solo si la pestaña activa es la que el agente está controlando, reserva la franja de la leyenda.
@@ -469,7 +477,9 @@ function crearVentana(opts: { sinPestanaInicial?: boolean; incognito?: boolean }
     if (NO_RADIUS || typeof t.view.setBorderRadius !== 'function') return
     // Redondea cuando la página "flota" (sidebar izq y/o panel de chat der).
     // El "sin redondeo" es 1, no 0, y no es un capricho: ver SIN_REDONDEO.
-    const r = !sidebarCollapsed || chatOpen ? CONTENT_RADIUS : SIN_REDONDEO
+    // En pantalla completa nunca: un vídeo a pantalla completa con las esquinas comidas se ve
+    // roto, y ahí no hay chrome detrás del que separarse.
+    const r = htmlFullscreen ? SIN_REDONDEO : !sidebarCollapsed || chatOpen ? CONTENT_RADIUS : SIN_REDONDEO
     // Solo cuando CAMBIA. Reaplicar el radio en cada layout hace reaparecer las muescas de las
     // esquinas; este `if` estaba en el último estado que se dio por bueno y quitarlo las trajo
     // de vuelta. Ver docs/esquinas-y-vibrancy.md.
@@ -645,6 +655,26 @@ function crearVentana(opts: { sinPestanaInicial?: boolean; incognito?: boolean }
   }
   // Alias: llamadas existentes que solo querían recolocar la vista activa.
   function layoutActive() { layoutTabs() }
+
+  /**
+   * Entra o sale de pantalla completa de vídeo.
+   *
+   * La ventana se pone en fullscreen de macOS ADEMÁS de estirar la vista: si solo se estirara,
+   * seguiría viéndose la barra de menú y el Dock, que es lo que un vídeo a pantalla completa
+   * no debe tener. Y al revés, poner solo la ventana en fullscreen sin tocar el layout es lo
+   * que pasaba antes: el chrome seguía ocupando su sitio.
+   *
+   * `setFullScreen` es asíncrono en macOS (la animación del sistema), así que el layout se
+   * rehace TAMBIÉN al terminar esa animación: hacerlo solo aquí lo calcularía con el tamaño
+   * viejo y la vista se quedaría del tamaño de antes dentro de una ventana ya gigante.
+   */
+  function setHtmlFullscreen(on: boolean) {
+    if (htmlFullscreen === on || !win) return
+    htmlFullscreen = on
+    for (const t of tabs.values()) applyRadius(t)
+    if (win.isFullScreen() !== on) win.setFullScreen(on)
+    layoutTabs()
+  }
 
   // Anima los bounds de TODAS las vistas en sync con la transición CSS del content.
   const COLLAPSE_MS = 180
@@ -985,6 +1015,18 @@ function crearVentana(opts: { sinPestanaInicial?: boolean; incognito?: boolean }
       refresh()
       scheduleSaveSession()
     })
+    /**
+     * Pantalla completa de un vídeo.
+     *
+     * Sin esto, darle a fullscreen en YouTube ponía en pantalla completa la VENTANA, con su
+     * sidebar y su topbar encima: el vídeo se quedaba en el mismo hueco de siempre, solo que
+     * más grande. Chromium avisa con estos eventos, pero el tamaño de la vista lo decidimos
+     * nosotros (`contentBounds`), así que nadie lo aplicaba.
+     *
+     * Solo cuenta la pestaña ACTIVA: una en segundo plano no puede apoderarse de la pantalla.
+     */
+    wc.on('enter-html-full-screen', () => { if (id === suya().activeId()) suya().setHtmlFullscreen(true) })
+    wc.on('leave-html-full-screen', () => { if (id === suya().activeId()) suya().setHtmlFullscreen(false) })
     wc.on('did-navigate-in-page', (_e, u, isMainFrame) => {
       if (!isMainFrame) return
       t.url = u
@@ -1316,6 +1358,15 @@ function crearVentana(opts: { sinPestanaInicial?: boolean; incognito?: boolean }
     win.on('minimize', () => { const t = activa(); if (t) void autoPip(t, 'entrar') })
     win.on('restore', () => { const t = activa(); if (t) void autoPip(t, 'salir') })
     win.on('resize', () => { layoutActive(); hideOmni(); if (peekWin && !peekWin.isDestroyed() && peekWin.isVisible()) placePeekWin() })
+    // El fullscreen de macOS anima: al empezar, la ventana aún mide lo de antes. Sin rehacer
+    // el layout AQUÍ, la vista se queda del tamaño viejo dentro de una pantalla entera.
+    win.on('enter-full-screen', () => layoutActive())
+    win.on('leave-full-screen', () => {
+      // Salir con Esc o con el botón verde también tiene que sacar a la página de su
+      // fullscreen: si no, la web se cree a pantalla completa dentro de una ventana normal.
+      if (htmlFullscreen) { htmlFullscreen = false; for (const t of tabs.values()) applyRadius(t) }
+      layoutActive()
+    })
     win.on('move', hideOmni)
     // ⌘1..9 cuando el foco está en el chrome (no en una página).
     win.webContents.on('before-input-event', (e, input) => {
@@ -1368,6 +1419,7 @@ function crearVentana(opts: { sinPestanaInicial?: boolean; incognito?: boolean }
     activeWc: () => (activeId != null ? tabs.get(activeId)?.view.webContents : undefined),
     tabActiva: () => (activeId != null ? tabs.get(activeId) ?? undefined : undefined),
     layoutTabs, layoutActive, animateLayout, pushState, buildState, toggleDevtools, contentBounds,
+    setHtmlFullscreen,
     setCollapsed: (v: boolean) => { sidebarCollapsed = v },
     setChatOpen: (v: boolean) => { chatOpen = v },
     isCollapsed: () => sidebarCollapsed,
@@ -1981,6 +2033,15 @@ ipcMain.handle('adblock:allow', (e, hostname: string, permitir: boolean) => {
   if (!isInternalSender(e.senderFrame?.url)) return false
   setAdblockAllowed(String(hostname ?? ''), !!permitir)
   return true
+})
+ipcMain.handle('pip:state', (e) => {
+  if (!isInternalSender(e.senderFrame?.url)) return { enabled: false }
+  return pipState()
+})
+ipcMain.handle('pip:enable', (e, on: boolean) => {
+  if (!isInternalSender(e.senderFrame?.url)) return false
+  setPipEnabled(!!on)
+  return pipState().enabled
 })
 ipcMain.handle('app:version', () => app.getVersion())
 ipcMain.on('update:check', () => void checkForUpdates(true, vActOpt()?.win))
@@ -3688,6 +3749,16 @@ app.whenReady().then(() => {
   buildAppMenu()
   initPermissions()
   configurePasskeys()
+  // PiP propio: el de Chromium no abre NINGUNA ventana en Electron (ver src/main/pip.ts).
+  initPip(RENDERER_URL ?? null)
+  attachPip((wc) => {
+    // El id de la pestaña es la clave del Map, no un campo de Tab.
+    for (const v of ventanas.values()) {
+      for (const [id, t] of v.tabs) {
+        if (t.view.webContents === wc) { v.win.show(); v.win.focus(); v.setActive(id); return }
+      }
+    }
+  })
   // Descargas: el gestor es único (en memoria); lo que va por sesión es el enganche.
   initDownloads(broadcastDownloads)
   prepararSesion(PARTICION_NORMAL, false)

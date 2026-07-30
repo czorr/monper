@@ -137,10 +137,11 @@ export async function waitForState(
  * simular un sitio CON LOGIN: responder distinto según la cookie es la única forma de probar
  * que algo se leyó autenticado y no de rebote.
  */
+/** `body` admite Buffer para servir binario de verdad (un PNG, un favicon). */
 export type Ruta =
   | string
-  | { status?: number; headers?: Record<string, string>; body: string }
-  | ((req: import('node:http').IncomingMessage) => { status?: number; headers?: Record<string, string>; body: string })
+  | { status?: number; headers?: Record<string, string>; body: string | Buffer }
+  | ((req: import('node:http').IncomingMessage) => { status?: number; headers?: Record<string, string>; body: string | Buffer })
 
 export async function serve(pages: Record<string, Ruta>): Promise<{ url: string; close: () => Promise<void> }> {
   const { createServer } = await import('node:http')

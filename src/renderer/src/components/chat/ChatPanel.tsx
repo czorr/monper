@@ -71,6 +71,10 @@ export default function ChatPanel({ open, onClose, inject, resizing }: Props): J
     else refrescarLista()
   }
 
+  // Retomar una conversación desde Settings → Archived chats. El panel es la fuente de verdad
+  // en vivo, así que marcarla en el main no basta: hay que cargarla aquí.
+  useEffect(() => monper.onOpenSession((id) => { abrirSesion(id); refrescarLista() }), [])
+
   // Refresca proveedor/modelos al abrir el panel y cuando cambian en Settings.
   useEffect(() => { if (open) monper.getChatContext().then(setCtx) }, [open])
   useEffect(() => monper.onChatContext(setCtx), [])

@@ -83,6 +83,7 @@ const api: MonperApi = {
   onChatError: (cb) => sub('chat:error', (f) => cb(f as import('../shared/types').ChatFallo)),
   onChatPrefill: (cb: (p: string) => void) => sub('chat:prefill', (p) => cb(p as string)),
   chatsList: () => ipcRenderer.invoke('chats:list') as Promise<import('../shared/types').ChatSessionMeta[]>,
+  onOpenSession: (cb: (id: string) => void) => sub('chat:openSession', (id) => cb(id as string)),
   chatsResume: () => ipcRenderer.invoke('chats:resume') as never,
   chatsNew: () => ipcRenderer.invoke('chats:new') as never,
   chatsOpen: (id: string) => ipcRenderer.invoke('chats:open', id) as never,

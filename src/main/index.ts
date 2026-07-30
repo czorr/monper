@@ -35,7 +35,7 @@ import { initAdblock, adblockState, setAdblockEnabled, setAdblockAllowed, adbloc
 import { attachChromeHints } from './chromehints'
 import { initFavicons, rememberFavicon, faviconFor, resolveFavicon } from './favicons'
 import { initMcpClient, reloadMcpConfig, mcpServerStates, mcpTools, configPath as mcpConfigPath, stopAllMcp } from './mcp/client'
-import { initChats, listSessions, resumeOrNew, startSession, openSession, sessionForNextMessage, saveSession, removeSession as removeChatSession } from './chats'
+import { initChats, listSessions, searchSessions, archiveSession, renameSession, resumeOrNew, startSession, openSession, sessionForNextMessage, saveSession, removeSession as removeChatSession } from './chats'
 import { writeJson } from './jsonfile'
 import { initRoutines, listRoutines, createWatchRoutine, setRoutineEnabled, removeRoutine as removeRoutineEntry, runRoutine } from './routines'
 import { initUpdater, checkForUpdates, downloadUpdate, installUpdate, getUpdateState, onUpdateState } from './updater'
@@ -3111,6 +3111,39 @@ ipcMain.handle('chats:open', (_e, id: string) => openSession(id))
 ipcMain.handle('chats:forNext', (_e, id: string) => sessionForNextMessage(id))
 ipcMain.on('chats:save', (_e, id: string, messages) => saveSession(id, messages))
 ipcMain.on('chats:remove', (_e, id: string) => removeChatSession(id))
+
+// ---- Gestión del historial de chats (Settings → Archived chats) ----
+// Solo páginas internas: son todas las conversaciones del usuario con el agente.
+ipcMain.handle('chats:search', (e, q: string, incluirArchivadas: boolean) =>
+  isInternalSender(e.senderFrame?.url) ? searchSessions(String(q ?? ''), !!incluirArchivadas) : [])
+ipcMain.handle('chats:archive', (e, id: string, archived: boolean) => {
+  if (!isInternalSender(e.senderFrame?.url)) return []
+  archiveSession(String(id), !!archived)
+  return searchSessions('', true)
+})
+ipcMain.handle('chats:rename', (e, id: string, title: string) => {
+  if (!isInternalSender(e.senderFrame?.url)) return []
+  renameSession(String(id), String(title ?? ''))
+  return searchSessions('', true)
+})
+ipcMain.handle('chats:delete', (e, id: string) => {
+  if (!isInternalSender(e.senderFrame?.url)) return []
+  removeChatSession(String(id))
+  return searchSessions('', true)
+})
+/**
+ * Retomar una conversación desde Settings: abre el panel del chat con ESA sesión.
+ *
+ * El panel es la fuente de verdad en vivo, así que no basta con marcar la sesión en el main:
+ * hay que decirle al chrome que la cargue. Y se desarchiva al retomarla — seguir usándola y
+ * que siguiera escondida del desplegable sería incoherente.
+ */
+ipcMain.on('chats:resumeInPanel', (ev, id: string) => {
+  const v = vDe(ev)
+  archiveSession(String(id), false)
+  if (!openSession(String(id))) return
+  v.win.webContents.send('chat:openSession', String(id))
+})
 // "Take over": el usuario retoma el control → aborta el agente.
 ipcMain.on('agent:takeOver', () => { chatAbort?.abort() })
 ipcMain.handle('chat:send', async (ev, messages: ChatMessage[]) => {

@@ -35,6 +35,13 @@ interface Session {
   createdAt: number
   updatedAt: number
   messages: StoredChatMsg[]
+  /**
+   * Archivada: sale del desplegable del panel pero NO se borra.
+   *
+   * Existe porque el techo de 200 tira las más viejas por fecha, y lo que quieres conservar
+   * casi nunca es lo más reciente. Archivar es decir "esta no la tires y no me estorbe".
+   */
+  archived?: boolean
 }
 
 let file = ''
@@ -99,11 +106,61 @@ export function initChats(): void {
   currentId = ''
 }
 
+const meta = (s: Session): ChatSessionMeta => ({
+  id: s.id, title: s.title, updatedAt: s.updatedAt, count: s.messages.length, archived: !!s.archived
+})
+
+/** Para el desplegable del panel: solo las activas. Archivar sirve para que no salgan aquí. */
 export function listSessions(): ChatSessionMeta[] {
   return sessions
-    .filter((s) => s.messages.length > 0)
+    .filter((s) => s.messages.length > 0 && !s.archived)
     .sort((a, b) => b.updatedAt - a.updatedAt)
-    .map((s) => ({ id: s.id, title: s.title, updatedAt: s.updatedAt, count: s.messages.length }))
+    .map(meta)
+}
+
+/** Todo el texto de una conversación, para buscar dentro. */
+function textoDe(s: Session): string {
+  const trozos: string[] = [s.title]
+  for (const m of s.messages) {
+    if (m.text) trozos.push(m.text)
+    for (const p of m.parts ?? []) if (p.type === 'text') trozos.push(p.text)
+  }
+  return trozos.join('\n')
+}
+
+/** Un fragmento alrededor de la coincidencia, para que se vea POR QUÉ salió ese resultado. */
+function fragmento(texto: string, q: string): string {
+  const i = texto.toLowerCase().indexOf(q.toLowerCase())
+  if (i < 0) return ''
+  const desde = Math.max(0, i - 40)
+  const hasta = Math.min(texto.length, i + q.length + 80)
+  return `${desde > 0 ? '…' : ''}${texto.slice(desde, hasta).replace(/\s+/g, ' ').trim()}${hasta < texto.length ? '…' : ''}`
+}
+
+/**
+ * Busca en el CONTENIDO, no solo en el título.
+ *
+ * El título sale del primer mensaje, así que buscar solo por él encuentra conversaciones por
+ * cómo empezaron, no por lo que acabaron tratando — que es justo lo que uno recuerda cuando
+ * quiere retomar algo.
+ */
+export function searchSessions(q: string, incluirArchivadas = false): (ChatSessionMeta & { snippet?: string })[] {
+  const t = q.trim()
+  const base = sessions.filter((s) => s.messages.length > 0 && (incluirArchivadas || !s.archived))
+  const orden = (a: Session, b: Session): number => b.updatedAt - a.updatedAt
+  if (!t) return [...base].sort(orden).map(meta)
+  return [...base]
+    .map((s) => ({ s, texto: textoDe(s) }))
+    .filter(({ texto }) => texto.toLowerCase().includes(t.toLowerCase()))
+    .sort((a, b) => orden(a.s, b.s))
+    .map(({ s, texto }) => ({ ...meta(s), snippet: fragmento(texto, t) }))
+}
+
+export function archiveSession(id: string, archived: boolean): void {
+  const s = find(id)
+  if (!s) return
+  s.archived = archived
+  persist()
 }
 
 function find(id: string): Session | undefined {
@@ -171,7 +228,11 @@ export function saveSession(id: string, messages: IncomingMsg[]): void {
   // Se tiran las vacías y las más viejas por encima del techo.
   sessions = sessions.filter((x) => x.messages.length > 0 || x.id === currentId)
   if (sessions.length > MAX_SESSIONS) {
-    sessions = [...sessions].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, MAX_SESSIONS)
+    // Las archivadas NO entran en el recorte: archivar significa "no la tires", y tirarlas por
+    // antigüedad haría exactamente lo contrario de lo que el usuario pidió.
+    const guardadas = sessions.filter((x) => x.archived)
+    const resto = sessions.filter((x) => !x.archived).sort((a, b) => b.updatedAt - a.updatedAt)
+    sessions = [...guardadas, ...resto.slice(0, Math.max(0, MAX_SESSIONS - guardadas.length))]
   }
   persist()
 }

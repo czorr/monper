@@ -39,6 +39,11 @@ const api: MonperTabApi = {
   vaultCopy: (id) => ipcRenderer.invoke('vault:copy', id),
   vaultReveal: (id) => ipcRenderer.invoke('vault:reveal', id),
   vaultFavicons: () => ipcRenderer.invoke('vault:favicons'),
+  chatsSearch: (q, incluirArchivadas) => ipcRenderer.invoke('chats:search', q, incluirArchivadas),
+  chatsArchive: (id, archived) => ipcRenderer.invoke('chats:archive', id, archived),
+  chatsRename: (id, title) => ipcRenderer.invoke('chats:rename', id, title),
+  chatsDelete: (id) => ipcRenderer.invoke('chats:delete', id),
+  chatsResume: (id) => ipcRenderer.send('chats:resumeInPanel', id),
   onVaultChanged: (cb) => {
     const h = (_e: unknown, list: unknown): void => cb(list as never)
     ipcRenderer.on('vault:changed', h)

@@ -156,6 +156,13 @@ export interface ChatSessionMeta {
   title: string
   updatedAt: number
   count: number
+  /** Archivada: no sale en el desplegable del panel y el techo de 200 no se la lleva. */
+  archived?: boolean
+}
+
+/** Resultado de buscar en el historial: la metadata más el fragmento que coincidió. */
+export interface ChatSessionBusqueda extends ChatSessionMeta {
+  snippet?: string
 }
 
 /**
@@ -513,6 +520,8 @@ export interface MonperApi {
   onChatPrefill: (cb: (prompt: string) => void) => () => void
   // ---- Historial de conversaciones ----
   chatsList: () => Promise<ChatSessionMeta[]>
+  /** Settings pidió retomar una conversación: el panel tiene que cargarla. */
+  onOpenSession: (cb: (id: string) => void) => () => void
   /** La conversación que toca al abrir el panel (retoma la última reciente, o crea una). */
   chatsResume: () => Promise<{ id: string; messages: StoredChatMsg[] }>
   chatsNew: () => Promise<{ id: string; messages: StoredChatMsg[] }>
@@ -849,6 +858,14 @@ export interface MonperTabApi {
   vaultReveal: (id: string) => Promise<string | null>
   /** Iconos de las credenciales web, por origen. Solo los ya conocidos; nunca a un tercero. */
   vaultFavicons: () => Promise<Record<string, string>>
+  // ---- Historial de chats (Settings → Archived chats) ----
+  /** Busca en el CONTENIDO, no solo en el título. `snippet` dice por qué salió ese resultado. */
+  chatsSearch: (q: string, incluirArchivadas: boolean) => Promise<ChatSessionBusqueda[]>
+  chatsArchive: (id: string, archived: boolean) => Promise<ChatSessionBusqueda[]>
+  chatsRename: (id: string, title: string) => Promise<ChatSessionBusqueda[]>
+  chatsDelete: (id: string) => Promise<ChatSessionBusqueda[]>
+  /** Abre el panel del chat con esa conversación. La desarchiva: retomarla es usarla. */
+  chatsResume: (id: string) => void
   onVaultChanged: (cb: (items: VaultItemMeta[]) => void) => () => void
   // ---- Autocompletado del omnibox / new tab ----
   suggest: (query: string) => Promise<Suggestion[]>

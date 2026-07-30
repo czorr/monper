@@ -16,6 +16,7 @@ import RoutinesSection from './RoutinesSection'
 import PermissionsSection from './PermissionsSection'
 import AdblockSection from './AdblockSection'
 import PasswordSection from './PasswordSection'
+import ArchivedChatsSection from './ArchivedChatsSection'
 import McpSection from './McpSection'
 import ImportSection from './ImportSection'
 import IconWand from '~icons/tabler/wand'
@@ -75,7 +76,7 @@ const NAV: NavGroup[] = [
       { id: 'actions', label: 'Quick actions', icon: <IconWand /> },
       { id: 'routines', label: 'Routines', icon: <IconClockBolt /> },
       { id: 'statistics', label: 'Statistics', icon: <IconChart />, soon: true },
-      { id: 'archived', label: 'Archived chats', icon: <IconArchive />, soon: true },
+      { id: 'archived', label: 'Chats', icon: <IconArchive /> },
       { id: 'notifications', label: 'Notification Use', icon: <IconBell />, soon: true }
     ]
   }
@@ -111,11 +112,6 @@ const SOON: Partial<Record<Cat, { title: string; desc: string; bullets: string[]
     title: 'Statistics',
     desc: 'Qué hizo el agente y cuánto costó.',
     bullets: ['Ejecuciones, pasos y tokens por día', 'Tareas completadas vs. bloqueadas', 'Sitios donde más falla']
-  },
-  archived: {
-    title: 'Archived chats',
-    desc: 'Historial de conversaciones con el agente.',
-    bullets: ['Buscar en chats pasados', 'Archivar y restaurar', 'Retomar una tarea anterior']
   },
   notifications: {
     title: 'Notification Use',
@@ -218,6 +214,7 @@ export default function SettingsPage(): JSX.Element {
               {cat === 'privacy' && <PrivacyPage />}
               {cat === 'adblock' && <AdblockSection />}
               {cat === 'password' && <PasswordSection />}
+              {cat === 'archived' && <ArchivedChatsSection />}
               {cat === 'permissions' && <PermissionsSection />}
               {cat === 'mcps' && <McpSection />}
               {cat === 'about' && <AboutPage />}

@@ -17,6 +17,7 @@ import PermissionsSection from './PermissionsSection'
 import AdblockSection from './AdblockSection'
 import PasswordSection from './PasswordSection'
 import ArchivedChatsSection from './ArchivedChatsSection'
+import UsoSection from './UsoSection'
 import McpSection from './McpSection'
 import ImportSection from './ImportSection'
 import IconWand from '~icons/tabler/wand'
@@ -56,7 +57,7 @@ const NAV: NavGroup[] = [
       { id: 'general', label: 'General', icon: <IconSettings /> },
       { id: 'account', label: 'Account', icon: <IconUser /> },
       { id: 'appearance', label: 'Appearance', icon: <IconPalette /> },
-      { id: 'billing', label: 'Billing', icon: <IconCreditCard />, soon: true },
+      { id: 'billing', label: 'Billing', icon: <IconCreditCard /> },
       { id: 'privacy', label: 'Privacy', icon: <IconShield /> },
       { id: 'adblock', label: 'Adblocker', icon: <IconShieldCheck /> },
       { id: 'password', label: 'Password', icon: <IconKey /> },
@@ -75,7 +76,7 @@ const NAV: NavGroup[] = [
       { id: 'permissions', label: 'Permissions', icon: <IconLock /> },
       { id: 'actions', label: 'Quick actions', icon: <IconWand /> },
       { id: 'routines', label: 'Routines', icon: <IconClockBolt /> },
-      { id: 'statistics', label: 'Statistics', icon: <IconChart />, soon: true },
+      { id: 'statistics', label: 'Statistics', icon: <IconChart /> },
       { id: 'archived', label: 'Chats', icon: <IconArchive /> },
       { id: 'notifications', label: 'Notification Use', icon: <IconBell />, soon: true }
     ]
@@ -84,11 +85,7 @@ const NAV: NavGroup[] = [
 
 /** Qué será cada sección pendiente: el roadmap, visible dentro del producto. */
 const SOON: Partial<Record<Cat, { title: string; desc: string; bullets: string[] }>> = {
-  billing: {
-    title: 'Billing',
-    desc: 'Tu plan y consumo.',
-    bullets: ['Plan y método de pago', 'Consumo de tokens por proveedor', 'Límites de gasto para el agente']
-  },
+
   developers: {
     title: 'Developers',
     desc: 'Herramientas para depurar el navegador y el agente.',
@@ -108,11 +105,7 @@ const SOON: Partial<Record<Cat, { title: string; desc: string; bullets: string[]
       'Tus páginas guardadas no dan 404 nunca'
     ]
   },
-  statistics: {
-    title: 'Statistics',
-    desc: 'Qué hizo el agente y cuánto costó.',
-    bullets: ['Ejecuciones, pasos y tokens por día', 'Tareas completadas vs. bloqueadas', 'Sitios donde más falla']
-  },
+
   notifications: {
     title: 'Notification Use',
     desc: 'Qué te avisa Monper y cómo.',
@@ -215,6 +208,8 @@ export default function SettingsPage(): JSX.Element {
               {cat === 'adblock' && <AdblockSection />}
               {cat === 'password' && <PasswordSection />}
               {cat === 'archived' && <ArchivedChatsSection />}
+              {cat === 'billing' && <UsoSection foco="billing" />}
+              {cat === 'statistics' && <UsoSection foco="stats" />}
               {cat === 'permissions' && <PermissionsSection />}
               {cat === 'mcps' && <McpSection />}
               {cat === 'about' && <AboutPage />}

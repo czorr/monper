@@ -87,12 +87,62 @@ export interface AIProvider {
  */
 export interface ChatFallo {
   /** Clave estable para el renderer. No se muestra al usuario. */
-  tipo: 'auth' | 'credito' | 'limite' | 'modelo' | 'red' | 'proveedor' | 'contexto' | 'sin-proveedor' | 'desconocido'
+  tipo: 'auth' | 'credito' | 'limite' | 'tope' | 'modelo' | 'red' | 'proveedor' | 'contexto' | 'sin-proveedor' | 'desconocido'
   titulo: string
   detalle: string
   accion?: { label: string; kind: 'settings' | 'url'; value?: string }
   /** Texto del proveedor tal cual. */
   crudo?: string
+}
+
+/** Un turno del agente, tal como se anota para contar consumo. */
+export interface TurnoUso {
+  at: number
+  kind: ProviderKind
+  model: string
+  inputTokens: number
+  outputTokens: number
+  /** Input servido de caché: se cobra aparte y mucho más barato. */
+  cachedInputTokens?: number
+  reasoningTokens?: number
+  steps: number
+  /** false si el turno acabó en error del proveedor. */
+  ok: boolean
+}
+
+export interface UsoPorDia {
+  dia: string
+  turnos: number
+  pasos: number
+  inputTokens: number
+  outputTokens: number
+  coste: number
+}
+
+export interface UsoPorModelo {
+  model: string
+  turnos: number
+  inputTokens: number
+  outputTokens: number
+  coste: number
+  /** false = no sabemos su tarifa, así que su coste NO cuenta (ver PRECIOS en usage.ts). */
+  conPrecio: boolean
+}
+
+export interface ResumenUso {
+  dias: number
+  turnos: number
+  pasos: number
+  fallidos: number
+  inputTokens: number
+  outputTokens: number
+  cachedInputTokens: number
+  coste: number
+  /** true si algún modelo usado no tiene tarifa conocida: el coste mostrado es un mínimo. */
+  hayModelosSinPrecio: boolean
+  gastoHoy: number
+  porDia: UsoPorDia[]
+  porModelo: UsoPorModelo[]
 }
 
 /** Info pública del proveedor (sin la key) para mostrar en UI */
@@ -866,6 +916,12 @@ export interface MonperTabApi {
   chatsDelete: (id: string) => Promise<ChatSessionBusqueda[]>
   /** Abre el panel del chat con esa conversación. La desarchiva: retomarla es usarla. */
   chatsResume: (id: string) => void
+  // ---- Consumo del agente (Settings → Billing / Statistics) ----
+  usageSummary: (dias?: number) => Promise<ResumenUso | null>
+  usageClear: () => Promise<ResumenUso | null>
+  /** Sin argumento lee el techo diario en $; con número lo fija. 0 = sin techo. */
+  usageLimit: (valor?: number) => Promise<number>
+  onUsageChanged: (cb: (r: ResumenUso) => void) => () => void
   onVaultChanged: (cb: (items: VaultItemMeta[]) => void) => () => void
   // ---- Autocompletado del omnibox / new tab ----
   suggest: (query: string) => Promise<Suggestion[]>

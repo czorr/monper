@@ -493,7 +493,7 @@ function toModelMessage(msg: ChatMessage): { role: string; content: unknown } {
 export async function runMastra(opts: {
   provider: AIProvider; key: string; model: string
   messages: ChatMessage[]; control: BrowserControl; settings: SettingsControl; emit: Emit; signal: AbortSignal; skills?: SkillDetail[]
-}): Promise<void> {
+}): Promise<UsoDelTurno> {
   // Las herramientas externas se piden AQUÍ, no al abrir Monper: si nunca hablas con el
   // agente, no se lanza ni un proceso de servidor MCP.
   const externas = await mcpTools().catch((e) => {
@@ -509,8 +509,29 @@ export async function runMastra(opts: {
   let steps = 0
   let finishReason = ''
   let streamError = ''
+  /**
+   * El uso REAL del turno, tal como lo reporta el proveedor. Se lee al final del stream, no se
+   * estima: contar tokens a ojo en el cliente da números que no cuadran con la factura, y una
+   * pantalla de gasto que no cuadra es peor que no tenerla.
+   */
+  const leerUso = async (): Promise<UsoDelTurno> => {
+    try {
+      const u = await out.totalUsage
+      return {
+        inputTokens: u?.inputTokens ?? 0,
+        outputTokens: u?.outputTokens ?? 0,
+        cachedInputTokens: u?.cachedInputTokens,
+        reasoningTokens: u?.reasoningTokens,
+        steps
+      }
+    } catch {
+      // Que no se pueda contar el consumo no puede tumbar el turno: es contabilidad, no la tarea.
+      return { inputTokens: 0, outputTokens: 0, steps }
+    }
+  }
+
   for await (const chunk of out.fullStream) {
-    if (opts.signal.aborted) return
+    if (opts.signal.aborted) return leerUso()
     if (chunk.type === 'text-delta') { gotText = true; opts.emit.token(chunk.payload.text) }
     else if (chunk.type === 'tool-call') { steps++; opts.emit.step(describe(chunk.payload.toolName, chunk.payload.args)) }
     else if (chunk.type === 'tool-result' && chunk.payload.toolName === 'screenshot') {
@@ -526,10 +547,10 @@ export async function runMastra(opts: {
       if (r) finishReason = r
     }
   }
-  if (gotText || opts.signal.aborted) return
+  if (gotText || opts.signal.aborted) return leerUso()
   // Sin texto: explica la causa REAL en vez de asumir el límite de pasos.
   console.log('[agent] turno sin texto —', { steps, finishReason, streamError })
-  if (streamError) { opts.emit.error(streamError); return }
+  if (streamError) { opts.emit.error(streamError); return leerUso() }
   if (finishReason === 'length') {
     opts.emit.token('Me quedé sin espacio de respuesta (límite de tokens). Pídeme algo más acotado o dime que continúe.')
   } else if (steps >= MAX_STEPS) {
@@ -537,6 +558,16 @@ export async function runMastra(opts: {
   } else {
     opts.emit.token(`El modelo terminó sin responder${finishReason ? ` (motivo: ${finishReason})` : ''}. Intenta reformular la petición.`)
   }
+  return leerUso()
+}
+
+/** Lo que gastó un turno. `steps` va aquí porque es la otra mitad de "qué hizo el agente". */
+export interface UsoDelTurno {
+  inputTokens: number
+  outputTokens: number
+  cachedInputTokens?: number
+  reasoningTokens?: number
+  steps: number
 }
 
 /** Extrae un mensaje legible de un error del proveedor (SDK, HTTP o anidado). */

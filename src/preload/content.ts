@@ -44,6 +44,14 @@ const api: MonperTabApi = {
   chatsRename: (id, title) => ipcRenderer.invoke('chats:rename', id, title),
   chatsDelete: (id) => ipcRenderer.invoke('chats:delete', id),
   chatsResume: (id) => ipcRenderer.send('chats:resumeInPanel', id),
+  usageSummary: (dias) => ipcRenderer.invoke('usage:summary', dias),
+  usageClear: () => ipcRenderer.invoke('usage:clear'),
+  usageLimit: (valor) => ipcRenderer.invoke('usage:limit', valor),
+  onUsageChanged: (cb) => {
+    const h = (_e: unknown, r: unknown): void => cb(r as never)
+    ipcRenderer.on('usage:changed', h)
+    return () => { ipcRenderer.removeListener('usage:changed', h) }
+  },
   onVaultChanged: (cb) => {
     const h = (_e: unknown, list: unknown): void => cb(list as never)
     ipcRenderer.on('vault:changed', h)

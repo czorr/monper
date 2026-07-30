@@ -15,6 +15,7 @@ import IconExternal from '~icons/tabler/external-link'
 const ICONO: Record<ChatFallo['tipo'], typeof IconKey> = {
   auth: IconKey,
   credito: IconCoin,
+  tope: IconCoin,
   limite: IconHourglass,
   modelo: IconCube,
   red: IconWifiOff,

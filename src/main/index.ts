@@ -8,6 +8,7 @@ import { internalPageOf } from '../shared/types'
 import { initBookmarks, listBookmarks, isBookmarked, addBookmark, removeBookmark, toggleBookmark, reorderBookmarks, updateBookmark, createFolder, moveBookmark, setFolderCollapsed } from './bookmarks'
 import { initAI, listProviders, addProvider, removeProvider, setActive as setActiveProvider, setModel, setEffort, getChatContext, getActiveProvider } from './ai/store'
 import { runMastra, diagnosticar } from './agent/mastra'
+import { initUsage, anotarTurno, resumen as resumenUso, gastoDeHoy, borrarUso, limiteDiario, setLimiteDiario } from './usage'
 import { initHistory, recordVisit, updateMeta, recent as historyRecent, browse as historyBrowse, removeEntry as historyRemove, clearHistory as historyClear } from './history'
 import { initWindowState, initialBounds, shouldMaximize, trackWindow } from './windowState'
 import { suggest } from './suggest'
@@ -3157,14 +3158,28 @@ ipcMain.handle('chat:send', async (ev, messages: ChatMessage[]) => {
     } satisfies ChatFallo)
     return
   }
+  // Techo de gasto diario: se comprueba ANTES de arrancar, que es el único momento en que
+  // sirve de algo. Con el turno en marcha ya se está gastando.
+  const tope = limiteDiario()
+  if (tope > 0 && gastoDeHoy() >= tope) {
+    vDe(ev).win.webContents.send('chat:error', {
+      tipo: 'tope',
+      titulo: 'Llegaste a tu límite de gasto de hoy',
+      detalle: `Lo pusiste tú en ${tope.toFixed(2)} $/día. El agente no va a gastar más hasta mañana, o hasta que subas el tope.`,
+      accion: { label: 'Abrir Settings', kind: 'settings' }
+    } satisfies ChatFallo)
+    return
+  }
   chatAbort?.abort()
   agentEvents = [] // limpia eventos viejos al iniciar un turno
   chatAbort = new AbortController()
   setAgentRunning(true)
   const send = (ch: string, payload?: unknown): void => { vActOpt()?.win?.webContents.send(ch, payload) }
+  let uso: { inputTokens: number; outputTokens: number; cachedInputTokens?: number; reasoningTokens?: number; steps: number } | null = null
+  let salioBien = true
   try {
     // Agente Mastra con herramientas: opera la pestaña activa + gestión de pestañas (anthropic y openai).
-    await runMastra({
+    uso = await runMastra({
       provider: active.provider, key: active.key, model: active.model,
       messages, signal: chatAbort.signal, skills: enabledSkills(),
       control: {
@@ -3199,13 +3214,42 @@ ipcMain.handle('chat:send', async (ev, messages: ChatMessage[]) => {
     })
     send('chat:done')
   } catch (err) {
+    salioBien = false
     if (!(err instanceof Error && err.name === 'AbortError')) {
       console.error('[agent] turno falló:', err)
       send('chat:error', diagnosticar(err, active.provider.kind))
     }
   } finally {
     setAgentRunning(false)
+    // Se anota aunque el turno falle: los tokens de un turno que reventó a mitad se cobran
+    // igual, y no contarlos haría que la pantalla de gasto mintiera justo en los días malos.
+    if (uso) {
+      anotarTurno({
+        kind: active.provider.kind, model: active.model,
+        inputTokens: uso.inputTokens, outputTokens: uso.outputTokens,
+        cachedInputTokens: uso.cachedInputTokens, reasoningTokens: uso.reasoningTokens,
+        steps: uso.steps, ok: salioBien
+      })
+      broadcastUso()
+    }
   }
+})
+
+// ---- Consumo y límite de gasto (Settings → Billing / Statistics) ----
+function broadcastUso(): void {
+  paraPaginas('/settings.html', 'usage:changed', resumenUso())
+}
+ipcMain.handle('usage:summary', (e, dias: number) =>
+  isInternalSender(e.senderFrame?.url) ? resumenUso(Number(dias) || 30) : null)
+ipcMain.handle('usage:clear', (e) => {
+  if (!isInternalSender(e.senderFrame?.url)) return null
+  borrarUso(); broadcastUso()
+  return resumenUso()
+})
+ipcMain.handle('usage:limit', (e, valor?: number) => {
+  if (!isInternalSender(e.senderFrame?.url)) return 0
+  if (typeof valor === 'number') setLimiteDiario(valor)
+  return limiteDiario()
 })
 
 // ⌘⌥V cicla los materiales de vibrancy en vivo (ver VIBRANCY_MATERIALS arriba).
@@ -3279,6 +3323,7 @@ app.whenReady().then(() => {
     pushAgentEvent(`Descarga iniciada: ${item.getFilename()} (${item.getURL()})`)
   })
   initBookmarks()
+  initUsage()
   initFavicons()
   // Control remoto: apagado salvo que el usuario lo dejara encendido (ver remote.ts).
   initRemote({

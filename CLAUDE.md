@@ -10,17 +10,20 @@ replacement. When in doubt, invest in the agent, not in browser parity.
 pnpm dev          # the USER runs this — see below
 pnpm typecheck    # tsc on node + web projects; includes tests/
 pnpm build        # electron-vite build (required before tests)
-pnpm test         # build + the Playwright smoke suite — CI runs this on every commit
+pnpm test         # build + the Playwright smoke suite — run this before handing work back
 pnpm test:only    # tests without rebuilding
 pnpm dist:mac     # DMG + ZIP (the ZIP is mandatory for auto-update)
 ```
 
 ## Hard rules
 
-**Do not launch the app, and do not run the test suite.** The user runs `pnpm dev`
-themselves, and CI runs the tests on every commit — running them locally just burns minutes.
-Verify with `pnpm typecheck` and `pnpm build`. Write and update tests as usual; let CI run
-them. Run a single spec only if the user asks, or to debug a specific failure they reported.
+**Do not launch the app.** The user runs `pnpm dev` themselves.
+
+**Run the suite yourself before handing work back.** There is no CI: the GitHub workflow was
+removed because the repo is private and `macos-latest` bills 10x, so every push burned ~60
+minutes. Nothing runs the tests unless you do. `pnpm typecheck` and `pnpm build` are not
+enough — they never caught a behavioural regression. Use `pnpm test:only` after a `pnpm build`
+(`pnpm test` does both), and say the numbers when you report back.
 
 **Main-process and preload changes need a full restart.** ⌘R only reloads the renderer. This
 has bitten us repeatedly (the store button, the Appearance section). Say so when handing off.
@@ -119,7 +122,7 @@ MONPER_NO_ADBLOCK=1      # skip loading filter lists (the test harness sets this
 | Native overlay windows | [popovers.md](docs/popovers.md) |
 | Vault, autofill, secret handling | [vault-architecture.md](docs/vault-architecture.md) |
 | Error handling, state files | [errores-silenciosos.md](docs/errores-silenciosos.md) |
-| Tests and CI | [tests.md](docs/tests.md) |
+| Tests (no hay CI: se corren en local) | [tests.md](docs/tests.md) |
 | Performance: baselines and what was optimised | [rendimiento.md](docs/rendimiento.md) |
 | Packaging, signing, auto-update | [distribucion.md](docs/distribucion.md) |
 | Permissions, session restore, hardening | [browser-hardening.md](docs/browser-hardening.md) |

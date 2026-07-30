@@ -65,17 +65,27 @@ dejaría sin capacidad de detectar la regresión para la que se escribieron.
 | `topcolor.spec.ts` → muestra de reposo | Depende de que UNA captura concreta caiga en su ventana, y `capturePage` sin GPU no es fiable. Los otros dos de ese fichero aguantan porque cualquier muestra posterior los corrige. |
 | `layout-sync.spec.ts` | En CI mide e **imprime**, pero no afirma: el umbral es de cadencia de frames. El runner da `shift=-18ms` (un frame, el suelo de mandar el rect por IPC) con el arreglo funcionando — y el dato que de verdad importa, el primer frame, sale en Δ=0px. |
 
-## CI
+## No hay CI: la suite se corre en local
 
-[`.github/workflows/ci.yml`](../.github/workflows/ci.yml), dos jobs en `macos-latest`:
+Había un `.github/workflows/ci.yml` con dos jobs en `macos-latest`. **Se quitó por dinero**: el
+repo es privado y en repos privados los runners de macOS facturan **10× minutos**, así que cada
+push gastaba ~60 minutos de cuota entre los dos jobs. Se agotó el límite y los jobs dejaron de
+arrancar — con el detalle desagradable de que GitHub eso lo pinta como **run en rojo**, igual
+que un test roto, y en 5 segundos.
 
-- **check**: `pnpm typecheck` → `pnpm build` → smoke tests (sube el reporte si falla).
-- **package**: `pnpm dist:dir` sin firmar y comprueba que la `.app` existe y trae las
-  skills dentro. Se rompió una vez por una dependencia que no entraba en el asar y no lo
-  vimos hasta intentar distribuir.
+Consecuencia directa, y por eso está escrito aquí: **nadie corre los tests salvo quien toca el
+código.** `pnpm test` antes de dar el trabajo por terminado, y decir los números.
 
-macOS y no Linux a propósito: los tests arrancan Electron con ventana y la app depende de
-cosas de macOS. En Linux habría que meter `xvfb` y probaríamos algo que nadie usa.
+Lo que hacía el CI y ahora hay que hacer a mano:
+
+- `pnpm typecheck` → `pnpm build` → `pnpm test:only`.
+- **Comprobar que empaqueta.** Se rompió una vez por una dependencia que no entraba en el asar
+  y no se vio hasta intentar distribuir. `pnpm dist:dir` es el equivalente rápido; no hace falta
+  en cada cambio, sí antes de tocar dependencias, `electron-builder.yml` o `files:`.
+
+Si algún día vuelve el CI: macOS y no Linux a propósito, porque los tests arrancan Electron con
+ventana y la app depende de cosas de macOS — en Linux habría que meter `xvfb` y probaríamos algo
+que nadie usa. Y sale gratis si el repo se hace público.
 
 `tests/` y `playwright.config.ts` entran en `pnpm typecheck` — si no, se pudren.
 
@@ -90,25 +100,29 @@ falta un provider falso), el REPL y las rutinas, y la instalación de una actual
 `tests/mcp.spec.ts` lanza `packages/monper-mcp/dist/index.js` como proceso hijo: prueba el
 puente de punta a punta, y para eso el paquete tiene que estar compilado.
 
-Eso rompió CI una vez. `pnpm build` solo llamaba a `electron-vite build`, que compila la app
-pero no los paquetes de `packages/`; en local el `dist` existía de haberlo compilado a mano y
-en CI no, así que el spec arrancaba un fichero inexistente. **Cuatro tests fallando con
-`Cannot find module`.**
+Eso rompió el CI de entonces. `pnpm build` solo llamaba a `electron-vite build`, que compila la
+app pero no los paquetes de `packages/`; en local el `dist` existía de haberlo compilado a mano
+y en la máquina limpia no, así que el spec arrancaba un fichero inexistente. **Cuatro tests
+fallando con `Cannot find module`.** Sigue importando sin CI: pasa igual en un clon nuevo.
 
 Ahora `build` encadena `build:mcp`, y `test` llama a `build` en vez de a `electron-vite build`
 directamente. Así cualquiera que compile obtiene un árbol coherente, sin que haya que saber un
-paso extra que solo vive en el YAML de CI.
+paso extra que solo viviera en un YAML.
 
 `packages/` **no es un workspace de pnpm** y `monper-mcp` no tiene `node_modules` propio: se
 compila con el `typescript` y los `@types/node` de la raíz. Si algún día se le añaden
 dependencias propias, hará falta un `pnpm-workspace.yaml`.
 
-## Qué se afirma en CI y qué no
+## Qué se afirma y qué solo se mide
 
-`tests/layout-sync.spec.ts` **mide en CI pero no afirma**: sus umbrales son de cadencia de
-frames y el runner no tiene vsync fiable. Los números quedan en el log. Conviene saberlo antes
-de perseguir un fallo suyo: si falla, es en local y casi siempre por carga de la máquina —
-correr toda la suite a la vez basta para que el primer tick llegue tarde y se pase de los 35px.
+Los dos casos de abajo miran `process.env.CI`, y eso **sigue teniendo sentido sin GitHub
+Actions**: es la señal de "máquina sin cursor ni vsync fiables". Ponerlo a mano
+(`CI=true pnpm test:only`) es la forma de correr la suite sin que el ratón real interfiera.
 
-`tests/peek.spec.ts` se salta entero en CI: el peek se abre con hover intent y comprueba el
-cursor REAL del sistema, que en un runner no existe.
+`tests/layout-sync.spec.ts` **mide pero no afirma** cuando `CI` está puesto: sus umbrales son de
+cadencia de frames. Los números quedan en el log. Conviene saberlo antes de perseguir un fallo
+suyo: casi siempre es carga de la máquina — correr toda la suite a la vez basta para que el
+primer tick llegue tarde y se pase de los 35px.
+
+`tests/peek.spec.ts` se salta entero con `CI`: el peek se abre con hover intent y comprueba el
+cursor REAL del sistema.

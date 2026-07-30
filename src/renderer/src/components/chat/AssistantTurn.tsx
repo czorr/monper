@@ -3,6 +3,7 @@ import { ThinkingOrb } from 'thinking-orbs'
 import type { Msg, TextPart } from './types'
 import { Markdown } from './Markdown'
 import StepRow from './StepRow'
+import FailBlock from './FailBlock'
 import MessageActions from './MessageActions'
 
 /** Concatena las partes de texto (no-error) del turno, para copiar/leer. */
@@ -28,6 +29,8 @@ export default function AssistantTurn({ msg }: { msg: Msg }): JSX.Element {
           ) : (
             <Markdown key={i}>{p.text}</Markdown>
           )
+        ) : p.type === 'fail' ? (
+          <FailBlock key={i} fail={p.fail} />
         ) : (
           // Un step está activo (orb animado) si es la última parte y aún estamos en streaming.
           <StepRow key={i} step={p.step} active={!!msg.streaming && i === lastIdx} />

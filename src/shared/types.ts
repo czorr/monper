@@ -76,6 +76,25 @@ export interface AIProvider {
   /** base URL opcional (para custom / OpenRouter / local). Vacío = default del kind. */
   baseUrl?: string
 }
+/**
+ * Diagnóstico de un fallo del proveedor de IA, ya clasificado y con qué hacer.
+ *
+ * Antes el chat volcaba el error crudo en la burbuja:
+ * `HTTP 400 — {"type":"error","error":{"message":"Your credit balance is too low…"}}`.
+ * Es la información correcta con la forma equivocada: el usuario no sabe si es culpa suya, si
+ * se arregla solo, ni dónde tocar. `crudo` no se tira —va detrás de un desplegable—, porque sin
+ * él un caso que no encaje en ninguna rama sería imposible de depurar.
+ */
+export interface ChatFallo {
+  /** Clave estable para el renderer. No se muestra al usuario. */
+  tipo: 'auth' | 'credito' | 'limite' | 'modelo' | 'red' | 'proveedor' | 'contexto' | 'sin-proveedor' | 'desconocido'
+  titulo: string
+  detalle: string
+  accion?: { label: string; kind: 'settings' | 'url'; value?: string }
+  /** Texto del proveedor tal cual. */
+  crudo?: string
+}
+
 /** Info pública del proveedor (sin la key) para mostrar en UI */
 export interface ProviderInfo extends AIProvider {
   hasKey: boolean
@@ -469,7 +488,8 @@ export interface MonperApi {
   /** Resumen de descargas (para el icono del topbar) */
   onDownloadsSummary: (cb: (s: DownloadsSummary) => void) => () => void
   getDownloadsSummary: () => Promise<DownloadsSummary>
-  openSettings: () => void
+  /** `section` salta directo a esa sección: un error del proveedor lleva a AI, no al índice. */
+  openSettings: (section?: string) => void
   /** DEV: cicla materiales de vibrancy en vivo (⌘⌥V) */
   cycleVibrancy: () => void
   /** Notifica cuando el usuario interactúa con la página (para cerrar overlays) */
@@ -488,7 +508,7 @@ export interface MonperApi {
   /** Adjunta una imagen (data URL) al último paso emitido (p. ej. screenshot) */
   onChatStepImage: (cb: (dataUrl: string) => void) => () => void
   onChatDone: (cb: () => void) => () => void
-  onChatError: (cb: (message: string) => void) => () => void
+  onChatError: (cb: (fallo: ChatFallo) => void) => () => void
   /** El main pide abrir el chat y enviar un prompt (p. ej. desde una acción rápida). */
   onChatPrefill: (cb: (prompt: string) => void) => () => void
   // ---- Historial de conversaciones ----

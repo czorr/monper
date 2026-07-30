@@ -6,7 +6,7 @@ import { z } from 'zod'
 import type { WebContents } from 'electron'
 import { faviconFor } from '../favicons'
 import { mcpTools, callMcpTool, type McpTool } from '../mcp/client'
-import type { AIProvider, ChatMessage, ChatStep, SkillDetail } from '../../shared/types'
+import type { AIProvider, ChatFallo, ChatMessage, ChatStep, ProviderKind, SkillDetail } from '../../shared/types'
 import * as page from './page'
 import { runRepl } from './repl'
 
@@ -562,4 +562,106 @@ export function errText(e: unknown): string {
   if (!parts.length && o.cause) return errText(o.cause)
   if (!parts.length) { try { return JSON.stringify(e).slice(0, 500) } catch { return String(e) } }
   return parts.join(' — ')
+}
+
+/**
+ * Diagnóstico de un fallo del proveedor de IA.
+ *
+ * Hasta ahora el chat volcaba el error crudo en la burbuja:
+ * `HTTP 400 — {"type":"error","error":{"message":"Your credit balance is too low…"}}`.
+ * Es la información correcta con la forma equivocada — el usuario no sabe si es culpa suya,
+ * si se arregla solo, ni dónde tocar. Aquí se clasifica y, sobre todo, se dice QUÉ HACER.
+ *
+ * El `crudo` no se tira: va detrás de un desplegable. Sin él, un caso que no encaje en
+ * ninguna rama se vuelve imposible de depurar, y quedaría peor que antes.
+ */
+/** Dónde recarga cada proveedor. Sin esto, "sin crédito" deja al usuario buscando la página. */
+const FACTURACION: Record<ProviderKind, string> = {
+  anthropic: 'https://console.anthropic.com/settings/billing',
+  openai: 'https://platform.openai.com/settings/organization/billing/overview'
+}
+
+export function diagnosticar(e: unknown, kind?: ProviderKind): ChatFallo {
+  const crudo = errText(e)
+  const o = (e ?? {}) as { status?: unknown; statusCode?: unknown; error?: { type?: unknown }; name?: unknown }
+  const status = Number(o.status ?? o.statusCode ?? 0)
+  const t = crudo.toLowerCase()
+  const ajustes = { label: 'Abrir Settings', kind: 'settings' as const }
+  const recargar = kind
+    ? { label: 'Ver mi saldo', kind: 'url' as const, value: FACTURACION[kind] }
+    : ajustes
+
+  // El crédito agotado llega como 400 en Anthropic y como 429 en OpenAI, así que el texto
+  // manda sobre el código: mirar solo el status lo confundiría con "petición mal formada".
+  if (/credit balance|insufficient_quota|insufficient funds|billing|quota/.test(t)) {
+    return {
+      tipo: 'credito',
+      titulo: 'Se acabó el crédito',
+      detalle: `Tu cuenta de ${kind === 'openai' ? 'OpenAI' : 'Anthropic'} no tiene saldo. Monper no cobra nada: pagas al proveedor directamente.`,
+      accion: recargar, crudo
+    }
+  }
+
+  if (status === 401 || status === 403 || /invalid.*api[_ -]?key|authentication|unauthorized|permission/.test(t)) {
+    return {
+      tipo: 'auth',
+      titulo: 'La API key no es válida',
+      detalle: 'El proveedor la rechazó. Puede estar mal copiada, revocada, o ser de otra cuenta.',
+      accion: ajustes, crudo
+    }
+  }
+
+  if (status === 429 || /rate limit|too many requests/.test(t)) {
+    return {
+      tipo: 'limite',
+      titulo: 'Demasiadas peticiones',
+      detalle: 'El proveedor te está limitando. Espera unos segundos y vuelve a enviarlo.',
+      crudo
+    }
+  }
+
+  if (status === 404 || /model.*not found|does not exist|unknown model|no access to model/.test(t)) {
+    return {
+      tipo: 'modelo',
+      titulo: 'Ese modelo no está disponible',
+      detalle: 'No existe o tu cuenta no tiene acceso. Elige otro en Settings.',
+      accion: ajustes, crudo
+    }
+  }
+
+  if (/context length|too many tokens|maximum context|prompt is too long|request too large/.test(t)) {
+    return {
+      tipo: 'contexto',
+      titulo: 'La conversación es demasiado larga',
+      detalle: 'Ya no cabe en el modelo. Empieza un chat nuevo para seguir.',
+      crudo
+    }
+  }
+
+  // Sin red no hay status: el fetch falla antes. Es lo que distingue "no hay internet" de
+  // "el proveedor contestó mal", y confundirlos manda al usuario a revisar su key sin motivo.
+  if (!status && /fetch failed|enotfound|econnrefused|etimedout|network|socket|dns|getaddrinfo|und_err/.test(t)) {
+    return {
+      tipo: 'red',
+      titulo: 'Sin conexión con el proveedor',
+      detalle: 'No se pudo llegar al servidor. Revisa tu conexión y vuelve a intentarlo.',
+      crudo
+    }
+  }
+
+  if (status >= 500) {
+    return {
+      tipo: 'proveedor',
+      titulo: 'El proveedor está fallando',
+      detalle: `Ha devuelto un error ${status}. No es cosa tuya: espera un momento y reintenta.`,
+      crudo
+    }
+  }
+
+  return {
+    tipo: 'desconocido',
+    titulo: 'El modelo no pudo responder',
+    detalle: 'Ha fallado algo que no sabemos clasificar. El detalle de abajo es lo que dijo el proveedor.',
+    crudo
+  }
 }

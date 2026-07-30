@@ -62,7 +62,7 @@ const api: MonperApi = {
   openDownloadsPopover: (anchor) => ipcRenderer.send('downloadspop:open', anchor),
   onDownloadsSummary: (cb) => sub('downloads:summary', (s) => cb(s as never)),
   getDownloadsSummary: () => ipcRenderer.invoke('downloads:summary') as Promise<import('../shared/types').DownloadsSummary>,
-  openSettings: () => ipcRenderer.send('ui:settings'),
+  openSettings: (section?: string) => ipcRenderer.send('ui:settings', section),
   cycleVibrancy: () => ipcRenderer.send('ui:cycleVibrancy'),
   onPagePointerDown: (cb: () => void) => {
     const handler = (): void => cb()
@@ -80,7 +80,7 @@ const api: MonperApi = {
   onChatStep: (cb) => sub('chat:step', (s) => cb(s as never)),
   onChatStepImage: (cb: (dataUrl: string) => void) => sub('chat:stepImage', (d) => cb(d as string)),
   onChatDone: (cb: () => void) => sub('chat:done', () => cb()),
-  onChatError: (cb: (m: string) => void) => sub('chat:error', (m) => cb(m as string)),
+  onChatError: (cb) => sub('chat:error', (f) => cb(f as import('../shared/types').ChatFallo)),
   onChatPrefill: (cb: (p: string) => void) => sub('chat:prefill', (p) => cb(p as string)),
   chatsList: () => ipcRenderer.invoke('chats:list') as Promise<import('../shared/types').ChatSessionMeta[]>,
   chatsResume: () => ipcRenderer.invoke('chats:resume') as never,

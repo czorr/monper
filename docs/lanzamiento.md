@@ -94,4 +94,14 @@ Autocompletado inline de la omnibox.
       y el vault guarda secretos. Un navegador que se vende por privacidad tiene que decir
       exactamente qué sale de la máquina.
 - [ ] Página de descarga.
-- [ ] Qué ve el usuario cuando su API key falla o se queda sin crédito.
+- [x] **Qué ve el usuario cuando su API key falla o se queda sin crédito.** Era código, no
+      redacción, así que se hizo. Antes el chat volcaba la cadena cruda del SDK
+      (`HTTP 400 — {"type":"error",...}`): la información correcta con la forma equivocada.
+      Ahora `diagnosticar()` clasifica en nueve tipos y cada uno dice **qué hacer** — sin
+      crédito lleva a tu saldo del proveedor, key inválida a Settings → AI, rate limit a
+      esperar y ya. El error crudo sigue ahí, plegado, o un caso mal clasificado sería
+      imposible de depurar. Diez tests con los payloads REALES de Anthropic y OpenAI.
+
+      Las dos trampas que justifican los tests: Anthropic manda el crédito agotado como
+      **400** (no 402), y OpenAI lo manda como **429**, el mismo status que un rate limit.
+      Clasificar por código diría "espera unos segundos" a quien puede esperar un año.

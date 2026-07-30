@@ -3,11 +3,11 @@ import { readFileSync } from 'fs'
 import { app, BrowserWindow, Menu, Notification, WebContentsView, clipboard, dialog, ipcMain, nativeImage, net, screen, session, shell, type WebContents } from 'electron'
 import type { MenuItemConstructorOptions } from 'electron'
 import type { IpcMainEvent } from 'electron'
-import type { BrowserState, Bookmark, ChatMessage, MenuAnchor, ProviderKind, InternalPage, SubmenuData, SubmenuSection } from '../shared/types'
+import type { BrowserState, Bookmark, ChatFallo, ChatMessage, MenuAnchor, ProviderKind, InternalPage, SubmenuData, SubmenuSection } from '../shared/types'
 import { internalPageOf } from '../shared/types'
 import { initBookmarks, listBookmarks, isBookmarked, addBookmark, removeBookmark, toggleBookmark, reorderBookmarks, updateBookmark, createFolder, moveBookmark, setFolderCollapsed } from './bookmarks'
 import { initAI, listProviders, addProvider, removeProvider, setActive as setActiveProvider, setModel, setEffort, getChatContext, getActiveProvider } from './ai/store'
-import { runMastra, errText } from './agent/mastra'
+import { runMastra, diagnosticar } from './agent/mastra'
 import { initHistory, recordVisit, updateMeta, recent as historyRecent, browse as historyBrowse, removeEntry as historyRemove, clearHistory as historyClear } from './history'
 import { initWindowState, initialBounds, shouldMaximize, trackWindow } from './windowState'
 import { suggest } from './suggest'
@@ -1999,7 +1999,7 @@ function openSettings(section?: string): void {
   }
   vAct().createTab(internalUrl('settings') + hash)
 }
-ipcMain.on('ui:settings', () => openSettings())
+ipcMain.on('ui:settings', (_e, section?: string) => openSettings(typeof section === 'string' ? section : undefined))
 ipcMain.on('ui:openChat', () => vActOpt()?.win?.webContents.send('menu:action', 'toggle-chat'))
 
 // ---- Skills del agente (gestión desde Settings) ----
@@ -3034,7 +3034,15 @@ ipcMain.on('chats:remove', (_e, id: string) => removeChatSession(id))
 ipcMain.on('agent:takeOver', () => { chatAbort?.abort() })
 ipcMain.handle('chat:send', async (ev, messages: ChatMessage[]) => {
   const active = getActiveProvider()
-  if (!active) { vActOpt()?.win?.webContents.send('chat:error', 'No hay proveedor de IA conectado. Conéctalo en Settings.'); return }
+  if (!active) {
+    vDe(ev).win.webContents.send('chat:error', {
+      tipo: 'sin-proveedor',
+      titulo: 'No hay ninguna IA conectada',
+      detalle: 'Monper no trae modelo propio: pon tu API key de Anthropic o de OpenAI y el asistente se activa.',
+      accion: { label: 'Abrir Settings', kind: 'settings' }
+    } satisfies ChatFallo)
+    return
+  }
   chatAbort?.abort()
   agentEvents = [] // limpia eventos viejos al iniciar un turno
   chatAbort = new AbortController()
@@ -3071,14 +3079,15 @@ ipcMain.handle('chat:send', async (ev, messages: ChatMessage[]) => {
         token: (tok) => send('chat:token', tok),
         step: (s) => send('chat:step', s),
         stepImage: (d) => send('chat:stepImage', d),
-        error: (m) => send('chat:error', m)
+        // El stream también puede traer errores del proveedor a mitad de turno.
+        error: (m) => send('chat:error', diagnosticar(m, active.provider.kind))
       }
     })
     send('chat:done')
   } catch (err) {
     if (!(err instanceof Error && err.name === 'AbortError')) {
       console.error('[agent] turno falló:', err)
-      send('chat:error', errText(err))
+      send('chat:error', diagnosticar(err, active.provider.kind))
     }
   } finally {
     setAgentRunning(false)

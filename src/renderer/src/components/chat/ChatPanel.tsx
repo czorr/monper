@@ -124,8 +124,8 @@ export default function ChatPanel({ open, onClose, inject, resizing }: Props): J
       // Se lee del estado ya actualizado, no de la clausura (que tendría el de antes).
       setMessages((ms) => { guardar(ms); return ms })
     })
-    const offErr = monper.onChatError((msg) => {
-      patchLast((m) => ({ ...pushPart(m, { type: 'text', text: msg, error: true }), streaming: false }))
+    const offErr = monper.onChatError((fallo) => {
+      patchLast((m) => ({ ...pushPart(m, { type: 'fail', fail: fallo }), streaming: false }))
       setRunning(false)
       setMessages((ms) => { guardar(ms); return ms })
     })

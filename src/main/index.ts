@@ -155,7 +155,18 @@ interface Tab {
   canBack: boolean
   canForward: boolean
   themeColor: string | null
+  /**
+   * Color de la ESQUINA superior izquierda. Es lo que pinta la costura del redondeado y tiñe
+   * el topbar, así que tiene que ser el píxel de esa esquina y no una media (ver sampleTopStrip).
+   */
   pageBg: string | null
+  /**
+   * Color de fondo del DOCUMENTO (`body`/`html`). Distinto de `pageBg` a propósito: uno es la
+   * esquina y el otro es el papel. En un sitio con cabecera oscura y cuerpo blanco —
+   * mediotiempo.com, sin ir más lejos— la esquina es negra y el papel blanco, y usar la esquina
+   * como fondo de la vista pintaba de negro todo lo que la página no llegara a cubrir.
+   */
+  docBg: string | null
   recording: boolean
   /** true si el usuario silenció el audio de la pestaña */
   muted: boolean
@@ -685,17 +696,45 @@ function crearVentana(opts: { sinPestanaInicial?: boolean } = {}): Ventana {
   }
   function applyBackdrop(t: Tab): void {
     if (typeof t.view.setBackgroundColor !== 'function') return
-    t.view.setBackgroundColor(esTranslucida(t) ? '#00000000' : (rgbToHex(t.pageBg ?? '') ?? APP_BG))
+    // El fondo de la vista es el del DOCUMENTO, no el de la esquina: es lo que se ve donde la
+    // página no pinta. Hasta que se sepa, el de la app — un blanco por defecto daría un
+    // fogonazo claro al abrir cualquier sitio oscuro.
+    t.view.setBackgroundColor(esTranslucida(t) ? '#00000000' : (rgbToHex(t.docBg ?? '') ?? APP_BG))
+  }
+
+  /**
+   * Lee el fondo real del documento y lo aplica a la vista.
+   *
+   * Chromium resuelve el fondo del papel así: el de `body` si tiene, si no el de `html`, y si
+   * ninguno pinta, blanco. Se replica esa cadena porque muchísimos sitios solo declaran el
+   * color en uno de los dos, y quedarse con `body` transparente daría el fondo equivocado.
+   */
+  async function leerFondoDelDocumento(t: Tab): Promise<void> {
+    if (esTranslucida(t) || t.view.webContents.isDestroyed()) return
+    try {
+      const c = (await t.view.webContents.executeJavaScript(`(() => {
+        const vale = (v) => v && v !== 'transparent' && !/^rgba\\(0, 0, 0, 0\\)$/.test(v)
+        const b = document.body && getComputedStyle(document.body).backgroundColor
+        if (vale(b)) return b
+        const h = document.documentElement && getComputedStyle(document.documentElement).backgroundColor
+        if (vale(h)) return h
+        return 'rgb(255, 255, 255)'
+      })()`, true)) as string
+      const hex = rgbToHex(c)
+      if (!hex || hex === t.docBg) return
+      t.docBg = hex
+      applyBackdrop(t)
+    } catch { /* la página puede haberse ido o bloquear la evaluación */ }
   }
 
   function applyTopColor(t: Tab, c: string): void {
     if (esTranslucida(t)) return
     if (!c || t.pageBg === c) return
     t.pageBg = c
-    // Alinea el fondo opaco de la vista con el color real de la página: así el frame en
-    // blanco al cambiar de pestaña coincide con la página (sin flash blanco en páginas oscuras).
-    const hex = rgbToHex(c)
-    if (hex && typeof t.view.setBackgroundColor === 'function') t.view.setBackgroundColor(hex)
+    // OJO: aquí NO se toca `setBackgroundColor`. Se hacía, y era el bug del fondo negro: este
+    // color es el de la esquina superior izquierda, y en un sitio con cabecera oscura y cuerpo
+    // blanco pintaba de negro toda el área que la página no cubriera. El fondo de la vista
+    // sale de `leerFondoDelDocumento`.
     pushState()
   }
   /**
@@ -832,7 +871,7 @@ function crearVentana(opts: { sinPestanaInicial?: boolean } = {}): Ventana {
         preload: join(__dirname, '../preload/content.js')
       }
     })
-    const t: Tab = { view, radius: null, radiusW: null, url, title: '', favicon: null, loading: false, canBack: false, canForward: false, themeColor: null, pageBg: null, recording: false, muted: false, audible: false, agent, bookmarkId: null, errorUrl: null }
+    const t: Tab = { view, radius: null, radiusW: null, url, title: '', favicon: null, loading: false, canBack: false, canForward: false, themeColor: null, pageBg: null, docBg: null, recording: false, muted: false, audible: false, agent, bookmarkId: null, errorUrl: null }
     // Fondo de la vista. Para una web es opaco: sin esto, al cambiar de pestaña se ve el fondo
     // de la ventana. Y es el color de la app (oscuro), NO blanco — el borde antialiaseado del
     // redondeado nativo tiñe con este color, y en blanco dibujaba un halo en las esquinas.
@@ -848,6 +887,7 @@ function crearVentana(opts: { sinPestanaInicial?: boolean } = {}): Ventana {
     wc.on('did-start-loading', () => { t.loading = true; suya().pushState() })
     wc.on('did-stop-loading', () => {
       t.loading = false
+      void leerFondoDelDocumento(t) // fondo del papel, distinto del color de la esquina
       suya().scheduleTopSample(t) // color del topbar: se remuestrea también en cada scroll
       // Al activarla la página aún no había cargado: el input no existía. Se reintenta aquí.
       suya().enfocarNewtab(id)
@@ -859,6 +899,9 @@ function crearVentana(opts: { sinPestanaInicial?: boolean } = {}): Ventana {
       // fondo se decide en cada navegación, no al crear la vista. Y hay que rehacer el layout:
       // volverse translúcida cambia QUÉ otras vistas pueden quedar visibles detrás (ver
       // `soloActiva` en layoutTabs). Solo si es la activa: el resto ya no se ve.
+      // Se olvida el fondo del documento anterior: una SPA que cambia de ruta puede cambiar de
+      // tema, y conservarlo dejaría el papel del sitio de antes.
+      t.docBg = null
       applyBackdrop(t)
       if (id === suya().activeId()) suya().layoutTabs()
       // Al navegar a algo que NO es la página de error, limpiamos el estado de error y registramos la visita.
@@ -867,7 +910,12 @@ function crearVentana(opts: { sinPestanaInicial?: boolean } = {}): Ventana {
       refresh()
       scheduleSaveSession()
     })
-    wc.on('did-navigate-in-page', (_e, u, isMainFrame) => { if (isMainFrame) { t.url = u; refresh() } })
+    wc.on('did-navigate-in-page', (_e, u, isMainFrame) => {
+      if (!isMainFrame) return
+      t.url = u
+      void leerFondoDelDocumento(t) // en una SPA no hay recarga: es el único aviso de cambio
+      refresh()
+    })
     wc.on('page-title-updated', (_e, title) => { t.title = title; updateMeta(t.url, title); suya().pushState() })
     wc.on('page-favicon-updated', (_e, icons) => {
       t.favicon = icons?.[0] || null

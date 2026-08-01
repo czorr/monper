@@ -238,3 +238,35 @@ incoherencia real: al ocultar las vistas no activas, Chromium libera sus superfi
 `layoutTabs` les seguía haciendo `setBounds` a 60fps durante los arrastres. Ahora una vista
 oculta está aparcada del todo —ni se dibuja ni se redimensiona— y recibe su tamaño al
 activarse. `animateLayout` anima solo la activa por lo mismo.
+
+## El fondo de la vista NO es el color de la esquina
+
+Síntoma: sitios que deberían ser blancos salían **con fondo negro** — mediotiempo.com el que lo
+destapó.
+
+Causa: `sampleTopStrip` captura 24×4 px de la **esquina superior izquierda**. Eso está bien y es
+a propósito: ese color rellena la muesca del redondeado y tiñe el topbar, así que tiene que ser
+el píxel de ESA esquina y no una media. El fallo era que `applyTopColor` usaba además ese color
+como `setBackgroundColor` de **toda la vista**. En un sitio con cabecera oscura y cuerpo blanco
+—que es la mitad de la prensa— la esquina es negra, así que todo lo que la página no llegara a
+cubrir se pintaba de negro.
+
+Son **dos medidas distintas** y ahora están separadas:
+
+| | Qué es | De dónde sale | Para qué |
+|---|---|---|---|
+| `pageBg` | El píxel de la esquina | `sampleTopStrip` (captura) | Costura del redondeado y tinte del topbar (`pageColor` en el estado) |
+| `docBg` | El fondo del papel | `getComputedStyle` de `body` → `html` → blanco | `setBackgroundColor` de la vista |
+
+- La cadena `body` → `html` → blanco es la que resuelve Chromium. Muchos sitios declaran el
+  color en solo uno de los dos, y quedarse con `body` transparente da el fondo equivocado.
+- **Se relee en cada navegación**, incluida la de una SPA (`did-navigate-in-page`): sin recarga
+  no hay otro aviso, y una ruta nueva puede cambiar de tema.
+- Antes de saberlo se usa `APP_BG`, no blanco: un blanco por defecto da un fogonazo claro al
+  abrir cualquier sitio oscuro.
+- `applyTopColor` **no toca** `setBackgroundColor`. Si vuelve a hacerlo, vuelve el bug.
+
+Los cuatro casos están en `tests/fondo-pagina.spec.ts`, y cubren las dos direcciones: que un
+sitio claro no salga negro **y** que uno oscuro no salga blanco. El test mide interceptando
+`setBackgroundColor` en el prototipo, porque Electron no tiene getter para el fondo de una vista
+— el primer intento leía `getBackgroundColor()`, que devuelve `""`, y no medía nada.

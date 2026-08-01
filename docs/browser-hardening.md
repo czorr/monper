@@ -287,3 +287,61 @@ estado roto aunque el sistema sí haya abierto el correo.
 Lo fija `tests/schemes.spec.ts`, que sustituye `shell.openExternal` para no abrir Mail en cada
 ejecución y comprueba a quién se le pasa y a quién no — que es exactamente la decisión de
 seguridad.
+
+## Document PiP: un muro de Electron, no un bug nuestro
+
+El panel flotante de controles de Google Meet es **Document PiP**
+(`documentPictureInPicture.requestWindow()`), una API distinta del PiP de un `<video>`. En
+Electron 43 no funciona, y no es culpa de cómo montamos las vistas:
+
+| Dónde | Resultado |
+|---|---|
+| Pestaña (`WebContentsView`) | La API existe; `requestWindow()` rechaza con `Internal error: no window` |
+| `BrowserWindow` normal, sobre http local | La promesa **no se resuelve nunca** |
+| `data:` URL | La API ni siquiera está definida (no es contexto seguro) |
+
+Medido cinco veces, consistente. **La primera hipótesis fue falsa** y conviene dejarla escrita
+para que nadie la repita: se pensó que `about:blank` estaba en la lista de `PROHIBIDOS` de
+`schemes.ts` y que el `setWindowOpenHandler` denegaba la ventana. No es eso — la llamada falla
+**antes**, dentro de Chromium, sin llegar nunca al handler.
+
+### Lo que se pedía: PiP automático al dejar la pestaña
+
+Lo que el usuario quería no era un botón, era que **saliera solo**: te cambias de pestaña o
+minimizas, y el vídeo sigue delante en la ventanita. Se dispara en la transición de `setActive`
+—al DEJAR una pestaña— y en `minimize`/`restore`.
+
+Reglas, todas por evitar que moleste:
+
+- **Solo si está reproduciendo.** Sin la condición de `paused`, cada pestaña con un vídeo
+  cargado escupiría una ventanita al navegar.
+- **Solo uno a la vez**, que es lo que permite el sistema.
+- **Al volver a la pestaña, se sale.** Dejarla flotando sobre su propio vídeo sería absurdo.
+- `requestPictureInPicture()` exige gesto de usuario: la llamada va con
+  `executeJavaScript(codigo, true)`. Cambiar de pestaña *es* un gesto, solo que no ocurre
+  dentro de la página.
+
+`MONPER_DEBUG_PIP=1` imprime cada detección y cada entrada/salida. Los fallos se registran
+siempre, sin flag.
+
+### Lo otro que faltaba: el menú contextual
+
+El motor soporta PiP de vídeo, pero **no había forma de pedirlo**. Monper reemplaza el menú
+nativo de Chromium por uno propio, y el nativo traía "Picture in picture" de fábrica: al
+construir el nuestro se cubrió el caso de la imagen y el del vídeo se quedó fuera. Desde fuera
+parecía que Monper no soportaba PiP; en realidad faltaba el botón.
+
+Dos trampas al implementarlo:
+
+- **`elementFromPoint` no encuentra el vídeo.** En YouTube —y en casi cualquier reproductor— el
+  `<video>` está TAPADO por los overlays de controles, así que devuelve un `div`. El plan B es
+  el vídeo visible más grande de la página, que en un reproductor es siempre el que se está
+  viendo.
+- **Hace falta gesto de usuario.** `requestPictureInPicture()` lo exige, así que la llamada va
+  con `executeJavaScript(codigo, true)`. Sin eso el navegador la rechaza y el item del menú
+  parecería no hacer nada.
+
+El PiP de vídeo sí funciona, y `tests/pip.spec.ts` lo comprueba metiendo un vídeo de verdad en
+PiP (no preguntando si la API existe). El test de Document PiP usa `test.fail()`: hoy Playwright
+lo informa como "passed" porque falla, y **empezará a dar "failed" el día que Electron lo
+soporte** — que es el aviso que queremos.

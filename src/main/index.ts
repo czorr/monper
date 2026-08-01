@@ -14,7 +14,7 @@ import { initWindowState, initialBounds, shouldMaximize, trackWindow } from './w
 import { suggest } from './suggest'
 import { attachScreenShare } from './screenshare'
 import { esWeb, abrirConElSistema } from './schemes'
-import { itemsDeCorrector } from './contextmenu'
+import { itemsDeCorrector, itemsDeVideo, type VideoEnPagina } from './contextmenu'
 import { navegadoresDisponibles, leerMarcadores, leerHistorial, leerCredenciales, type NavegadorId } from './import/browsers'
 import {
   reservarInstanciaUnica, escucharEnlaces, initDefaultBrowser,
@@ -937,7 +937,7 @@ function crearVentana(opts: { sinPestanaInicial?: boolean } = {}): Ventana {
       if (details.reason === 'clean-exit') return
       loadErrorPage(t, { url: t.errorUrl || t.url, code: 0, desc: details.reason, kind: 'crash' })
     })
-    wc.on('context-menu', (_e, params) => showPageContextMenu(wc, params))
+    wc.on('context-menu', (_e, params) => void showPageContextMenu(wc, params))
     wc.on('found-in-page', (_e, r) => suya().win.webContents.send('find:result', { matches: r.matches, active: r.activeMatchOrdinal }))
     /**
      * Navegación a algo que no es web: `mailto:`, `tel:`, `zoommtg:`…
@@ -1028,6 +1028,12 @@ function crearVentana(opts: { sinPestanaInicial?: boolean } = {}): Ventana {
   function setActive(id: number) {
     if (!tabs.has(id)) return
     if (signinTabId != null && signinTabId !== id) hideSignin() // el prompt era de otra pestaña
+    // Al DEJAR una pestaña que está reproduciendo, el vídeo se va a la ventanita flotante; al
+    // volver a ella, se sale. Ver autoPip.
+    const anterior = activeId != null && activeId !== id ? tabs.get(activeId) : undefined
+    if (anterior) void autoPip(anterior, 'entrar')
+    const nueva = tabs.get(id)
+    if (nueva) void autoPip(nueva, 'salir')
     activeId = id
     touchWarm(id) // la activa entra/sube en el warm set
     const at = tabs.get(id)
@@ -1162,6 +1168,11 @@ function crearVentana(opts: { sinPestanaInicial?: boolean } = {}): Ventana {
     if (win) trackWindow(win)
 
     loadRenderer(win!, 'index')
+    // Minimizar es el mismo caso que cambiar de pestaña: dejas de ver la página y el vídeo se
+    // va a la ventanita, que en macOS sigue visible con la app minimizada. Al restaurar, vuelve.
+    const activa = (): Tab | undefined => (activeId != null ? tabs.get(activeId) : undefined)
+    win.on('minimize', () => { const t = activa(); if (t) void autoPip(t, 'entrar') })
+    win.on('restore', () => { const t = activa(); if (t) void autoPip(t, 'salir') })
     win.on('resize', () => { layoutActive(); hideOmni(); if (peekWin && !peekWin.isDestroyed() && peekWin.isVisible()) placePeekWin() })
     win.on('move', hideOmni)
     // ⌘1..9 cuando el foco está en el chrome (no en una página).
@@ -1248,8 +1259,134 @@ function imprimirActiva(): void {
   })
 }
 
-function showPageContextMenu(wc: Electron.WebContents, p: Electron.ContextMenuParams): void {
+/**
+ * Picture-in-picture automático al dejar de ver una pestaña.
+ *
+ * Es lo que se espera de un navegador hoy: te cambias de pestaña —o minimizas— y el vídeo que
+ * estabas viendo sigue delante en una ventanita, en vez de desaparecer. Monper lo necesita más
+ * que nadie: el agente se lleva una pestaña a trabajar mientras tú sigues viendo lo tuyo.
+ *
+ * Reglas, todas por evitar que moleste:
+ * - **Solo si está REPRODUCIENDO.** Una pestaña con un vídeo pausado o ya visto no debe sacar
+ *   una ventanita al cambiar de pestaña; sería un pop-up cada vez que navegas.
+ * - **Solo un vídeo a la vez**, que es lo que permite el sistema: si ya hay algo en PiP no se
+ *   toca, o el último en cambiar le robaría la ventana al anterior.
+ * - **Al volver a la pestaña, se sale.** Dejarla flotando sobre su propio vídeo sería absurdo.
+ * - `requestPictureInPicture()` exige gesto de usuario: de ahí el `true` de executeJavaScript.
+ *   Cambiar de pestaña ES un gesto del usuario, solo que no ocurre dentro de la página.
+ */
+async function autoPip(t: Tab, accion: 'entrar' | 'salir'): Promise<void> {
+  const wc = t.view.webContents
+  if (!wc || wc.isDestroyed() || isInternal(t.url)) return
+  const codigo = accion === 'entrar'
+    ? `(async () => {
+        if (document.pictureInPictureElement) return ''
+        const v = ${BUSCAR_VIDEO}
+        // `+"`paused`"+` es la condición: sin esto saldría una ventanita en cada pestaña con un
+        // vídeo cargado, aunque nadie lo estuviera viendo.
+        if (!v || v.paused || v.ended || !document.pictureInPictureEnabled) return ''
+        try { await v.requestPictureInPicture(); return 'ENTRÓ' } catch (e) { return 'error: ' + ((e && e.message) || e) }
+      })()`
+    : `(async () => {
+        if (!document.pictureInPictureElement) return ''
+        try { await document.exitPictureInPicture(); return 'SALIÓ' } catch (e) { return 'error: ' + ((e && e.message) || e) }
+      })()`
+  try {
+    const r = String(await wc.executeJavaScript(codigo, true))
+    if (r.startsWith('error')) console.error(`[pip] auto (${accion}):`, r)
+    else if (r && DEBUG_PIP) console.log(`[pip] auto: ${r}`)
+  } catch (e) {
+    if (DEBUG_PIP) console.log('[pip] auto: la página no respondió —', e instanceof Error ? e.message : e)
+  }
+}
+
+/**
+ * Cómo se encuentra el vídeo de una página, en JS y en un solo sitio.
+ *
+ * Las coordenadas del clic NO sirven: en YouTube el `<video>` está tapado por los overlays de
+ * controles, y además el clic derecho que nos llega es el SEGUNDO —el primero lo captura
+ * YouTube para su propio menú—, así que cae sobre ese menú. Se busca el vídeo visible más
+ * grande, que en un reproductor es siempre el que el usuario está viendo.
+ */
+const BUSCAR_VIDEO = `(() => {
+  const vs = [...document.querySelectorAll('video')]
+    .filter((e) => e.readyState > 0 && e.clientWidth > 0 && !e.disablePictureInPicture)
+    .sort((a, b) => b.clientWidth * b.clientHeight - a.clientWidth * a.clientHeight)
+  return vs[0] || null
+})()`
+
+/**
+ * Le pregunta a la página si tiene un vídeo del que se pueda hacer PiP.
+ *
+ * Se hace ANTES de abrir el menú, y por eso `showPageContextMenu` es async: el item tiene que
+ * estar o no estar según lo que haya en la página, no según dónde se hizo clic.
+ */
+async function detectarVideo(wc: Electron.WebContents): Promise<VideoEnPagina> {
+  const vacio: VideoEnPagina = { hay: false, enPip: false, url: '' }
+  if (!document_pip_disponible(wc)) return vacio
+  try {
+    const r = (await wc.executeJavaScript(`(() => {
+      const v = ${BUSCAR_VIDEO}
+      if (!v) return { hay: false, enPip: false, url: '' }
+      const src = v.currentSrc || v.src || ''
+      return {
+        hay: !!document.pictureInPictureEnabled,
+        enPip: document.pictureInPictureElement === v,
+        url: /^https?:/i.test(src) ? src : ''
+      }
+    })()`)) as VideoEnPagina
+    if (DEBUG_PIP) console.log('[pip] detección:', JSON.stringify(r))
+    return r ?? vacio
+  } catch (e) {
+    // Un fallo aquí no puede impedir que salga el menú: se pierde el item de vídeo y ya.
+    console.error('[pip] no se pudo mirar si hay vídeo:', e instanceof Error ? e.message : e)
+    return vacio
+  }
+}
+/** La página puede estar destruida entre el clic y la consulta. */
+function document_pip_disponible(wc: Electron.WebContents): boolean {
+  return !!wc && !wc.isDestroyed()
+}
+const DEBUG_PIP = process.env['MONPER_DEBUG_PIP'] === '1'
+
+/**
+ * Mete o saca de picture-in-picture el vídeo sobre el que se hizo clic derecho.
+ *
+ * Electron no expone una API para esto: hay que pedírselo a la página. Y va con `userGesture`
+ * en true porque `requestPictureInPicture()` exige gesto del usuario — sin eso el navegador lo
+ * rechaza y el menú parecería no hacer nada.
+ *
+ * Buscar el vídeo por las coordenadas del clic NO basta: en YouTube (y en casi cualquier
+ * reproductor) el `<video>` está TAPADO por los overlays de controles, así que
+ * `elementFromPoint` devuelve un div. De ahí el plan B: el vídeo visible más grande de la
+ * página, que en un reproductor es siempre el que el usuario está viendo.
+ */
+async function alternarPip(wc: Electron.WebContents): Promise<void> {
+  const codigo = `(async () => {
+    const v = ${BUSCAR_VIDEO}
+    if (!v) return 'no se encontró ningún vídeo en la página'
+    try {
+      if (document.pictureInPictureElement) await document.exitPictureInPicture()
+      else await v.requestPictureInPicture()
+      return ''
+    } catch (e) { return (e && e.message) || String(e) }
+  })()`
+  try {
+    const fallo = String(await wc.executeJavaScript(codigo, true))
+    // Nunca en silencio: un item de menú que no hace nada es de lo más difícil de depurar.
+    if (fallo) console.error('[pip] no se pudo activar:', fallo)
+    else if (DEBUG_PIP) console.log('[pip] alternado OK')
+  } catch (e) {
+    console.error('[pip] no se pudo hablar con la página:', e instanceof Error ? e.message : e)
+  }
+}
+
+async function showPageContextMenu(wc: Electron.WebContents, p: Electron.ContextMenuParams): Promise<void> {
   if (!vActOpt()?.win) return
+  // Se consulta a la página ANTES de construir el menú (ver detectarVideo). Cuesta unos ms y es
+  // lo que hace que el item aparezca en YouTube, donde el clic no cae sobre el vídeo.
+  const video = await detectarVideo(wc)
+  if (DEBUG_PIP) console.log('[pip] menú contextual — mediaType:', p.mediaType, '· vídeo en la página:', video.hay)
   const nav = wc.navigationHistory
   const items: MenuItemConstructorOptions[] = []
   if (!p.isEditable && !p.linkURL && !p.selectionText) {
@@ -1270,6 +1407,11 @@ function showPageContextMenu(wc: Electron.WebContents, p: Electron.ContextMenuPa
       { type: 'separator' }
     )
   }
+  items.push(...itemsDeVideo(video, {
+    alternarPip: () => void alternarPip(wc),
+    copiarUrl: (u) => clipboard.writeText(u),
+    guardar: (u) => wc.downloadURL(u)
+  }))
   // Sugerencias del corrector. La lógica vive en contextmenu.ts para poder probarla.
   items.push(...itemsDeCorrector(p, {
     reemplazar: (s) => wc.replaceMisspelling(s),

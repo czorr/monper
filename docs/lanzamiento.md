@@ -55,9 +55,16 @@ Auditado contra el código, no de memoria. Lo marcado como hecho está verificad
       se hizo igual por decisión de producto: "es algo básico". Incluye sacar una pestaña a una
       ventana nueva **mudando** el `WebContentsView`, no recreándolo, para no perder el
       historial. La suite pasó de 118 a 124 en verde.
-- [x] **Picture-in-picture.** Comprobado: `document.pictureInPictureEnabled` es `true` y
-      `requestPictureInPicture` existe en las pestañas. Funciona sin código nuestro; el ítem
-      se cierra sin escribir nada.
+- [x] **Picture-in-picture de un vídeo.** Funciona sin código nuestro. **La comprobación
+      anterior no valía**: se dio por bueno porque `document.pictureInPictureEnabled` era `true`
+      y la API existía — o sea, se verificó la llamada y no el efecto, el mismo error que costó
+      dos sesiones en las esquinas. Ahora `tests/pip.spec.ts` mete un vídeo real en PiP y
+      comprueba `document.pictureInPictureElement`.
+- [ ] **Document PiP** (el panel de controles flotante de Google Meet). **No se puede**:
+      Electron 43 no lo implementa. `requestWindow()` rechaza con `Internal error: no window`
+      en una pestaña, y en una `BrowserWindow` normal la promesa no se resuelve nunca — medido
+      cinco veces. No es nuestra arquitectura de vistas, es un muro de Electron, como las
+      extensiones. El test queda como chivato: avisa el día que Electron lo soporte.
 
 ## P2 — Lo que yo no haría, y por qué (pero queda escrito)
 

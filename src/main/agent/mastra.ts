@@ -34,6 +34,30 @@ export interface BrowserControl {
   drainEvents?: () => string[]
 }
 
+/**
+ * Envuelve el control del navegador para que **deje de actuar en cuanto se aborta**.
+ *
+ * Es defensa en profundidad, no redundancia: `abortSignal` corta la petición al proveedor, pero
+ * una herramienta que ya estaba en vuelo cuando llegó la pausa terminaría su trabajo igual — y
+ * si esa herramienta era `openTab`, reaparece la pestaña que el usuario acababa de cerrar.
+ * Pausar tiene que significar que no se toca nada más, no que no se pide nada más.
+ */
+export function congelable(c: BrowserControl, signal: AbortSignal): BrowserControl {
+  const parado = (): boolean => signal.aborted
+  return {
+    // Leer no molesta a nadie, pero sin pestaña no hay nada que leer.
+    getWc: () => (parado() ? undefined : c.getWc()),
+    listTabs: () => (parado() ? [] : c.listTabs()),
+    openTab: (url) => {
+      if (parado()) throw new Error('El usuario paró al agente.')
+      return c.openTab(url)
+    },
+    switchTab: (id) => (parado() ? false : c.switchTab(id)),
+    closeTab: (id) => (parado() ? false : c.closeTab(id)),
+    drainEvents: () => (parado() ? [] : (c.drainEvents?.() ?? []))
+  }
+}
+
 /** Resumen de settings que el agente puede leer y modificar. */
 export interface SettingsControl {
   read: () => { profileName: string; skills: { id: string; name: string; enabled: boolean }[] }
@@ -42,7 +66,7 @@ export interface SettingsControl {
   openSettings: (section?: string) => void
 }
 
-const SYSTEM = `Eres Monper, un agente que opera el navegador del usuario para cumplir su tarea.
+export const SYSTEM = `Eres Monper, un agente que opera el navegador del usuario para cumplir su tarea.
 Tu herramienta principal es run_js: un REPL donde ESCRIBES CÓDIGO JavaScript para operar el navegador con la librería "monperwright" (API con la forma de Playwright). Prefiérela para cualquier tarea no trivial; puedes leer, actuar y decidir en un solo bloque de código, lo que es más eficiente que muchas tools atómicas.
 En run_js tienes disponibles: 'page' (la pestaña activa), 'state' (objeto que PERSISTE entre llamadas a run_js del mismo turno: guarda ahí lo que quieras reusar), y 'log(...)' (para imprimir valores). El código es async: usa await y 'return' para devolver un valor.
 Globals extra que usan las skills: 'googleSearch.search(q, opts)' (→[{title,url,snippet}]), 'imageSearch.search(q)', 'cua.getVisibleScreenshot()', 'youtube.search/getMetadata/getTranscript/getComments', 'twitter.search/getTimeline/getUser/getTweet' (read-only), 'gmail.search/getInbox/getThread/openComposer/openThreadDetailsPage' (openComposer solo ABRE el borrador, no envía), 'notion.getClient()' → cliente read-only (client.search/getBlock) + global 'blockToMarkdown(block)', 'slack.listWorkspaces()/getClient(teamId)' → WebClient de @slack/web-api (client.conversations.history/list, chat.postMessage, search.messages…; postMessage ENVÍA, confirma antes), 'googleAccounts.list()/print()', 'googleDocs.getDocumentHTML/getDocumentText(url)', 'googleSheets.readSheet(url) → {cells}'. Los de servicios con sesión requieren que el usuario esté logueado. 'passwordManager' (vault interno de Monper): passwordManager.list() (metadata SIN secretos), passwordManager.fill()/fillAndSubmit() rellenan la credencial guardada del sitio actual. IMPORTANTE: NUNCA verás la contraseña — el relleno lo hace Monper y solo te devuelve qué campos se llenaron; el usuario aprueba cada relleno. No intentes leer el valor del campo de contraseña ni pedirle al usuario que te la diga. Las escrituras/ediciones (googleDocs/googleSheets edit, notion, gmail.downloadAttachment…) aún no están portadas: úsalas con page: si los llamas lanzan un error que te indica operar ese servicio con 'page' (navegar la web y usar page.click/type/evaluate).
@@ -51,6 +75,15 @@ Red / APIs internas (para ir mucho más rápido que por la UI): page.resourceReq
 Si en una observación aparece "[EVENTOS DEL NAVEGADOR]" (popups, descargas), tenlos en cuenta: reacciona a ellos (cerrar/cambiar de pestaña, seguir el popup) según la tarea.
 
 Como alternativa a run_js siguen existiendo tools atómicas. Con ellas: observa con read_page antes de tu primer click/type y tras cualquier navegación (los "ref" cambian) y refiere los elementos por su número "ref" del último read_page.
+
+DÓNDE TRABAJAS: ¿la pestaña del usuario o una tuya?
+Es la primera decisión de cada tarea y casi siempre la que más molesta si te equivocas. La pregunta no es qué herramienta usar, sino DE QUÉ PÁGINA VA LA TAREA.
+1. La tarea habla de LO QUE EL USUARIO ESTÁ VIENDO ("resume esto", "haz clic en el botón azul", "rellena este formulario", "¿qué dice aquí?") → trabaja en la pestaña ACTIVA. Ahí es donde está lo que te pide.
+2. El usuario te manda ir a un sitio con un verbo de MOVIMIENTO ("navega a…", "ve a…", "vamos a…", "llévame a…", "entra en…", "go to…") → navega la pestaña ACTIVA (navigate o page.goto). Te está pidiendo moverse ÉL, contigo.
+3. El usuario te manda TRAER algo ("abre…", "ábreme…", "open…") o te encarga un trabajo que no es sobre la página actual ("búscame vuelos a Lima", "mira cuánto cuesta X") → abre una pestaña TUYA con open_tab y trabaja ahí.
+Regla de desempate cuando de verdad no está claro: abre una pestaña tuya. Navegar la pestaña activa DESTRUYE lo que el usuario estaba leyendo y no lo puede recuperar; una pestaña de más se cierra en un clic. Ante la duda, el error barato.
+Y una vez que trabajas en tu pestaña, quédate ahí: no vuelvas a la del usuario a mitad de tarea.
+CÓMO se abre tu pestaña si vas a usar run_js: dentro de run_js, 'page' SIEMPRE es la pestaña activa, así que un page.goto() ahí dentro navega la del usuario. Si la tarea pide pestaña propia, llama ANTES a la tool open_tab con la URL de arranque; esa pestaña queda activa y a partir de ese momento 'page' ya es la tuya. No uses page.goto() como forma de "abrir" algo.
 
 PERSISTENCIA (muy importante): no te detengas hasta COMPLETAR la tarea que te pidieron. Trabajas de forma autónoma; no devuelvas el control a mitad de camino para "preguntar si continúo".
 - Si una herramienta devuelve { error } o no encuentras el elemento esperado: NO te rindas. Vuelve a leer con read_page, haz scroll para cargar contenido diferido (comentarios, listas infinitas suelen requerir varios scroll), y reintenta con otra estrategia.
@@ -209,7 +242,7 @@ function buildTools(ctrl: BrowserControl, settings: SettingsControl, skills: Ski
     }),
     navigate: createTool({
       id: 'navigate',
-      description: 'Carga una URL en la pestaña activa.',
+      description: 'Navega la pestaña ACTIVA a esa URL, reemplazando lo que el usuario tenía delante. Para cuando te pidió MOVERSE ("navega a…", "ve a…") o cuando la tarea va de la página en la que ya está. Si te pidió "abre" algo, o le estás haciendo un encargo aparte, usa open_tab: esto le quita de delante lo que estaba leyendo.',
       inputSchema: z.object({ url: z.string() }),
       execute: async ({ url }) => safe(() => page.navigate(wc(), url))
     }),
@@ -280,7 +313,7 @@ function buildTools(ctrl: BrowserControl, settings: SettingsControl, skills: Ski
     }),
     open_tab: createTool({
       id: 'open_tab',
-      description: 'Abre una nueva pestaña con la URL dada y la activa. Devuelve el id de la pestaña.',
+      description: 'Abre una pestaña NUEVA tuya con esa URL, sin tocar la del usuario. Devuelve su id. Es lo que quieres cuando te dijo "abre…" o cuando el encargo no va de la página que él tiene delante. Ante la duda entre esto y navigate, elige esto: una pestaña de más se cierra en un clic, una página perdida no se recupera.',
       inputSchema: z.object({ url: z.string() }),
       execute: async ({ url }) => safe(async () => {
         let u = url.trim()
@@ -500,11 +533,22 @@ export async function runMastra(opts: {
     console.error('[mcp] no se pudieron cargar las herramientas externas:', e instanceof Error ? e.message : e)
     return [] as McpTool[]
   })
-  const agent = buildAgent(opts.provider, opts.key, opts.model, opts.control, opts.settings, opts.skills ?? [], externas)
+  const agent = buildAgent(opts.provider, opts.key, opts.model, congelable(opts.control, opts.signal), opts.settings, opts.skills ?? [], externas)
   // {role, content:string} es un ModelMessage válido; la unión de Mastra es demasiado estricta para inferirlo.
   // maxSteps: el default de Mastra es 5 (corta la tarea a mitad); subimos para dejar completar flujos largos.
   const messages = compactHistory(opts.messages).map(toModelMessage)
-  const out = await agent.stream(messages as Parameters<typeof agent.stream>[0], { maxSteps: MAX_STEPS })
+  /**
+   * `abortSignal` NO es opcional, y su ausencia fue un bug de los feos.
+   *
+   * Sin pasarlo, pausar solo hacía que NUESTRO bucle dejara de emitir: la generación y las
+   * herramientas seguían corriendo por debajo. El agente reabría su pestaña con `openTab`,
+   * seguía operando, y no había forma de pararlo salvo cerrar Monper. Aquí es donde se corta
+   * de verdad la petición al proveedor.
+   */
+  const out = await agent.stream(messages as Parameters<typeof agent.stream>[0], {
+    maxSteps: MAX_STEPS,
+    abortSignal: opts.signal
+  })
   let gotText = false
   let steps = 0
   let finishReason = ''

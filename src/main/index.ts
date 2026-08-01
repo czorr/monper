@@ -1075,6 +1075,10 @@ function crearVentana(opts: { sinPestanaInicial?: boolean } = {}): Ventana {
   function closeTab(id: number) {
     const t = tabs.get(id)
     if (!t) return
+    // Cerrar la pestaña que el agente está operando es una orden de parar inequívoca. Sin
+    // esto, el agente la reabría con `openTab` y seguía: el usuario cerraba una pestaña que
+    // volvía sola, una y otra vez, sin forma de detenerla salvo cerrar Monper.
+    if (t.agent || id === controlledTabId) pararAgente('se cerró su pestaña')
     // Recuerda la URL para poder reabrirla (solo http(s), no agent tabs).
     const u = t.errorUrl ?? t.url
     if (!t.agent && /^https?:\/\//i.test(u)) { closedStack.push(u); if (closedStack.length > 25) closedStack.shift() }
@@ -3126,6 +3130,19 @@ ipcMain.on('chat:setEffort', (_e, e: 'low' | 'medium' | 'high') => setEffort(e))
 
 // ---- Chat en streaming (desde el ChatPanel del chrome) ----
 let chatAbort: AbortController | null = null
+/**
+ * Único punto por el que se para al agente.
+ *
+ * Existe porque había tres sitios abortando por su cuenta y ninguno dejaba rastro: cuando el
+ * agente seguía trabajando después de pausarlo no había forma de saber si la orden había
+ * llegado siquiera. El log es barato y esa duda costó una sesión entera.
+ */
+function pararAgente(motivo: string): void {
+  if (!chatAbort || chatAbort.signal.aborted) return
+  console.log(`[agent] parado: ${motivo}`)
+  chatAbort.abort()
+  setAgentRunning(false)
+}
 // El agente está operando el navegador; `controlledTabId` es la pestaña concreta que controla.
 let agentRunning = false
 let controlledTabId: number | null = null
@@ -3150,7 +3167,7 @@ function setControlledTab(id: number): void {
 // Cola de eventos asíncronos del navegador (popups, descargas) para steering del agente.
 let agentEvents: string[] = []
 function pushAgentEvent(msg: string): void { if (agentEvents.length < 20) agentEvents.push(msg) }
-ipcMain.on('chat:cancel', () => { chatAbort?.abort() })
+ipcMain.on('chat:cancel', () => pararAgente('el usuario lo canceló'))
 // El historial de chats vive en el chrome como el propio chat, así que estos canales no
 // llevan la guarda de `isInternalSender` — igual que `chat:send`.
 ipcMain.handle('chats:list', () => listSessions())
@@ -3194,7 +3211,7 @@ ipcMain.on('chats:resumeInPanel', (ev, id: string) => {
   v.win.webContents.send('chat:openSession', String(id))
 })
 // "Take over": el usuario retoma el control → aborta el agente.
-ipcMain.on('agent:takeOver', () => { chatAbort?.abort() })
+ipcMain.on('agent:takeOver', () => pararAgente('el usuario retomó el control'))
 ipcMain.handle('chat:send', async (ev, messages: ChatMessage[]) => {
   const active = getActiveProvider()
   if (!active) {

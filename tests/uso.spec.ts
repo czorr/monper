@@ -90,15 +90,17 @@ test('el chrome no puede leer ni tocar el consumo', async () => {
  * La aritmética del coste, sin levantar la app: `precios.ts` vive en shared justo para esto.
  * Es la parte que el usuario mira para decidir cuánto gasta, así que va con números a mano.
  */
+// Por defecto un modelo de tarifa PLANA: los tests de aritmética no deben depender de si hoy
+// cae dentro de un precio de lanzamiento. Eso se prueba aparte, con fechas explícitas.
 const turno = (p: Partial<TurnoUso>): TurnoUso => ({
-  at: Date.now(), kind: 'anthropic', model: 'claude-sonnet-5',
+  at: Date.now(), kind: 'anthropic', model: 'claude-opus-5',
   inputTokens: 0, outputTokens: 0, steps: 0, ok: true, ...p
 })
 
 test('el coste sale de los precios reales, no de una aproximación', () => {
-  // Sonnet 5: $3 por millón de input, $15 por millón de output.
+  // Opus 5: $5 por millón de input, $25 por millón de output.
   const c = costeDe(turno({ inputTokens: 1_000_000, outputTokens: 1_000_000 }))
-  expect(c).toBeCloseTo(3 + 15, 6)
+  expect(c).toBeCloseTo(5 + 25, 6)
 })
 
 test('los tokens cacheados se cobran a su tarifa, no a la de input', () => {
@@ -108,8 +110,8 @@ test('los tokens cacheados se cobran a su tarifa, no a la de input', () => {
    * mucha caché puede costar diez veces menos de lo que diría la cuenta ingenua.
    */
   const t = turno({ inputTokens: 1_000_000, cachedInputTokens: 900_000, outputTokens: 0 })
-  // 100k frescos a $3/M + 900k cacheados a $0.30/M
-  expect(costeDe(t)).toBeCloseTo(0.1 * 3 + 0.9 * 0.3, 6)
+  // 100k frescos a $5/M + 900k cacheados a $0.50/M (la caché es la décima parte del input)
+  expect(costeDe(t)).toBeCloseTo(0.1 * 5 + 0.9 * 0.5, 6)
   // Y siempre sale MÁS BARATO que si no hubiera caché.
   expect(costeDe(t)!).toBeLessThan(costeDe(turno({ inputTokens: 1_000_000 }))!)
 })
@@ -121,13 +123,41 @@ test('un modelo desconocido devuelve null, que no es lo mismo que gratis', () =>
 test('ningún precio de la tabla es cero o negativo', () => {
   // Un cero colado en la tabla haría que un modelo de pago apareciera como gratis, que es
   // justo el error que este panel no se puede permitir.
-  for (const [modelo, p] of Object.entries(PRECIOS)) {
-    expect(p.in, `${modelo}: input`).toBeGreaterThan(0)
-    expect(p.out, `${modelo}: output`).toBeGreaterThan(0)
-    expect(p.out, `${modelo}: el output siempre cuesta más que el input`).toBeGreaterThan(p.in)
-    if (p.cached !== undefined) {
-      expect(p.cached, `${modelo}: la caché debe ser más barata que el input`).toBeLessThan(p.in)
-      expect(p.cached).toBeGreaterThan(0)
+  for (const [modelo, tramos] of Object.entries(PRECIOS)) {
+    expect(tramos.length, `${modelo}: sin tarifas`).toBeGreaterThan(0)
+    for (const p of tramos) {
+      expect(p.in, `${modelo}: input`).toBeGreaterThan(0)
+      expect(p.out, `${modelo}: output`).toBeGreaterThan(0)
+      expect(p.out, `${modelo}: el output siempre cuesta más que el input`).toBeGreaterThan(p.in)
+      if (p.cached !== undefined) {
+        expect(p.cached, `${modelo}: la caché debe ser más barata que el input`).toBeLessThan(p.in)
+        expect(p.cached).toBeGreaterThan(0)
+      }
     }
   }
+})
+
+test('los tramos de fecha de un modelo no se solapan ni dejan hueco', () => {
+  // Un solape haría que el coste dependiera del orden del array; un hueco dejaría turnos de
+  // esa ventana sin tarifa, o sea contados como "sin precio" cuando sí lo tienen.
+  for (const [modelo, tramos] of Object.entries(PRECIOS)) {
+    const ordenados = [...tramos].sort((a, b) => (a.desde ?? -Infinity) - (b.desde ?? -Infinity))
+    for (let i = 1; i < ordenados.length; i++) {
+      expect(ordenados[i - 1].hasta, `${modelo}: tramo ${i - 1} sin fin`).toBeDefined()
+      expect(ordenados[i].desde, `${modelo}: tramo ${i} sin inicio`).toBeDefined()
+      expect(ordenados[i - 1].hasta, `${modelo}: hueco o solape entre tramos`).toBe(ordenados[i].desde)
+    }
+  }
+})
+
+test('el precio de lanzamiento de Sonnet 5 caduca solo', () => {
+  // Aplicar la tarifa de lista a un turno cobrado al precio promocional infla la factura; y al
+  // revés, dejar el promocional puesto la subestimaría para siempre. Se elige por la fecha del
+  // turno, no por la de hoy: un turno de julio se cobró al precio de julio.
+  const antes = new Date('2026-08-15T00:00:00Z').getTime()
+  const despues = new Date('2026-09-15T00:00:00Z').getTime()
+  const uno = (at: number): number =>
+    costeDe(turno({ model: 'claude-sonnet-5', at, inputTokens: 1_000_000 }))!
+  expect(uno(antes)).toBeCloseTo(2, 6)
+  expect(uno(despues)).toBeCloseTo(3, 6)
 })

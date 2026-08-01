@@ -158,9 +158,14 @@ export interface ModelOption {
 
 /** Catálogo de modelos que cargamos nosotros (no lo escribe el usuario) */
 export const MODELS: Record<ProviderKind, ModelOption[]> = {
+  // El PRIMERO es el que se elige solo al conectar un proveedor (ver MODELS[kind][0] en
+  // ai/store.ts), así que el orden es la recomendación: capaz primero, barato después.
+  // Mythos 5 NO está aquí a propósito: es de acceso restringido y ofrecerlo a todo el mundo
+  // sería enseñar un modelo que casi nadie puede usar.
   anthropic: [
-    { id: 'claude-opus-4-8', name: 'Opus 4.8' },
+    { id: 'claude-opus-5', name: 'Opus 5' },
     { id: 'claude-fable-5', name: 'Fable 5' },
+    { id: 'claude-opus-4-8', name: 'Opus 4.8' },
     { id: 'claude-sonnet-5', name: 'Sonnet 5' },
     { id: 'claude-haiku-4-5', name: 'Haiku 4.5' }
   ],

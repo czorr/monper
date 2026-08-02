@@ -5,6 +5,7 @@ import type { MenuItemConstructorOptions } from 'electron'
 import type { IpcMainEvent } from 'electron'
 import type { BrowserState, Bookmark, ChatFallo, ChatMessage, MenuAnchor, ProviderKind, InternalPage, SubmenuData, SubmenuSection } from '../shared/types'
 import { internalPageOf } from '../shared/types'
+import { nombreDeUrl } from '../shared/url'
 import { initBookmarks, listBookmarks, isBookmarked, addBookmark, removeBookmark, toggleBookmark, reorderBookmarks, updateBookmark, createFolder, moveBookmark, setFolderCollapsed } from './bookmarks'
 import { initAI, listProviders, addProvider, removeProvider, setActive as setActiveProvider, setModel, setEffort, getChatContext, getActiveProvider } from './ai/store'
 import { runMastra, diagnosticar } from './agent/mastra'
@@ -229,6 +230,8 @@ export interface Ventana {
   desprenderTab(id: number): Tab | null
   /** Recibe una pestaña que venía de otra ventana, con su historial y su estado intactos. */
   adoptarTab(id: number, t: Tab): void
+  /** Detiene el vigía de páginas colgadas. Al cerrar la ventana, o el timer sigue vivo. */
+  pararVigia(): void
 }
 
 
@@ -267,6 +270,7 @@ function createWindow(opts: { sinPestanaInicial?: boolean } = {}): Ventana {
     for (const t of v.tabs.values()) {
       if (!t.view.webContents.isDestroyed()) t.view.webContents.close()
     }
+    v.pararVigia()
     v.tabs.clear()
     ventanas.delete(v.id)
     if (ventanaEnfocadaId === v.id) ventanaEnfocadaId = [...ventanas.keys()][0] ?? null
@@ -1025,6 +1029,59 @@ function crearVentana(opts: { sinPestanaInicial?: boolean } = {}): Ventana {
     if (!t.view.webContents.isDestroyed()) t.view.webContents.focus()
   }
 
+  /**
+   * Vigía de páginas colgadas.
+   *
+   * El evento `unresponsive` de Electron **no dispara** en un `WebContentsView`: medido con un
+   * bucle de 30 s y clics inyectados, no llega nunca (ver docs/browser-hardening.md). Así que
+   * se detecta a mano: se le pide a la página que evalúe algo trivial, y si no contesta es
+   * porque su hilo está bloqueado — que es exactamente la definición de colgada.
+   *
+   * Coste acotado a propósito, que este repo ya tiró 344MB de pre-warm por menos: solo la
+   * pestaña ACTIVA, solo con la ventana a la vista, y un `executeJavaScript` trivial cada 8 s.
+   *
+   * La condición es VISIBLE, no enfocada: dos ventanas lado a lado se están mirando las dos, y
+   * exigir foco dejaba el aviso sin salir en la mitad de los casos reales. Minimizada sí se
+   * salta — ahí no hay nada que avisar hasta que vuelvas.
+   */
+  const PING_MS = 8000
+  const PACIENCIA_MS = 10000
+  let vigia: NodeJS.Timeout | null = null
+  let avisandoCuelgue = false
+
+  async function mirarSiCuelga(): Promise<void> {
+    if (avisandoCuelgue || !win || win.isDestroyed() || !win.isVisible() || win.isMinimized()) return
+    const idEnCurso = activeId
+    const t = idEnCurso != null ? tabs.get(idEnCurso) : undefined
+    if (idEnCurso == null || !t || isInternal(t.url) || t.view.webContents.isDestroyed()) return
+    const wc = t.view.webContents
+
+    const respondio = await Promise.race([
+      wc.executeJavaScript('1').then(() => true, () => true), // un fallo tampoco es un cuelgue
+      new Promise<boolean>((r) => setTimeout(() => r(false), PACIENCIA_MS))
+    ])
+    // Si mientras esperábamos cambió de pestaña o de foco, el aviso ya no viene a cuento.
+    if (respondio || avisandoCuelgue || activeId !== idEnCurso || !win || win.isDestroyed() || !win.isVisible()) return
+
+    avisandoCuelgue = true
+    const nombre = t.title || nombreDeUrl(t.url) || 'La página'
+    const { response } = await dialog.showMessageBox(win, {
+      type: 'warning',
+      buttons: ['Esperar', 'Cerrar la pestaña'],
+      defaultId: 0,
+      cancelId: 0,
+      message: `${nombre} no responde`,
+      detail: 'La página se quedó bloqueada. Puedes darle más tiempo o cerrarla y perder lo que no hayas guardado.'
+    })
+    avisandoCuelgue = false
+    if (response === 1 && tabs.has(idEnCurso)) closeTab(idEnCurso)
+  }
+
+  function arrancarVigia(): void {
+    if (vigia) return
+    vigia = setInterval(() => void mirarSiCuelga(), PING_MS)
+  }
+
   function setActive(id: number) {
     if (!tabs.has(id)) return
     if (signinTabId != null && signinTabId !== id) hideSignin() // el prompt era de otra pestaña
@@ -1041,6 +1098,7 @@ function crearVentana(opts: { sinPestanaInicial?: boolean } = {}): Ventana {
     layoutTabs()
     pushState()
     enfocarSiNewtab(id)
+    arrancarVigia()
     scheduleSaveSession()
   }
 
@@ -1229,7 +1287,8 @@ function crearVentana(opts: { sinPestanaInicial?: boolean } = {}): Ventana {
     isCollapsed: () => sidebarCollapsed,
     scheduleTopSample, applyTopColor, enfocarNewtab: enfocarSiNewtab,
     soltarTabsDelBookmark, atarTabAlBookmark,
-    desprenderTab, adoptarTab
+    desprenderTab, adoptarTab,
+    pararVigia: () => { if (vigia) { clearInterval(vigia); vigia = null } }
   }
   yo = api
   return api

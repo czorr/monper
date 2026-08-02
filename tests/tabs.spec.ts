@@ -191,10 +191,19 @@ test('New tab abre con el foco YA en su input', async () => {
   const id = await api<number>(h.win, 'newTab')
   await waitForState(h.win, (s) => s.activeId === id)
 
+  /**
+   * Se mira DENTRO de la página, no `wc.isFocused()`.
+   *
+   * `isFocused()` depende de que el sistema le dé el foco a la app, y en un test la ventana no
+   * lo recibe nunca — lo comprobé: `isFocused()` sale `false` incluso tras llamar a `focus()`.
+   * Con esa condición el test dependía de si el usuario tenía el terminal delante, o sea que
+   * era una moneda al aire. Lo que importa aquí es que el input quedó como elemento activo de
+   * SU documento, que es lo que hace que escribir vaya a la barra.
+   */
   await expect
     .poll(async () => h.app.evaluate(async ({ webContents }) => {
-      const wc = webContents.getAllWebContents().find((w) => w.getURL().includes('newtab') && w.isFocused())
-      if (!wc) return 'ninguna vista de newtab tiene el foco'
+      const wc = webContents.getAllWebContents().find((w) => w.getURL().includes('newtab'))
+      if (!wc) return 'no hay ninguna vista de newtab'
       return String(await wc.executeJavaScript('document.activeElement?.tagName'))
     }), { timeout: 8000 })
     .toBe('INPUT')

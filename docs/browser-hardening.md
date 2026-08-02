@@ -16,11 +16,22 @@ Prioridad: **P0** bloquea "confiable" · **P1** importante · **P2** esperado/pu
 2. **Páginas de error de red** — `did-fail-load` (offline, DNS, conexión
    rechazada, timeout). Hoy: **blanco**. Falta: interstitial con el código de
    error y Reintentar. Distinguir `errorCode` (−106 offline, −105 DNS, etc.).
-3. **Errores de certificado** — `certificate-error` / `session.setCertificateVerifyProc`.
-   Hoy: Electron bloquea por defecto → **blanco sin explicación**. Falta:
-   interstitial "Conexión no privada" con detalle y (opcional, gateado) continuar.
-4. **Página no responde** — `unresponsive` / `responsive`. Falta: aviso
-   "La página no responde" con Esperar/Cerrar.
+3. **Errores de certificado** — HECHO. Chromium rechaza el certificado, salta
+   `did-fail-load` con un código de −200 a −219 y `error.html` pinta "Tu conexión
+   no es privada". **No hay forma de saltárselo, y es a propósito**: Monper guarda
+   contraseñas y las rellena solo, así que dejar pasar un certificado sospechoso es
+   justo cómo se roban credenciales. Verificado con un HTTPS autofirmado de verdad
+   (`tests/certificado.spec.ts`), no comprobando el mapeo de códigos a mano.
+4. **Página no responde** — HECHO, pero **no con `unresponsive`**: ese evento de
+   Electron **no dispara nunca** en un `WebContentsView`. Medido con un bucle de 30 s
+   y clics inyectados: cero eventos en 16 s. La primera implementación fue código
+   muerto y se tiró.
+   La detección es propia: se le pide a la página que evalúe algo trivial y se mira si
+   contesta; un hilo bloqueado no puede responder, que es la definición de colgada.
+   Coste acotado —solo la pestaña activa, solo con la ventana a la vista, un eval cada
+   8 s— porque este repo ya tiró 344MB de pre-warm por menos.
+   La guarda es VISIBLE, no enfocada: dos ventanas lado a lado se están mirando las
+   dos, y exigir foco dejaba el aviso sin salir en la mitad de los casos reales.
 
 > Sin esto, cualquier caída de red o pestaña que crashea deja al usuario con una
 > vista muerta y sin feedback. Es lo primero.

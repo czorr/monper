@@ -109,6 +109,12 @@ export default function ImportSection(): JSX.Element {
         </Card>
       </Group>
 
+      {/*
+        El botón y el resumen van envueltos con el MISMO margen inferior que un `Group` (mb-9).
+        Sin esto quedaban fuera de toda sección y sin separación: "Importar" se empalmaba con el
+        título de la sección siguiente, porque esta pieza se incrusta dentro de General.
+      */}
+      <div className="mb-9">
       <button
         onClick={importar}
         disabled={!sel || corriendo || !(que.bookmarks || que.history || que.passwords)}
@@ -137,6 +143,7 @@ export default function ImportSection(): JSX.Element {
           </Card>
         </div>
       )}
+      </div>
     </>
   )
 }

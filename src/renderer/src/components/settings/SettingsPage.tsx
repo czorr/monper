@@ -78,7 +78,7 @@ const NAV: NavGroup[] = [
       { id: 'routines', label: 'Routines', icon: <IconClockBolt /> },
       { id: 'statistics', label: 'Statistics', icon: <IconChart /> },
       { id: 'archived', label: 'Chats', icon: <IconArchive /> },
-      { id: 'notifications', label: 'Notification Use', icon: <IconBell />, soon: true }
+      { id: 'notifications', label: 'Notifications', icon: <IconBell />, soon: true }
     ]
   }
 ]
@@ -107,7 +107,7 @@ const SOON: Partial<Record<Cat, { title: string; desc: string; bullets: string[]
   },
 
   notifications: {
-    title: 'Notification Use',
+    title: 'Notifications',
     desc: 'Qué te avisa Monper y cómo.',
     bullets: ['Avisos de rutinas', 'Cuando el agente termina o necesita ayuda', 'Horario sin molestar']
   }

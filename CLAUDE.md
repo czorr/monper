@@ -64,6 +64,7 @@ measured, say so instead of implying it works.
 | `src/main/` | Main process. `index.ts` is still a god file (~1700 lines): tabs, layout, menus, IPC. |
 | `src/main/agent/` | Mastra agent, REPL (`run_js`), headless pages, one file per service in `globals/` |
 | `src/main/vault/` | Encrypted secret store. Secrets never leave the main process. |
+| `src/main/particiones.ts` | En qué sesión de Chromium vive cada ventana (normal / incógnito / perfiles) |
 | `src/main/adblock.ts` | Network-level ad/tracker blocking on `persist:monper` (one webRequest listener per session — see docs) |
 | `src/main/chromehints.ts` | `Sec-CH-UA` rewritten to say "Google Chrome" — paired with `preload/chromeIdentity.ts`; both read `shared/chrome.ts` |
 | `src/main/popover.ts` | Factory for the native overlay windows |
@@ -128,6 +129,7 @@ MONPER_DEBUG_PIP=1       # log every picture-in-picture detection and auto enter
 | Packaging, signing, auto-update | [distribucion.md](docs/distribucion.md) |
 | Permissions, session restore, hardening | [browser-hardening.md](docs/browser-hardening.md) |
 | Adblocker (red, allowlist, listas) | [adblock.md](docs/adblock.md) |
+| Incógnito, particiones de sesión, perfiles | [incognito-y-perfiles.md](docs/incognito-y-perfiles.md) |
 | Por qué decimos ser Chrome (login de Google) | [identidad-chrome.md](docs/identidad-chrome.md) |
 | Where the product is going, what was dropped | [diagnostico.md](docs/diagnostico.md) |
 | Launch checklist (product-level gaps) | [lanzamiento.md](docs/lanzamiento.md) |

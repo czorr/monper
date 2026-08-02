@@ -27,13 +27,14 @@ import {
 } from './permissions'
 import { initSkills, listSkills, getSkill, toggleSkill, enabledSkills, skillsDir, resolveSkillFavicons } from './skills'
 import { initProfile, getProfile, setProfile, setAvatar } from './profile'
+import { PARTICION_NORMAL, particionDe } from './particiones'
 import { initDownloads, attachDownloads, listDownloads, activeDownloadCount, cancelDownload, openDownload, showDownload, clearDownloads } from './downloads'
 import { credentialsFor, fillFromVault } from './autofill'
 import { initExtensions, listExtensions, addExtension, setExtensionEnabled, removeExtension as removeExt, installFromStore, extensionUi } from './extensions'
 import { extensionIdFrom } from './crx'
 import { createPopover } from './popover'
 import { initRemote, remoteState, setRemoteEnabled, onRemoteState } from './remote'
-import { initAdblock, adblockState, setAdblockEnabled, setAdblockAllowed, adblockCountFor } from './adblock'
+import { initAdblock, adjuntarAdblock, adblockState, setAdblockEnabled, setAdblockAllowed, adblockCountFor } from './adblock'
 import { attachChromeHints } from './chromehints'
 import { initFavicons, rememberFavicon, faviconFor, resolveFavicon } from './favicons'
 import { initMcpClient, reloadMcpConfig, mcpServerStates, mcpTools, configPath as mcpConfigPath, stopAllMcp } from './mcp/client'
@@ -89,7 +90,6 @@ type VibrancySetting = VibrancyMaterial | 'none'
 let vibrancyMaterial: VibrancySetting = VIBRANCY_DEFAULT
 const NO_VIBRANCY = process.env['MONPER_NO_VIBRANCY'] === '1'
 const APP_BG = '#111114' // igual que --color-bg en styles.css
-const PARTITION = 'persist:monper'
 const isMac = process.platform === 'darwin'
 
 // Nombre de la app: debe fijarse ANTES de whenReady para que el menú de macOS
@@ -200,6 +200,13 @@ const CONTROLLED_STRIP = 40
 export interface Ventana {
   readonly id: number
   readonly win: BrowserWindow
+  /**
+   * Ventana de incógnito. No es solo cosmético: manda en QUÉ sesión navegan sus pestañas y
+   * apaga todo lo que escribe en disco (historial, favicons, restauración de sesión).
+   */
+  readonly incognito: boolean
+  /** Partición de Chromium de sus pestañas. Se decide al crear la ventana y no cambia. */
+  readonly particion: string
   readonly tabs: Map<number, Tab>
   activeId(): number | null
   createTab(url?: string, activate?: boolean, agent?: boolean): number
@@ -260,7 +267,7 @@ function vAct(): Ventana {
  * y porque una ventana cerrada que siguiera en el registro dejaría `` devolviendo un
  * `BrowserWindow` destruido — que revienta al primer uso, no al cerrarla.
  */
-function createWindow(opts: { sinPestanaInicial?: boolean } = {}): Ventana {
+function createWindow(opts: { sinPestanaInicial?: boolean; incognito?: boolean } = {}): Ventana {
   const v = crearVentana(opts)
   ventanas.set(v.id, v)
   ventanaEnfocadaId = v.id
@@ -363,7 +370,67 @@ function duenoDeTab(id: number): Ventana | null {
   return null
 }
 
-function crearVentana(opts: { sinPestanaInicial?: boolean } = {}): Ventana {
+/**
+ * Deja una sesión de Chromium lista para navegar: identidad de Chrome, adblocker, permisos,
+ * pantalla compartida y descargas.
+ *
+ * Existe porque incógnito NO es "la misma sesión sin escribir en disco": es OTRA sesión, y todo
+ * lo que se enganchaba una vez al arrancar se quedaba fuera de ella. Sin esto, una ventana de
+ * incógnito navegaría sin adblocker, diciendo ser Electron y con `getDisplayMedia` rechazado.
+ *
+ * Es idempotente y se llama al crear cada ventana: la primera de cada partición hace el trabajo.
+ */
+const sesionesListas = new Set<string>()
+function prepararSesion(particion: string, incognito: boolean): void {
+  if (sesionesListas.has(particion)) return
+  sesionesListas.add(particion)
+  const ses = session.fromPartition(particion)
+  // UA de Chrome limpia (sin "Electron"/"monper"): apps como Figma rompen y Google
+  // bloquea el login si detectan un navegador embebido.
+  const platformUA = isMac
+    ? 'Macintosh; Intel Mac OS X 10_15_7'
+    : process.platform === 'win32' ? 'Windows NT 10.0; Win64; x64' : 'X11; Linux x86_64'
+  ses.setUserAgent(`Mozilla/5.0 (${platformUA}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${process.versions.chrome} Safari/537.36`)
+  // La UA de texto no basta: Client Hints es una fuente aparte y delataba "Chromium".
+  attachChromeHints(ses, process.versions.chrome)
+  // Antes que nada lo que navegue: los listeners de red tienen que estar puestos antes de la
+  // primera petición, o la primera página se pinta con anuncios. No se espera al motor (las
+  // listas tardan): initAdblock engancha ya y rellena el motor cuando lo tiene.
+  if (incognito) adjuntarAdblock(ses)
+  else void initAdblock(ses)
+  // Compartir pantalla en videollamadas. Sin este handler Electron rechaza `getDisplayMedia`
+  // y el botón de compartir de Meet/Zoom no hace absolutamente nada.
+  attachScreenShare(ses, () => vActOpt()?.win ?? null)
+  attachPermissionHandlers(ses, {
+    getWindow: () => vActOpt()?.win ?? null,
+    ask: askPermission,
+    onMedia: (wc, active) => {
+      for (const tb of vAct().tabs.values()) {
+        if (tb.view.webContents === wc) { tb.recording = active; vAct().pushState(); break }
+      }
+    }
+  })
+  attachDownloads(ses)
+  ses.on('will-download', (_e, item) => {
+    pushAgentEvent(`Descarga iniciada: ${item.getFilename()} (${item.getURL()})`)
+  })
+  /**
+   * Las extensiones NO se cargan en incógnito, igual que Chrome de fábrica.
+   *
+   * No es pereza: una extensión ve cada página que abres y puede hablar con su servidor. Meter
+   * las mismas extensiones en la ventana que se abre justamente para no dejar rastro sería
+   * prometer una cosa y hacer la contraria.
+   */
+  if (!incognito) void initExtensions(ses)
+}
+
+function crearVentana(opts: { sinPestanaInicial?: boolean; incognito?: boolean } = {}): Ventana {
+  const incognito = !!opts.incognito
+  const particion = particionDe(incognito)
+  // La sesión tiene que estar preparada (UA de Chrome, adblock, permisos, descargas) ANTES de
+  // que navegue nada: si no, la primera página de la primera ventana de incógnito sale con
+  // anuncios y delatando Electron. Es idempotente: solo hace el trabajo la primera vez.
+  prepararSesion(particion, incognito)
   // Se asigna justo antes de devolver. Solo lo leen callbacks, que corren mucho después.
   let yo: Ventana
   let win: BrowserWindow | null = null
@@ -658,7 +725,8 @@ function crearVentana(opts: { sinPestanaInicial?: boolean } = {}): Ventana {
             muted: t.muted, audible: t.audible
           }
         : null,
-      controlling: controllingActive()
+      controlling: controllingActive(),
+      incognito
     }
     return state
   }
@@ -866,7 +934,7 @@ function crearVentana(opts: { sinPestanaInicial?: boolean } = {}): Ventana {
     const suya = (): Ventana => duenoDeTab(id) ?? yo
     const view = new WebContentsView({
       webPreferences: {
-        partition: PARTITION,
+        partition: particion,
         contextIsolation: true,
         sandbox: true,
         // Explícito aunque sea el valor por defecto: es una decisión de producto (escribir un
@@ -910,7 +978,9 @@ function crearVentana(opts: { sinPestanaInicial?: boolean } = {}): Ventana {
       applyBackdrop(t)
       if (id === suya().activeId()) suya().layoutTabs()
       // Al navegar a algo que NO es la página de error, limpiamos el estado de error y registramos la visita.
-      if (!isErrorPage(u)) { t.errorUrl = null; if (!isInternal(u)) recordVisit(u, t.title, t.favicon) }
+      // En incógnito no se apunta la visita: es la mitad de la promesa (la otra mitad es que
+      // la partición no persiste, ver particiones.ts).
+      if (!isErrorPage(u)) { t.errorUrl = null; if (!isInternal(u) && !suya().incognito) recordVisit(u, t.title, t.favicon) }
       applyZoom(wc, u) // restaura el zoom recordado para el origen
       refresh()
       scheduleSaveSession()
@@ -921,13 +991,21 @@ function crearVentana(opts: { sinPestanaInicial?: boolean } = {}): Ventana {
       void leerFondoDelDocumento(t) // en una SPA no hay recarga: es el único aviso de cambio
       refresh()
     })
-    wc.on('page-title-updated', (_e, title) => { t.title = title; updateMeta(t.url, title); suya().pushState() })
+    wc.on('page-title-updated', (_e, title) => {
+      t.title = title
+      // `updateMeta` reescribe la entrada del historial: en incógnito no hay entrada que tocar,
+      // pero si la URL ya se visitó en normal SÍ la habría, y le dejaría el título de aquí.
+      if (!suya().incognito) updateMeta(t.url, title)
+      suya().pushState()
+    })
     wc.on('page-favicon-updated', (_e, icons) => {
       t.favicon = icons?.[0] || null
       // Se recuerda por host: es el icono de verdad del sitio, y sirve para los marcadores sin
       // icono propio en vez de pedírselo a un tercero.
-      rememberFavicon(t.url, t.favicon)
-      updateMeta(t.url, undefined, t.favicon)
+      if (!suya().incognito) {
+        rememberFavicon(t.url, t.favicon)
+        updateMeta(t.url, undefined, t.favicon)
+      }
       suya().pushState()
     })
     wc.on('did-change-theme-color', (_e, color) => { t.themeColor = color; suya().pushState() })
@@ -984,7 +1062,9 @@ function crearVentana(opts: { sinPestanaInicial?: boolean } = {}): Ventana {
           overrideBrowserWindowOptions: {
             width: 500, height: 640, resizable: true, minimizable: true, maximizable: false,
             fullscreenable: false, autoHideMenuBar: true, title: 'Monper',
-            webPreferences: { partition: PARTITION, contextIsolation: true, sandbox: true }
+            // El popup hereda la sesión de quien lo abrió: un OAuth lanzado desde incógnito
+            // que cayera en la sesión normal iniciaría sesión de verdad, justo lo contrario.
+            webPreferences: { partition: suya().particion, contextIsolation: true, sandbox: true }
           }
         }
       }
@@ -1280,6 +1360,8 @@ function crearVentana(opts: { sinPestanaInicial?: boolean } = {}): Ventana {
   const api: Ventana = {
     id: ventana.id,
     win: ventana,
+    incognito,
+    particion,
     tabs,
     activeId: () => activeId,
     createTab, setActive, closeTab, reopenClosedTab, selectTabByIndex, reorderTabs,
@@ -1532,7 +1614,9 @@ function collectVentana(v: Ventana): SesionVentana {
   return { urls, activeIndex }
 }
 function collectSession(): { ventanas: SesionVentana[] } {
-  const grupos = [...ventanas.values()].map(collectVentana).filter((g) => g.urls.length > 0)
+  // Las ventanas de incógnito no se guardan: reabrirlas al arrancar sería contar en voz alta
+  // exactamente lo que se pidió no contar.
+  const grupos = [...ventanas.values()].filter((v) => !v.incognito).map(collectVentana).filter((g) => g.urls.length > 0)
   return { ventanas: grupos }
 }
 function saveSessionNow(): void {
@@ -1556,6 +1640,8 @@ function leerSesion(): SesionVentana[] {
   return Array.isArray(d?.ventanas) ? d.ventanas.filter((g) => Array.isArray(g?.urls) && g.urls.length > 0) : []
 }
 function restoreSession(v: Ventana): boolean {
+  // Ni se restaura EN una ventana de incógnito: abriría ahí las pestañas de la sesión normal.
+  if (v.incognito) return false
   if (colaSesion === null) {
     colaSesion = leerSesion()
     // Las ventanas extra se piden aquí, no dentro del bucle de abajo: cada una se sirve sola.
@@ -1636,6 +1722,7 @@ function buildAppMenu(): void {
     label: 'Archivo',
     submenu: [
       { label: 'Nueva ventana', accelerator: 'CmdOrCtrl+N', click: () => { createWindow() } },
+      { label: 'Nueva ventana de incógnito', accelerator: 'CmdOrCtrl+Shift+N', click: () => { createWindow({ incognito: true }) } },
       { label: 'Nueva pestaña', accelerator: 'CmdOrCtrl+T', click: () => vAct().createTab() },
       { label: 'Reabrir pestaña cerrada', accelerator: 'CmdOrCtrl+Shift+T', click: () => vAct().reopenClosedTab() },
       { label: 'Historial', accelerator: 'CmdOrCtrl+Y', click: () => openHistory() },
@@ -2308,7 +2395,7 @@ ipcMain.handle('omni:suggest', async (e, query: string) => {
 })
 ipcMain.handle('ui:clearData', async (e) => {
   if (!isInternalSender(e.senderFrame?.url)) return false
-  const ses = session.fromPartition(PARTITION)
+  const ses = session.fromPartition(PARTICION_NORMAL)
   await ses.clearStorageData()
   await ses.clearCache()
   return true
@@ -2677,7 +2764,7 @@ ipcMain.on('siteinfo:clear', async () => {
   // "Borrar datos del sitio" es una acción de privacidad: si no se borró, hay que decirlo.
   // Callarlo es dejar al usuario creyendo que sus datos ya no están.
   try {
-    await session.fromPartition(PARTITION).clearStorageData({ origin: new URL(activeUrl()).origin })
+    await session.fromPartition(vAct().particion).clearStorageData({ origin: new URL(activeUrl()).origin })
   } catch (e) {
     const detail = e instanceof Error ? e.message : String(e)
     console.error('[siteinfo] no se pudieron borrar los datos de', activeUrl(), detail)
@@ -2984,7 +3071,7 @@ function openExtensionPopup(path: string): void {
     resizable: false, movable: false, minimizable: false, maximizable: false,
     fullscreenable: false, skipTaskbar: true, roundedCorners: true, backgroundColor: '#ffffff',
     x: Math.round(cb.x + cb.width - 420), y: Math.round(cb.y + TOPBAR_HEIGHT),
-    webPreferences: { partition: PARTITION, contextIsolation: true, sandbox: false }
+    webPreferences: { partition: PARTICION_NORMAL, contextIsolation: true, sandbox: false }
   })
   extPopupWin.on('blur', () => { if (extPopupWin && !extPopupWin.isDestroyed()) extPopupWin.destroy() })
   extPopupWin.loadURL(ui.popup)
@@ -3567,40 +3654,10 @@ app.whenReady().then(() => {
   })
   buildAppMenu()
   initPermissions()
-  const ses = session.fromPartition(PARTITION)
-  // UA de Chrome limpia (sin "Electron"/"monper"): apps como Figma rompen y Google
-  // bloquea el login si detectan un navegador embebido.
-  const platformUA = isMac
-    ? 'Macintosh; Intel Mac OS X 10_15_7'
-    : process.platform === 'win32' ? 'Windows NT 10.0; Win64; x64' : 'X11; Linux x86_64'
-  ses.setUserAgent(`Mozilla/5.0 (${platformUA}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${process.versions.chrome} Safari/537.36`)
-  // La UA de texto no basta: Client Hints es una fuente aparte y delataba "Chromium".
-  attachChromeHints(ses, process.versions.chrome)
   configurePasskeys()
-  // Antes que nada lo que navegue: los listeners de red tienen que estar puestos antes de la
-  // primera petición, o la primera página se pinta con anuncios. No se espera al motor (las
-  // listas tardan): initAdblock engancha ya y rellena el motor cuando lo tiene.
-  void initAdblock(ses)
-  // Compartir pantalla en videollamadas. Sin este handler Electron rechaza `getDisplayMedia`
-  // y el botón de compartir de Meet/Zoom no hace absolutamente nada.
-  attachScreenShare(ses, () => vActOpt()?.win ?? null)
-  attachPermissionHandlers(ses, {
-    getWindow: () => vActOpt()?.win ?? null,
-    ask: askPermission,
-    onMedia: (wc, active) => {
-      for (const tb of vAct().tabs.values()) {
-        if (tb.view.webContents === wc) { tb.recording = active; vAct().pushState(); break }
-      }
-    }
-  })
-  // Descargas: rastreo para el gestor + aviso al agente como steering.
+  // Descargas: el gestor es único (en memoria); lo que va por sesión es el enganche.
   initDownloads(broadcastDownloads)
-  attachDownloads(ses)
-  // Electron no persiste extensiones entre arranques: se recargan aquí.
-  void initExtensions(ses)
-  ses.on('will-download', (_e, item) => {
-    pushAgentEvent(`Descarga iniciada: ${item.getFilename()} (${item.getURL()})`)
-  })
+  prepararSesion(PARTICION_NORMAL, false)
   initBookmarks()
   initUsage()
   initFavicons()

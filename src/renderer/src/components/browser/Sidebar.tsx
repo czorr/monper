@@ -8,6 +8,7 @@ import TabRow from './TabRow'
 import BookmarkRow from './BookmarkRow'
 import BookmarkFolderRow from './BookmarkFolderRow'
 import IconFolderPlus from '~icons/tabler/folder-plus'
+import IconSpy from '~icons/tabler/spy'
 import { IconButton, SectionLabel } from '@renderer/components/ui'
 import { PlusIcon, SidebarIcon } from '@renderer/lib/icons'
 import monperPng from '@renderer/assets/monper.png' // el PNG a pelo: aquí el fondo es siempre oscuro
@@ -191,6 +192,15 @@ export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBo
           <IconButton title="Colapsar sidebar (⌘S)" onClick={onCollapse}>
             <SidebarIcon />
           </IconButton>
+        </div>
+      )}
+
+      {/* En incógnito no se enseña el perfil: la ventana no navega como tú, y decir lo
+          contrario sería el peor sitio para una ambigüedad. */}
+      {state.incognito && (
+        <div className="flex items-center gap-2 h-8 px-2.5 mb-1 rounded-xl bg-white/[0.06] text-[12.5px] text-text-dim [-webkit-app-region:drag]">
+          <IconSpy className="w-[15px] h-[15px] shrink-0 text-text-faint" />
+          <span className="truncate">Ventana de incógnito</span>
         </div>
       )}
 

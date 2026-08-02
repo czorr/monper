@@ -7,7 +7,7 @@ import './styles.css'
 
 const { monper, peekbar: pk } = window
 
-const EMPTY: BrowserState = { activeId: null, tabs: [], active: null, controlling: false }
+const EMPTY: BrowserState = { activeId: null, tabs: [], active: null, controlling: false, incognito: false }
 
 /**
  * Ventana flotante del sidebar (peek). NO reimplementa nada: renderiza el MISMO

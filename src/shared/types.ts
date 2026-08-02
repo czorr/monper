@@ -285,6 +285,8 @@ export interface BrowserState {
   active: ActiveInfo | null
   /** El agente está operando la pestaña activa ahora mismo (muestra la leyenda de control). */
   controlling: boolean
+  /** Ventana de incógnito: el chrome se pinta distinto para que no haya duda de dónde estás. */
+  incognito: boolean
 }
 
 // ---- Skills del agente ----

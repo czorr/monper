@@ -7,7 +7,7 @@ import FindBar from '@renderer/components/browser/FindBar'
 import ResizeHandle from '@renderer/components/browser/ResizeHandle'
 import { ChatPanel } from '@renderer/components/chat'
 
-const EMPTY: BrowserState = { activeId: null, tabs: [], active: null, controlling: false }
+const EMPTY: BrowserState = { activeId: null, tabs: [], active: null, controlling: false, incognito: false }
 const { monper } = window
 const isMac = monper.platform === 'darwin'
 

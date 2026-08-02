@@ -31,7 +31,13 @@ const POR_DEFECTO: AdblockState = { enabled: true, allow: [] }
 let file = ''
 let estado: AdblockState = POR_DEFECTO
 let blocker: ElectronBlocker | null = null
-let sesion: Session | null = null
+/**
+ * Sesiones enganchadas. Es una lista, no una, desde que existe incógnito: su partición es otra
+ * sesión de Chromium y sin engancharla ahí también, las ventanas de incógnito navegarían SIN
+ * adblocker — el sitio donde peor sienta, porque es donde el usuario espera menos rastreo.
+ * El motor y la configuración son comunes: lo único por sesión son los listeners.
+ */
+const sesiones = new Set<Session>()
 let refresco: NodeJS.Timeout | null = null
 
 /** Bloqueos contados por webContents, para poder enseñar "N bloqueados en esta página". */
@@ -165,14 +171,23 @@ function desenganchar(ses: Session): void {
   ses.webRequest.onHeadersReceived(null)
 }
 
+/**
+ * Engancha una sesión más (incógnito, y mañana los perfiles). Idempotente: enganchar dos veces
+ * la misma sesión sustituiría el listener por sí mismo, pero deja el `Set` diciendo la verdad.
+ */
+export function adjuntarAdblock(ses: Session): void {
+  if (sesiones.has(ses)) return
+  sesiones.add(ses)
+  enganchar(ses)
+}
+
 export async function initAdblock(ses: Session): Promise<void> {
   file = join(app.getPath('userData'), 'adblock.json')
   estado = readJson<AdblockState>(file, POR_DEFECTO, 'la configuración del adblocker')
-  sesion = ses
 
   // Los listeners se registran YA, aunque el motor tarde en cargar: si se registran después,
   // las peticiones de la primera página pasan sin filtrar.
-  enganchar(ses)
+  adjuntarAdblock(ses)
 
   blocker = await construir()
   if (blocker) {
@@ -217,5 +232,6 @@ export function adblockCountFor(webContentsId: number): number {
 
 export function stopAdblock(): void {
   if (refresco) { clearInterval(refresco); refresco = null }
-  if (sesion) desenganchar(sesion)
+  for (const s of sesiones) desenganchar(s)
+  sesiones.clear()
 }

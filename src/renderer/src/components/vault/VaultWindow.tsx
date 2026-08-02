@@ -23,10 +23,11 @@ function subtext(it: VaultItemMeta): string {
 
 export default function VaultWindow(): JSX.Element {
   const [items, setItems] = useState<VaultItemMeta[]>([])
+  const [favicons, setFavicons] = useState<Record<string, string>>({})
   useNoInitialFocus() // si no, abre con "Gestionar en Settings" resaltado
 
   useEffect(() => {
-    vaultwin.onItems(setItems)
+    vaultwin.onItems((its, favs) => { setItems(its); setFavicons(favs) })
     const onKey = (e: KeyboardEvent): void => { if (e.key === 'Escape') vaultwin.close() }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -49,17 +50,22 @@ export default function VaultWindow(): JSX.Element {
           return (
             <div key={g.type} className="mb-1">
               <div className="px-4 pt-2 pb-1 text-[11px] font-medium text-text-faint">{g.label}</div>
-              {rows.map((it) => (
+              {rows.map((it) => {
+                // El icono del sitio si lo conocemos; si no, el genérico del grupo. Nunca se le
+                // pide a un tercero: delataría qué credenciales tienes guardadas.
+                const icono = it.data.origin ? favicons[it.data.origin] : undefined
+                return (
                 <div key={it.id} className="flex items-center gap-2.5 px-3 mx-1.5 h-11 rounded-lg hover:bg-white/[0.05]">
-                  <span className="w-8 h-8 rounded-lg grid place-items-center bg-white/[0.06] text-text-dim shrink-0 [&>svg]:w-[16px] [&>svg]:h-[16px]">
-                    {g.icon}
+                  <span className="w-8 h-8 rounded-lg grid place-items-center bg-white/[0.06] text-text-dim shrink-0 [&>svg]:w-[16px] [&>svg]:h-[16px] overflow-hidden">
+                    {icono ? <img src={icono} alt="" className="w-4 h-4 rounded-[3px]" /> : g.icon}
                   </span>
                   <div className="flex-1 min-w-0">
                     <div className="text-[13.5px] text-text truncate leading-tight">{it.label}</div>
                     {subtext(it) && <div className="text-[12px] text-text-dim truncate">{subtext(it)}</div>}
                   </div>
                 </div>
-              ))}
+                )
+              })}
             </div>
           )
         })}

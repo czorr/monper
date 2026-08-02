@@ -815,7 +815,14 @@ export interface SigninWinApi {
 
 /** API expuesta a la ventana nativa del vault */
 export interface VaultWinApi {
-  onItems: (cb: (items: VaultItemMeta[]) => void) => void
+  /**
+   * Los favicons viajan CON los items, no por un canal aparte.
+   *
+   * La ventana del vault no es una "página interna" (`INTERNAL_PAGES`), así que un
+   * `vault:favicons` suyo lo rechazaría `isInternalSender` y devolvería `{}` — que es
+   * exactamente por qué no salía ningún icono. Mandarlos empujados evita la pregunta.
+   */
+  onItems: (cb: (items: VaultItemMeta[], favicons: Record<string, string>) => void) => void
   close: () => void
   manage: () => void
 }

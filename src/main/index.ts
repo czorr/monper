@@ -2409,6 +2409,12 @@ ipcMain.handle('ui:clearData', async (e) => {
  * a las primitivas compartidas se probó y se descartó — no repetirlo.
  */
 let vaultWin: BrowserWindow | null = null
+/**
+ * ¿Ya pintó su primer frame? El primer click en el vault no abría nada: `show()` llegaba con el
+ * renderer todavía arrancando, y la ventana o salía vacía o se iba de blur antes de pintar — de
+ * ahí el "hay que darle dos veces". Mismo arreglo que en la factoría de popovers.
+ */
+let vaultPintado = false
 const VAULT_W = 320
 const VAULT_H = 380
 function ensureVaultWin(): BrowserWindow {
@@ -2419,15 +2425,44 @@ function ensureVaultWin(): BrowserWindow {
     fullscreenable: false, hasShadow: true, roundedCorners: true, backgroundColor: '#1b1b1f',
     webPreferences: { preload: join(__dirname, '../preload/vaultwin.js'), contextIsolation: true, sandbox: false }
   })
+  vaultWin.once('ready-to-show', () => { vaultPintado = true })
   if (RENDERER_URL) vaultWin.loadURL(`${RENDERER_URL}/vault.html`)
   else vaultWin.loadFile(join(__dirname, '../renderer/vault.html'))
   vaultWin.on('blur', () => { if (vaultWin && !vaultWin.isDestroyed()) vaultWin.hide() })
   return vaultWin
 }
 
+/**
+ * Los iconos de los sitios del vault. Nunca se le piden a un tercero.
+ *
+ * La caché solo tiene iconos de sitios VISITADOS, y una credencial dada de alta a mano no ha
+ * visitado nada: por eso el vault salía entero con el icono genérico. Los que falten se piden
+ * al propio sitio en segundo plano (igual que los marcadores heredados) y, cuando llegan, se
+ * vuelve a notificar. `resolveFavicon` lo intenta una sola vez por host y sesión, así que esto
+ * no puede convertirse en un bucle.
+ */
+function faviconsDelVault(): Record<string, string> {
+  const out: Record<string, string> = {}
+  const faltan: string[] = []
+  for (const i of vault.list()) {
+    const origin = i.data.origin
+    if (!origin) continue
+    const f = faviconFor(origin)
+    if (f) out[origin] = f
+    else faltan.push(origin)
+  }
+  if (faltan.length) {
+    void Promise.all(faltan.map((o) => resolveFavicon(o).catch(() => false)))
+      .then((rs) => { if (rs.some(Boolean)) notifyVault() })
+  }
+  return out
+}
+
 function notifyVault(): void {
   paraTodas('vault:changed', vault.list())
-  if (vaultWin && !vaultWin.isDestroyed() && vaultWin.isVisible()) vaultWin.webContents.send('vault:items', vault.list())
+  if (vaultWin && !vaultWin.isDestroyed() && vaultWin.isVisible()) {
+    vaultWin.webContents.send('vault:items', vault.list(), faviconsDelVault())
+  }
 }
 
 /**
@@ -2493,14 +2528,7 @@ ipcMain.handle('vault:reveal', (e, id: string) => {
  */
 ipcMain.handle('vault:favicons', (e) => {
   if (!isInternalSender(e.senderFrame?.url)) return {}
-  const out: Record<string, string> = {}
-  for (const i of vault.list()) {
-    const origin = i.data.origin
-    if (!origin) continue
-    const f = faviconFor(origin)
-    if (f) out[origin] = f
-  }
-  return out
+  return faviconsDelVault()
 })
 
 /**
@@ -2578,9 +2606,14 @@ ipcMain.on('vault:open', (ev, anchor: MenuAnchor) => {
   const cb = vDe(ev).win.getContentBounds()
   const x = Math.round(cb.x + (anchor?.x ?? 0) + (anchor?.width ?? 0) - VAULT_W)
   const y = Math.round(cb.y + (anchor?.y ?? 0) + (anchor?.height ?? 0) + 6)
-  w.setBounds({ x: Math.max(cb.x + 8, x), y, width: VAULT_W, height: VAULT_H })
-  w.webContents.send('vault:items', vault.list())
-  w.show(); w.focus()
+  const mostrar = (): void => {
+    if (!vaultWin || vaultWin.isDestroyed()) return
+    vaultWin.setBounds({ x: Math.max(cb.x + 8, x), y, width: VAULT_W, height: VAULT_H })
+    vaultWin.webContents.send('vault:items', vault.list(), faviconsDelVault())
+    vaultWin.show(); vaultWin.focus()
+  }
+  if (vaultPintado) mostrar()
+  else w.once('ready-to-show', mostrar)
 })
 ipcMain.on('vault:closeWindow', () => { if (vaultWin && !vaultWin.isDestroyed()) vaultWin.hide() })
 // "Gestionar" cae en la sección Password, no en el índice de Settings: antes te dejaba en

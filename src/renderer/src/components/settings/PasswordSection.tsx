@@ -315,7 +315,10 @@ export default function PasswordSection(): JSX.Element {
   }, [])
   // Se escucha además de leer: se puede guardar una credencial desde otra pestaña mientras
   // esto está abierto, y la lista tiene que contarlo.
-  useEffect(() => { void leer(); return monperTab.onVaultChanged(setItems) }, [leer])
+  // `onVaultChanged(setItems)` refrescaba SOLO la lista: los iconos se leían una vez al montar
+  // y no volvían a mirarse nunca. Los de sitios nunca visitados se resuelven en segundo plano y
+  // llegan después, así que se quedaban invisibles para siempre. Se recarga todo.
+  useEffect(() => { void leer(); return monperTab.onVaultChanged(() => { void leer() }) }, [leer])
 
   const filtrados = useMemo(() => {
     const t = q.trim().toLowerCase()

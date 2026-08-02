@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { launch, type Harness } from './helpers'
+import { launch, serve, type Harness } from './helpers'
 import type { VaultItemMeta } from '../src/shared/vault'
 
 /**
@@ -136,4 +136,55 @@ test('alta manual: el sitio se normaliza a un ORIGEN, o el autorrelleno no lo en
   expect(cred!.data.username).toBe('yo')
   // Y sigue sin filtrarse por el listado.
   expect(JSON.stringify(items)).not.toContain('CLAVE-WEB')
+})
+
+test('la ventana del vault no se enseña vacía en el primer click', async () => {
+  /**
+   * El bug: había que pulsar el botón del vault DOS veces. `show()` llegaba con el renderer
+   * todavía arrancando, así que la primera vez la ventana salía en blanco (o se iba de blur
+   * antes de pintar) y parecía que el click no había hecho nada.
+   *
+   * Se comprueba lo que se veía mal: en el instante en que la ventana es visible, su contenido
+   * ya tiene que estar pintado. Mirar solo `isVisible()` habría pasado también con el bug.
+   */
+  await h.app.evaluate(({ ipcMain }) => {
+    ipcMain.emit('vault:open', null, { x: 40, y: 40, width: 30, height: 30 })
+  })
+
+  const visibleYCargada = async (): Promise<'no' | 'vacía' | 'ok'> =>
+    h.app.evaluate(async ({ BrowserWindow }) => {
+      const w = BrowserWindow.getAllWindows().find((x) => !x.isDestroyed() && x.webContents.getURL().includes('vault.html'))
+      if (!w || !w.isVisible()) return 'no'
+      const texto = (await w.webContents.executeJavaScript('document.body.innerText')) as string
+      return texto.includes('Vault') ? 'ok' : 'vacía'
+    })
+
+  await expect.poll(visibleYCargada, { timeout: 10_000 }).toBe('ok')
+})
+
+test('un sitio del vault que nunca visitaste acaba con su icono, bajado y cacheado', async () => {
+  /**
+   * La queja: "no cargan los favicons". La caché solo tenía iconos de sitios VISITADOS, y una
+   * credencial dada de alta a mano no ha visitado nada, así que salían todas con el candado.
+   *
+   * Se comprueba el resultado y ADEMÁS que quede incrustado (`data:`): guardar la URL remota no
+   * es cachear — se volvería a pedir a la red cada vez que se pinta la lista, y basta con que el
+   * sitio tarde o responda 403 para que el icono desaparezca otra vez.
+   */
+  const PNG = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+    'base64'
+  )
+  const sitio = await serve({
+    '/': '<!doctype html><html><head><link rel="icon" href="/icono.png"></head><body>hola</body></html>',
+    '/icono.png': { body: PNG, headers: { 'content-type': 'image/png' } }
+  })
+  try {
+    const origen = sitio.url
+    await enSettings('vaultAdd', 'web-credential', 'Nunca visitado', { origin: origen, username: 'yo' }, 'x')
+
+    await expect
+      .poll(async () => (await enSettings<Record<string, string>>('vaultFavicons'))[origen] ?? '', { timeout: 15_000 })
+      .toMatch(/^data:image\//)
+  } finally { await sitio.close() }
 })

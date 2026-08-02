@@ -60,13 +60,13 @@ progreso → verificación de integridad:
 
 ```bash
 # Terminal 1
-node scripts/fake-update-server.mjs --version 0.2.0
+node scripts/fake-update-server.mjs --version 0.3.0
 
 # Terminal 2 (en dev, o sobre la .app empaquetada)
 MONPER_UPDATE_FEED=http://localhost:8788 pnpm dev
 ```
 
-La app tiene la `0.1.0`, el feed ofrece la `0.2.0` → aparece el pill. Al hacer click
+La app tiene la `0.2.0`, el feed ofrece la `0.3.0` → aparece el pill. Al hacer click
 descarga de verdad (8 MB de relleno) con su porcentaje.
 
 Dos trampas que ya nos costaron una vuelta, por si se toca esto:
@@ -78,7 +78,7 @@ Dos trampas que ya nos costaron una vuelta, por si se toca esto:
   cuanto acaba la descarga; bytes al azar fallan ahí y parece que se rompió la descarga.
 
 Para probar con un ZIP real: `pnpm dist:mac` y luego
-`node scripts/fake-update-server.mjs --zip release/Monper-0.1.0-arm64-mac.zip --version 0.2.0`.
+`node scripts/fake-update-server.mjs --zip release/Monper-0.2.0-arm64-mac.zip --version 0.3.0`.
 
 **Qué NO prueba:** la instalación. `quitAndInstall` necesita app **firmada** en macOS y
 fallará sin ella. Todo lo demás sí queda verificado.
@@ -112,9 +112,22 @@ Y para ver solo la UI, sin servidor: `MONPER_FAKE_UPDATE=1 pnpm dev`.
   (solo aparecen en source maps). Verificado: inocuo.
 - `monperwright` no se empaqueta aparte: vite lo inlinea en el bundle del main.
 
+## Versionado
+
+**Semver, pre-1.0**: mientras el primer número sea `0`, la segunda cifra sube con cada tanda de
+novedades y la tercera solo con arreglos. La `1.0.0` es la primera que se pueda instalar de
+verdad: firmada, notarizada y actualizándose sola.
+
+Cada versión lleva su **tag** (`v0.2.0`) y su entrada en [CHANGELOG.md](../CHANGELOG.md).
+
+Subir la `version` de `package.json` **es parte de publicar, no un trámite posterior**: es el
+número que compara electron-updater, así que un build con la versión vieja no se ofrece como
+actualización a nadie — y no avisa de nada, simplemente no pasa. La `0.1.0` se quedó puesta 123
+commits por esto mismo.
+
 ## Antes de publicar la primera versión
 
-- [ ] Subir la `version` en `package.json` (hoy `0.1.0`).
+- [x] Subir la `version` en `package.json` (`0.2.0`).
 - [ ] Firmar + notarizar.
 - [ ] Probar el DMG en una máquina limpia (o con otro usuario de macOS).
 - [ ] Publicar y verificar que un build viejo se actualiza al nuevo.

@@ -179,7 +179,7 @@ export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBo
         main para caer también en 26.
       */}
       {!floating && (
-        <div className="h-topbar shrink-0 flex items-center justify-end gap-1.5 [-webkit-app-region:drag]">
+        <div className="h-topbar shrink-0 flex items-center justify-end gap-1 [-webkit-app-region:drag]">
           {remote?.enabled && <RemotePill port={remote.port} onDisable={onDisableRemote ?? noop} />}
           {update && (
             <UpdatePill
@@ -194,7 +194,7 @@ export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBo
         </div>
       )}
 
-      <div className="flex items-center justify-between gap-1 pt-0.5 pr-1 pb-0 pl-0 [-webkit-app-region:drag]">
+      <div className="flex items-center justify-between gap-1 pr-1 [-webkit-app-region:drag]">
         <AccountPill initials={profile.initials} name={profile.name} avatar={profile.avatar} onOpen={onOpenMenu} />
         <IconButton title="Nueva pestaña (⌘T)" onClick={onNewTab}>
           <PlusIcon />

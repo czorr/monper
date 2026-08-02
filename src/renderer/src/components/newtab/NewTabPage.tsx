@@ -99,10 +99,11 @@ export default function NewTabPage(): JSX.Element {
             spellCheck={false}
             autoComplete="off"
             onChange={ic.onChange}
+            onPointerDown={ic.onPointerDown}
             onKeyDown={onKeyDown}
             onBlur={ac.close}
             placeholder={mode === 'ai' ? 'Pregúntale a Monper…' : 'Busca o escribe una URL'}
-            className="flex-1 min-w-0 bg-transparent outline-none text-[16.5px] placeholder:text-text-faint select-text [&::selection]:bg-white/15 [&::selection]:text-text-dim"
+            className="flex-1 min-w-0 bg-transparent outline-none text-[16.5px] placeholder:text-text-faint select-text [&[data-completado]::selection]:bg-white/15 [&[data-completado]::selection]:text-text-dim"
           />
           <div className="flex items-center gap-2.5 shrink-0">
             <span className="flex items-center gap-1.5 text-[11px] text-text-faint">

@@ -195,3 +195,44 @@ Tres casos que no son el feliz, y por qué se resuelven así:
 - **El usuario cierra el popover sin pulsar** → se deniega ESTA vez y **no se guarda nada**.
   Un descuido no es una decisión; persistirlo como `denied` condenaría al sitio para siempre
   sin que nadie lo hubiera elegido.
+
+## Primera apertura: 291 ms de ventana VACÍA (agosto 2026)
+
+El usuario: *"el profile menu tarda una barbaridad en abrir la primera vez"*. Medido con una
+sonda desechable, abriendo el menú de perfil tres veces seguidas:
+
+```
+apertura 1: ventana 59 ms · contenido 291 ms
+apertura 2: ventana 11 ms · contenido  13 ms
+apertura 3: ventana  8 ms · contenido   9 ms
+```
+
+O sea: el coste no es crear la ventana, es **arrancar su renderer**, y `show()` la enseñaba
+igualmente a los 59 ms — casi un cuarto de segundo de panel en blanco encima de la página. Dos
+arreglos, los dos en `popover.ts`:
+
+1. **No mostrar antes de pintar.** El `show` espera a `ready-to-show` si aún no ha pintado. Un
+   contador `turno` invalida el `show` pendiente si mientras tanto se pidió cerrar u abrir otro:
+   sin él, un popover podía aparecer solo medio segundo después de que el usuario lo cerrara.
+2. **Precalentar SOLO el menú de perfil**, y a los 4 s de arrancar. Precalentarlos todos ya se
+   probó y se descartó (344 MB por ~30 ms); este es el único que se abre en cada sesión.
+
+## Por qué los popovers no tienen la vibrancy del sidebar
+
+Preguntado directamente: *"¿como es un native window no puede tener vibrancy igual que el
+sidebar?"*. Puede, pero no **a la vez** que lo demás:
+
+- La ventana del popover es `transparent: true` (así el panel se ve redondeado y la sombra CSS
+  cabe en el margen `PAD`). En una ventana transparente de macOS **no hay vibrancy**: el
+  `NSVisualEffectView` no tiene superficie que componer. Y `backdrop-filter` tampoco hace nada,
+  porque no se compone ningún fondo detrás de la página.
+- La ventana principal sí la tiene porque **no** es transparente: `vibrancy` +
+  `visualEffectState: 'active'` + `backgroundColor: '#00000000'`, sin `transparent`.
+
+Por eso el `bg-[#1c1c20]/95` del panel dejaba ver lo de detrás **sin desenfocar**: ese 5% era un
+agujero de verdad. El panel pasa a opaco y se quita el `backdrop-blur-md`, que no hacía nada.
+
+Tener vibrancy de verdad exige rehacer la ventana: `transparent: false`, `PAD = 0` (si no, el
+margen de la sombra sería un rectángulo de material desenfocado alrededor del panel), redondeo
+y sombra nativos (`roundedCorners` / `hasShadow`) en vez de por CSS. Es tocar esquinas, así que
+no se hace de oído — ver [esquinas-y-vibrancy.md](esquinas-y-vibrancy.md).

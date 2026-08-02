@@ -11,8 +11,18 @@ import { useNoInitialFocus } from './focus'
  */
 
 // ---- Tokens: un único lugar donde vive el look de los popovers ----
+/**
+ * El fondo va OPACO a propósito, y sin `backdrop-blur`.
+ *
+ * La ventana nativa del popover es `transparent: true`, y en una ventana transparente de macOS
+ * no hay nada detrás que desenfocar: ni `backdrop-filter` (no se compone un fondo) ni la
+ * vibrancy del sistema (NSVisualEffectView no funciona sobre una ventana transparente). Con el
+ * `/95` que había, ese 5% dejaba ver el escritorio o la web de debajo SIN blur — que es
+ * justo lo que se veía mal. Para tener la vibrancy real del sidebar habría que renunciar a la
+ * transparencia de la ventana, y con ella al margen de sombra y al redondeado por CSS.
+ */
 const PANEL =
-  'rounded-2xl border border-white/10 bg-[#1c1c20]/95 backdrop-blur-md ' +
+  'rounded-2xl border border-white/10 bg-[#1c1c20] ' +
   'shadow-2xl shadow-black/50 overflow-hidden'
 /** Margen alrededor del panel: deja aire para la sombra dentro de la ventana nativa. */
 export const POPOVER_PAD = 12

@@ -24,12 +24,24 @@ async function visiblePopovers(): Promise<{ width: number; height: number }[]> {
   )
 }
 
-test('al arrancar no hay ninguna ventana de popover', async () => {
+test('al arrancar no hay ninguna ventana de popover VISIBLE', async () => {
   // Se pre-creaban las tres para que el primer click fuera instantáneo, y costaba 344MB de
-  // base (3 renderers) por 30ms que nadie nota. Ahora nacen en el primer uso.
-  const total = await h.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)
-  expect(total, 'alguien volvió a pre-crear popovers: mide antes de hacerlo').toBe(1)
+  // base (3 renderers) por 30ms que nadie nota. Las demás nacen en el primer uso.
   expect(await visiblePopovers()).toEqual([])
+})
+
+test('el menú de perfil se precalienta solo él, y sin verse', async () => {
+  /**
+   * La excepción medida a la regla de arriba: su primera apertura tardaba 291 ms en tener
+   * contenido frente a 13 ms las siguientes. Se precalienta a los 4 s de arrancar.
+   * Si alguien precalienta MÁS popovers, este test se cae — que es el aviso: mide antes.
+   */
+  const dormidas = async (): Promise<number> =>
+    h.app.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed() && !!w.getParentWindow()).length
+    )
+  await expect.poll(dormidas, { timeout: 15_000 }).toBe(1)
+  expect(await visiblePopovers(), 'precalentar no puede enseñar la ventana').toEqual([])
 })
 
 test('un popover se crea una vez y se reutiliza', async () => {

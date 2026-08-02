@@ -12,7 +12,10 @@
   --color-text-faint: rgba(235, 235, 245, 0.32);
   --spacing-sidebar: 300px; /* el main tiene el mismo valor en SIDEBAR_DEFAULT */
   --spacing-panel: 380px;
-  --spacing-topbar: 52px;
+  /* OJO: va en pareja con TOPBAR_HEIGHT en src/main/index.ts. El main coloca la vista de la
+     página justo debajo de esta altura, así que si las dos cifras se separan la web tapa el
+     topbar o deja una franja muerta. Hay un test que las compara. */
+  --spacing-topbar: 44px;
 }
 
 @layer base {

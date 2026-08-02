@@ -144,12 +144,25 @@ export function createPopover(getParent: () => BW | null, opts: PopoverOptions, 
         if (win && !win.isDestroyed()) win.webContents.send(channel, get())
       })
     }
+    win.once('ready-to-show', () => { pintado = true })
     if (rendererUrl) win.loadURL(`${rendererUrl}/${opts.page}.html`)
     else win.loadFile(join(__dirname, `../renderer/${opts.page}.html`))
     return win
   }
 
+  /**
+   * ¿Ya pintó su primer frame? Antes de eso la ventana existe pero está EN BLANCO.
+   *
+   * Mostrarla igualmente era el "tarda una barbaridad" del menú de perfil: medido, la ventana
+   * salía a los 59 ms y el contenido a los 291 ms — casi un cuarto de segundo de panel vacío en
+   * pantalla. Las siguientes aperturas van a 13 ms porque el renderer ya está vivo.
+   */
+  let pintado = false
+  /** Cambia en cada `show`/`hide`: un `ready-to-show` que llega tarde no debe abrir nada. */
+  let turno = 0
+
   const hide = (): void => {
+    turno++
     if (win && !win.isDestroyed() && win.isVisible()) win.hide()
     opts.onHide?.()
   }
@@ -172,8 +185,15 @@ export function createPopover(getParent: () => BW | null, opts: PopoverOptions, 
       anchor = a
       const w = ensure()
       if (opts.data) w.webContents.send(opts.data.channel, opts.data.get())
-      place() // posicionar ANTES de mostrar evita el flash en la esquina
-      if (focusable && opts.activateOnShow !== false) { w.show(); w.focus() } else w.showInactive()
+      const mio = ++turno
+      const aparecer = (): void => {
+        // Si mientras cargaba se pidió cerrar (o abrir otro), este `show` ya no toca.
+        if (mio !== turno || !win || win.isDestroyed()) return
+        place() // posicionar ANTES de mostrar evita el flash en la esquina
+        if (focusable && opts.activateOnShow !== false) { win.show(); win.focus() } else win.showInactive()
+      }
+      if (pintado) aparecer()
+      else w.once('ready-to-show', aparecer)
     },
     hide,
     isVisible: () => !!win && !win.isDestroyed() && win.isVisible(),

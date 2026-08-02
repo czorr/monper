@@ -53,7 +53,8 @@ const CHAT_DEFAULT = 380
 const PANEL_LIMITS = { sidebarMin: 180, sidebarMax: 420, chatMin: 300, chatMax: 640 }
 let sidebarWidth = SIDEBAR_DEFAULT
 let chatWidth = CHAT_DEFAULT
-const TOPBAR_HEIGHT = 52
+/** Va en pareja con `--spacing-topbar` en styles.css; hay un test que comprueba que coinciden. */
+const TOPBAR_HEIGHT = 44
 /** Redondeo del page view. Debe coincidir con rounded-t[l/r] en Content.tsx. */
 const CONTENT_RADIUS = 14
 /**
@@ -1210,7 +1211,10 @@ function crearVentana(opts: { sinPestanaInicial?: boolean } = {}): Ventana {
       titleBarStyle: isMac ? 'hiddenInset' : 'default',
       // y=20: el semáforo mide 12px, así que su centro cae en 26 — el mismo que los iconos del
       // topbar y los del sidebar, que comparten banda. Con y=17 caía en 23 y se veía desalineado.
-      trafficLightPosition: isMac ? { x: 15, y: 20 } : undefined,
+      // El semáforo tiene que compartir centro con los iconos del topbar y los del sidebar: los
+      // botones de macOS miden 12px, así que su centro es y+6 y la cuenta es TOPBAR_HEIGHT/2 - 6.
+      // Con 52px eran y=20; con 44, y=16. Si cambia la altura, esta línea cambia con ella.
+      trafficLightPosition: isMac ? { x: 15, y: TOPBAR_HEIGHT / 2 - 6 } : undefined,
       ...(isMac ? {} : { icon: appIcon }),
       webPreferences: { preload: join(__dirname, '../preload/index.js'), contextIsolation: true, sandbox: false }
     })
@@ -2728,6 +2732,15 @@ const pmPopover = createPopover(() => vActOpt()?.win ?? null, {
   keepOnBlur: () => submenuPopover.isVisible()
 }, RENDERER_URL)
 ipcMain.on('profilemenu:open', (_e, anchor: MenuAnchor) => pmPopover.show(anchor))
+/**
+ * Se precalienta solo ESTE popover, y con retraso.
+ *
+ * Medido: la primera apertura tardaba 291 ms en tener contenido y las siguientes 13 ms — el
+ * coste no es abrir la ventana, es arrancar su renderer. Precalentarlos TODOS al inicio ya se
+ * probó y se descartó (344 MB, ver docs/popovers.md); este es el único que se abre de verdad en
+ * cada sesión, así que paga su renderer. Los 4 s son para no competir con el arranque.
+ */
+setTimeout(() => { if (vActOpt()) pmPopover.ensure() }, 4000).unref?.()
 
 // ---- Peek del sidebar (hover del botón expandir con el sidebar colapsado) ----
 let peekWin: BrowserWindow | null = null

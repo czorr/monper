@@ -93,9 +93,10 @@ export default function UrlBar({ active, editRequest, onGo }: Props): JSX.Elemen
           autoComplete="off"
           placeholder="Busca en Google o escribe una URL"
           onChange={ic.onChange}
+          onPointerDown={ic.onPointerDown}
           onBlur={() => stopEditing()}
           onKeyDown={onKeyDown}
-          className="w-full h-8 rounded-[9px] text-text text-[13px] px-3 text-left outline-none border border-border bg-bg-elev placeholder:text-text-faint select-text [&::selection]:bg-white/15 [&::selection]:text-text-dim"
+          className="w-full h-8 rounded-[9px] text-text text-[13px] px-3 text-left outline-none border border-border bg-bg-elev placeholder:text-text-faint select-text [&[data-completado]::selection]:bg-white/15 [&[data-completado]::selection]:text-text-dim"
         />
       ) : domain ? (
         <div className="flex items-center gap-1.5 w-full min-w-0 h-[30px]">

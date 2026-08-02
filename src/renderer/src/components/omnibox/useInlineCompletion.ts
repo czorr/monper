@@ -23,6 +23,8 @@ export interface InlineCompletion {
    * Devuelve true si ya consumió la tecla; quien llame se ocupa de Enter/Escape/Tab.
    */
   onKeyDown: (e: React.KeyboardEvent) => boolean
+  /** El usuario va a seleccionar con el ratón: su selección se pinta con el color del sistema. */
+  onPointerDown: () => void
   /** Lo que hay escrito ahora mismo (incluye lo completado). */
   value: () => string
   setValue: (v: string) => void
@@ -32,6 +34,11 @@ export interface InlineCompletion {
  * Completado inline al estilo Chrome: cuando llegan sugerencias y el usuario escribe *hacia
  * adelante*, el input se rellena con la mejor coincidencia y la parte añadida queda
  * seleccionada — que es lo que se ve en gris, vía `::selection`.
+ *
+ * Ese `::selection` gris va marcado con `data-completado` y NO vale para todo el input: cuando
+ * estaba suelto se comía también la selección que hace el usuario a mano, y seleccionar la URL
+ * se veía sin resaltado, solo el texto agrisado. La marca se quita en cuanto el usuario toca
+ * algo, y así su selección recupera el color del sistema.
  *
  * Por eso el input tiene que ser NO-CONTROLADO: con `value={query}` React repinta en cada
  * tecla y se lleva por delante la selección, así que el completado no llegaba a verse. Es la
@@ -43,6 +50,14 @@ export interface InlineCompletion {
 export function useInlineCompletion(ac: Autocomplete): InlineCompletion {
   const inputRef = useRef<HTMLInputElement>(null)
   const deleting = useRef(false)
+
+  /** El gris de completado solo mientras la selección la hayamos puesto nosotros. */
+  const marcar = (on: boolean): void => {
+    const el = inputRef.current
+    if (!el) return
+    if (on) el.dataset.completado = ''
+    else delete el.dataset.completado
+  }
 
   const onChange = (): void => { ac.setQuery(inputRef.current?.value ?? '') }
 
@@ -60,6 +75,7 @@ export function useInlineCompletion(ac: Autocomplete): InlineCompletion {
     const base = completionBase(cand)
     el.value = base
     el.setSelectionRange(q.length, base.length)
+    marcar(true)
   }, [ac.items]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Vuelca la sugerencia resaltada al input (al navegar con flechas).
@@ -70,9 +86,12 @@ export function useInlineCompletion(ac: Autocomplete): InlineCompletion {
     const t = s.kind === 'search' ? s.title : completionBase(s)
     el.value = t
     el.setSelectionRange(t.length, t.length)
+    marcar(false)
   }
 
   const onKeyDown = (e: React.KeyboardEvent): boolean => {
+    // Cualquier tecla invalida el completado anterior; si sigue habiéndolo, el efecto remarca.
+    marcar(false)
     const n = ac.items.length
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault()
@@ -92,7 +111,8 @@ export function useInlineCompletion(ac: Autocomplete): InlineCompletion {
     inputRef,
     onChange,
     onKeyDown,
+    onPointerDown: () => marcar(false),
     value: () => inputRef.current?.value ?? '',
-    setValue: (v: string) => { if (inputRef.current) inputRef.current.value = v }
+    setValue: (v: string) => { if (inputRef.current) inputRef.current.value = v; marcar(false) }
   }
 }

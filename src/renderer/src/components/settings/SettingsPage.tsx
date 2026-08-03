@@ -196,6 +196,8 @@ export default function SettingsPage(): JSX.Element {
       <main className="flex-1 overflow-hidden">
         {cat === 'skills' ? (
           <SkillsSection />
+        ) : cat === 'memory' ? (
+          <MemorySection />
         ) : (
           <div className="h-full overflow-y-auto [&::-webkit-scrollbar]:w-0">
             <div className="max-w-[680px] mx-auto px-8 py-12">
@@ -208,7 +210,6 @@ export default function SettingsPage(): JSX.Element {
               {cat === 'privacy' && <PrivacyPage />}
               {cat === 'adblock' && <AdblockSection />}
               {cat === 'password' && <PasswordSection />}
-              {cat === 'memory' && <MemorySection />}
               {cat === 'archived' && <ArchivedChatsSection />}
               {cat === 'billing' && <UsoSection foco="billing" />}
               {cat === 'statistics' && <UsoSection foco="stats" />}

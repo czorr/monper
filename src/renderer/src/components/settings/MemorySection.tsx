@@ -6,10 +6,20 @@ import IconFolder from '~icons/tabler/folder'
 import IconFolderOpen from '~icons/tabler/folder-open'
 import IconFileText from '~icons/tabler/file-text'
 import IconChevron from '~icons/tabler/chevron-down'
+import IconSettings from '~icons/tabler/settings'
 import IconTrash from '~icons/tabler/trash'
 import { MD_COMPONENTS } from './markdown'
 
 const { monperTab } = window
+
+/**
+ * Settings → Memory.
+ *
+ * Misma estructura que Skills, y por la misma razón: la columna de la izquierda ES la
+ * navegación de la sección (ajustes + árbol de ficheros) y el contenido ocupa todo lo demás.
+ * La primera versión metía el árbol DENTRO del panel de contenido, en una cajita de 220px, y
+ * no se parecía en nada a lo que se pidió.
+ */
 
 function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }): JSX.Element {
   return (
@@ -22,12 +32,12 @@ function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void 
   )
 }
 
-/** Una fila del árbol. Las carpetas se pliegan; los ficheros seleccionan. */
+/** Fila del árbol. Las carpetas se pliegan; los ficheros se seleccionan. */
 function Nodo({ n, nivel, sel, onSel, onBorrar }: {
   n: NodoMemoriaInfo; nivel: number; sel: string; onSel: (p: string) => void; onBorrar: (p: string) => void
 }): JSX.Element {
   const [abierta, setAbierta] = useState(true)
-  const sangria = { paddingLeft: 10 + nivel * 14 }
+  const sangria = { paddingLeft: 8 + nivel * 14 }
 
   if (n.tipo === 'carpeta') {
     return (
@@ -35,7 +45,7 @@ function Nodo({ n, nivel, sel, onSel, onBorrar }: {
         <button
           onClick={() => setAbierta((v) => !v)}
           style={sangria}
-          className="flex items-center gap-2 w-full h-8 pr-2 rounded-lg text-[13px] text-text-dim hover:bg-white/[0.05] [&>svg]:w-[15px] [&>svg]:h-[15px] [&>svg]:shrink-0"
+          className="flex items-center gap-2.5 w-full h-8 pr-2 rounded-md text-[13px] text-text-dim hover:bg-white/[0.04] hover:text-text transition-colors [&>svg]:w-4 [&>svg]:h-4 [&>svg]:shrink-0"
         >
           {abierta ? <IconFolderOpen className="text-text-faint" /> : <IconFolder className="text-text-faint" />}
           <span className="flex-1 text-left truncate">{n.nombre}</span>
@@ -53,14 +63,13 @@ function Nodo({ n, nivel, sel, onSel, onBorrar }: {
       <button
         onClick={() => onSel(n.path)}
         style={sangria}
-        className={'flex items-center gap-2 w-full h-8 pr-8 rounded-lg text-[13px] [&>svg]:w-[15px] [&>svg]:h-[15px] [&>svg]:shrink-0 ' +
-          (sel === n.path ? 'bg-white/[0.10] text-text' : 'text-text-dim hover:bg-white/[0.05]')}
+        className={'flex items-center gap-2.5 w-full h-8 pr-8 rounded-md text-[13px] transition-colors [&>svg]:w-4 [&>svg]:h-4 [&>svg]:shrink-0 ' +
+          (sel === n.path ? 'bg-white/[0.07] text-text' : 'text-text-dim hover:bg-white/[0.04] hover:text-text')}
       >
         <IconFileText className="text-text-faint" />
         <span className="flex-1 text-left truncate">{n.nombre}</span>
       </button>
-      {/* MEMORY.md no se borra: es la raíz del índice y sin él la memoria no tiene por dónde
-          empezar. Vaciarlo sí se puede, editándolo. */}
+      {/* MEMORY.md no se borra: es la raíz del índice. Vaciarlo sí, editándolo. */}
       {n.path !== 'MEMORY.md' && (
         <button
           title="Borrar"
@@ -77,7 +86,8 @@ function Nodo({ n, nivel, sel, onSel, onBorrar }: {
 export default function MemorySection(): JSX.Element {
   const [arbol, setArbol] = useState<NodoMemoriaInfo[]>([])
   const [enabled, setEnabled] = useState(true)
-  const [sel, setSel] = useState('MEMORY.md')
+  /** '' = la subpágina de ajustes; si no, la ruta del fichero abierto. */
+  const [sel, setSel] = useState('')
   const [texto, setTexto] = useState<string | null>(null)
   const [editando, setEditando] = useState(false)
   const [borrador, setBorrador] = useState('')
@@ -91,6 +101,7 @@ export default function MemorySection(): JSX.Element {
   useEffect(() => {
     let vivo = true
     setEditando(false)
+    if (!sel) { setTexto(null); return }
     void monperTab.memoryRead(sel).then((c) => { if (vivo) setTexto(c) })
     return () => { vivo = false }
   }, [sel])
@@ -104,80 +115,114 @@ export default function MemorySection(): JSX.Element {
 
   const borrar = async (path: string): Promise<void> => {
     await monperTab.memoryDelete(path)
-    if (sel === path) setSel('MEMORY.md')
+    if (sel === path) setSel('')
     void recargar()
   }
 
-  const total = arbol.length
+  const navRow = (activo: boolean): string =>
+    'flex items-center gap-2.5 w-full h-8 px-2 rounded-md text-[13px] transition-colors [&>svg]:w-4 [&>svg]:h-4 [&>svg]:text-text-faint ' +
+    (activo ? 'bg-white/[0.07] text-text' : 'text-text-dim hover:bg-white/[0.04] hover:text-text')
 
   return (
-    <div>
-      <h1 className="text-[26px] font-semibold tracking-[-0.4px]">Memory</h1>
-      <p className="mt-1.5 mb-7 text-[13.5px] text-text-dim">
-        Lo que Monper recuerda entre sesiones. Son ficheros markdown que escribe el propio agente
-        y que puedes leer y editar aquí — o en tu carpeta, con el editor que quieras.
-      </p>
-
-      <div className="mb-6 rounded-2xl border border-border overflow-hidden">
-        <div className="flex items-center gap-3 px-4 h-14">
-          <div className="flex-1 min-w-0">
-            <div className="text-[13.5px] text-text">Activar memoria</div>
-            <div className="text-[12.5px] text-text-dim">
-              El agente guarda y consulta lo que aprende. Apagada, no lee ni escribe nada.
-            </div>
-          </div>
-          <Toggle on={enabled} onChange={(v) => { void monperTab.memoryEnabled(v).then(setEnabled) }} />
-        </div>
-      </div>
-
-      {/* Dos columnas, como en Skills: el árbol manda y el contenido se lee al lado. */}
-      <div className="grid grid-cols-[220px_1fr] gap-4 min-h-[380px]">
-        <div className="rounded-2xl border border-border p-1.5 overflow-y-auto max-h-[520px] [&::-webkit-scrollbar]:w-0">
-          {total === 0
-            ? <div className="px-3 py-4 text-[12.5px] text-text-dim">Sin ficheros todavía.</div>
-            : arbol.map((n) => (
-                <Nodo key={n.path} n={n} nivel={0} sel={sel} onSel={setSel} onBorrar={(p) => void borrar(p)} />
-              ))}
+    <div className="h-full flex">
+      {/* Columna de la sección: sus ajustes y sus ficheros */}
+      <div className="w-[268px] shrink-0 border-r border-white/[0.06] flex flex-col">
+        <div className="flex items-center justify-between px-3.5 h-12 shrink-0">
+          <span className="text-[15px] font-semibold">Memory</span>
           <button
             onClick={() => monperTab.memoryOpenFolder()}
-            className="flex items-center gap-2 w-full h-8 mt-1 px-2.5 rounded-lg text-[12.5px] text-text-faint hover:text-text hover:bg-white/[0.05] [&>svg]:w-[15px] [&>svg]:h-[15px]"
+            title="Abrir la carpeta de memoria en Finder"
+            className="w-7 h-7 grid place-items-center rounded-md text-text-faint hover:text-text hover:bg-white/[0.06] transition-colors [&>svg]:w-[17px] [&>svg]:h-[17px]"
           >
-            <IconFolder /> Abrir carpeta
+            <IconFolder />
           </button>
         </div>
 
-        <div className="rounded-2xl border border-border p-5 overflow-y-auto max-h-[520px] [&::-webkit-scrollbar]:w-0">
-          <div className="flex items-center gap-2 mb-3">
-            <span className="flex-1 text-[13px] font-medium text-text truncate">{sel}</span>
+        <div className="px-2">
+          <button onClick={() => setSel('')} className={navRow(!sel)}>
+            <IconSettings />
+            <span className="flex-1 text-left">Settings</span>
+          </button>
+        </div>
+
+        <div className="mx-3.5 my-2 border-t border-white/[0.06]" />
+
+        <div className="flex-1 overflow-y-auto px-2 pb-3 [&::-webkit-scrollbar]:w-0">
+          {arbol.length === 0
+            ? <div className="px-2 py-2 text-[12.5px] text-text-faint">Sin ficheros todavía.</div>
+            : arbol.map((n) => (
+                <Nodo key={n.path} n={n} nivel={0} sel={sel} onSel={setSel} onBorrar={(p) => void borrar(p)} />
+              ))}
+        </div>
+      </div>
+
+      {/* Contenido */}
+      <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-0">
+        {!sel ? (
+          <div className="px-8 py-10 max-w-[760px]">
+            <h1 className="text-[26px] font-semibold tracking-[-0.4px]">Memory</h1>
+            <p className="mt-2 text-[13.5px] text-text-dim leading-relaxed">
+              Lo que Monper recuerda entre sesiones. Son ficheros markdown que escribe el propio
+              agente; puedes leerlos y editarlos aquí, o abrirlos en tu carpeta con el editor que
+              quieras.
+            </p>
+
+            <h2 className="mt-9 mb-3 text-[15px] font-semibold">Ajustes</h2>
+            <div className="rounded-2xl border border-border overflow-hidden">
+              <div className="flex items-center gap-3 px-4 h-16">
+                <div className="flex-1 min-w-0">
+                  <div className="text-[13.5px] text-text">Activar memoria</div>
+                  <div className="text-[12.5px] text-text-dim">
+                    El agente guarda y consulta lo que aprende. Apagada, no lee ni escribe nada.
+                  </div>
+                </div>
+                <Toggle on={enabled} onChange={(v) => { void monperTab.memoryEnabled(v).then(setEnabled) }} />
+              </div>
+            </div>
+
+            <p className="mt-4 text-[12.5px] text-text-faint leading-relaxed">
+              Solo <code className="px-1 py-0.5 rounded bg-white/[0.07] text-[12px]">MEMORY.md</code> entra
+              en cada mensaje: es el índice. Los demás ficheros los abre el agente cuando los necesita.
+            </p>
+          </div>
+        ) : (
+          <div className="px-8 py-6">
+            <div className="flex items-center justify-between gap-4 mb-5">
+              <h1 className="text-[20px] font-semibold tracking-tight truncate">{sel}</h1>
+              <div className="flex items-center gap-2 shrink-0">
+                {editando ? (
+                  <>
+                    <button onClick={() => setEditando(false)} className="px-3 h-8 rounded-lg text-[13px] text-text-dim hover:text-text hover:bg-white/[0.06]">Cancelar</button>
+                    <button onClick={() => void guardar()} className="px-3 h-8 rounded-lg text-[13px] text-text bg-white/[0.10] hover:bg-white/[0.16]">Guardar</button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => { setBorrador(texto ?? ''); setEditando(true) }}
+                    className="px-3 h-8 rounded-lg border border-white/[0.08] text-[13px] text-text-dim hover:text-text hover:bg-white/[0.06]"
+                  >
+                    Editar
+                  </button>
+                )}
+              </div>
+            </div>
+
             {editando ? (
-              <>
-                <button onClick={() => setEditando(false)} className="px-2.5 h-7 rounded-lg text-[12.5px] text-text-dim hover:text-text hover:bg-white/[0.06]">Cancelar</button>
-                <button onClick={() => void guardar()} className="px-2.5 h-7 rounded-lg text-[12.5px] text-text bg-white/[0.10] hover:bg-white/[0.16]">Guardar</button>
-              </>
+              <textarea
+                autoFocus
+                value={borrador}
+                onChange={(e) => setBorrador(e.target.value)}
+                spellCheck={false}
+                className="w-full h-[calc(100vh-220px)] p-4 rounded-xl bg-[#0d0d10] border border-white/[0.06] outline-none text-[12.5px] font-mono leading-relaxed text-text resize-none"
+              />
+            ) : texto === null ? (
+              <div className="text-[13px] text-text-dim">Este fichero ya no está.</div>
             ) : (
-              <button
-                onClick={() => { setBorrador(texto ?? ''); setEditando(true) }}
-                className="px-2.5 h-7 rounded-lg text-[12.5px] text-text-dim hover:text-text hover:bg-white/[0.06]"
-              >
-                Editar
-              </button>
+              <div className="max-w-[760px]">
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={MD_COMPONENTS}>{texto}</ReactMarkdown>
+              </div>
             )}
           </div>
-
-          {editando ? (
-            <textarea
-              autoFocus
-              value={borrador}
-              onChange={(e) => setBorrador(e.target.value)}
-              spellCheck={false}
-              className="w-full h-[420px] p-3 rounded-xl bg-[#0d0d10] border border-white/[0.06] outline-none text-[12.5px] font-mono leading-relaxed text-text resize-none"
-            />
-          ) : texto === null ? (
-            <div className="text-[13px] text-text-dim">Este fichero ya no está.</div>
-          ) : (
-            <ReactMarkdown remarkPlugins={[remarkGfm]} components={MD_COMPONENTS}>{texto}</ReactMarkdown>
-          )}
-        </div>
+        )}
       </div>
     </div>
   )

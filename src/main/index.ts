@@ -2941,7 +2941,20 @@ const pmPopover = createPopover(() => vActOpt()?.win ?? null, {
   // Mientras el submenú esté abierto, perder el foco NO cierra el menú: se lo ha llevado él.
   keepOnBlur: () => submenuPopover.isVisible()
 }, RENDERER_URL)
-ipcMain.on('profilemenu:open', (_e, anchor: MenuAnchor) => pmPopover.show(anchor))
+/**
+ * El anchor llega en coordenadas de QUIEN lo manda, y el popover lo coloca contra la ventana
+ * principal. Desde el chrome coinciden; desde el peek —que es otra ventana, flotando con su
+ * margen— no, y el menú salía desplazado esos píxeles. Se traduce aquí en vez de en la factoría
+ * porque es el peek quien es raro, no los popovers.
+ */
+function anchorDelPeek(ev: Electron.IpcMainEvent, anchor: MenuAnchor): MenuAnchor {
+  const padre = vActOpt()?.win
+  if (!padre || !peekWin || peekWin.isDestroyed() || ev.sender !== peekWin.webContents) return anchor
+  const pb = peekWin.getContentBounds()
+  const cb = padre.getContentBounds()
+  return { ...anchor, x: pb.x + anchor.x - cb.x, y: pb.y + anchor.y - cb.y }
+}
+ipcMain.on('profilemenu:open', (ev, anchor: MenuAnchor) => pmPopover.show(anchorDelPeek(ev, anchor)))
 /**
  * Se precalienta solo ESTE popover, y con retraso.
  *
@@ -3028,11 +3041,31 @@ function cursorNearPeek(px: number, py: number): boolean {
   if (r && px >= r.x - pad && px <= r.x + r.w + pad && py >= r.y - pad && py <= r.y + r.h + pad) return true
   return false
 }
+/**
+ * ¿Hay un menú abierto POR ENCIMA del peek?
+ *
+ * El peek abre menús desde su propio sidebar (el de perfil, con su submenú). Esos menús son
+ * ventanas nativas que se cierran al perder el foco, así que mientras estén abiertos el peek no
+ * puede ni robarles el foco ni retirarse debajo de ellos.
+ */
+function menuSobreElPeek(): boolean {
+  return pmPopover.isVisible() || submenuPopover.isVisible()
+}
+
 // Sondea la posición del cursor (fiable entre 2 ventanas) — coyote time al salir.
 function startPeekPoll(): void {
   peekLastInside = Date.now()
   if (peekPoll) clearInterval(peekPoll)
   peekPoll = setInterval(() => {
+    /**
+     * El bug: abrir el menú de perfil desde el peek lo enseñaba y lo quitaba al instante.
+     *
+     * No era del menú. Es este sondeo: 60 ms después de abrirlo, el cursor sigue dentro del
+     * área del peek, así que le devolvía el foco — y el menú, que se cierra al perder el foco,
+     * se cerraba solo. Mientras haya un menú abierto, el peek se queda quieto y se da por
+     * "dentro", o además se retiraría por debajo del menú a los PEEK_GRACE ms.
+     */
+    if (menuSobreElPeek()) { peekLastInside = Date.now(); return }
     const p = screen.getCursorScreenPoint()
     if (cursorNearPeek(p.x, p.y)) peekLastInside = Date.now()
     else if (Date.now() - peekLastInside > PEEK_GRACE) { hidePeek(); return }

@@ -244,3 +244,81 @@ test('el botón de descargas abre un popover, no la página de descargas', async
     ), { timeout: 8000 })
     .toBe(true)
 })
+
+test('el menú de perfil abierto DESDE el peek sale en el peek, no desplazado', async () => {
+  /**
+   * El peek es otra ventana, flotando con su margen, y manda el anchor en SUS coordenadas; el
+   * popover lo colocaba contra la ventana principal, así que el menú salía desplazado esos
+   * píxeles. Se traduce en `profilemenu:open`.
+   *
+   * Nota sobre el bug hermano —el menú se cerraba solo con el peek abierto, porque el sondeo del
+   * cursor del peek le devolvía el foco cada 60 ms—: ese NO tiene test. Medido: en el arnés la
+   * app no está al frente, `focus()` no dispara `blur` y la comprobación pasaba con el fallo
+   * puesto. Un test que no puede fallar es peor que ninguno. Es la misma limitación de foco que
+   * ya afecta a otros tests de este fichero.
+   */
+  // Cerrar el menú si otro test lo dejó abierto: si no, la comprobación de abajo lo encuentra
+  // YA visible en su posición vieja y mide eso. En solitario pasaba; en la suite entera, no.
+  await h.app.evaluate(({ ipcMain }) => ipcMain.emit('profilemenu:close'))
+  await expect.poll(async () => h.app.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows().some((x) => !x.isDestroyed() && x.isVisible() && x.webContents.getURL().includes('profilemenu.html'))
+  ), { timeout: 5000 }).toBe(false)
+
+  // Y el peek también: los tests de foco de este fichero pueden dejarlo abierto en otra
+  // posición, y entonces `peek:show` toma el atajo de "ya visible" y se mide el sitio viejo.
+  await api(h.win, 'setCollapsed', false)
+  await expect.poll(async () => h.app.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows().some((x) => !x.isDestroyed() && x.isVisible() && x.webContents.getURL().includes('peekbar.html'))
+  ), { timeout: 5000 }).toBe(false)
+
+  await api(h.win, 'setCollapsed', true)
+  // Tras colapsar se ignoran 600ms de hover (el botón aparece bajo el cursor).
+  await new Promise((r) => setTimeout(r, 700))
+  // El peek solo abre si el cursor REAL sigue sobre el botón tras 180ms: se le da un anchor
+  // calculado para que caiga justo debajo. Sin esto no abría y el test pasaba en vacío.
+  await h.app.evaluate(({ ipcMain, screen, BrowserWindow }) => {
+    const win = BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().includes('index.html'))!
+    const cb = win.getContentBounds()
+    const p = screen.getCursorScreenPoint()
+    ipcMain.emit('peek:show', { sender: null }, { x: p.x - cb.x - 14, y: p.y - cb.y - 14, width: 28, height: 28 })
+  })
+  const peekBounds = async (): Promise<{ x: number; y: number } | null> => h.app.evaluate(({ BrowserWindow }) => {
+    const w = BrowserWindow.getAllWindows().find((x) => !x.isDestroyed() && x.isVisible() && x.webContents.getURL().includes('peekbar.html'))
+    return w ? { x: w.getContentBounds().x, y: w.getContentBounds().y } : null
+  })
+  await expect.poll(peekBounds, { timeout: 5000 }).not.toBeNull()
+  const pb = (await peekBounds())!
+
+  // Se abre COMO lo abre el peek: con su webContents de remitente y en sus coordenadas.
+  const ANCHOR = { x: 12, y: 400, width: 32, height: 32 }
+  await h.app.evaluate(({ ipcMain, BrowserWindow }, anchor) => {
+    const peek = BrowserWindow.getAllWindows().find((x) => x.webContents.getURL().includes('peekbar.html'))!
+    ipcMain.emit('profilemenu:open', { sender: peek.webContents }, anchor)
+  }, ANCHOR)
+
+  // En dos pasos: recién creada, la ventana todavía no tiene URL, y el `show` espera a que
+  // pinte. Leer los bounds en el mismo `evaluate` daba null y el test fallaba por eso.
+  const menuBounds = async (): Promise<{ x: number; y: number } | null> => h.app.evaluate(({ BrowserWindow }) => {
+    const m = BrowserWindow.getAllWindows().find((x) => !x.isDestroyed() && x.isVisible() && x.webContents.getURL().includes('profilemenu.html'))
+    return m ? { x: m.getBounds().x, y: m.getBounds().y } : null
+  })
+  await expect.poll(menuBounds, { timeout: 8000 }).not.toBeNull()
+  const menu = (await menuBounds())!
+  /**
+   * Sin tolerancias a ojo: el menú tiene que quedar MÁS CERCA del peek que de la ventana
+   * principal, en los dos ejes. Un margen fijo no valía — el peek está a 10 px del borde y una
+   * tolerancia de 24 se tragaba el fallo entero (comprobado: el test pasaba sin el arreglo).
+   */
+  /**
+   * Se ata al sitio EXACTO donde tiene que salir: justo debajo de la fila pulsada, contando esa
+   * fila en el peek. Comparar "más cerca del peek que de la ventana" no valía — el popover se
+   * separa unos píxeles fijos del anchor y eso dejaba a los dos candidatos casi empatados, así
+   * que el test pasaba sin el arreglo. Y se mide en Y y no en X porque en X el peek está a 10 px
+   * del borde y `place()` además recorta contra la ventana: los dos salían idénticos.
+   */
+  const bajoLaFila = Math.abs(menu.y - (pb.y + ANCHOR.y + ANCHOR.height))
+  expect(bajoLaFila, 'el menú no salió pegado a la fila del peek').toBeLessThanOrEqual(8)
+
+  await h.app.evaluate(({ ipcMain }) => ipcMain.emit('profilemenu:close'))
+  await api(h.win, 'setCollapsed', false)
+})

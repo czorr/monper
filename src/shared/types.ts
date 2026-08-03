@@ -325,6 +325,16 @@ export interface SkillDetail extends SkillMeta {
 }
 
 /** Una entrada del historial tal y como la ve la página. */
+/** Un nodo del árbol de memoria, tal y como lo pinta Settings. */
+export interface NodoMemoriaInfo {
+  path: string
+  nombre: string
+  tipo: 'fichero' | 'carpeta'
+  bytes: number
+  at: number
+  hijos?: NodoMemoriaInfo[]
+}
+
 export interface HistoryEntryInfo {
   url: string
   title: string
@@ -887,6 +897,13 @@ export interface MonperTabApi {
   moveBookmark: (id: string, parentId: string | null) => void
   // ---- Historial ----
   browseHistory: (query: string, offset: number, limit: number) => Promise<{ entries: HistoryEntryInfo[]; total: number }>
+  // ---- Memoria del agente (ficheros markdown que escribe él) ----
+  memoryList: () => Promise<NodoMemoriaInfo[]>
+  memoryRead: (path: string) => Promise<string | null>
+  memoryWrite: (path: string, contenido: string) => Promise<boolean>
+  memoryDelete: (path: string) => Promise<boolean>
+  memoryEnabled: (on?: boolean) => Promise<boolean>
+  memoryOpenFolder: () => void
   removeHistoryEntry: (url: string) => Promise<boolean>
   clearHistory: (desde?: number) => Promise<number>
   // ---- Importar de otro navegador ----

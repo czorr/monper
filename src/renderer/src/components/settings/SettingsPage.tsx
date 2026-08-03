@@ -11,6 +11,7 @@ import IconUser from '~icons/tabler/user'
 import IconBolt from '~icons/tabler/bolt'
 import ProvidersSection from './ProvidersSection'
 import SkillsSection from './SkillsSection'
+import MemorySection from './MemorySection'
 import QuickActionsSection from './QuickActionsSection'
 import RoutinesSection from './RoutinesSection'
 import PermissionsSection from './PermissionsSection'
@@ -71,7 +72,7 @@ const NAV: NavGroup[] = [
     items: [
       { id: 'projects', label: 'Projects', icon: <IconFolder />, soon: true },
       { id: 'skills', label: 'Skills', icon: <IconBolt /> },
-      { id: 'memory', label: 'Memory', icon: <IconBrain />, soon: true },
+      { id: 'memory', label: 'Memory', icon: <IconBrain /> },
       { id: 'mcps', label: 'MCPs', icon: <IconPlug /> },
       { id: 'permissions', label: 'Permissions', icon: <IconLock /> },
       { id: 'actions', label: 'Quick actions', icon: <IconWand /> },
@@ -207,6 +208,7 @@ export default function SettingsPage(): JSX.Element {
               {cat === 'privacy' && <PrivacyPage />}
               {cat === 'adblock' && <AdblockSection />}
               {cat === 'password' && <PasswordSection />}
+              {cat === 'memory' && <MemorySection />}
               {cat === 'archived' && <ArchivedChatsSection />}
               {cat === 'billing' && <UsoSection foco="billing" />}
               {cat === 'statistics' && <UsoSection foco="stats" />}

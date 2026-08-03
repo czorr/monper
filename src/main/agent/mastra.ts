@@ -59,6 +59,20 @@ export function congelable(c: BrowserControl, signal: AbortSignal): BrowserContr
 }
 
 /** Resumen de settings que el agente puede leer y modificar. */
+/**
+ * Memoria del agente. Se inyecta en vez de importar `memoria.ts` para que este módulo siga
+ * siendo probable sin tocar el disco, igual que se hace con el navegador y los ajustes.
+ */
+export interface MemoryControl {
+  list: () => { path: string; tipo: string }[]
+  read: (path: string) => string | null
+  write: (path: string, contenido: string) => boolean
+  remove: (path: string) => boolean
+  enabled: () => boolean
+  /** Lo que va en el prompt de cada turno (MEMORY.md, recortado). */
+  contexto: () => string
+}
+
 export interface SettingsControl {
   read: () => { profileName: string; skills: { id: string; name: string; enabled: boolean }[] }
   setProfileName: (name: string) => string
@@ -204,7 +218,7 @@ function sanitizeTools<T extends Record<string, unknown>>(tools: T): T {
 }
 
 // Las page-ops como tools de Mastra (Zod). Operan sobre la pestaña activa vía BrowserControl.
-function buildTools(ctrl: BrowserControl, settings: SettingsControl, skills: SkillDetail[], externas: McpTool[] = []) {
+function buildTools(ctrl: BrowserControl, settings: SettingsControl, skills: SkillDetail[], externas: McpTool[] = [], memoria?: MemoryControl) {
   const wc = (): WebContents => {
     const w = ctrl.getWc()
     if (!w) throw new Error('No hay pestaña activa.')
@@ -391,11 +405,51 @@ function buildTools(ctrl: BrowserControl, settings: SettingsControl, skills: Ski
         return `Skill "${r.name}" ${r.enabled ? 'activada' : 'desactivada'}. Aplica en tu próxima ejecución.`
       })
     }),
+    memory_list: createTool({
+      id: 'memory_list',
+      description: 'Lista los ficheros de tu memoria (markdown). Úsalo antes de escribir, para saber dónde va cada cosa.',
+      inputSchema: z.object({}),
+      execute: async () => safe(async () => {
+        if (!memoria?.enabled()) return { error: 'La memoria está desactivada en los ajustes del usuario.' }
+        const l = memoria.list()
+        return l.length ? l.map((n) => `${n.tipo === 'carpeta' ? '📁' : '📄'} ${n.path}`).join('\n') : 'La memoria está vacía.'
+      })
+    }),
+    memory_read: createTool({
+      id: 'memory_read',
+      description: 'Lee un fichero de tu memoria por su ruta relativa (p. ej. "USER.md" o "sitios/github.md").',
+      inputSchema: z.object({ path: z.string() }),
+      execute: async ({ path }) => safe(async () => {
+        if (!memoria?.enabled()) return { error: 'La memoria está desactivada en los ajustes del usuario.' }
+        const c = memoria.read(path)
+        // Que no exista no es un error del que haya que quejarse: es la respuesta.
+        return c ?? `No existe "${path}". Usa memory_list para ver qué hay.`
+      })
+    }),
+    memory_write: createTool({
+      id: 'memory_write',
+      description: 'Guarda un fichero markdown en tu memoria. SOBRESCRIBE: si quieres añadir, lee antes con memory_read y escribe el texto completo. Solo rutas .md dentro de la memoria.',
+      inputSchema: z.object({ path: z.string(), content: z.string() }),
+      execute: async ({ path, content }) => safe(async () => {
+        if (!memoria?.enabled()) return { error: 'La memoria está desactivada en los ajustes del usuario.' }
+        if (!memoria.write(path, content)) return { error: `No se pudo escribir "${path}". Tiene que ser una ruta .md dentro de la memoria, sin "..".` }
+        return `Guardado "${path}".`
+      })
+    }),
+    memory_delete: createTool({
+      id: 'memory_delete',
+      description: 'Borra un fichero de tu memoria. MEMORY.md no se puede borrar (vacíalo con memory_write si hace falta).',
+      inputSchema: z.object({ path: z.string() }),
+      execute: async ({ path }) => safe(async () => {
+        if (!memoria?.enabled()) return { error: 'La memoria está desactivada en los ajustes del usuario.' }
+        return memoria.remove(path) ? `Borrado "${path}".` : { error: `No se pudo borrar "${path}".` }
+      })
+    }),
     open_settings: createTool({
       id: 'open_settings',
       description: 'Abre la pantalla de ajustes de Monper en una sección concreta. Úsalo para dirigir al usuario a algo que no puedes cambiar tú (claves de API, borrar datos, foto de perfil).',
       inputSchema: z.object({
-        section: z.enum(['general', 'account', 'ai', 'skills', 'privacy', 'about']).optional()
+        section: z.enum(['general', 'account', 'ai', 'skills', 'memory', 'privacy', 'about']).optional()
       }),
       execute: async ({ section }) => safe(async () => {
         settings.openSettings(section)
@@ -426,6 +480,20 @@ function mcpSection(externas: McpTool[]): string {
   return `\n\nHERRAMIENTAS EXTERNAS (MCP): además del navegador tienes capacidades que aporta el usuario desde ${servidores.join(', ')}. Sus tools empiezan por "mcp__". Úsalas cuando la tarea necesite algo que el navegador no hace —ejecutar código, leer o escribir ficheros, consultar una base de datos— en vez de improvisar con run_js, que solo corre JavaScript DENTRO de la página.`
 }
 
+/**
+ * La memoria en el prompt.
+ *
+ * Solo entra `MEMORY.md`, que es el índice; lo demás el agente lo abre con `memory_read` cuando
+ * lo necesita. Meterlo todo en cada turno costaría dinero en cada mensaje y acabaría comiéndose
+ * la ventana de contexto — que es justo el problema que la memoria viene a resolver.
+ */
+function memorySection(mem?: MemoryControl): string {
+  if (!mem?.enabled()) return ''
+  const cabecera = `\n\nMEMORIA: recuerdas cosas entre sesiones en ficheros markdown propios. \`memory_list\` los enumera, \`memory_read(path)\` abre uno y \`memory_write(path, contenido)\` lo guarda (sobrescribe: lee antes si quieres añadir). Escribe en la memoria cuando aprendas algo que te servirá OTRO DÍA —cómo trabaja el usuario, sus cuentas, decisiones que ya tomasteis— y no lo que solo vale para esta conversación. \`MEMORY.md\` es el índice y entra siempre: mantenlo corto y que apunte a los demás ficheros.`
+  const ctx = mem.contexto()
+  return ctx ? `${cabecera}\n\n--- MEMORY.md ---\n${ctx}\n--- fin ---` : cabecera
+}
+
 function skillsSection(skills: SkillDetail[]): string {
   if (!skills.length) return ''
   return `\n\nSKILLS DISPONIBLES: tienes skills con instrucciones especializadas para ciertas tareas. Cuando la petición encaje con una skill (por su descripción o keywords), invoca la tool use_skill(id) para cargar sus instrucciones completas y síguelas al pie de la letra.\n` +
@@ -437,13 +505,13 @@ export function buildOneShotAgent(provider: AIProvider, key: string, model: stri
   return new Agent({ id: 'monper-oneshot', name: 'Monper', instructions, model: buildModel(provider, key, model) })
 }
 
-export function buildAgent(provider: AIProvider, key: string, model: string, ctrl: BrowserControl, settings: SettingsControl, skills: SkillDetail[] = [], externas: McpTool[] = []): Agent {
+export function buildAgent(provider: AIProvider, key: string, model: string, ctrl: BrowserControl, settings: SettingsControl, skills: SkillDetail[] = [], externas: McpTool[] = [], memoria?: MemoryControl): Agent {
   return new Agent({
     id: 'monper-agent',
     name: 'Monper',
-    instructions: wellFormed(SYSTEM + skillsSection(skills) + mcpSection(externas)), // las skills traen emojis
+    instructions: wellFormed(SYSTEM + memorySection(memoria) + skillsSection(skills) + mcpSection(externas)), // las skills traen emojis
     model: buildModel(provider, key, model),
-    tools: buildTools(ctrl, settings, skills, externas)
+    tools: buildTools(ctrl, settings, skills, externas, memoria)
   })
 }
 
@@ -525,7 +593,7 @@ function toModelMessage(msg: ChatMessage): { role: string; content: unknown } {
 /** Corre el agente Mastra en streaming, emitiendo tokens (texto) y steps (tool-calls). */
 export async function runMastra(opts: {
   provider: AIProvider; key: string; model: string
-  messages: ChatMessage[]; control: BrowserControl; settings: SettingsControl; emit: Emit; signal: AbortSignal; skills?: SkillDetail[]
+  messages: ChatMessage[]; control: BrowserControl; settings: SettingsControl; emit: Emit; signal: AbortSignal; skills?: SkillDetail[]; memoria?: MemoryControl
 }): Promise<UsoDelTurno> {
   // Las herramientas externas se piden AQUÍ, no al abrir Monper: si nunca hablas con el
   // agente, no se lanza ni un proceso de servidor MCP.
@@ -533,7 +601,7 @@ export async function runMastra(opts: {
     console.error('[mcp] no se pudieron cargar las herramientas externas:', e instanceof Error ? e.message : e)
     return [] as McpTool[]
   })
-  const agent = buildAgent(opts.provider, opts.key, opts.model, congelable(opts.control, opts.signal), opts.settings, opts.skills ?? [], externas)
+  const agent = buildAgent(opts.provider, opts.key, opts.model, congelable(opts.control, opts.signal), opts.settings, opts.skills ?? [], externas, opts.memoria)
   // {role, content:string} es un ModelMessage válido; la unión de Mastra es demasiado estricta para inferirlo.
   // maxSteps: el default de Mastra es 5 (corta la tarea a mitad); subimos para dejar completar flujos largos.
   const messages = compactHistory(opts.messages).map(toModelMessage)

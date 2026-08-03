@@ -28,6 +28,7 @@ import {
 import { initSkills, listSkills, getSkill, toggleSkill, enabledSkills, skillsDir, resolveSkillFavicons } from './skills'
 import { initProfile, getProfile, setProfile, setAvatar } from './profile'
 import { PARTICION_NORMAL, particionDe } from './particiones'
+import { initMemoria, listarMemoria, leerMemoria, escribirMemoria, borrarMemoria, memoriaHabilitada, setMemoriaHabilitada, contextoDeMemoria, dirMemoria } from './memoria'
 import { rutaDePerfil, particionDelPerfil, listaPerfiles, perfilActivoId, crearPerfil, activarPerfil, borrarPerfil } from './perfiles'
 import { initDownloads, attachDownloads, listDownloads, activeDownloadCount, cancelDownload, openDownload, showDownload, clearDownloads } from './downloads'
 import { credentialsFor, fillFromVault } from './autofill'
@@ -3555,6 +3556,29 @@ ipcMain.on('profilemenu:createProfile', (_e, nombre: string) => {
   cambiarDePerfil(crearPerfil(String(nombre)).id)
 })
 
+/**
+ * Memoria del agente. Solo páginas internas: son notas sobre el usuario, escritas por el
+ * modelo — misma regla que el historial o el vault.
+ */
+ipcMain.handle('memory:list', (e) => (isInternalSender(e.senderFrame?.url) ? listarMemoria() : []))
+ipcMain.handle('memory:read', (e, path: string) => (isInternalSender(e.senderFrame?.url) ? leerMemoria(String(path)) : null))
+ipcMain.handle('memory:write', (e, path: string, contenido: string) => {
+  if (!isInternalSender(e.senderFrame?.url)) return false
+  return escribirMemoria(String(path), String(contenido ?? ''))
+})
+ipcMain.handle('memory:delete', (e, path: string) => {
+  if (!isInternalSender(e.senderFrame?.url)) return false
+  return borrarMemoria(String(path))
+})
+ipcMain.handle('memory:enabled', (e, on?: boolean) => {
+  if (!isInternalSender(e.senderFrame?.url)) return memoriaHabilitada()
+  return typeof on === 'boolean' ? setMemoriaHabilitada(on) : memoriaHabilitada()
+})
+ipcMain.on('memory:openFolder', (e) => {
+  if (!isInternalSender(e.senderFrame?.url)) return
+  void shell.openPath(dirMemoria())
+})
+
 // ---- Proveedores de IA (gestión desde la página de Settings, sender-validada) ----
 function notifyChatContext(): void { vActOpt()?.win?.webContents.send('chat:contextChanged', getChatContext()) }
 ipcMain.handle('providers:list', (e) => (isInternalSender(e.senderFrame?.url) ? listProviders() : []))
@@ -3722,6 +3746,16 @@ ipcMain.handle('chat:send', async (ev, messages: ChatMessage[]) => {
         },
         openSettings: (section) => openSettings(section)
       },
+      memoria: {
+        list: () => listarMemoria().flatMap(function aplanar(n): { path: string; tipo: string }[] {
+          return [{ path: n.path, tipo: n.tipo }, ...(n.hijos ?? []).flatMap(aplanar)]
+        }),
+        read: (p) => leerMemoria(p),
+        write: (p, c) => escribirMemoria(p, c),
+        remove: (p) => borrarMemoria(p),
+        enabled: () => memoriaHabilitada(),
+        contexto: () => contextoDeMemoria()
+      },
       emit: {
         token: (tok) => send('chat:token', tok),
         step: (s) => send('chat:step', s),
@@ -3869,6 +3903,8 @@ app.whenReady().then(() => {
   initMcpClient()
   initChats()
   initHistory()
+  // La memoria es del perfil: lo que Monper sabe de ti en "Trabajo" no es lo de "Personal".
+  initMemoria(rutaDePerfil('memory'), rutaDePerfil('memory-settings.json'))
   initSkills()
   initQuickActions()
   initWindowState()

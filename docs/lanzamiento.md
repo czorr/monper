@@ -28,8 +28,10 @@ Auditado contra el código, no de memoria. Lo marcado como hecho está verificad
 - [x] **Historial navegable y buscable.** `history.html`, agrupado por día, con búsqueda,
       borrado por entrada y borrado total. Se llega con ⌘Y y desde el submenú de perfil.
       Restringido a páginas internas: es el registro de todo lo que has visitado.
-      - [ ] Siguiente escalón (*Memory*): buscar por **contenido**, no solo por título y URL.
-            Es media respuesta a "¿dónde vi ese benchmark?".
+      - [ ] Siguiente escalón: buscar por **contenido**, no solo por título y URL. Es media
+            respuesta a "¿dónde vi ese benchmark?". OJO: esto **no** es *Memory* — se confundió
+            una vez y se construyó lo que no era. Memory es lo que el agente aprende de ti
+            (ver [memoria.md](memoria.md)); esto es indexar lo que TÚ leíste.
 
 ## P1 — Ausencias baratas que empujan a abrir Chrome "un momento"
 
@@ -72,12 +74,11 @@ Estos son features para **reemplazar** Chrome, y el [diagnóstico](diagnostico.m
 que ese no es el juego. Se listan para que la decisión sea explícita y no un olvido: si algún
 día el argumento cambia, que se cambie a propósito.
 
-- [ ] **Ventana privada / incógnito.** La gente la busca por costumbre. Contra: es una
-      partición de sesión aparte, y toda la propuesta de Monper es *tener* tus sesiones. Una
-      ventana donde el agente no sabe quién eres es un agente inútil. Si se hace, que sea por
-      una razón mejor que "Chrome lo tiene".
-- [ ] **Perfiles múltiples.** Mismo argumento, más caro: multiplica particiones, vault e
-      historial. Antes de esto viene multi-ventana.
+- [x] **Ventana privada / incógnito.** Estaba aquí como "yo no lo haría"; el usuario decidió
+      que sí, y el argumento de contra resultó ser flojo: incógnito no compite con tener tus
+      sesiones, convive con ellas. Hecho — ver [incognito-y-perfiles.md](incognito-y-perfiles.md).
+- [x] **Perfiles múltiples.** Igual. Un solo perfil activo, cambiar reinicia la app, y la carpeta
+      del perfil por defecto sigue siendo la raíz de `userData` para no migrar nada.
 - [ ] **Sync entre dispositivos.** Requiere servidor, cuentas y cifrado extremo a extremo —
       o sea, un producto entero más. Y choca de frente con "nada sale de tu máquina", que hoy
       es un argumento de venta.

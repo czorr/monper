@@ -1,7 +1,6 @@
-import { join } from 'path'
 import { existsSync } from 'fs'
 import { readJson, writeJson } from './jsonfile'
-import { app } from 'electron'
+import { rutaDePerfil } from './perfiles'
 
 export interface HistoryEntry {
   url: string
@@ -30,7 +29,7 @@ function persistSoon(): void {
 }
 
 export function initHistory(): void {
-  file = join(app.getPath('userData'), 'history.json')
+  file = rutaDePerfil('history.json')
   if (existsSync(file)) {
     items = readJson<HistoryEntry[]>(file, [], 'el historial')
   }

@@ -23,8 +23,12 @@ export const PARTICION_NORMAL = 'persist:monper'
  */
 export const PARTICION_INCOGNITO = 'monper-incognito'
 
-export function particionDe(incognito: boolean): string {
-  return incognito ? PARTICION_INCOGNITO : PARTICION_NORMAL
+/**
+ * `normal` es la partición del perfil activo (ver perfiles.ts): se pasa en vez de leerse aquí
+ * para que este módulo siga sin depender de nada y se pueda probar solo.
+ */
+export function particionDe(incognito: boolean, normal: string = PARTICION_NORMAL): string {
+  return incognito ? PARTICION_INCOGNITO : normal
 }
 
 /** ¿Esta partición sobrevive al cierre de la app? */

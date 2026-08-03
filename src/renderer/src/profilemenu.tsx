@@ -1,11 +1,11 @@
 import { createRoot } from 'react-dom/client'
 import { useEffect, useRef, useState, type JSX } from 'react'
-import type { Profile, SubmenuSection } from '@shared/types'
+import type { DatosMenuPerfil, SubmenuSection } from '@shared/types'
 import { Avatar } from '@renderer/components/ui'
 import { PopoverPanel, PopoverRow, PopoverLabel, PopoverDivider } from '@renderer/components/popover'
 import IconChevronRight from '~icons/tabler/chevron-right'
 import IconCheck from '~icons/tabler/check'
-import IconDots from '~icons/tabler/dots'
+import IconX from '~icons/tabler/x'
 import IconUserPlus from '~icons/tabler/user-plus'
 import IconBookmark from '~icons/tabler/bookmark'
 import IconDownload from '~icons/tabler/download'
@@ -46,25 +46,76 @@ function RowConSubmenu({ section, icon, label }: { section: SubmenuSection; icon
   )
 }
 
+const VACIO: DatosMenuPerfil = { perfil: { name: 'Tú', initials: '?', avatar: null }, perfiles: [] }
+
+/** Iniciales de un nombre, para el avatar de los perfiles que no son el activo. */
+function iniciales(n: string): string {
+  const p = n.trim().split(/\s+/).filter(Boolean)
+  if (!p.length) return '?'
+  return ((p[0][0] ?? '') + (p.length > 1 ? p[p.length - 1][0] : '')).toUpperCase()
+}
+
 function ProfileMenuWindow(): JSX.Element {
-  const [profile, setProfile] = useState<Profile>({ name: 'Tú', initials: '?', avatar: null })
-  useEffect(() => pm.onProfile(setProfile), [])
+  const [datos, setDatos] = useState<DatosMenuPerfil>(VACIO)
+  const [creando, setCreando] = useState(false)
+  const [nombre, setNombre] = useState('')
+  useEffect(() => pm.onProfile(setDatos), [])
   const act = (name: string): void => pm.action(name)
+
+  const crear = (): void => {
+    const n = nombre.trim()
+    // Sin nombre no se crea: un perfil llamado "" no hay forma de distinguirlo del de al lado.
+    if (!n) { setCreando(false); setNombre(''); return }
+    pm.crearPerfil(n)
+  }
 
   // Pasar por cualquier fila SIN submenú lo cierra: es lo que se espera de un menú.
   return (
-    <PopoverPanel onHeight={pm.reportHeight} measure={profile}>
+    <PopoverPanel onHeight={pm.reportHeight} measure={[datos, creando]}>
       <div onMouseEnter={() => pm.submenuMaybeClose()}>
         <PopoverLabel>Profiles</PopoverLabel>
 
-      <PopoverRow
-        icon={<Avatar initials={profile.initials} src={profile.avatar} size="sm" />}
-        label={profile.name}
-        active
-        onClick={() => act('switch-profile')}
-        meta={<><IconCheck className="w-3.5 h-3.5" /><IconDots className="w-3.5 h-3.5" /></>}
-      />
-        <PopoverRow icon={<IconUserPlus />} label="New profile" onClick={() => act('new-profile')} />
+        {datos.perfiles.map((p) => (
+          <div key={p.id} className="group relative">
+            <PopoverRow
+              icon={<Avatar initials={iniciales(p.nombre)} src={p.avatar} size="sm" />}
+              label={p.nombre}
+              active={p.activo}
+              onClick={() => { if (!p.activo) pm.cambiarPerfil(p.id) }}
+              meta={p.activo ? <IconCheck className="w-3.5 h-3.5" /> : undefined}
+            />
+            {/* Quitar solo los que NO son el activo: quitarte el suelo de debajo mientras estás
+                de pie encima obligaría a reiniciar a otro perfil sin haberlo pedido. */}
+            {!p.activo && (
+              <button
+                title="Quitar perfil"
+                onClick={(e) => { e.stopPropagation(); pm.borrarPerfil(p.id) }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 hidden group-hover:grid place-items-center w-6 h-6 rounded-md text-text-faint hover:text-text hover:bg-white/[0.10]"
+              >
+                <IconX className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        ))}
+
+        {creando ? (
+          <div className="px-2.5 py-1.5">
+            <input
+              autoFocus
+              value={nombre}
+              onChange={(e) => setNombre(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') crear()
+                if (e.key === 'Escape') { setCreando(false); setNombre('') }
+              }}
+              onBlur={() => { if (!nombre.trim()) setCreando(false) }}
+              placeholder="Nombre del perfil"
+              className="w-full h-8 px-2.5 rounded-lg bg-white/[0.06] outline-none text-[13.5px] text-text placeholder:text-text-faint"
+            />
+          </div>
+        ) : (
+          <PopoverRow icon={<IconUserPlus />} label="New profile" onClick={() => setCreando(true)} />
+        )}
       </div>
 
       <PopoverDivider />
@@ -74,7 +125,7 @@ function ProfileMenuWindow(): JSX.Element {
       <RowConSubmenu section="history" icon={<IconHistory />} label="History" />
       <RowConSubmenu section="developers" icon={<IconCode />} label="Developers" />
       <div onMouseEnter={() => pm.submenuMaybeClose()}>
-        <PopoverRow icon={<IconSettings />} label="Settings" meta="⌘," onClick={() => act('settings')} />
+          <PopoverRow icon={<IconSettings />} label="Settings" meta="⌘," onClick={() => act('settings')} />
       </div>
 
       <PopoverDivider />

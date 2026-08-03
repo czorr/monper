@@ -1,27 +1,18 @@
-import { join } from 'path'
-import { readFileSync, existsSync } from 'fs'
-import { writeJson } from './jsonfile'
 import { app } from 'electron'
 import type { Profile } from '../shared/types'
+import { initPerfiles, perfilActivo, perfilActivoId, renombrarPerfil, setAvatarPerfil } from './perfiles'
 
-let file = ''
-let name = 'Tú'
-let avatar: string | null = null
-
-function persist(): void { writeJson(file, { name, avatar }, 'el perfil', false) }
+/**
+ * El perfil que se ve en la UI (nombre, iniciales, avatar).
+ *
+ * Antes este módulo era el dueño de `profile.json`. Ahora es una **vista del perfil activo**: el
+ * dato vive en `perfiles.json`, junto a la lista, para que no haya dos sitios donde cambiar un
+ * nombre y se desincronicen. `initPerfiles` absorbe el `profile.json` viejo la primera vez, así
+ * que nadie pierde el nombre ni el avatar que ya tenía puesto.
+ */
 
 export function initProfile(): void {
-  file = join(app.getPath('userData'), 'profile.json')
-  if (existsSync(file)) {
-    try {
-      const d = JSON.parse(readFileSync(file, 'utf-8'))
-      name = (d.name as string) || name
-      avatar = (d.avatar as string) || null
-    } catch (e) {
-      // El perfil existía pero está corrupto: se arranca con el de por defecto, y se dice.
-      console.error('[perfil] profile.json ilegible, se usa el perfil por defecto:', e instanceof Error ? e.message : e)
-    }
-  }
+  initPerfiles(app.getPath('userData'))
 }
 
 function initialsOf(n: string): string {
@@ -33,18 +24,16 @@ function initialsOf(n: string): string {
 }
 
 export function getProfile(): Profile {
-  return { name, initials: initialsOf(name), avatar }
+  const p = perfilActivo()
+  return { name: p.nombre, initials: initialsOf(p.nombre), avatar: p.avatar }
 }
 
 export function setProfile(newName: string): Profile {
-  const n = String(newName || '').trim()
-  if (n) { name = n.slice(0, 60); persist() }
+  renombrarPerfil(perfilActivoId(), newName)
   return getProfile()
 }
 
 export function setAvatar(dataUrl: string | null): Profile {
-  // Solo aceptamos data URLs de imagen (o null para quitar).
-  avatar = typeof dataUrl === 'string' && dataUrl.startsWith('data:image/') ? dataUrl : null
-  persist()
+  setAvatarPerfil(perfilActivoId(), dataUrl)
   return getProfile()
 }

@@ -401,8 +401,20 @@ export interface SubmenuWinApi {
 }
 
 /** API expuesta a la ventana nativa del menú de perfil */
+/** Lo que ve el menú de perfil: el perfil activo, ya renderizable, y la lista para elegir. */
+export interface DatosMenuPerfil {
+  perfil: Profile
+  perfiles: { id: string; nombre: string; avatar: string | null; activo: boolean }[]
+}
+
 export interface ProfileMenuWinApi {
-  onProfile: (cb: (p: Profile) => void) => void
+  onProfile: (cb: (d: DatosMenuPerfil) => void) => void
+  /** Cambia el perfil activo. Reinicia la app: ver perfiles.ts. */
+  cambiarPerfil: (id: string) => void
+  /** Crea un perfil y se cambia a él. */
+  crearPerfil: (nombre: string) => void
+  /** Lo quita de la lista tras confirmar. Sus datos siguen en disco. */
+  borrarPerfil: (id: string) => void
   reportHeight: (h: number) => void
   action: (name: string) => void
   /** Abre (o cambia) el submenú de una sección, anclado a la fila. */

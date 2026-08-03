@@ -64,6 +64,7 @@ measured, say so instead of implying it works.
 | `src/main/` | Main process. `index.ts` is still a god file (~1700 lines): tabs, layout, menus, IPC. |
 | `src/main/agent/` | Mastra agent, REPL (`run_js`), headless pages, one file per service in `globals/` |
 | `src/main/vault/` | Encrypted secret store. Secrets never leave the main process. |
+| `src/main/perfiles.ts` | Perfiles: qué carpeta y qué sesión le toca a cada uno (`rutaDePerfil`) |
 | `src/main/particiones.ts` | En qué sesión de Chromium vive cada ventana (normal / incógnito / perfiles) |
 | `src/main/adblock.ts` | Network-level ad/tracker blocking on `persist:monper` (one webRequest listener per session — see docs) |
 | `src/main/pip.ts` | Our own picture-in-picture: Chromium's opens NO window under Electron (see docs) |

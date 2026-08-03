@@ -4,7 +4,7 @@ import { app, BrowserWindow, Menu, Notification, WebContentsView, clipboard, dia
 import type { MenuItemConstructorOptions } from 'electron'
 import type { IpcMainEvent } from 'electron'
 import type { BrowserState, Bookmark, ChatFallo, ChatMessage, MenuAnchor, ProviderKind, InternalPage, SubmenuData, SubmenuSection } from '../shared/types'
-import { internalPageOf } from '../shared/types'
+import { internalPageOf, type DatosMenuPerfil } from '../shared/types'
 import { nombreDeUrl } from '../shared/url'
 import { initBookmarks, listBookmarks, isBookmarked, addBookmark, removeBookmark, toggleBookmark, reorderBookmarks, updateBookmark, createFolder, moveBookmark, setFolderCollapsed } from './bookmarks'
 import { initAI, listProviders, addProvider, removeProvider, setActive as setActiveProvider, setModel, setEffort, getChatContext, getActiveProvider } from './ai/store'
@@ -28,6 +28,7 @@ import {
 import { initSkills, listSkills, getSkill, toggleSkill, enabledSkills, skillsDir, resolveSkillFavicons } from './skills'
 import { initProfile, getProfile, setProfile, setAvatar } from './profile'
 import { PARTICION_NORMAL, particionDe } from './particiones'
+import { rutaDePerfil, particionDelPerfil, listaPerfiles, perfilActivoId, crearPerfil, activarPerfil, borrarPerfil } from './perfiles'
 import { initDownloads, attachDownloads, listDownloads, activeDownloadCount, cancelDownload, openDownload, showDownload, clearDownloads } from './downloads'
 import { credentialsFor, fillFromVault } from './autofill'
 import { initExtensions, listExtensions, addExtension, setExtensionEnabled, removeExtension as removeExt, installFromStore, extensionUi } from './extensions'
@@ -429,7 +430,7 @@ function prepararSesion(particion: string, incognito: boolean): void {
 
 function crearVentana(opts: { sinPestanaInicial?: boolean; incognito?: boolean } = {}): Ventana {
   const incognito = !!opts.incognito
-  const particion = particionDe(incognito)
+  const particion = particionDe(incognito, particionDelPerfil())
   // La sesión tiene que estar preparada (UA de Chrome, adblock, permisos, descargas) ANTES de
   // que navegue nada: si no, la primera página de la primera ventana de incógnito sale con
   // anuncios y delatando Electron. Es idempotente: solo hace el trabajo la primera vez.
@@ -1642,7 +1643,8 @@ async function showPageContextMenu(wc: Electron.WebContents, p: Electron.Context
 }
 
 // ---- Restauración de sesión: persistir las pestañas abiertas y reabrirlas al arrancar ----
-function sessionFile(): string { return join(app.getPath('userData'), 'session.json') }
+// Por perfil: las pestañas abiertas son suyas, igual que su historial.
+function sessionFile(): string { return rutaDePerfil('session.json') }
 let saveSessionTimer: NodeJS.Timeout | null = null
 
 interface SesionVentana { urls: string[]; activeIndex: number }
@@ -2902,11 +2904,37 @@ ipcMain.handle('perms:clear', (e, origin: string | null) => {
   return true
 })
 
+/** Lo que necesita el menú de perfil: quién eres ahora y entre quiénes puedes elegir. */
+function datosMenuPerfil(): DatosMenuPerfil {
+  const activo = perfilActivoId()
+  return {
+    perfil: getProfile(),
+    perfiles: listaPerfiles().map((p) => ({ ...p, activo: p.id === activo }))
+  }
+}
+
+/**
+ * Cambia de perfil REINICIANDO la app.
+ *
+ * Es la consecuencia de "un solo perfil activo": media docena de módulos leen su JSON una única
+ * vez al arrancar, y cambiarlos en caliente pediría inventar un `reinit` en cada uno. La sesión
+ * de pestañas se guarda antes de salir y cada perfil restaura la suya, así que no se pierde nada.
+ */
+function cambiarDePerfil(id: string): void {
+  if (!activarPerfil(id)) {
+    console.error('[perfiles] se pidió activar un perfil que no existe:', id)
+    return
+  }
+  saveSessionNow()
+  app.relaunch()
+  app.quit()
+}
+
 // ---- Menú de perfil: ventana nativa (flota sobre la página) ----
 const pmPopover = createPopover(() => vActOpt()?.win ?? null, {
   name: 'profilemenu', width: 264, height: 380,
   preload: 'profilemenu', page: 'profilemenu',
-  data: { channel: 'profilemenu:profile', get: getProfile },
+  data: { channel: 'profilemenu:profile', get: datosMenuPerfil },
   // El submenú es una ventana aparte: si el menú se va, se va con él.
   onHide: () => submenuPopover.hide(),
   // Mientras el submenú esté abierto, perder el foco NO cierra el menú: se lo ha llevado él.
@@ -3493,8 +3521,38 @@ ipcMain.on('profilemenu:action', (ev, name: string) => {
     case 'settings': openSettings(); break
     case 'downloads': openDownloads(); break
     case 'developers': vDe(ev).toggleDevtools(); break
-    // TODO: new-profile, switch-profile, extensions, history, incognito
+    case 'history': openHistory(); break
+    case 'incognito': createWindow({ incognito: true }); break
   }
+})
+ipcMain.on('profilemenu:switchProfile', (_e, id: string) => {
+  pmPopover.hide()
+  cambiarDePerfil(String(id))
+})
+/**
+ * Quitar un perfil de la lista. **No borra su carpeta** (ver perfiles.ts): un click no puede
+ * tirar meses de historial y marcadores sin vuelta atrás. Por eso se pregunta, y por eso el
+ * diálogo dice que los datos se quedan — prometer un borrado que no ocurre sería mentir.
+ */
+ipcMain.on('profilemenu:deleteProfile', (ev, id: string) => {
+  const p = listaPerfiles().find((x) => x.id === String(id))
+  if (!p) return
+  const r = dialog.showMessageBoxSync(vDe(ev).win, {
+    type: 'warning', buttons: ['Cancelar', 'Quitar'], defaultId: 0, cancelId: 0, noLink: true,
+    message: `¿Quitar el perfil "${p.nombre}"?`,
+    detail: 'Deja de aparecer en la lista. Sus datos (historial, marcadores, sesión) se quedan en el disco.'
+  })
+  if (r !== 1) return
+  if (!borrarPerfil(p.id)) {
+    console.error('[perfiles] no se pudo quitar el perfil', p.id)
+    return
+  }
+  pmPopover.send('profilemenu:profile', datosMenuPerfil())
+})
+ipcMain.on('profilemenu:createProfile', (_e, nombre: string) => {
+  pmPopover.hide()
+  // Se crea Y se entra: crear un perfil y quedarte en el de antes no es lo que nadie pide.
+  cambiarDePerfil(crearPerfil(String(nombre)).id)
 })
 
 // ---- Proveedores de IA (gestión desde la página de Settings, sender-validada) ----
@@ -3746,6 +3804,12 @@ app.whenReady().then(() => {
     copyright: '© 2026 Monper',
     credits: 'Un navegador agéntico de escritorio'
   })
+  /**
+   * Lo PRIMERO de todo: decide qué perfil está activo, y de ahí salen las rutas de los ficheros
+   * de estado (`rutaDePerfil`). Si `initPermissions`/`initBookmarks`/`initHistory` corrieran
+   * antes, abrirían los del perfil por defecto y el usuario vería los datos de otro perfil.
+   */
+  initProfile()
   buildAppMenu()
   initPermissions()
   configurePasskeys()
@@ -3807,7 +3871,6 @@ app.whenReady().then(() => {
   initHistory()
   initSkills()
   initQuickActions()
-  initProfile()
   initWindowState()
   loadPanels()
   vault.initVault()

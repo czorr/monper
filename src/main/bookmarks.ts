@@ -1,6 +1,5 @@
-import { join } from 'path'
 import { readJson, writeJson } from './jsonfile'
-import { app } from 'electron'
+import { rutaDePerfil } from './perfiles'
 import { nombreDeUrl } from '../shared/url'
 import type { Bookmark } from '../shared/types'
 
@@ -22,7 +21,7 @@ function persist(): void {
 }
 
 export function initBookmarks(): void {
-  file = join(app.getPath('userData'), 'bookmarks.json')
+  file = rutaDePerfil('bookmarks.json')
   items = readJson<Bookmark[]>(file, [], 'los marcadores')
   repararTitulos()
 }

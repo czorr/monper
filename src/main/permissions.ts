@@ -1,6 +1,6 @@
-import { join } from 'path'
 import { readJson, writeJson } from './jsonfile'
-import { app, dialog, type Session, type WebContents, type BrowserWindow } from 'electron'
+import { dialog, type Session, type WebContents, type BrowserWindow } from 'electron'
+import { rutaDePerfil } from './perfiles'
 import type { PermKey, PermState } from '../shared/types'
 
 // Decisiones por origen. Persistido en permissions.json.
@@ -13,7 +13,7 @@ const requested: Record<string, Set<PermKey>> = {}
 function persist(): void { writeJson(file, store, 'los permisos de los sitios', false) }
 
 export function initPermissions(): void {
-  file = join(app.getPath('userData'), 'permissions.json')
+  file = rutaDePerfil('permissions.json')
   store = readJson(file, {} as typeof store, 'los permisos de los sitios')
 }
 

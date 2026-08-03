@@ -1,5 +1,5 @@
-import { join } from 'path'
-import { app, net } from 'electron'
+import { net } from 'electron'
+import { rutaDePerfil } from './perfiles'
 import { readJson, writeJson } from './jsonfile'
 
 /**
@@ -31,7 +31,7 @@ export function hostOf(url: string): string {
 }
 
 export function initFavicons(): void {
-  file = join(app.getPath('userData'), 'favicons.json')
+  file = rutaDePerfil('favicons.json')
   byHost = readJson<Record<string, string>>(file, {}, 'los favicons')
 }
 

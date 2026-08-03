@@ -26,8 +26,9 @@ export default function ModelSelector({ ctx, onPick, onConnect }: Props): JSX.El
     )
   }
 
-  const kind = ctx.provider.kind
-  const current = ctx.models.find((m) => m.id === ctx.model)?.name ?? ctx.model
+  const actual = ctx.models.find((m) => m.id === ctx.model)
+  const kind = actual?.providerKind ?? ctx.provider.kind
+  const current = actual?.name ?? ctx.model
 
   return (
     <div className="relative">
@@ -43,17 +44,19 @@ export default function ModelSelector({ ctx, onPick, onConnect }: Props): JSX.El
       {open && (
         <>
           <div className="fixed inset-0 z-40" onPointerDown={() => setOpen(false)} />
-          <div className="absolute z-50 bottom-full left-0 mb-1.5 w-52 p-1.5 rounded-2xl border border-white/10 bg-[#1c1c20]/95 shadow-2xl shadow-black/50">
-            <div className="px-2 py-1 text-[11px] text-text-faint">{ctx.provider.label}</div>
+          {/* Todos los modelos de todos los proveedores conectados, en una sola lista. Elegir
+              uno cambia el proveedor activo solo: con quién tienes cuenta es un detalle de
+              facturación nuestro, no una decisión que el usuario tenga que tomar antes. */}
+          <div className="absolute z-50 bottom-full left-0 mb-1.5 w-56 max-h-[320px] overflow-y-auto p-1.5 rounded-2xl border border-white/10 bg-[#1c1c20]/95 shadow-2xl shadow-black/50 [&::-webkit-scrollbar]:w-0">
             {ctx.models.map((m) => (
               <button
-                key={m.id}
+                key={`${m.providerId ?? ''}:${m.id}`}
                 onClick={() => { onPick(m.id); setOpen(false) }}
                 className="flex items-center gap-2 w-full h-8 px-2 rounded-lg text-[13px] text-text text-left hover:bg-white/[0.08]"
               >
-                <ProviderIcon kind={kind} className="w-3.5 h-3.5 text-text-dim" />
-                <span className="flex-1">{m.name}</span>
-                {m.id === ctx.model && <IconCheck className="w-4 h-4 text-text" />}
+                <ProviderIcon kind={m.providerKind ?? kind} className="w-3.5 h-3.5 text-text-dim shrink-0" />
+                <span className="flex-1 truncate">{m.name}</span>
+                {m.id === ctx.model && <IconCheck className="w-4 h-4 text-text shrink-0" />}
               </button>
             ))}
           </div>

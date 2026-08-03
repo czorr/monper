@@ -3,11 +3,11 @@ import { readFileSync } from 'fs'
 import { app, BrowserWindow, Menu, Notification, WebContentsView, clipboard, dialog, ipcMain, nativeImage, net, screen, session, shell, type WebContents } from 'electron'
 import type { MenuItemConstructorOptions } from 'electron'
 import type { IpcMainEvent } from 'electron'
-import type { BrowserState, Bookmark, ChatFallo, ChatMessage, MenuAnchor, ProviderKind, InternalPage, SubmenuData, SubmenuSection } from '../shared/types'
+import type { AIProvider, BrowserState, Bookmark, ChatFallo, ChatMessage, MenuAnchor, ProviderKind, InternalPage, SubmenuData, SubmenuSection } from '../shared/types'
 import { internalPageOf, type DatosMenuPerfil } from '../shared/types'
 import { nombreDeUrl } from '../shared/url'
 import { initBookmarks, listBookmarks, isBookmarked, addBookmark, removeBookmark, toggleBookmark, reorderBookmarks, updateBookmark, createFolder, moveBookmark, setFolderCollapsed } from './bookmarks'
-import { initAI, listProviders, addProvider, removeProvider, setActive as setActiveProvider, setModel, setEffort, getChatContext, getActiveProvider } from './ai/store'
+import { initAI, listProviders, addProvider, removeProvider, setActive as setActiveProvider, setModel, setEffort, getChatContext, getActiveProvider, refrescarModelos } from './ai/store'
 import { runMastra, diagnosticar } from './agent/mastra'
 import { initUsage, anotarTurno, resumen as resumenUso, gastoDeHoy, borrarUso, limiteDiario, setLimiteDiario } from './usage'
 import { initHistory, recordVisit, updateMeta, recent as historyRecent, browse as historyBrowse, removeEntry as historyRemove, clearHistory as historyClear } from './history'
@@ -28,6 +28,9 @@ import {
 import { initSkills, listSkills, getSkill, toggleSkill, enabledSkills, skillsDir, resolveSkillFavicons } from './skills'
 import { initProfile, getProfile, setProfile, setAvatar } from './profile'
 import { PARTICION_NORMAL, particionDe } from './particiones'
+import { initWidgets, listWidgets, widgetDe, crearPendiente, completarWidget, marcarError, reintentar, validarFuente, quitarWidget, registrarDatos, registrarFallo, marcarVisto, repararExtractor, validarDatos, type Widget as WidgetInfo } from './widgets'
+import { withHeadlessPage, runHeadlessSnippet } from './agent/headless'
+import { askModel, parseJsonLoose } from './agent/oneshot'
 import { initMemoria, listarMemoria, leerMemoria, escribirMemoria, borrarMemoria, memoriaHabilitada, setMemoriaHabilitada, contextoDeMemoria, dirMemoria } from './memoria'
 import { rutaDePerfil, particionDelPerfil, listaPerfiles, perfilActivoId, crearPerfil, activarPerfil, borrarPerfil } from './perfiles'
 import { initDownloads, attachDownloads, listDownloads, activeDownloadCount, cancelDownload, openDownload, showDownload, clearDownloads } from './downloads'
@@ -1629,6 +1632,23 @@ async function showPageContextMenu(wc: Electron.WebContents, p: Electron.Context
     items.push(
       { role: 'copy' },
       { label: `Buscar "${sel}" en Google`, click: () => vAct().createTab('https://www.google.com/search?q=' + encodeURIComponent(p.selectionText)) },
+      { type: 'separator' }
+    )
+  }
+  // Widget: solo páginas de verdad (una interna o un error no tienen nada que extraer).
+  const urlPagina = wc.getURL()
+  if (/^https?:\/\//i.test(urlPagina) && !isInternal(urlPagina)) {
+    const ya = widgetDe(urlPagina)
+    items.push(
+      ya
+        ? { label: 'Quitar el widget de esta página', click: () => { quitarWidget(ya.id); avisarWidgets() } }
+        : {
+            label: 'Crear widget de esta página',
+            click: () => {
+              const t = [...vAct().tabs.values()].find((x) => x.view.webContents === wc)
+              void generarWidget(urlPagina, t?.title ?? wc.getTitle(), t?.favicon ?? null)
+            }
+          },
       { type: 'separator' }
     )
   }
@@ -3593,6 +3613,238 @@ ipcMain.on('profilemenu:createProfile', (_e, nombre: string) => {
  * Memoria del agente. Solo páginas internas: son notas sobre el usuario, escritas por el
  * modelo — misma regla que el historial o el vault.
  */
+// ---- Widgets del new tab: el dato del sitio, no una captura del sitio ----
+/** No re-extraer antes de esto: abrir tres new tab seguidos no debe cargar tu banco tres veces. */
+const FRESCURA_MS = 120_000
+let refrescandoWidgets = false
+
+function avisarWidgets(): void { paraPaginas('/newtab.html', 'widgets:changed', listWidgets()) }
+
+const WIDGET_SYSTEM = `Escribes extractores para los widgets del new tab de Monper.
+Tu código corre en el REPL con \`page\` (API estilo Playwright) sobre la página YA CARGADA, con la sesión del usuario. DEBE terminar con \`return <valor>\`.
+
+API útil de \`page\`:
+- await page.waitForSelector(sel) / page.waitForText(txt)
+- await page.textContent(sel) · await page.$$text(sel) · await page.evaluate(fn)
+- await page.fetch(url) ← la API interna del sitio (hereda cookies). Si el dato vive en un endpoint JSON, PREFIERE esto: es mucho más estable que raspar el DOM, y suele traer también el HISTÓRICO.
+
+El return debe ser UNA de estas tres formas:
+
+1) Métrica — un número que importa. Añade \`serie\` SIEMPRE que el sitio dé histórico (el gráfico es lo que hace útil la tarjeta):
+{"tipo":"metrica","valor":"$8.01","etiqueta":"Tesla Inc.","delta":{"texto":"+1.24%","signo":"sube"},"serie":[7.9,8.1,8.0,8.2,8.01],"forma":"linea"}
+- "signo": "sube" | "baja" | "neutro" — manda el color, no lo deduzcas del texto.
+- "forma": "linea" para una evolución continua (precio, seguidores); "barras" para valores por periodo (ventas por día, horas por semana).
+
+2) Progreso — una proporción:
+{"tipo":"progreso","porcentaje":73,"valor":"73%","etiqueta":"Objetivo del mes"}
+
+3) Lista — filas (máx 5): titulares, PRs, correos, partidos:
+{"tipo":"lista","items":[{"texto":"Rayados 2 - 1 Tigres","meta":"90'","url":"https://…"}]}
+
+Elige la forma que mejor cuente ese sitio DE UN VISTAZO. Un marcador, un precio o un contador NUNCA son una lista de un elemento: son una métrica. Usa selectores estables (data-*, aria-*, id).
+
+Responde SOLO un JSON: {"title":"Nombre corto del widget","code":"…el snippet…"}`
+
+const FUENTE_SYSTEM = `Eliges DE DÓNDE sacar un dato que el usuario quiere ver como widget en Monper, su navegador.
+
+CÓMO SE VA A EJECUTAR (esto manda en tu elección):
+- Monper abre esa URL en una pestaña invisible, con las COOKIES DEL USUARIO. Si tiene sesión en el sitio, la página se carga logueada.
+- El JavaScript de la página corre con normalidad, y luego otro paso extrae el dato del DOM o llamando a la API interna del sitio (fetch desde la propia página, heredando su sesión).
+- NO hay interacción: nadie va a pulsar botones, aceptar cookies, resolver un captcha ni hacer scroll. Si el dato solo aparece tras interactuar, esa página NO sirve.
+- El widget se recarga solo cada pocos minutos, así que la URL tiene que seguir sirviendo mañana: nada de enlaces con token o de resultados de búsqueda efímeros.
+
+Responde SOLO un JSON, sin prosa ni explicación:
+{"url":"https://…","que":"qué extraer exactamente de esa página"}
+
+Ejemplos:
+- "el precio del bitcoin" → {"url":"https://www.coingecko.com/en/coins/bitcoin","que":"el precio actual en USD y la variación de 24 h"}
+- "mis PRs pendientes en GitHub" → {"url":"https://github.com/pulls","que":"los pull requests abiertos que esperan mi revisión, con su repositorio"}
+- "el clima en Monterrey" → {"url":"https://www.google.com/search?q=clima+monterrey","que":"la temperatura actual y la máxima/mínima de hoy"}
+
+Reglas:
+- La URL tiene que ser la página CONCRETA donde vive el dato, no la home del sitio.
+- Si la petición es sobre SUS cosas (su correo, sus PRs, sus pedidos), elige el sitio donde ya tenga sesión — se cargará con sus cookies.
+- Prefiere páginas que rindan el dato en el HTML o que tengan una API interna clara.
+- Si la petición es ambigua, elige la interpretación más común y dilo en "que".`
+
+/**
+ * Widget desde lo que el usuario PIDIÓ, no desde la página que tuviera abierta.
+ *
+ * Es el camino principal, y el que arregla el problema de fondo: pedirle a una página
+ * cualquiera que se convierta en widget fallaba casi siempre, porque la mayoría de páginas no
+ * tienen un dato que extraer. Aquí el modelo ELIGE la fuente, así que puede escoger una que sí
+ * sirva — y si el usuario tiene sesión allí, la usa.
+ */
+async function generarWidgetDesdePeticion(peticion: string): Promise<void> {
+  const active = getActiveProvider()
+  const win = vActOpt()?.win
+  if (!active || !win) { avisarSinIA(); return }
+  const w = crearPendiente('', peticion, null, peticion)
+  avisarWidgets()
+  try {
+    // Los sitios donde el usuario vive: es lo que permite al modelo preferir uno con sesión.
+    const suyos = [...new Set(historyBrowse('', 0, 120).entries.map((e) => {
+      try { return new URL(e.url).hostname.replace(/^www\./, '') } catch { return '' }
+    }).filter(Boolean))].slice(0, 25)
+
+    const fuenteRaw = await askModel(active.provider, active.key, active.model, FUENTE_SYSTEM,
+      `El usuario quiere ver: ${peticion}\n\nSitios que usa a menudo (puede tener sesión iniciada):\n${suyos.join(', ')}`)
+    const fuente = validarFuente(parseJsonLoose(fuenteRaw))
+    if (!fuente) {
+      // Se enseña LO QUE CONTESTÓ. "No se pudo decidir" no dice nada: con la respuesta cruda
+      // delante se ve si el modelo divagó, si devolvió una URL inválida o si no contestó.
+      const pista = fuenteRaw.trim().replace(/\s+/g, ' ').slice(0, 140)
+      throw new Error(pista ? `el modelo no eligió una fuente usable — dijo: "${pista}"` : 'el modelo no respondió')
+    }
+
+    const { title, code, datos, favicon } = await construirExtractor(win, active, fuente.url, peticion, fuente.que)
+    completarWidget(w.id, title, code, datos, { url: fuente.url, favicon })
+  } catch (e) {
+    const motivo = e instanceof Error ? e.message : String(e)
+    console.error('[widgets] no se pudo crear el widget de', peticion, motivo)
+    marcarError(w.id, motivo)
+  }
+  avisarWidgets()
+}
+
+function avisarSinIA(): void {
+  const win = vActOpt()?.win
+  if (!win) return
+  void dialog.showMessageBox(win, {
+    type: 'info', message: 'Los widgets los construye el agente',
+    detail: 'Conecta un proveedor de IA en Settings → AI y vuelve a intentarlo.', buttons: ['OK'], noLink: true
+  })
+}
+
+/**
+ * Carga la página, le pide al modelo el extractor y lo PRUEBA corriéndolo. Devolver solo lo
+ * que ya funcionó es lo que evita guardar widgets rotos que fallarían mañana en silencio.
+ */
+async function construirExtractor(
+  win: BrowserWindow,
+  active: { provider: AIProvider; key: string; model: string },
+  url: string,
+  peticion: string,
+  que?: string
+): Promise<{ title: string; code: string; datos: import('./widgets').DatosWidget; favicon: string | null }> {
+  const contexto = await withHeadlessPage(win, url, async ({ page }) => {
+    const snap = await page.snapshotText({ maxText: 2500, maxNodes: 60 })
+    return snap.slice(0, 6000)
+  }, { partition: particionDelPerfil() })
+  const raw = await askModel(active.provider, active.key, active.model, WIDGET_SYSTEM,
+    `URL: ${url}\nLo que el usuario quiere ver: ${peticion}${que ? `\nQué extraer: ${que}` : ''}\n\nLa página ahora mismo:\n${contexto}`)
+  const j = parseJsonLoose<{ title?: string; code?: string }>(raw)
+  if (!j?.code) {
+    const pista = raw.trim().replace(/\s+/g, ' ').slice(0, 140)
+    throw new Error(pista ? `el modelo no devolvió un extractor — dijo: "${pista}"` : 'el modelo no respondió')
+  }
+  const datos = validarDatos(await runHeadlessSnippet(win, url, j.code, { partition: particionDelPerfil() }))
+  if (!datos) throw new Error('el extractor no devolvió datos con forma válida')
+  return { title: j.title || peticion, code: j.code, datos, favicon: faviconFor(url) }
+}
+
+/** Crea el widget: el modelo mira la página y escribe el extractor; se valida corriéndolo. */
+async function generarWidget(url: string, title: string, favicon: string | null, existente?: WidgetInfo): Promise<void> {
+  const active = getActiveProvider()
+  const win = vActOpt()?.win
+  if (!active || !win) { avisarSinIA(); return }
+  const w = existente ?? crearPendiente(url, title, favicon)
+  if (!w.creando) return // ya existía y está bien
+  avisarWidgets()
+  try {
+    const r = await construirExtractor(win, active, url, w.peticion || title || url, undefined)
+    completarWidget(w.id, r.title, r.code, r.datos)
+  } catch (e) {
+    // El motivo se GUARDA y se enseña en la tarjeta. Borrarla dejaba al usuario pidiendo un
+    // widget, no viendo nada y sin saber por qué — ver docs/errores-silenciosos.md.
+    const motivo = e instanceof Error ? e.message : String(e)
+    console.error('[widgets] no se pudo crear el widget de', url, motivo)
+    marcarError(w.id, motivo)
+  }
+  avisarWidgets()
+}
+
+/**
+ * Refresca los caducados, de uno en uno (cada uno es una página real cargándose). Tras cada
+ * uno se avisa: el muro se actualiza widget a widget. Con 2 fallos seguidos se asume que el
+ * sitio cambió su HTML y se le pide al modelo un extractor nuevo, como en las rutinas.
+ */
+async function refrescarWidgets(): Promise<void> {
+  if (refrescandoWidgets) return
+  const win = vActOpt()?.win
+  if (!win) return
+  refrescandoWidgets = true
+  try {
+    for (const w of listWidgets()) {
+      if (w.creando || !w.extractor) continue
+      if (Date.now() - w.updatedAt < FRESCURA_MS) continue
+      try {
+        const datos = validarDatos(await runHeadlessSnippet(win, w.url, w.extractor, { partition: particionDelPerfil() }))
+        if (datos) { registrarDatos(w.id, datos); avisarWidgets(); continue }
+        throw new Error('datos sin forma válida')
+      } catch (e) {
+        console.error('[widgets] falló el extractor de', w.url, e instanceof Error ? e.message : e)
+        registrarFallo(w.id)
+        const roto = listWidgets().find((x) => x.id === w.id)
+        if (roto && roto.fallos >= 2) void repararWidget(roto)
+      }
+    }
+  } finally { refrescandoWidgets = false }
+}
+
+/** El sitio cambió su HTML: el modelo reescribe el extractor mirando la página de hoy. */
+async function repararWidget(w: WidgetInfo): Promise<void> {
+  const active = getActiveProvider()
+  const win = vActOpt()?.win
+  if (!active || !win) return
+  try {
+    const contexto = await withHeadlessPage(win, w.url, async ({ page }) => {
+      const snap = await page.snapshotText({ maxText: 2500, maxNodes: 60 })
+      return snap.slice(0, 6000)
+    }, { partition: particionDelPerfil() })
+    const raw = await askModel(active.provider, active.key, active.model, WIDGET_SYSTEM,
+      `URL: ${w.url}\nTítulo: ${w.title}\nEl extractor anterior dejó de funcionar (el sitio cambió). Escribe uno nuevo.\n\nLa página ahora mismo:\n${contexto}`)
+    const j = parseJsonLoose<{ code?: string }>(raw)
+    if (!j?.code) return
+    const datos = validarDatos(await runHeadlessSnippet(win, w.url, j.code, { partition: particionDelPerfil() }))
+    if (!datos) return
+    repararExtractor(w.id, j.code)
+    registrarDatos(w.id, datos)
+    avisarWidgets()
+  } catch (e) {
+    console.error('[widgets] no se pudo reparar el widget de', w.url, e instanceof Error ? e.message : e)
+  }
+}
+
+ipcMain.handle('widgets:list', (e) => (isInternalSender(e.senderFrame?.url) ? listWidgets() : []))
+ipcMain.on('widgets:refresh', (e) => { if (isInternalSender(e.senderFrame?.url)) void refrescarWidgets() })
+ipcMain.on('widgets:remove', (e, id: string) => {
+  if (!isInternalSender(e.senderFrame?.url)) return
+  if (quitarWidget(String(id))) avisarWidgets()
+})
+ipcMain.on('widgets:seen', (e, id: string) => {
+  if (!isInternalSender(e.senderFrame?.url)) return
+  marcarVisto(String(id))
+  avisarWidgets()
+})
+ipcMain.on('widgets:create', (e, url: string, title: string, favicon: string | null) => {
+  if (!isInternalSender(e.senderFrame?.url)) return
+  void generarWidget(String(url), String(title ?? ''), favicon || null)
+})
+ipcMain.on('widgets:ask', (e, peticion: string) => {
+  if (!isInternalSender(e.senderFrame?.url)) return
+  const t = String(peticion ?? '').trim()
+  if (t) void generarWidgetDesdePeticion(t.slice(0, 200))
+})
+ipcMain.on('widgets:retry', (e, id: string) => {
+  if (!isInternalSender(e.senderFrame?.url)) return
+  const w = reintentar(String(id))
+  if (!w) return
+  avisarWidgets()
+  // Si nació de una petición, se vuelve a elegir la fuente: quizá la de antes era la mala.
+  if (w.peticion && !w.extractor) { quitarWidget(w.id); void generarWidgetDesdePeticion(w.peticion); return }
+  void generarWidget(w.url, w.title, w.favicon, w)
+})
 ipcMain.handle('memory:list', (e) => (isInternalSender(e.senderFrame?.url) ? listarMemoria() : []))
 ipcMain.handle('memory:read', (e, path: string) => (isInternalSender(e.senderFrame?.url) ? leerMemoria(String(path)) : null))
 ipcMain.handle('memory:write', (e, path: string, contenido: string) => {
@@ -3635,6 +3887,16 @@ ipcMain.handle('providers:setActive', (e, id: string) => {
 })
 // El chrome (composer) pide el contexto del chat: proveedor activo + modelos + modelo elegido
 ipcMain.handle('chat:context', () => getChatContext())
+/**
+ * Relee el catálogo del proveedor. Lo llaman Settings al abrirse y al conectar: así los modelos
+ * nuevos aparecen el día que salen, sin esperar a una versión de Monper con la lista tocada.
+ */
+ipcMain.handle('providers:models', async (e) => {
+  if (!isInternalSender(e.senderFrame?.url)) return []
+  const lista = await refrescarModelos()
+  notifyChatContext()
+  return lista
+})
 ipcMain.on('chat:setModel', (_e, id: string) => setModel(id))
 ipcMain.on('chat:setEffort', (_e, e: 'low' | 'medium' | 'high') => setEffort(e))
 
@@ -3938,6 +4200,7 @@ app.whenReady().then(() => {
   initHistory()
   // La memoria es del perfil: lo que Monper sabe de ti en "Trabajo" no es lo de "Personal".
   initMemoria(rutaDePerfil('memory'), rutaDePerfil('memory-settings.json'))
+  initWidgets(rutaDePerfil('widgets.json'))
   initSkills()
   initQuickActions()
   initWindowState()
@@ -3945,6 +4208,9 @@ app.whenReady().then(() => {
   vault.initVault()
   initAI()
   createWindow()
+  // Catálogo de modelos al arrancar, con retraso y sin bloquear: es una petición de red y el
+  // usuario no está esperándola. Si falla, se sigue con la lista de fábrica.
+  setTimeout(() => { void refrescarModelos().then(() => notifyChatContext()) }, 5000).unref?.()
   // Ya hay ventana: se entregan los enlaces que llegaron mientras arrancaba.
   initDefaultBrowser((url) => { vAct().createTab(url, true); vActOpt()?.win?.focus() })
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })

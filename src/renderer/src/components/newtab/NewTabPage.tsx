@@ -1,47 +1,15 @@
 import { useEffect, useState, type JSX } from 'react'
 import type { Suggestion } from '@shared/types'
 import IconSearch from '~icons/tabler/search'
-import IconKey from '~icons/tabler/key'
-import IconBolt from '~icons/tabler/bolt'
-import IconPalette from '~icons/tabler/palette'
-import IconArrowUpRight from '~icons/tabler/arrow-up-right'
 import { useAutocomplete, useInlineCompletion, SuggestionList } from '@renderer/components/omnibox'
 import logo from '@renderer/assets/monper.png'
 import DefaultBrowserBanner from './DefaultBrowserBanner'
+import Widgets from './Widgets'
 
 const { monperTab } = window
 
 type Mode = 'search' | 'ai'
 
-interface Task {
-  title: string
-  desc: string
-  action: string
-  grad: string
-  Icon: typeof IconKey
-  onClick: () => void
-}
-
-const TASKS: Task[] = [
-  {
-    title: 'Conecta tu IA',
-    desc: 'Añade tu API key de Claude u OpenAI para activar el asistente.',
-    action: 'Abrir Settings', grad: 'from-violet-400 to-sky-400', Icon: IconKey,
-    onClick: () => monperTab.openSettings()
-  },
-  {
-    title: 'Prueba el asistente',
-    desc: 'Pídele a Monper que opere la página por ti: navega, busca, resume.',
-    action: 'Abrir Ask Monper', grad: 'from-pink-300 to-rose-400', Icon: IconBolt,
-    onClick: () => monperTab.openChat()
-  },
-  {
-    title: 'Personaliza Monper',
-    desc: 'Ajusta proveedores, privacidad y atajos a tu gusto.',
-    action: 'Abrir Settings', grad: 'from-amber-300 to-orange-400', Icon: IconPalette,
-    onClick: () => monperTab.openSettings()
-  }
-]
 
 export default function NewTabPage(): JSX.Element {
   const [mode, setMode] = useState<Mode>('search')
@@ -122,31 +90,7 @@ export default function NewTabPage(): JSX.Element {
         )}
       </div>
 
-      {/* Suggested tasks */}
-      <div className="w-full max-w-[860px]">
-        <h2 className="text-[15px] font-semibold text-text-dim mb-3.5">Para empezar</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {TASKS.map((t) => (
-            <div key={t.title} className="rounded-2xl bg-white/[0.03] border border-white/[0.07] overflow-hidden flex flex-col">
-              <div className={`h-[88px] bg-gradient-to-br ${t.grad} grid place-items-center`}>
-                <div className="w-12 h-12 rounded-2xl bg-white/25 backdrop-blur grid place-items-center [&>svg]:w-6 [&>svg]:h-6 [&>svg]:text-white">
-                  <t.Icon />
-                </div>
-              </div>
-              <div className="p-4 flex flex-col gap-1.5 flex-1">
-                <h3 className="text-[14.5px] font-semibold">{t.title}</h3>
-                <p className="text-[13px] text-text-dim leading-relaxed flex-1">{t.desc}</p>
-                <button
-                  onClick={t.onClick}
-                  className="self-start mt-1.5 flex items-center gap-1.5 px-3 h-8 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] text-[12.5px] text-text transition-colors [&>svg]:w-3.5 [&>svg]:h-3.5 [&>svg]:text-text-dim"
-                >
-                  {t.action} <IconArrowUpRight />
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+      <Widgets />
     </div>
   )
 }

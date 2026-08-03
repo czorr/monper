@@ -226,6 +226,9 @@ export default function SettingsPage(): JSX.Element {
 }
 
 function AIPage(): JSX.Element {
+  // Al abrir AI se relee el catálogo del proveedor: es el momento en que el usuario va a mirar
+  // qué modelos hay, y así los nuevos aparecen sin esperar a una versión de Monper.
+  useEffect(() => { void monperTab.refreshModels() }, [])
   return (
     <>
       <h1 className="text-[30px] font-semibold tracking-tight mb-9">AI</h1>

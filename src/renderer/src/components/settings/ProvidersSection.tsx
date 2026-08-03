@@ -75,8 +75,10 @@ function ConnectForm({ onDone }: { onDone: (next: ProviderInfo[]) => void }): JS
     if (!apiKey.trim() || busy) return
     setBusy(true)
     try {
-      const next = await monperTab.addProvider({ label, kind, baseUrl: baseUrl || undefined }, apiKey.trim())
+      const next = await monperTab.addProvider({ label, kind, baseUrl: baseUrl.trim() || undefined }, apiKey.trim())
       onDone(Array.isArray(next) ? next : [])
+      // Se le pregunta al proveedor qué modelos tiene, para no depender de la lista de fábrica.
+      void monperTab.refreshModels()
     } catch (err) {
       console.error('addProvider error:', err)
     } finally {
@@ -97,14 +99,21 @@ function ConnectForm({ onDone }: { onDone: (next: ProviderInfo[]) => void }): JS
             className={'flex items-center gap-2 px-3.5 h-8 rounded-lg text-[13px] transition-colors [&>svg]:w-4 [&>svg]:h-4 ' + (kind === k ? 'bg-white/[0.10] text-text' : 'text-text-dim hover:text-text')}
           >
             <ProviderIcon kind={k} />
-            {k === 'anthropic' ? 'Claude' : 'OpenAI-compatible'}
+            {k === 'anthropic' ? 'Claude' : 'OpenAI'}
           </button>
         ))}
       </div>
 
       <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Nombre (opcional)" className={field} />
+      {/* La URL es OPCIONAL y se dice: sin ella va a la API de OpenAI. Antes el campo salía a
+          secas y parecía obligatorio, así que conectar OpenAI a pelo parecía imposible. */}
       {kind === 'openai' && (
-        <input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="Base URL (ej. https://openrouter.ai/api/v1)" className={field} />
+        <div>
+          <input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="https://api.openai.com/v1" className={field} />
+          <p className="mt-1.5 px-1 text-[12px] text-text-faint">
+            Déjalo vacío para OpenAI. Rellénalo solo si usas otro servicio compatible (OpenRouter, Groq, un modelo local…).
+          </p>
+        </div>
       )}
       <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="API key" className={field} />
 

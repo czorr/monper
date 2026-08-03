@@ -154,24 +154,37 @@ export interface ProviderInfo extends AIProvider {
 export interface ModelOption {
   id: string
   name: string
+  /**
+   * De qué proveedor conectado sale. Elegir un modelo cambia el proveedor activo solo: al
+   * usuario le da igual con quién tienes cuenta, solo quiere ese modelo.
+   */
+  providerId?: string
+  providerKind?: ProviderKind
 }
 
-/** Catálogo de modelos que cargamos nosotros (no lo escribe el usuario) */
+/**
+ * Catálogo de arranque. NO es la lista definitiva: al conectar se le pregunta al proveedor por
+ * la suya (ver main/ai/catalogo.ts) y esta solo aporta nombres bonitos y el orden.
+ *
+ * Solo modelos VIGENTES y self-serve. Las generaciones viejas se quitan aunque la API las siga
+ * aceptando: un selector con diez modelos de tres generaciones no ayuda a elegir, estorba.
+ * Mythos 5 tampoco está: es de acceso restringido y ofrecerlo a todo el mundo sería enseñar un
+ * modelo que casi nadie puede usar.
+ *
+ * El PRIMERO de cada lista es el que se elige solo al conectar ese proveedor.
+ */
 export const MODELS: Record<ProviderKind, ModelOption[]> = {
-  // El PRIMERO es el que se elige solo al conectar un proveedor (ver MODELS[kind][0] en
-  // ai/store.ts), así que el orden es la recomendación: capaz primero, barato después.
-  // Mythos 5 NO está aquí a propósito: es de acceso restringido y ofrecerlo a todo el mundo
-  // sería enseñar un modelo que casi nadie puede usar.
   anthropic: [
     { id: 'claude-opus-5', name: 'Opus 5' },
     { id: 'claude-fable-5', name: 'Fable 5' },
-    { id: 'claude-opus-4-8', name: 'Opus 4.8' },
     { id: 'claude-sonnet-5', name: 'Sonnet 5' },
     { id: 'claude-haiku-4-5', name: 'Haiku 4.5' }
   ],
+  // GPT-5.6, julio de 2026: tres niveles. `gpt-5.6` a secas es un alias de sol.
   openai: [
-    { id: 'gpt-5', name: 'GPT-5' },
-    { id: 'gpt-5-mini', name: 'GPT-5 mini' }
+    { id: 'gpt-5.6-sol', name: 'GPT-5.6 Sol' },
+    { id: 'gpt-5.6-terra', name: 'GPT-5.6 Terra' },
+    { id: 'gpt-5.6-luna', name: 'GPT-5.6 Luna' }
   ]
 }
 
@@ -185,6 +198,7 @@ export const EFFORTS: { id: Effort; name: string }[] = [
 /** Contexto del chat que ve el composer: proveedor activo, modelos, modelo y effort */
 export interface ChatContext {
   provider: { id: string; label: string; kind: ProviderKind } | null
+  /** TODOS los modelos de TODOS los proveedores conectados, no solo los del activo. */
   models: ModelOption[]
   model: string
   effort: Effort
@@ -333,6 +347,25 @@ export interface NodoMemoriaInfo {
   bytes: number
   at: number
   hijos?: NodoMemoriaInfo[]
+}
+
+/** Un widget del new tab, listo para pintar. Ver src/main/widgets.ts. */
+export interface WidgetInfo {
+  id: string
+  peticion?: string
+  url: string
+  title: string
+  favicon: string | null
+  datos:
+    | { tipo: 'metrica'; valor: string; etiqueta?: string; delta?: { texto: string; signo: 'sube' | 'baja' | 'neutro' }; serie?: number[]; forma?: 'linea' | 'barras' }
+    | { tipo: 'progreso'; porcentaje: number; valor?: string; etiqueta?: string }
+    | { tipo: 'lista'; items: { texto: string; meta?: string; url?: string }[] }
+    | null
+  updatedAt: number
+  changed: boolean
+  fallos: number
+  creando?: boolean
+  error?: string
 }
 
 export interface HistoryEntryInfo {
@@ -897,6 +930,16 @@ export interface MonperTabApi {
   moveBookmark: (id: string, parentId: string | null) => void
   // ---- Historial ----
   browseHistory: (query: string, offset: number, limit: number) => Promise<{ entries: HistoryEntryInfo[]; total: number }>
+  // ---- Widgets del new tab ----
+  widgetsList: () => Promise<WidgetInfo[]>
+  widgetsRefresh: () => void
+  widgetsRemove: (id: string) => void
+  widgetsSeen: (id: string) => void
+  widgetsCreate: (url: string, title: string, favicon: string | null) => void
+  widgetsRetry: (id: string) => void
+  /** Pide un widget en lenguaje natural: el agente elige la fuente y escribe el extractor. */
+  widgetsAsk: (peticion: string) => void
+  onWidgets: (cb: (lista: WidgetInfo[]) => void) => () => void
   // ---- Memoria del agente (ficheros markdown que escribe él) ----
   memoryList: () => Promise<NodoMemoriaInfo[]>
   memoryRead: (path: string) => Promise<string | null>
@@ -953,6 +996,8 @@ export interface MonperTabApi {
   addProvider: (input: { label: string; kind: ProviderKind; baseUrl?: string }, apiKey: string) => Promise<ProviderInfo[]>
   removeProvider: (id: string) => Promise<ProviderInfo[]>
   setActiveProvider: (id: string) => Promise<ProviderInfo[]>
+  /** Relee el catálogo de modelos del proveedor activo (se lo pregunta a su API). */
+  refreshModels: () => Promise<ModelOption[]>
   // ---- Vault (gestión desde Settings) ----
   vaultList: () => Promise<VaultItemMeta[]>
   vaultAdd: (type: VaultItemType, label: string, data: Record<string, string>, secret: string) => Promise<VaultItemMeta[]>

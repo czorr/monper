@@ -12,10 +12,12 @@ export async function withHeadlessPage<T>(
   win: BrowserWindow,
   url: string,
   fn: (ctx: { page: Page; wc: WebContents }) => Promise<T>,
-  opts: { timeoutMs?: number } = {}
+  opts: { timeoutMs?: number; partition?: string } = {}
 ): Promise<T> {
   const view = new WebContentsView({
-    webPreferences: { partition: 'persist:monper', contextIsolation: true, sandbox: true }
+    // La partición del perfil activo, no la de siempre: una rutina o un vigía del perfil
+    // "Trabajo" tiene que ver la web logueada de Trabajo.
+    webPreferences: { partition: opts.partition ?? 'persist:monper', contextIsolation: true, sandbox: true }
   })
   const wc = view.webContents
   // Invisible pero con tamaño estable: el DOM y el JS corren igual, solo no se pinta.
@@ -41,6 +43,6 @@ export async function withHeadlessPage<T>(
  * Ejecuta un snippet del REPL (con `page` y todos los globals de las skills) sobre una
  * página headless y devuelve su valor crudo. Es el motor de los extractores de rutinas.
  */
-export function runHeadlessSnippet(win: BrowserWindow, url: string, code: string): Promise<unknown> {
-  return withHeadlessPage(win, url, ({ page, wc }) => execInRepl(page, wc, code))
+export function runHeadlessSnippet(win: BrowserWindow, url: string, code: string, opts: { timeoutMs?: number; partition?: string } = {}): Promise<unknown> {
+  return withHeadlessPage(win, url, ({ page, wc }) => execInRepl(page, wc, code), opts)
 }

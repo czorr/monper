@@ -2,8 +2,9 @@ import { join } from 'path'
 import { readFileSync, existsSync } from 'fs'
 import { writeJson } from '../jsonfile'
 import { app, safeStorage } from 'electron'
-import type { AIProvider, ChatContext, Effort, ProviderInfo, ProviderKind } from '../../shared/types'
+import type { AIProvider, ChatContext, Effort, ModelOption, ProviderInfo, ProviderKind } from '../../shared/types'
 import { MODELS } from '../../shared/types'
+import { catalogoDe } from './catalogo'
 import * as vault from '../vault/store'
 
 // Chat settings (config, NO secretos) — separado del vault.
@@ -75,10 +76,27 @@ function activeInfo(): ProviderInfo | undefined {
   return providers().find((p) => p.active)
 }
 
+function catalogoDeProveedor(p: ProviderInfo): ModelOption[] {
+  return catalogos.get(p.id) ?? MODELS[p.kind]
+}
+
+/**
+ * TODOS los modelos de TODOS los proveedores conectados.
+ *
+ * El usuario no tiene por qué elegir primero un proveedor: quiere un modelo. Con dos cuentas
+ * conectadas, el selector los enseña juntos y elegir uno cambia el proveedor activo solo — que
+ * es un detalle de facturación nuestro, no una decisión suya.
+ */
+export function todosLosModelos(): ModelOption[] {
+  return providers().flatMap((p) =>
+    catalogoDeProveedor(p).map((m) => ({ ...m, providerId: p.id, providerKind: p.kind }))
+  )
+}
+
 function resolveModel(): string {
   const p = activeInfo()
   if (!p) return ''
-  const catalog = MODELS[p.kind]
+  const catalog = catalogoDeProveedor(p)
   if (cfg.model && catalog.some((m) => m.id === cfg.model)) return cfg.model
   return catalog[0]?.id ?? ''
 }
@@ -108,24 +126,58 @@ export function setActive(id: string): void {
   if (!item || item.type !== 'ai-key') return
   cfg.activeId = id
   const kind = (item.data.kind as ProviderKind) ?? 'anthropic'
-  if (!MODELS[kind].some((m) => m.id === cfg.model)) cfg.model = MODELS[kind][0]?.id ?? null
+  const catalogo = catalogos.get(item.id) ?? MODELS[kind]
+  if (!catalogo.some((m) => m.id === cfg.model)) cfg.model = catalogo[0]?.id ?? null
   persist()
 }
 
+/**
+ * Elige un modelo, venga del proveedor que venga. Si es de otro, se cambia el activo también:
+ * el usuario eligió un modelo, no una cuenta.
+ */
 export function setModel(modelId: string): void {
-  const p = activeInfo()
-  if (p && MODELS[p.kind].some((m) => m.id === modelId)) { cfg.model = modelId; persist() }
+  const dueno = providers().find((p) => catalogoDeProveedor(p).some((m) => m.id === modelId))
+  if (!dueno) return
+  cfg.activeId = dueno.id
+  cfg.model = modelId
+  persist()
 }
 
 export function setEffort(effort: Effort): void {
   if (effort === 'low' || effort === 'medium' || effort === 'high') { cfg.effort = effort; persist() }
 }
 
+/**
+ * Catálogo por proveedor, tal y como lo contestó él. Se cachea en memoria: preguntar en cada
+ * `getChatContext` (que se llama al abrir el composer) metería una petición de red en el
+ * camino de pintar la UI.
+ */
+const catalogos = new Map<string, ModelOption[]>()
+
+/** Refresca el catálogo de TODOS los proveedores conectados, no solo el del activo. */
+export async function refrescarModelos(): Promise<ModelOption[]> {
+  await Promise.all(providers().map(async (p) => {
+    const key = vault.getSecret(p.id)
+    if (!key) return
+    const lista = await catalogoDe({ id: p.id, label: p.label, kind: p.kind, baseUrl: p.baseUrl }, key)
+    catalogos.set(p.id, lista)
+  }))
+  const todos = todosLosModelos()
+  // El modelo elegido puede haber desaparecido del catálogo (lo retiró el proveedor): se cae al
+  // primero en vez de dejar seleccionado uno que devolvería 404 en cada mensaje.
+  if (cfg.model && !todos.some((m) => m.id === cfg.model)) {
+    cfg.model = todos[0]?.id ?? null
+    if (todos[0]?.providerId) cfg.activeId = todos[0].providerId
+    persist()
+  }
+  return todos
+}
+
 export function getChatContext(): ChatContext {
   const p = activeInfo()
   return {
     provider: p ? { id: p.id, label: p.label, kind: p.kind } : null,
-    models: p ? MODELS[p.kind] : [],
+    models: todosLosModelos(),
     model: resolveModel(),
     effort: cfg.effort
   }

@@ -8,7 +8,7 @@ import IconPencil from '~icons/tabler/pencil'
 import IconChevron from '~icons/tabler/chevron-down'
 import IconFileText from '~icons/tabler/file-text'
 import IconDots from '~icons/tabler/dots'
-import logo from '@renderer/assets/titanio.png'
+import logo from '@renderer/assets/iso-white.svg'
 import SkillIcon from './SkillIcon'
 import { MD_COMPONENTS } from './markdown'
 

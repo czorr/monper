@@ -9,7 +9,6 @@ import IconVolumeOff from '~icons/tabler/volume-off'
 import IconVolume from '~icons/tabler/volume'
 import IconDownload from '~icons/tabler/download'
 import IconPuzzle from '~icons/tabler/puzzle'
-import TitanioMark from '@renderer/components/ui/TitanioMark'
 
 interface Props {
   active: ActiveInfo | null
@@ -52,7 +51,8 @@ export default function Topbar({ active, collapsed, mac, chatOpen, editRequest, 
       className={
         // `border-border` es casi transparente y se da la vuelta solo en páginas claras
         // (0.06 blanco / 0.14 negro), así que la línea se ve en las dos sin un selector aparte.
-        'relative h-topbar flex items-center gap-2 px-3 border-b border-border ' +
+        'relative h-topbar flex items-center gap-2 px-3 ' +
+        (active?.internal ? '' : 'border-b border-border ') +
         'transition-[background] duration-150 [-webkit-app-region:drag] ' +
         (onLight ? 'on-light ' : '') +
         (collapsed && mac ? 'pl-20.5' : '')
@@ -126,7 +126,6 @@ export default function Topbar({ active, collapsed, mac, chatOpen, editRequest, 
           }
         >
           {/* Hereda el color del botón: en una página clara se vuelve oscuro solo. */}
-          <TitanioMark className="w-4 h-4" />
           Ask Titanio
         </button>
       </div>

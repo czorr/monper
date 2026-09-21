@@ -98,9 +98,10 @@ const NO_VIBRANCY = process.env['MONPER_NO_VIBRANCY'] === '1'
 const APP_BG = '#111114' // igual que --color-bg en styles.css
 const isMac = process.platform === 'darwin'
 
-// Nombre de la app: debe fijarse ANTES de whenReady para que el menú de macOS
-// y el dock muestren "Titanio" en vez de "Electron" (dev incluido).
-app.setName('Titanio')
+// Nombre usado por Electron en los menús; el bundle de macOS se nombra al empaquetar.
+app.setName('Titanio Browser')
+// Conserva los perfiles existentes y la ruta que usa el puente MCP tras el cambio de nombre.
+app.setPath('userData', join(app.getPath('appData'), 'Titanio'))
 
 // FedCM (el "Continuar con Google" moderno) necesita UI a nivel navegador que Electron
 // NO implementa: sin esto el click no hace absolutamente nada. Al desactivarlo, Google
@@ -775,7 +776,7 @@ function crearVentana(opts: { sinPestanaInicial?: boolean; incognito?: boolean }
     // Control, en el menú Ventana y al compartir pantalla, donde antes ponía siempre
     // "Titanio": las pestañas son WebContentsView aparte, así que el título del chrome nunca
     // cambiaba solo.
-    win.setTitle(t?.title ? `${t.title} — Titanio` : 'Titanio')
+    win.setTitle(t?.title ? `${t.title} — Titanio Browser` : 'Titanio Browser')
     // El peek renderiza el mismo <Sidebar/> con el mismo preload: recibe el mismo estado.
     if (peekWin && !peekWin.isDestroyed()) peekWin.webContents.send('state:update', state)
     // La ventana de extensiones detecta si estás en una página de la Store.
@@ -1108,7 +1109,7 @@ function crearVentana(opts: { sinPestanaInicial?: boolean; incognito?: boolean }
           action: 'allow',
           overrideBrowserWindowOptions: {
             width: 500, height: 640, resizable: true, minimizable: true, maximizable: false,
-            fullscreenable: false, autoHideMenuBar: true, title: 'Titanio',
+            fullscreenable: false, autoHideMenuBar: true, title: 'Titanio Browser',
             // El popup hereda la sesión de quien lo abrió: un OAuth lanzado desde incógnito
             // que cayera en la sesión normal iniciaría sesión de verdad, justo lo contrario.
             webPreferences: { partition: suya().particion, contextIsolation: true, sandbox: true }

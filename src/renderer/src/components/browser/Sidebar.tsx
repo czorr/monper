@@ -11,7 +11,7 @@ import IconFolderPlus from '~icons/tabler/folder-plus'
 import IconSpy from '~icons/tabler/spy'
 import { IconButton, SectionLabel } from '@renderer/components/ui'
 import { PlusIcon, SidebarIcon } from '@renderer/lib/icons'
-import titanioPng from '@renderer/assets/titanio.png' // el PNG a pelo: aquí el fondo es siempre oscuro
+import titanioLogo from '@renderer/assets/iso-white.svg' // aquí el fondo es siempre oscuro
 
 interface Props {
   state: BrowserState
@@ -287,7 +287,7 @@ export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBo
       {agentTabs.length > 0 && (
         <div className="shrink-0 mt-1">
           <div className="flex items-center gap-1.5 px-2 pb-1 text-[12px] font-medium text-text-faint [&>img]:w-3.5 [&>img]:h-3.5 [&>img]:opacity-80">
-            <img src={titanioPng} alt="" />
+            <img src={titanioLogo} alt="" />
             <span>Agent tabs</span>
           </div>
           <div className="flex flex-col gap-px pb-px max-h-[40vh] overflow-y-auto [&::-webkit-scrollbar]:w-0">

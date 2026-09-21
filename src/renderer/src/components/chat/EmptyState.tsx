@@ -1,6 +1,6 @@
 import type { JSX } from 'react'
 import type { ChatContext } from '@shared/types'
-import logo from '@renderer/assets/titanio.png'
+import { GlassLogo } from '@renderer/components/ui/GlassLogo'
 
 const { titanio } = window
 
@@ -15,7 +15,7 @@ const { titanio } = window
 export default function EmptyState({ provider }: { provider: ChatContext['provider'] }): JSX.Element {
   return (
     <div className="h-full flex flex-col items-center justify-center text-center px-6 gap-4">
-      <img src={logo} alt="Titanio" className="w-16 h-16 object-contain" />
+      <GlassLogo />
 
       {provider ? (
         <p className="text-[13.5px] text-text-dim leading-relaxed">

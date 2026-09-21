@@ -108,7 +108,7 @@ export default function UrlBar({ active, editRequest, onGo }: Props): JSX.Elemen
             }}
             className="flex items-center gap-1.5 shrink-0 h-[30px] pl-2 pr-3 rounded-full text-[13px] font-medium text-text bg-bg-elev hover:bg-bg-hover transition-colors whitespace-nowrap tracking-[-0.08px]"
           >
-            {interna && <TitanioMark className="w-[15px] h-[15px]" />}
+            {interna && <TitanioMark className="w-[12px] h-[12px]" />}
             <span className={interna ? '' : 'pl-1'}>{domain}</span>
           </button>
           {/* Título → abre el input */}

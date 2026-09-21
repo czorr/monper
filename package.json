@@ -1,6 +1,6 @@
 {
   "name": "titanio",
-  "productName": "Titanio",
+  "productName": "Titanio Browser",
   "version": "0.2.0",
   "description": "Titanio — un navegador agéntico de escritorio",
   "main": "./out/main/index.js",

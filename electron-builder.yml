@@ -1,7 +1,7 @@
 # Empaquetado y distribución de Titanio.
 # `pnpm dist` genera el DMG; `pnpm dist:dir` solo la .app (rápido, para verificar).
 appId: com.titanio.app
-productName: Titanio
+productName: Titanio Browser
 copyright: © 2026 Titanio
 
 directories:

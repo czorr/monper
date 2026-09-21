@@ -11,7 +11,7 @@ import IconBell from '~icons/tabler/bell'
 import IconClipboard from '~icons/tabler/clipboard'
 import IconTrash from '~icons/tabler/trash'
 import IconShield from '~icons/tabler/shield-check'
-import titanioLogo from '@renderer/assets/titanio.png'
+import titanioLogo from '@renderer/assets/iso-white.svg'
 import './styles.css'
 
 const si = window.siteinfo

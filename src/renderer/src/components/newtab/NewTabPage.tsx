@@ -2,7 +2,7 @@ import { useEffect, useState, type JSX } from 'react'
 import type { Suggestion } from '@shared/types'
 import IconSearch from '~icons/tabler/search'
 import { useAutocomplete, useInlineCompletion, SuggestionList } from '@renderer/components/omnibox'
-import logo from '@renderer/assets/titanio.png'
+import { GlassLogo } from '@renderer/components/ui/GlassLogo'
 import DefaultBrowserBanner from './DefaultBrowserBanner'
 import Widgets from './Widgets'
 
@@ -48,11 +48,7 @@ export default function NewTabPage(): JSX.Element {
 
   return (
     <div className="min-h-full page-backdrop text-text flex flex-col items-center pt-[13vh] px-6 select-none">
-      {/* Logo con glow sutil */}
-      <div className="relative mb-9">
-        <div className="absolute inset-0 blur-2xl bg-white/[0.06] rounded-full scale-125" />
-        <img src={logo} alt="Titanio" className="relative w-[68px] h-[68px] object-contain" />
-      </div>
+      <GlassLogo className="mb-9" />
 
       <DefaultBrowserBanner />
 

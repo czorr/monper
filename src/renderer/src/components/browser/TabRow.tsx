@@ -3,7 +3,7 @@ import type { TabInfo } from '@shared/types'
 import { domainOf } from '@renderer/lib/dom'
 import { CloseIcon } from '@renderer/lib/icons'
 import IconVolumeOff from '~icons/tabler/volume-off'
-import titanioLogo from '@renderer/assets/titanio.png'
+import titanioLogo from '@renderer/assets/iso-white.svg'
 
 interface Props {
   tab: TabInfo
@@ -44,7 +44,7 @@ export default function TabRow({ tab, active, onSelect, onClose }: Props): JSX.E
     >
       {tab.internal || !tab.url ? (
         // Nuestras páginas llevan siempre el iso, nunca un favicon por defecto.
-        <img src={titanioLogo} alt="" className="w-[17px] h-[17px] shrink-0 object-contain opacity-80" />
+        <img src={titanioLogo} alt="" className="w-[17px] h-[17px] p-[2px] shrink-0 object-contain opacity-80" />
       ) : tab.loading ? (
         <div className="w-[13px] h-[13px] m-0.5 shrink-0 rounded-full border-[1.5px] border-text-faint border-t-text animate-spin" />
       ) : tab.favicon ? (

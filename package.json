@@ -1,8 +1,8 @@
 {
-  "name": "monper",
-  "productName": "Monper",
+  "name": "titanio",
+  "productName": "Titanio",
   "version": "0.2.0",
-  "description": "Monper — un navegador agéntico de escritorio",
+  "description": "Titanio — un navegador agéntico de escritorio",
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
@@ -14,7 +14,7 @@
     "dist:mac": "electron-vite build && electron-builder --mac",
     "test": "pnpm build && playwright test",
     "test:only": "playwright test",
-    "build:mcp": "tsc -p packages/monper-mcp/tsconfig.json && chmod +x packages/monper-mcp/dist/index.js"
+    "build:mcp": "tsc -p packages/titanio-mcp/tsconfig.json && chmod +x packages/titanio-mcp/dist/index.js"
   },
   "author": "",
   "license": "MIT",

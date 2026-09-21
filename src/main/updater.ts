@@ -50,7 +50,7 @@ function why(e: unknown): string {
 
 function readyNotification(version: string | null): void {
   const n = new Notification({
-    title: 'Monper está listo para actualizarse',
+    title: 'Titanio está listo para actualizarse',
     body: `Versión ${version ?? ''}. Click para reiniciar e instalar.`
   })
   n.on('click', () => installUpdate())

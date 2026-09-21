@@ -1,6 +1,6 @@
 # Multi-ventana: plan
 
-Hoy Monper es de **una sola ventana**, y no por descuido de un sitio: el estado de "la
+Hoy Titanio es de **una sola ventana**, y no por descuido de un sitio: el estado de "la
 ventana" son variables de módulo que usa todo el main.
 
 ## Lo que hay que desmontar, medido

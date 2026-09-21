@@ -3,7 +3,7 @@ import { defineConfig } from '@playwright/test'
 /**
  * Smoke tests sobre la app real (Electron), no sobre componentes aislados.
  *
- * En serie y con un solo worker A PROPÓSITO: cada test arranca una instancia de Monper
+ * En serie y con un solo worker A PROPÓSITO: cada test arranca una instancia de Titanio
  * con su propio userData, y varias a la vez se pelean por el foco de la ventana y por
  * el puerto del dev server.
  */

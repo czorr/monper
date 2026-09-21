@@ -8,8 +8,8 @@ import ResizeHandle from '@renderer/components/browser/ResizeHandle'
 import { ChatPanel } from '@renderer/components/chat'
 
 const EMPTY: BrowserState = { activeId: null, tabs: [], active: null, controlling: false, incognito: false }
-const { monper } = window
-const isMac = monper.platform === 'darwin'
+const { titanio } = window
+const isMac = titanio.platform === 'darwin'
 
 export default function App(): JSX.Element {
   const [state, setState] = useState<BrowserState>(EMPTY)
@@ -18,8 +18,8 @@ export default function App(): JSX.Element {
   const [chatOpen, setChatOpen] = useState(false)
   /** Control remoto: se pinta un indicador mientras esté activo (ver RemotePill). */
   const [remoto, setRemoto] = useState<{ enabled: boolean; port: number }>({ enabled: false, port: 0 })
-  useEffect(() => { void monper.getRemoteState().then(setRemoto) }, [])
-  useEffect(() => monper.onRemoteState(setRemoto), [])
+  useEffect(() => { void titanio.getRemoteState().then(setRemoto) }, [])
+  useEffect(() => titanio.onRemoteState(setRemoto), [])
   const [profile, setProfile] = useState<Profile>({ name: 'Tú', initials: '?', avatar: null })
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([])
   const [downloads, setDownloads] = useState<DownloadsSummary>({ active: 0, total: 0 })
@@ -33,12 +33,12 @@ export default function App(): JSX.Element {
   const [update, setUpdate] = useState<UpdateState>(NO_UPDATE)
   const [inject, setInject] = useState<{ text: string; nonce: number } | null>(null)
 
-  useEffect(() => monper.onState(setState), [])
-  useEffect(() => { monper.getProfile().then(setProfile); return monper.onProfile(setProfile) }, [])
-  useEffect(() => { monper.getBookmarks().then(setBookmarks); return monper.onBookmarks(setBookmarks) }, [])
-  useEffect(() => { monper.getDownloadsSummary().then(setDownloads); return monper.onDownloadsSummary(setDownloads) }, [])
-  useEffect(() => { monper.getPanels().then(setPanels) }, [])
-  useEffect(() => { monper.getUpdateState().then(setUpdate); return monper.onUpdateState(setUpdate) }, [])
+  useEffect(() => titanio.onState(setState), [])
+  useEffect(() => { titanio.getProfile().then(setProfile); return titanio.onProfile(setProfile) }, [])
+  useEffect(() => { titanio.getBookmarks().then(setBookmarks); return titanio.onBookmarks(setBookmarks) }, [])
+  useEffect(() => { titanio.getDownloadsSummary().then(setDownloads); return titanio.onDownloadsSummary(setDownloads) }, [])
+  useEffect(() => { titanio.getPanels().then(setPanels) }, [])
+  useEffect(() => { titanio.getUpdateState().then(setUpdate); return titanio.onUpdateState(setUpdate) }, [])
 
   // Los anchos viven en las CSS vars que ya usan w-sidebar / left-sidebar / w-panel / right-panel.
   useEffect(() => {
@@ -50,7 +50,7 @@ export default function App(): JSX.Element {
   const resizePanel = (which: 'sidebar' | 'chat', width: number): void => {
     setResizing(true)
     setPanels((p) => ({ ...p, [which]: width }))
-    monper.setPanel(which, width) // el main mueve la vista nativa en vivo
+    titanio.setPanel(which, width) // el main mueve la vista nativa en vivo
   }
 
   /**
@@ -70,27 +70,27 @@ export default function App(): JSX.Element {
     const id = requestAnimationFrame(fn)
     return () => cancelAnimationFrame(id)
   }
-  useEffect(() => avisarAlPintar(() => monper.setCollapsed(collapsed)), [collapsed])
-  useEffect(() => avisarAlPintar(() => monper.setChat(chatOpen)), [chatOpen])
+  useEffect(() => avisarAlPintar(() => titanio.setCollapsed(collapsed)), [collapsed])
+  useEffect(() => avisarAlPintar(() => titanio.setChat(chatOpen)), [chatOpen])
 
   // Atajos de teclado
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       if (!(e.metaKey || e.ctrlKey)) return
-      if (e.altKey && (e.key === 'v' || e.key === '√')) { e.preventDefault(); monper.cycleVibrancy(); return }
+      if (e.altKey && (e.key === 'v' || e.key === '√')) { e.preventDefault(); titanio.cycleVibrancy(); return }
       if (e.key === 's') { e.preventDefault(); setCollapsed((c) => !c) }
       else if (e.key === 'j') { e.preventDefault(); setChatOpen((c) => !c) }
-      else if (e.key === 't') { e.preventDefault(); monper.newTab() }
-      else if (e.key === 'w') { e.preventDefault(); if (state.activeId != null) monper.closeTab(state.activeId) }
+      else if (e.key === 't') { e.preventDefault(); titanio.newTab() }
+      else if (e.key === 'w') { e.preventDefault(); if (state.activeId != null) titanio.closeTab(state.activeId) }
       else if (e.key === 'l') { e.preventDefault(); setEditRequest((n) => n + 1) }
-      else if (e.key === 'r') { e.preventDefault(); monper.reload() }
+      else if (e.key === 'r') { e.preventDefault(); titanio.reload() }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [state.activeId])
 
   // Acciones del menú nativo que tocan estado del renderer (sidebar / chat / editar URL).
-  useEffect(() => monper.onMenuAction((action) => {
+  useEffect(() => titanio.onMenuAction((action) => {
     if (action === 'toggle-sidebar') setCollapsed((c) => !c)
     else if (action === 'toggle-chat') setChatOpen((c) => !c)
     else if (action === 'edit-url') setEditRequest((n) => n + 1)
@@ -101,7 +101,7 @@ export default function App(): JSX.Element {
   useEffect(() => { setFindOpen(false) }, [state.activeId])
 
   // Acción rápida desde una página: abre el chat y manda el prompt al agente.
-  useEffect(() => monper.onChatPrefill((prompt) => {
+  useEffect(() => titanio.onChatPrefill((prompt) => {
     setChatOpen(true)
     setInject({ text: prompt, nonce: Date.now() })
   }), [])
@@ -113,25 +113,25 @@ export default function App(): JSX.Element {
         profile={profile}
         bookmarks={bookmarks}
         collapsed={collapsed}
-        onOpenBookmark={(id) => monper.openBookmark(id)}
-        onOpenMenu={(r) => monper.openProfileMenu({ x: r.left, y: r.top, width: r.width, height: r.height })}
+        onOpenBookmark={(id) => titanio.openBookmark(id)}
+        onOpenMenu={(r) => titanio.openProfileMenu({ x: r.left, y: r.top, width: r.width, height: r.height })}
         onCollapse={() => setCollapsed(true)}
-        onNewTab={() => monper.newTab()}
-        onSelectTab={(id) => monper.selectTab(id)}
-        onCloseTab={(id) => monper.closeTab(id)}
-        onReorderTabs={(ids) => monper.reorderTabs(ids)}
+        onNewTab={() => titanio.newTab()}
+        onSelectTab={(id) => titanio.selectTab(id)}
+        onCloseTab={(id) => titanio.closeTab(id)}
+        onReorderTabs={(ids) => titanio.reorderTabs(ids)}
         update={update}
-        onDownloadUpdate={() => monper.downloadUpdate()}
-        onInstallUpdate={() => monper.installUpdate()}
+        onDownloadUpdate={() => titanio.downloadUpdate()}
+        onInstallUpdate={() => titanio.installUpdate()}
         remote={remoto}
-        onDisableRemote={() => monper.setRemote(false)}
+        onDisableRemote={() => titanio.setRemote(false)}
       />
       <Content
         leftInset={!collapsed}
         rightInset={chatOpen}
         pageColor={state.active?.pageColor || '#111114'}
         controlling={state.controlling}
-        onTakeOver={() => monper.takeOver()}
+        onTakeOver={() => titanio.takeOver()}
       >
         <Topbar
           active={state.active}
@@ -140,19 +140,19 @@ export default function App(): JSX.Element {
           chatOpen={chatOpen}
           editRequest={editRequest}
           onExpand={() => setCollapsed(false)}
-          onBack={() => monper.back()}
-          onForward={() => monper.forward()}
-          onReload={() => monper.reload()}
-          onGo={(url) => monper.go(url)}
-          onToggleBookmark={() => monper.toggleBookmark()}
-          onToggleMute={() => monper.toggleMute()}
+          onBack={() => titanio.back()}
+          onForward={() => titanio.forward()}
+          onReload={() => titanio.reload()}
+          onGo={(url) => titanio.go(url)}
+          onToggleBookmark={() => titanio.toggleBookmark()}
+          onToggleMute={() => titanio.toggleMute()}
           downloads={downloads}
-          onOpenDownloads={(r) => monper.openDownloadsPopover({ x: r.left, y: r.top, width: r.width, height: r.height })}
-          onPeekShow={(r) => monper.peekShow({ x: r.left, y: r.top, width: r.width, height: r.height })}
-          onPeekHide={() => monper.peekMaybeHide()}
+          onOpenDownloads={(r) => titanio.openDownloadsPopover({ x: r.left, y: r.top, width: r.width, height: r.height })}
+          onPeekShow={(r) => titanio.peekShow({ x: r.left, y: r.top, width: r.width, height: r.height })}
+          onPeekHide={() => titanio.peekMaybeHide()}
           onToggleChat={() => setChatOpen((c) => !c)}
-          onOpenVault={(r) => monper.openVault({ x: r.left, y: r.top, width: r.width, height: r.height })}
-          onOpenExtensions={(r) => monper.openExtensions({ x: r.left, y: r.top, width: r.width, height: r.height })}
+          onOpenVault={(r) => titanio.openVault({ x: r.left, y: r.top, width: r.width, height: r.height })}
+          onOpenExtensions={(r) => titanio.openExtensions({ x: r.left, y: r.top, width: r.width, height: r.height })}
         />
       </Content>
       {findOpen && <FindBar openRequest={findRequest} onClose={() => setFindOpen(false)} />}

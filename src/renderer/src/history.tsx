@@ -7,7 +7,7 @@ import IconWorld from '~icons/tabler/world'
 import IconHistory from '~icons/tabler/history'
 import './styles.css'
 
-const { monperTab } = window
+const { titanioTab } = window
 
 const PAGINA = 100
 
@@ -56,7 +56,7 @@ function HistoryPage(): JSX.Element {
     const mio = ++peticion.current
     setCargando(true)
     try {
-      const r = await monperTab.browseHistory(consulta, desde, PAGINA)
+      const r = await titanioTab.browseHistory(consulta, desde, PAGINA)
       if (mio !== peticion.current) return
       setEntries((prev) => (desde === 0 ? r.entries : [...prev, ...r.entries]))
       setTotal(r.total)
@@ -80,12 +80,12 @@ function HistoryPage(): JSX.Element {
     // Optimista: la fila desaparece al instante y el main es la fuente de verdad.
     setEntries((prev) => prev.filter((e) => e.url !== url))
     setTotal((t) => Math.max(0, t - 1))
-    await monperTab.removeHistoryEntry(url)
+    await titanioTab.removeHistoryEntry(url)
   }
 
   const borrarTodo = async (): Promise<void> => {
     if (!confirm('¿Borrar todo el historial? No se puede deshacer.')) return
-    await monperTab.clearHistory()
+    await titanioTab.clearHistory()
     void cargar(q, 0)
   }
 
@@ -151,7 +151,7 @@ function HistoryPage(): JSX.Element {
                     <span className="text-[12px] text-text-faint tabular-nums w-[42px] shrink-0">{hora(e.lastVisit)}</span>
                     <Favicon src={e.favicon} />
                     <button
-                      onClick={() => monperTab.navigate(e.url)}
+                      onClick={() => titanioTab.navigate(e.url)}
                       className="flex-1 min-w-0 text-left"
                       title={e.url}
                     >

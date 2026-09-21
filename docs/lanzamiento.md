@@ -1,6 +1,6 @@
 # Checklist de lanzamiento — producto
 
-Lo que le falta a Monper **como navegador que alguien usa a diario**. La deuda técnica y el
+Lo que le falta a Titanio **como navegador que alguien usa a diario**. La deuda técnica y el
 endurecimiento están en [browser-hardening.md](browser-hardening.md); esto es solo producto.
 
 Auditado contra el código, no de memoria. Lo marcado como hecho está verificado.
@@ -24,7 +24,7 @@ Auditado contra el código, no de memoria. Lo marcado como hecho está verificad
       - [x] **Contraseñas** — es el que más importa: el vault vacío desperdicia toda la tesis
             del producto. Con contraseñas importadas, el agente puede entrar en tus sitios el
             día 1; sin ellas, el usuario tiene que reconstruir su vida antes de ver para qué
-            sirve Monper.
+            sirve Titanio.
 - [x] **Historial navegable y buscable.** `history.html`, agrupado por día, con búsqueda,
       borrado por entrada y borrado total. Se llega con ⌘Y y desde el submenú de perfil.
       Restringido a páginas internas: es el registro de todo lo que has visitado.

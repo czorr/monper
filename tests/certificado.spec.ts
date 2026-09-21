@@ -9,7 +9,7 @@ import { join } from 'node:path'
  * Certificado inválido: el usuario tiene que ENTENDER por qué no carga.
  *
  * Electron bloquea un certificado malo y, sin página de error, la pestaña se queda en blanco:
- * el usuario no sabe si es la red, el sitio o Monper. Peor aún en un navegador que guarda
+ * el usuario no sabe si es la red, el sitio o Titanio. Peor aún en un navegador que guarda
  * contraseñas — una pantalla en blanco ante un certificado sospechoso no avisa de nada.
  *
  * Se levanta un HTTPS con certificado AUTOFIRMADO de verdad. Comprobar el mapeo de códigos
@@ -23,7 +23,7 @@ let url = ''
 let cerrar: () => void = () => {}
 
 test.beforeAll(async () => {
-  dir = mkdtempSync(join(tmpdir(), 'monper-cert-'))
+  dir = mkdtempSync(join(tmpdir(), 'titanio-cert-'))
   const key = join(dir, 'k.pem')
   const crt = join(dir, 'c.pem')
   execFileSync('openssl', [

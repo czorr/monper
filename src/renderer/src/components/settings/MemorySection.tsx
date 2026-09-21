@@ -10,7 +10,7 @@ import IconSettings from '~icons/tabler/settings'
 import IconTrash from '~icons/tabler/trash'
 import { MD_COMPONENTS } from './markdown'
 
-const { monperTab } = window
+const { titanioTab } = window
 
 /**
  * Settings → Memory.
@@ -93,8 +93,8 @@ export default function MemorySection(): JSX.Element {
   const [borrador, setBorrador] = useState('')
 
   const recargar = useCallback(async () => {
-    setArbol(await monperTab.memoryList())
-    setEnabled(await monperTab.memoryEnabled())
+    setArbol(await titanioTab.memoryList())
+    setEnabled(await titanioTab.memoryEnabled())
   }, [])
 
   useEffect(() => { void recargar() }, [recargar])
@@ -102,19 +102,19 @@ export default function MemorySection(): JSX.Element {
     let vivo = true
     setEditando(false)
     if (!sel) { setTexto(null); return }
-    void monperTab.memoryRead(sel).then((c) => { if (vivo) setTexto(c) })
+    void titanioTab.memoryRead(sel).then((c) => { if (vivo) setTexto(c) })
     return () => { vivo = false }
   }, [sel])
 
   const guardar = async (): Promise<void> => {
-    await monperTab.memoryWrite(sel, borrador)
+    await titanioTab.memoryWrite(sel, borrador)
     setTexto(borrador)
     setEditando(false)
     void recargar()
   }
 
   const borrar = async (path: string): Promise<void> => {
-    await monperTab.memoryDelete(path)
+    await titanioTab.memoryDelete(path)
     if (sel === path) setSel('')
     void recargar()
   }
@@ -130,7 +130,7 @@ export default function MemorySection(): JSX.Element {
         <div className="flex items-center justify-between px-3.5 h-12 shrink-0">
           <span className="text-[15px] font-semibold">Memory</span>
           <button
-            onClick={() => monperTab.memoryOpenFolder()}
+            onClick={() => titanioTab.memoryOpenFolder()}
             title="Abrir la carpeta de memoria en Finder"
             className="w-7 h-7 grid place-items-center rounded-md text-text-faint hover:text-text hover:bg-white/[0.06] transition-colors [&>svg]:w-[17px] [&>svg]:h-[17px]"
           >
@@ -162,7 +162,7 @@ export default function MemorySection(): JSX.Element {
           <div className="px-8 py-10 max-w-[760px]">
             <h1 className="text-[26px] font-semibold tracking-[-0.4px]">Memory</h1>
             <p className="mt-2 text-[13.5px] text-text-dim leading-relaxed">
-              Lo que Monper recuerda entre sesiones. Son ficheros markdown que escribe el propio
+              Lo que Titanio recuerda entre sesiones. Son ficheros markdown que escribe el propio
               agente; puedes leerlos y editarlos aquí, o abrirlos en tu carpeta con el editor que
               quieras.
             </p>
@@ -176,7 +176,7 @@ export default function MemorySection(): JSX.Element {
                     El agente guarda y consulta lo que aprende. Apagada, no lee ni escribe nada.
                   </div>
                 </div>
-                <Toggle on={enabled} onChange={(v) => { void monperTab.memoryEnabled(v).then(setEnabled) }} />
+                <Toggle on={enabled} onChange={(v) => { void titanioTab.memoryEnabled(v).then(setEnabled) }} />
               </div>
             </div>
 

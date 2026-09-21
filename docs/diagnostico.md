@@ -1,4 +1,4 @@
-# Diagnóstico de Monper y plan de trabajo
+# Diagnóstico de Titanio y plan de trabajo
 
 Auditoría del 24 jul 2026. Escrito para dejar de discutir sensaciones y trabajar sobre datos.
 
@@ -24,7 +24,7 @@ Auditoría del 24 jul 2026. Escrito para dejar de discutir sensaciones y trabaja
 
 Las features no son amateur. Estas piezas están bien y algunas por encima del estándar comercial:
 
-- **`monperwright`**: librería de automatización con *transport* intercambiable (Electron hoy, CDP mañana). Publicable.
+- **`titaniowright`**: librería de automatización con *transport* intercambiable (Electron hoy, CDP mañana). Publicable.
 - **REPL como superficie del agente** (coding agent), en lugar de una tool por acción.
 - **Vault**: el secreto se inyecta desde el main; **el agente nunca lo ve**. Difícil de copiar y es un argumento de confianza real.
 - **Rutinas** con extractores generados una vez → **$0 de LLM por corrida**, con auto-reparación.
@@ -32,7 +32,7 @@ Las features no son amateur. Estas piezas están bien y algunas por encima del e
 
 ## 3. Lo que SÍ es amateur
 
-1. **No podemos distribuirlo.** Sin `electron-builder`, firma, notarización ni auto-update, Monper no es un producto: es un repo que corre en una máquina.
+1. **No podemos distribuirlo.** Sin `electron-builder`, firma, notarización ni auto-update, Titanio no es un producto: es un repo que corre en una máquina.
 2. **Cero tests.** Las esquinas redondeadas se rompieron 3 veces en un día; el sistema de CI eras tú mirando la pantalla. Y la ironía: construimos una librería para automatizar navegadores.
 3. **34 `catch` que descartan el error.** No es estilo: fue la causa raíz de 3 bugs reales (el falso "límite de pasos", las sugerencias colgadas, el instalador mudo). Patrón: *promesa sin timeout + catch vacío = fallo invisible*.
 4. **9 ventanas nativas sin abstracción**, cada una con su propio diseño y sus propios bugs de foco/hover. **← se ataca ahora**
@@ -44,7 +44,7 @@ Las features no son amateur. Estas piezas están bien y algunas por encima del e
 > No vamos a competir contra un navegador completo. Chrome tiene +1000 ingenieros.
 > Arc levantó ~$128M, tuvo ~100 personas y **mató su propio navegador** para pivotar.
 
-**Monper no es un navegador: es un puesto de trabajo agéntico que además renderiza páginas.**
+**Titanio no es un navegador: es un puesto de trabajo agéntico que además renderiza páginas.**
 El único foso real es lo que Chrome estructuralmente no puede hacer: **un agente que ya vive
 dentro de tus sesiones**. Eso no lo replican los agentes en la nube porque no tienen tus cookies.
 

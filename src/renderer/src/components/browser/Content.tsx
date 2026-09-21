@@ -1,7 +1,7 @@
 import { useEffect, useRef, type JSX, type ReactNode } from 'react'
-import monperPng from '@renderer/assets/monper.png' // el PNG a pelo: aquí el fondo es siempre oscuro
+import titanioPng from '@renderer/assets/titanio.png' // el PNG a pelo: aquí el fondo es siempre oscuro
 
-const { monper } = window
+const { titanio } = window
 
 interface Props {
   /** sidebar izquierdo expandido → inset y redondeo del lado izquierdo */
@@ -42,7 +42,7 @@ export default function Content({ leftInset, rightInset, pageColor, controlling,
    */
   useEffect(
     () =>
-      monper.onLayoutFrame((r) => {
+      titanio.onLayoutFrame((r) => {
         const el = box.current
         if (!el) return
         el.style.left = `${r.left}px`
@@ -74,8 +74,8 @@ export default function Content({ leftInset, rightInset, pageColor, controlling,
       {controlling && (
         <div className="absolute left-0 right-0 bottom-0 h-10 flex items-center justify-center gap-3 px-4 text-[12.5px] text-text-dim">
           <span className="flex items-center gap-2 [&>img]:w-4 [&>img]:h-4 [&>img]:opacity-80">
-            <img src={monperPng} alt="" />
-            Monper is controlling this tab
+            <img src={titanioPng} alt="" />
+            Titanio is controlling this tab
           </span>
           <button
             onClick={onTakeOver}

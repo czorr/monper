@@ -1,13 +1,13 @@
 /**
  * Qué sesión de Chromium usa cada ventana.
  *
- * Hasta ahora la partición era una constante (`persist:monper`) escrita en seis sitios. Deja de
+ * Hasta ahora la partición era una constante (`persist:titanio`) escrita en seis sitios. Deja de
  * serlo porque las dos cosas grandes que vienen —incógnito y perfiles— son en el fondo lo mismo:
  * decidir en qué sesión vive una ventana. Aquí está esa decisión, sola y sin Electron delante,
  * para que se pueda probar sin levantar la app.
  */
 
-export const PARTICION_NORMAL = 'persist:monper'
+export const PARTICION_NORMAL = 'persist:titanio'
 
 /**
  * Sin el prefijo `persist:` la sesión vive SOLO en memoria: cookies, localStorage, IndexedDB,
@@ -21,7 +21,7 @@ export const PARTICION_NORMAL = 'persist:monper'
  * la suya, iniciar sesión en un sitio y abrirlo en otra ventana de incógnito pediría el login
  * otra vez, que no es lo que nadie espera.
  */
-export const PARTICION_INCOGNITO = 'monper-incognito'
+export const PARTICION_INCOGNITO = 'titanio-incognito'
 
 /**
  * `normal` es la partición del perfil activo (ver perfiles.ts): se pasa en vez de leerse aquí

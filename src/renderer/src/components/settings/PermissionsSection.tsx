@@ -11,7 +11,7 @@ import IconSearch from '~icons/tabler/search'
 import IconChevron from '~icons/tabler/chevron-down'
 import { Card, Group, Toggle } from './ui'
 
-const { monperTab } = window
+const { titanioTab } = window
 
 /** Las mismas etiquetas e iconos que el candado del sitio: es el mismo dato en otra vista. */
 const PERM: Record<PermKey, { label: string; Icon: typeof IconCamera }> = {
@@ -124,12 +124,12 @@ export default function PermissionsSection(): JSX.Element {
     // Si el IPC no responde, la lista vacía es indistinguible de "no has dado ningún
     // permiso" — y eso es justo lo que no debe pasar en una pantalla de privacidad.
     try {
-      setSites(await monperTab.listSitePermissions(resolve))
+      setSites(await titanioTab.listSitePermissions(resolve))
       setError('')
     } catch (e) {
       console.error('[permisos] no se pudo leer la lista:', e)
       setSites([])
-      setError('No se pudieron leer los permisos. Reinicia Monper: los cambios en el preload necesitan reiniciar la app, no solo recargar.')
+      setError('No se pudieron leer los permisos. Reinicia Titanio: los cambios en el preload necesitan reiniciar la app, no solo recargar.')
     }
   }, [])
 
@@ -142,12 +142,12 @@ export default function PermissionsSection(): JSX.Element {
     setSites((prev) => prev && prev.map((s) => s.origin === origin
       ? { ...s, perms: s.perms.map((p) => (p.key === key ? { ...p, state } : p)) }
       : s))
-    if (!(await monperTab.setSitePermission(origin, key, state))) void load()
+    if (!(await titanioTab.setSitePermission(origin, key, state))) void load()
   }
 
   const forget = async (origin: string | null): Promise<void> => {
     if (!origin && !confirm('¿Olvidar los permisos de todos los sitios? Volverán a preguntarte la próxima vez.')) return
-    await monperTab.clearSitePermissions(origin)
+    await titanioTab.clearSitePermissions(origin)
     void load()
   }
 

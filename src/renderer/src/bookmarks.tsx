@@ -10,7 +10,7 @@ import IconFolder from '~icons/tabler/folder'
 import IconFolderPlus from '~icons/tabler/folder-plus'
 import './styles.css'
 
-const { monperTab } = window
+const { titanioTab } = window
 
 function dominio(url: string): string {
   try { return new URL(url).hostname.replace(/^www\./, '') } catch { return url }
@@ -63,11 +63,11 @@ function BookmarksPage(): JSX.Element {
   // Se escucha además de leer: el sidebar y esta página tienen que contar lo mismo, y aquí
   // se puede marcar algo desde otra pestaña mientras esto está abierto.
   useEffect(() => {
-    monperTab.getBookmarks().then(setItems).catch((e) => {
+    titanioTab.getBookmarks().then(setItems).catch((e) => {
       console.error('[marcadores] no se pudieron leer:', e)
       setError('No se pudieron leer los marcadores.')
     })
-    return monperTab.onBookmarks(setItems)
+    return titanioTab.onBookmarks(setItems)
   }, [])
 
   const buscando = q.trim().length > 0
@@ -106,7 +106,7 @@ function BookmarksPage(): JSX.Element {
     ) : (
                   <div key={b.id} className="group/b flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.03] transition-colors">
                     <Favicon src={b.favicon} />
-                    <button onClick={() => monperTab.navigate(b.url)} className="flex-1 min-w-0 text-left" title={b.url}>
+                    <button onClick={() => titanioTab.navigate(b.url)} className="flex-1 min-w-0 text-left" title={b.url}>
                       <span className="block truncate text-[14px] text-text">{b.title}</span>
                       <span className="block truncate text-[12px] text-text-faint">
                         {dominio(b.url)}
@@ -118,7 +118,7 @@ function BookmarksPage(): JSX.Element {
                     {carpetas.length > 0 && (
                       <select
                         value={b.parentId ?? ''}
-                        onChange={(e) => monperTab.moveBookmark(b.id, e.target.value || null)}
+                        onChange={(e) => titanioTab.moveBookmark(b.id, e.target.value || null)}
                         title="Mover a una carpeta"
                         className="shrink-0 h-7 max-w-[150px] px-1.5 rounded-md bg-white/[0.05] border border-white/[0.10] text-[12px] text-text-dim outline-none opacity-0 group-hover/b:opacity-100 focus:opacity-100 transition-opacity"
                       >
@@ -135,7 +135,7 @@ function BookmarksPage(): JSX.Element {
                         <IconPencil />
                       </button>
                       <button
-                        onClick={() => monperTab.removeBookmark(b.id)}
+                        onClick={() => titanioTab.removeBookmark(b.id)}
                         title="Quitar"
                         className="w-7 h-7 grid place-items-center rounded-md text-text-faint hover:text-red-400 hover:bg-red-500/15 [&>svg]:w-4 [&>svg]:h-4"
                       >
@@ -147,12 +147,12 @@ function BookmarksPage(): JSX.Element {
   )
 
   const nuevaCarpeta = async (): Promise<void> => {
-    const f = await monperTab.newBookmarkFolder('Nueva carpeta')
+    const f = await titanioTab.newBookmarkFolder('Nueva carpeta')
     setEditando(f.id)
   }
 
   const guardar = async (id: string, title: string, url: string): Promise<void> => {
-    const r = await monperTab.updateBookmark(id, { title, url })
+    const r = await titanioTab.updateBookmark(id, { title, url })
     // `null` = la URL no vale. Se dice en vez de cerrar el editor como si se hubiera guardado.
     if (!r) { setError('Esa URL no es válida. Tiene que empezar por http:// o https://'); return }
     setError('')
@@ -235,7 +235,7 @@ function BookmarksPage(): JSX.Element {
                         <IconPencil />
                       </button>
                       <button
-                        onClick={() => monperTab.removeBookmark(carpeta.id)}
+                        onClick={() => titanioTab.removeBookmark(carpeta.id)}
                         title="Borrar la carpeta (sus marcadores vuelven a la raíz)"
                         className="w-6 h-6 grid place-items-center rounded-md text-text-faint hover:text-red-400 hover:bg-red-500/15 [&>svg]:w-3.5 [&>svg]:h-3.5"
                       >

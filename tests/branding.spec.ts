@@ -11,16 +11,16 @@ let h: Harness
 test.beforeAll(async () => { h = await launch() })
 test.afterAll(async () => { await h?.close() })
 
-test('en una página interna la pill dice Monper y lleva el iso', async () => {
+test('en una página interna la pill dice Titanio y lleva el iso', async () => {
   await api(h.win, 'openSettings')
   // Se espera por `internal`, no por la URL: el main vacía la url de nuestras páginas.
   await waitForState(h.win, (s) => (s.tabs.find((t) => t.id === s.activeId) as { internal?: string } | undefined)?.internal === 'settings')
-  // Exacto, no substring: el topbar tiene un botón "Ask Monper" que lo pillaba de rebote.
-  const marca = h.win.locator('button', { hasText: /^Monper$/ }).first()
+  // Exacto, no substring: el topbar tiene un botón "Ask Titanio" que lo pillaba de rebote.
+  const marca = h.win.locator('button', { hasText: /^Titanio$/ }).first()
   await expect(marca).toBeVisible()
   // El iso, no solo el texto. Ya no es un <img>: es un span con el PNG como máscara para
-  // poder recolorearlo (ver MonperMark).
-  await expect(marca.locator('.monper-mark')).toBeVisible()
+  // poder recolorearlo (ver TitanioMark).
+  await expect(marca.locator('.titanio-mark')).toBeVisible()
 })
 
 test('en un sitio real la pill muestra el dominio, sin iso', async () => {
@@ -31,8 +31,8 @@ test('en un sitio real la pill muestra el dominio, sin iso', async () => {
     await waitForState(h.win, (s) => s.tabs.find((t) => t.id === s.activeId)?.title === 'Un sitio')
     const dominio = h.win.locator('button', { hasText: '127.0.0.1' }).first()
     await expect(dominio).toBeVisible()
-    await expect(dominio.locator('.monper-mark')).toHaveCount(0)
-    await expect(h.win.locator('button', { hasText: /^Monper$/ })).toHaveCount(0)
+    await expect(dominio.locator('.titanio-mark')).toHaveCount(0)
+    await expect(h.win.locator('button', { hasText: /^Titanio$/ })).toHaveCount(0)
   } finally {
     await site.close()
   }
@@ -43,13 +43,13 @@ test('la pestaña de una página interna lleva el iso', async () => {
   // Se espera por `internal`, no por la URL: el main vacía la url de nuestras páginas.
   await waitForState(h.win, (s) => (s.tabs.find((t) => t.id === s.activeId) as { internal?: string } | undefined)?.internal === 'settings')
   // Antes esto fallaba: la condición era `!tab.url` y settings SÍ tiene URL.
-  const isos = await h.win.locator('img[src*="monper"]').count()
+  const isos = await h.win.locator('img[src*="titanio"]').count()
   expect(isos).toBeGreaterThan(0)
 })
 
 test('el título de la ventana sigue a la pestaña activa', async () => {
   // No se ve en la barra (frameless), pero sí en Mission Control y en el menú Ventana.
-  // Antes ponía siempre "Monper": las pestañas son WebContentsView y el título del chrome
+  // Antes ponía siempre "Titanio": las pestañas son WebContentsView y el título del chrome
   // no cambiaba solo.
   const site = await serve({ '/': html('Página X') })
   try {
@@ -59,7 +59,7 @@ test('el título de la ventana sigue a la pestaña activa', async () => {
     await expect
       .poll(() => h.app.evaluate(({ BrowserWindow }) =>
         BrowserWindow.getAllWindows().find((w) => !w.getParentWindow())?.getTitle() ?? ''))
-      .toBe('Página X — Monper')
+      .toBe('Página X — Titanio')
   } finally {
     await site.close()
   }
@@ -67,7 +67,7 @@ test('el título de la ventana sigue a la pestaña activa', async () => {
 
 test('el iso se oscurece en páginas de fondo claro', async () => {
   // El PNG es blanco sobre transparente y el topbar toma el color real de la página: sobre
-  // un sitio claro el iso desaparecía. MonperMark usa el alfa como máscara y lo rellena con
+  // un sitio claro el iso desaparecía. TitanioMark usa el alfa como máscara y lo rellena con
   // `currentColor`, así que hereda los tokens que `.on-light` ya redefine.
   const claro = await serve({ '/': '<!doctype html><meta charset="utf-8"><title>Claro</title><body style="margin:0;background:#ffffff;height:100vh"></body>' })
   const oscuro = await serve({ '/': '<!doctype html><meta charset="utf-8"><title>Oscuro</title><body style="margin:0;background:#101014;height:100vh"></body>' })
@@ -75,7 +75,7 @@ test('el iso se oscurece en páginas de fondo claro', async () => {
   /** Luminancia del relleno del iso (0 = negro, 1 = blanco). */
   const lumMarca = async (): Promise<number> =>
     h.win.evaluate(() => {
-      const el = document.querySelector('.monper-mark')
+      const el = document.querySelector('.titanio-mark')
       if (!el) return -1
       const m = /rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(getComputedStyle(el).backgroundColor)
       if (!m) return -1
@@ -111,7 +111,7 @@ test('en una página interna el topbar va en claro sobre la vibrancy', async () 
 
   await expect(h.win.locator('header.on-light'), 'el topbar no debe entrar en modo claro').toHaveCount(0)
   const lum = await h.win.evaluate(() => {
-    const el = document.querySelector('.monper-mark')
+    const el = document.querySelector('.titanio-mark')
     if (!el) return -1
     const m = /rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(getComputedStyle(el).backgroundColor)
     if (!m) return -1

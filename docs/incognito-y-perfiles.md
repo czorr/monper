@@ -1,7 +1,7 @@
 # Incógnito y perfiles
 
 Las dos son la misma pieza: **en qué sesión de Chromium vive una ventana**. Hasta agosto de 2026
-eso era una constante (`PARTITION = 'persist:monper'`) repetida en seis sitios. Ahora vive en
+eso era una constante (`PARTITION = 'persist:titanio'`) repetida en seis sitios. Ahora vive en
 [`src/main/particiones.ts`](../src/main/particiones.ts) y cuelga de la ventana
 (`Ventana.particion`, `Ventana.incognito`).
 
@@ -17,7 +17,7 @@ eso era una constante (`PARTITION = 'persist:monper'`) repetida en seis sitios. 
 
 Dos capas, y **hacen falta las dos**:
 
-1. **La partición no persiste.** `monper-incognito`, sin el prefijo `persist:`. Chromium tira
+1. **La partición no persiste.** `titanio-incognito`, sin el prefijo `persist:`. Chromium tira
    cookies, localStorage, IndexedDB y caché al morir el proceso, los borre alguien o no. Sin
    esto, no escribir nuestros JSON no serviría de nada: la cookie del banco seguiría ahí mañana.
 2. **No se escribe nada nuestro**: ni `recordVisit`/`updateMeta` (historial), ni
@@ -30,7 +30,7 @@ suya, hacer login y abrir el sitio en otra ventana de incógnito volvería a ped
 ### `prepararSesion()`: la trampa que costó encontrar
 
 Todo lo que hace navegable una sesión —UA de Chrome, Client Hints, adblocker, permisos,
-`getDisplayMedia`, descargas— se enganchaba **una vez al arrancar**, sobre `persist:monper`. Una
+`getDisplayMedia`, descargas— se enganchaba **una vez al arrancar**, sobre `persist:titanio`. Una
 sesión nueva no hereda nada de eso: la primera ventana de incógnito navegaba **sin adblocker,
 diciendo ser Electron y con la pantalla compartida rechazada**. Por eso ese bloque es ahora
 `prepararSesion(particion, incognito)`, idempotente, y se llama al crear cada ventana.
@@ -69,7 +69,7 @@ verdad y contra los ficheros de disco, no contra botones. Dos cosas que aprendim
 ## Perfiles
 
 [`src/main/perfiles.ts`](../src/main/perfiles.ts). Por perfil van cookies/sesión web
-(`persist:monper-<id>`), historial, marcadores, favicons, permisos y las pestañas abiertas.
+(`persist:titanio-<id>`), historial, marcadores, favicons, permisos y las pestañas abiertas.
 Compartidos siguen el vault, los ajustes, los chats del agente y el consumo.
 
 ### La decisión que se ahorró una migración entera

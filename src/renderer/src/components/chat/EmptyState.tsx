@@ -1,8 +1,8 @@
 import type { JSX } from 'react'
 import type { ChatContext } from '@shared/types'
-import logo from '@renderer/assets/monper.png'
+import logo from '@renderer/assets/titanio.png'
 
-const { monper } = window
+const { titanio } = window
 
 /**
  * Estado vacío del panel (sin mensajes todavía).
@@ -15,7 +15,7 @@ const { monper } = window
 export default function EmptyState({ provider }: { provider: ChatContext['provider'] }): JSX.Element {
   return (
     <div className="h-full flex flex-col items-center justify-center text-center px-6 gap-4">
-      <img src={logo} alt="Monper" className="w-16 h-16 object-contain" />
+      <img src={logo} alt="Titanio" className="w-16 h-16 object-contain" />
 
       {provider ? (
         <p className="text-[13.5px] text-text-dim leading-relaxed">
@@ -29,7 +29,7 @@ export default function EmptyState({ provider }: { provider: ChatContext['provid
           {/* El enlace, no solo la instrucción: decirle a alguien dónde ir y no llevarle es
               trabajo que se le deja al usuario por nada. */}
           <button
-            onClick={() => monper.openSettings()}
+            onClick={() => titanio.openSettings()}
             className="px-3.5 h-9 rounded-xl bg-white/[0.08] hover:bg-white/[0.14] text-[13px] font-medium text-text transition-colors"
           >
             Abrir Settings

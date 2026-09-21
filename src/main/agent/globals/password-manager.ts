@@ -1,6 +1,6 @@
 import type { WebContents } from 'electron'
 import { dialog, BrowserWindow } from 'electron'
-import type { Page } from '../../../../packages/monperwright/src'
+import type { Page } from '../../../../packages/titaniowright/src'
 import type { VaultItemMeta } from '../../../shared/vault'
 import * as vault from '../../vault/store'
 import { injectFill } from '../../autofill'
@@ -32,7 +32,7 @@ export function makePasswordManager(page: Page, wc: WebContents) {
     const opts = {
       type: 'question' as const,
       message: `¿Rellenar tu contraseña guardada para ${hostOf(origin)}?`,
-      detail: 'Monper rellenará las credenciales directamente; el agente no las ve.',
+      detail: 'Titanio rellenará las credenciales directamente; el agente no las ve.',
       buttons: ['Cancelar', 'Rellenar'],
       defaultId: 1,
       cancelId: 0,
@@ -78,7 +78,7 @@ export function makePasswordManager(page: Page, wc: WebContents) {
     fillAndSubmit,
     // Compat con las skills de gestores externos:
     listItems: () => creds().map(meta),
-    listVaults: () => [{ id: 'monper', name: 'Monper Vault' }],
-    unlockExternalPasswordManager: () => ({ ok: true, note: 'Monper usa su vault interno cifrado (safeStorage).' })
+    listVaults: () => [{ id: 'titanio', name: 'Titanio Vault' }],
+    unlockExternalPasswordManager: () => ({ ok: true, note: 'Titanio usa su vault interno cifrado (safeStorage).' })
   }
 }

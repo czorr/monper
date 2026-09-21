@@ -6,10 +6,10 @@ import IconCopy from '~icons/tabler/copy'
 import IconCheck from '~icons/tabler/check'
 import { Card, Group, Toggle } from './ui'
 
-const { monperTab } = window
+const { titanioTab } = window
 
 /**
- * Settings → MCPs: convertir Monper en el puente entre tu web logueada y cualquier IA.
+ * Settings → MCPs: convertir Titanio en el puente entre tu web logueada y cualquier IA.
  *
  * El argumento del producto, dicho sin adornos en la propia página: el navegador es el único
  * software de tu máquina que ya está autenticado en todo lo que usas, y hasta ahora era el
@@ -20,7 +20,7 @@ const { monperTab } = window
  * casilla de configuración, es dar manos a otro proceso dentro de tus sesiones.
  */
 
-const CONFIG = JSON.stringify({ mcpServers: { monper: { command: 'npx', args: ['-y', 'monper-mcp'] } } }, null, 2)
+const CONFIG = JSON.stringify({ mcpServers: { titanio: { command: 'npx', args: ['-y', 'titanio-mcp'] } } }, null, 2)
 
 const HERRAMIENTAS: { nombre: string; que: string }[] = [
   { nombre: 'open_page', que: 'Abre una URL con tu sesión, en segundo plano' },
@@ -67,7 +67,7 @@ export default function McpSection(): JSX.Element {
 
   const leerServidores = useCallback(async (recargar = false): Promise<void> => {
     try {
-      setServidores(recargar ? await monperTab.reloadMcpServers() : await monperTab.listMcpServers())
+      setServidores(recargar ? await titanioTab.reloadMcpServers() : await titanioTab.listMcpServers())
     } catch (e) {
       console.error('[mcp] no se pudieron leer los servidores:', e)
       setServidores([])
@@ -77,11 +77,11 @@ export default function McpSection(): JSX.Element {
 
   const leer = useCallback(async (): Promise<void> => {
     try {
-      setEstado(await monperTab.getMcpState())
+      setEstado(await titanioTab.getMcpState())
       setError('')
     } catch (e) {
       console.error('[mcp] no se pudo leer el estado:', e)
-      setError('No se pudo leer el estado. Reinicia Monper: los cambios en el preload necesitan reiniciar la app, no solo recargar.')
+      setError('No se pudo leer el estado. Reinicia Titanio: los cambios en el preload necesitan reiniciar la app, no solo recargar.')
     }
   }, [])
   useEffect(() => { void leer() }, [leer])
@@ -89,7 +89,7 @@ export default function McpSection(): JSX.Element {
   const cambiar = async (on: boolean): Promise<void> => {
     setEstado((s) => (s ? { ...s, enabled: on } : s)) // feedback inmediato
     try {
-      const real = await monperTab.setMcpEnabled(on)
+      const real = await titanioTab.setMcpEnabled(on)
       setEstado((s) => (s ? { ...s, enabled: real } : s))
     } catch (e) {
       console.error('[mcp] no se pudo cambiar el estado:', e)
@@ -103,7 +103,7 @@ export default function McpSection(): JSX.Element {
     <>
       <h1 className="text-[30px] font-semibold tracking-tight mb-3">MCPs</h1>
       <p className="text-[13.5px] text-text-dim leading-relaxed mb-7">
-        Conecta Monper con otras IAs y con herramientas externas.
+        Conecta Titanio con otras IAs y con herramientas externas.
       </p>
 
       {error && (
@@ -116,11 +116,11 @@ export default function McpSection(): JSX.Element {
         <Card>
           <div className="flex items-start gap-3.5 px-4 py-4">
             <div className="flex-1 min-w-0">
-              <div className="text-[14px] text-text leading-tight">Servir Monper por MCP</div>
+              <div className="text-[14px] text-text leading-tight">Servir Titanio por MCP</div>
               <div className="text-[12.5px] text-text-dim mt-1 leading-relaxed">
                 {on
                   ? <>Escuchando en <span className="tabular-nums">127.0.0.1:{estado?.port}</span>. Solo tu máquina, con token.</>
-                  : 'Apagado. Se enciende a mano y no sobrevive al cierre de Monper.'}
+                  : 'Apagado. Se enciende a mano y no sobrevive al cierre de Titanio.'}
               </div>
             </div>
             <div className="mt-0.5">
@@ -171,14 +171,14 @@ export default function McpSection(): JSX.Element {
                 <IconRefresh />
               </button>
               <button
-                onClick={async () => { setServidores(await monperTab.probeMcpServers()) }}
+                onClick={async () => { setServidores(await titanioTab.probeMcpServers()) }}
                 title="Arrancarlos ahora y ver si responden"
                 className="h-8 px-3 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] text-[12.5px] text-text-dim hover:text-text transition-colors"
               >
                 Probar
               </button>
               <button
-                onClick={() => monperTab.openMcpConfig()}
+                onClick={() => titanioTab.openMcpConfig()}
                 className="h-8 px-3 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] text-[12.5px] text-text-dim hover:text-text transition-colors"
               >
                 Editar configuración

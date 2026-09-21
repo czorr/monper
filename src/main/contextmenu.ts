@@ -66,7 +66,7 @@ export interface VideoEnPagina {
 /**
  * Las entradas de vídeo del menú contextual — sobre todo **picture-in-picture**.
  *
- * Faltaban por completo. Monper reemplaza el menú nativo de Chromium por uno propio, y ese
+ * Faltaban por completo. Titanio reemplaza el menú nativo de Chromium por uno propio, y ese
  * traía "Picture in picture" de fábrica: al construir el nuestro se cubrió el caso de la imagen
  * y el del vídeo se quedó fuera.
  *

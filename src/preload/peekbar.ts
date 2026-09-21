@@ -1,4 +1,4 @@
-// Reusa el preload del chrome: expone window.monper completo, así el peek puede
+// Reusa el preload del chrome: expone window.titanio completo, así el peek puede
 // renderizar EL MISMO componente <Sidebar/> (close, context menus, drag, etc.).
 import './index'
 import { contextBridge, ipcRenderer } from 'electron'

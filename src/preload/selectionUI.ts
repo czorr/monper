@@ -68,7 +68,7 @@ export function setupSelectionUI(): void {
 
   const openMenu = async (x: number, y: number): Promise<void> => {
     let actions: QuickAction[] = []
-    // Sin acciones el menú sale solo con "Preguntar a Monper", que sigue sirviendo.
+    // Sin acciones el menú sale solo con "Preguntar a Titanio", que sigue sirviendo.
     try { actions = await ipcRenderer.invoke('quickactions:list') } catch (e) {
       console.error('[quickactions] no se pudieron cargar:', e)
     }

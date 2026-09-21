@@ -7,7 +7,7 @@ import IconAlertTriangle from '~icons/tabler/alert-triangle'
 import IconRefresh from '~icons/tabler/refresh'
 import './styles.css'
 
-const { monperTab } = window
+const { titanioTab } = window
 
 function hostOf(url: string): string {
   try { return new URL(url).hostname.replace(/^www\./, '') } catch { return url }
@@ -47,7 +47,7 @@ function ErrorPage(): JSX.Element {
   const desc = params.get('desc') || ''
   const { Icon, title, detail } = describe(kind, code)
 
-  const retry = (): void => { if (url) monperTab.navigate(url) }
+  const retry = (): void => { if (url) titanioTab.navigate(url) }
 
   return (
     <div className="h-full w-full grid place-items-center page-backdrop text-text select-none px-6">

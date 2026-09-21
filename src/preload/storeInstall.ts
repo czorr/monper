@@ -1,15 +1,15 @@
 import { ipcRenderer } from 'electron'
 
 /**
- * Inyecta un botón "Install to Monper" en la página de la Chrome Web Store.
+ * Inyecta un botón "Install to Titanio" en la página de la Chrome Web Store.
  * La Store deshabilita "Add to Chrome" fuera de Chrome, así que sin esto no hay
  * forma de instalar desde la propia página (como hacen Edge, Brave o Arc).
  */
 export function setupStoreInstall(): void {
   if (!/(^|\.)chromewebstore\.google\.com$|(^|\.)chrome\.google\.com$/.test(location.hostname)) return
-  console.log('[monper] Chrome Web Store detectada, esperando el botón de instalar…')
+  console.log('[titanio] Chrome Web Store detectada, esperando el botón de instalar…')
 
-  const BTN_ID = 'monper-install-btn'
+  const BTN_ID = 'titanio-install-btn'
   let installing = false
 
   const isDetailPage = (): boolean => /\/detail\//.test(location.pathname)
@@ -27,7 +27,7 @@ export function setupStoreInstall(): void {
     const b = document.createElement('button')
     b.id = BTN_ID
     b.type = 'button'
-    b.textContent = 'Install to Monper'
+    b.textContent = 'Install to Titanio'
     b.style.cssText = [
       'appearance:none', 'border:none', 'cursor:pointer',
       'background:#1a73e8', 'color:#fff',
@@ -61,7 +61,7 @@ export function setupStoreInstall(): void {
     if (!anchor?.parentElement) return
     // Junto al botón deshabilitado de la Store, dentro de su mismo contenedor.
     anchor.parentElement.insertBefore(make(), anchor.nextSibling)
-    console.log('[monper] botón "Install to Monper" añadido')
+    console.log('[titanio] botón "Install to Titanio" añadido')
   }
 
   ipcRenderer.on('extensions:installResult', (_e, r: { ok: boolean; error?: string; name?: string }) => {
@@ -69,8 +69,8 @@ export function setupStoreInstall(): void {
     if (r.ok) {
       setLabel('Instalada ✓', true)
     } else {
-      setLabel('Install to Monper', false)
-      if (r.error) console.warn('[monper] no se pudo instalar:', r.error)
+      setLabel('Install to Titanio', false)
+      if (r.error) console.warn('[titanio] no se pudo instalar:', r.error)
     }
   })
 

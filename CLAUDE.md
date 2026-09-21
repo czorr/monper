@@ -1,4 +1,4 @@
-# Monper
+# Titanio
 
 A desktop agentic browser: Electron 43 + React 19 + electron-vite + TypeScript + Tailwind v4.
 It renders web pages, but the product is the agent that operates them — not a Chrome
@@ -37,7 +37,7 @@ learns *which fields were filled*. No IPC channel, tool, or log may carry a secr
 
 **Do not touch the page-view corners or vibrancy without reading
 [docs/esquinas-y-vibrancy.md](docs/esquinas-y-vibrancy.md).** The rounding and the window
-vibrancy are, in the user's words, part of Monper's soul. Four failed attempts came from
+vibrancy are, in the user's words, part of Titanio's soul. Four failed attempts came from
 theorising instead of diffing against the last good state. The `Content` div has **no
 background on purpose**.
 
@@ -67,15 +67,15 @@ measured, say so instead of implying it works.
 | `src/main/memoria.ts` | Memoria del agente: los `.md` que escribe él (`rutaSegura` acota dónde) |
 | `src/main/perfiles.ts` | Perfiles: qué carpeta y qué sesión le toca a cada uno (`rutaDePerfil`) |
 | `src/main/particiones.ts` | En qué sesión de Chromium vive cada ventana (normal / incógnito / perfiles) |
-| `src/main/adblock.ts` | Network-level ad/tracker blocking on `persist:monper` (one webRequest listener per session — see docs) |
+| `src/main/adblock.ts` | Network-level ad/tracker blocking on `persist:titanio` (one webRequest listener per session — see docs) |
 | `src/main/pip.ts` | Our own picture-in-picture: Chromium's opens NO window under Electron (see docs) |
 | `src/main/chromehints.ts` | `Sec-CH-UA` rewritten to say "Google Chrome" — paired with `preload/chromeIdentity.ts`; both read `shared/chrome.ts` |
 | `src/main/popover.ts` | Factory for the native overlay windows |
 | `src/main/jsonfile.ts` | `readJson`/`writeJson` — every state file goes through here (atomic writes) |
 | `src/preload/` | One preload per window/feature; each `contextBridge` surface is separate |
 | `src/renderer/src/` | Chrome UI plus one entry per internal page (newtab, settings, error, downloads) and per popover |
-| `packages/monperwright/` | Publishable npm library: Playwright-shaped automation over a transport |
-| `packages/monper-mcp/` | Publishable npm MCP server: exposes the user's **logged-in** web to any MCP client |
+| `packages/titaniowright/` | Publishable npm library: Playwright-shaped automation over a transport |
+| `packages/titanio-mcp/` | Publishable npm MCP server: exposes the user's **logged-in** web to any MCP client |
 | `tests/` | Playwright-over-Electron smoke tests |
 
 ## Things that will surprise you
@@ -152,7 +152,7 @@ when a session teaches something a future one would otherwise rediscover the har
   restates the code is noise; one that records a trap is the point.
 - New state files go through `jsonfile.ts`. New popovers go through `createPopover` unless
   there is a reason worth writing down.
-- The Monper mark on a variable background goes through `MonperMark` (the PNG's alpha as a
+- The Titanio mark on a variable background goes through `TitanioMark` (the PNG's alpha as a
   CSS mask filled with `currentColor`). A plain `<img>` cannot be recoloured, and the white
   iso vanished on light pages. Where the background is always dark, the PNG is fine.
 - Popover rows use `PopoverRow`. Do not invent a new row style per window — that is the

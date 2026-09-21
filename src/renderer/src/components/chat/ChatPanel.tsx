@@ -11,7 +11,7 @@ import SessionPill from './SessionPill'
 
 const EMPTY_CTX: ChatContext = { provider: null, models: [], model: '', effort: 'medium' }
 
-const { monper } = window
+const { titanio } = window
 
 interface Props {
   open: boolean
@@ -43,44 +43,44 @@ export default function ChatPanel({ open, onClose, inject, resizing }: Props): J
       parts: m.parts?.map((p) => (p.type === 'text' ? { type: 'text' as const, text: p.text, error: p.error } : { type: 'step' as const, step: p.step }))
     }))
 
-  const refrescarLista = (): void => { void monper.chatsList().then(setSessions) }
+  const refrescarLista = (): void => { void titanio.chatsList().then(setSessions) }
 
   // Al abrir el panel se retoma la conversación que toque (ver las reglas en chats.ts).
   useEffect(() => {
     if (!open || sessionId) return
-    void monper.chatsResume().then((s) => { setSessionId(s.id); setMessages(rehidratar(s.messages)) })
+    void titanio.chatsResume().then((s) => { setSessionId(s.id); setMessages(rehidratar(s.messages)) })
     refrescarLista()
   }, [open, sessionId])
 
   /** Guarda tras cada turno terminado. El panel es la fuente de verdad mientras está vivo. */
   const guardar = (ms: Msg[]): void => {
     if (!sessionId || ms.length === 0) return
-    monper.chatsSave(sessionId, ms)
+    titanio.chatsSave(sessionId, ms)
     refrescarLista()
   }
 
   const nuevaSesion = (): void => {
-    void monper.chatsNew().then((s) => { setSessionId(s.id); setMessages([]); refrescarLista() })
+    void titanio.chatsNew().then((s) => { setSessionId(s.id); setMessages([]); refrescarLista() })
   }
   const abrirSesion = (id: string): void => {
-    void monper.chatsOpen(id).then((s) => { if (s) { setSessionId(s.id); setMessages(rehidratar(s.messages)) } })
+    void titanio.chatsOpen(id).then((s) => { if (s) { setSessionId(s.id); setMessages(rehidratar(s.messages)) } })
   }
   const borrarSesion = (id: string): void => {
-    monper.chatsRemove(id)
+    titanio.chatsRemove(id)
     if (id === sessionId) nuevaSesion()
     else refrescarLista()
   }
 
   // Retomar una conversación desde Settings → Archived chats. El panel es la fuente de verdad
   // en vivo, así que marcarla en el main no basta: hay que cargarla aquí.
-  useEffect(() => monper.onOpenSession((id) => { abrirSesion(id); refrescarLista() }), [])
+  useEffect(() => titanio.onOpenSession((id) => { abrirSesion(id); refrescarLista() }), [])
 
   // Refresca proveedor/modelos al abrir el panel y cuando cambian en Settings.
-  useEffect(() => { if (open) monper.getChatContext().then(setCtx) }, [open])
-  useEffect(() => monper.onChatContext(setCtx), [])
+  useEffect(() => { if (open) titanio.getChatContext().then(setCtx) }, [open])
+  useEffect(() => titanio.onChatContext(setCtx), [])
 
-  const pickModel = (id: string): void => { monper.setModel(id); setCtx((c) => ({ ...c, model: id })) }
-  const pickEffort = (e: Effort): void => { monper.setEffort(e); setCtx((c) => ({ ...c, effort: e })) }
+  const pickModel = (id: string): void => { titanio.setModel(id); setCtx((c) => ({ ...c, model: id })) }
+  const pickEffort = (e: Effort): void => { titanio.setEffort(e); setCtx((c) => ({ ...c, effort: e })) }
 
   const scrollToEnd = (): void => {
     requestAnimationFrame(() => scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight }))
@@ -119,16 +119,16 @@ export default function ChatPanel({ open, onClose, inject, resizing }: Props): J
   }
 
   useEffect(() => {
-    const offToken = monper.onChatToken((t) => patchLast((m) => appendToken(m, t)))
-    const offStep = monper.onChatStep((s) => patchLast((m) => pushPart(m, { type: 'step', step: s })))
-    const offStepImg = monper.onChatStepImage((d) => patchLast((m) => attachImage(m, d)))
-    const offDone = monper.onChatDone(() => {
+    const offToken = titanio.onChatToken((t) => patchLast((m) => appendToken(m, t)))
+    const offStep = titanio.onChatStep((s) => patchLast((m) => pushPart(m, { type: 'step', step: s })))
+    const offStepImg = titanio.onChatStepImage((d) => patchLast((m) => attachImage(m, d)))
+    const offDone = titanio.onChatDone(() => {
       patchLast((m) => ({ ...m, streaming: false }))
       setRunning(false)
       // Se lee del estado ya actualizado, no de la clausura (que tendría el de antes).
       setMessages((ms) => { guardar(ms); return ms })
     })
-    const offErr = monper.onChatError((fallo) => {
+    const offErr = titanio.onChatError((fallo) => {
       patchLast((m) => ({ ...pushPart(m, { type: 'fail', fail: fallo }), streaming: false }))
       setRunning(false)
       setMessages((ms) => { guardar(ms); return ms })
@@ -147,7 +147,7 @@ export default function ChatPanel({ open, onClose, inject, resizing }: Props): J
     let base = messages
     if (sessionId) {
       try {
-        const next = await monper.chatsForNext(sessionId)
+        const next = await titanio.chatsForNext(sessionId)
         if (next.fresh) { setSessionId(next.id); setMessages([]); base = [] }
       } catch (e) {
         // No se puede tragar: sin esto el mensaje del usuario desaparecía sin explicación.
@@ -164,7 +164,7 @@ export default function ChatPanel({ open, onClose, inject, resizing }: Props): J
     setRunning(true)
     setMessages((ms) => [...ms, { role: 'user', text, attachments }, { role: 'assistant', parts: [], streaming: true, at: Date.now() }])
     scrollToEnd()
-    monper.chatSend(history)
+    titanio.chatSend(history)
   }
 
   // Envía el prompt inyectado (acción rápida) cuando cambia el nonce.
@@ -208,10 +208,10 @@ export default function ChatPanel({ open, onClose, inject, resizing }: Props): J
         ctx={ctx}
         running={running}
         onSend={send}
-        onCancel={() => monper.chatCancel()}
+        onCancel={() => titanio.chatCancel()}
         onPickModel={pickModel}
         onPickEffort={pickEffort}
-        onConnect={() => monper.openSettings()}
+        onConnect={() => titanio.openSettings()}
       />
     </aside>
   )

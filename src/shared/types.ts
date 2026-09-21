@@ -12,7 +12,7 @@ export interface TabInfo {
   muted: boolean
   /** true mientras la pestaña reproduce audio */
   audible: boolean
-  /** true si la pestaña es del agente (creada/controlada por Monper) */
+  /** true si la pestaña es del agente (creada/controlada por Titanio) */
   agent: boolean
   /** id del bookmark al que está ligada esta pestaña (se muestra en su slot de bookmarks) */
   bookmarkId: string | null
@@ -556,7 +556,7 @@ export type MenuActionName =
   | 'extensions' | 'history' | 'developers' | 'settings'
   | 'new-tab' | 'incognito'
 
-export interface MonperApi {
+export interface TitanioApi {
   platform: NodeJS.Platform
   newTab: () => void
   closeTab: (id: number) => void
@@ -736,7 +736,7 @@ export const QUICK_ICONS = [
 
 /**
  * API extra de la ventana del "peek" del sidebar. Además de esto, la ventana expone
- * `window.monper` completo (mismo preload que el chrome) para poder reusar <Sidebar/>.
+ * `window.titanio` completo (mismo preload que el chrome) para poder reusar <Sidebar/>.
  */
 export interface PeekWinApi {
   /** El main avisa antes de esconder la ventana, para poder animar la salida. */
@@ -762,7 +762,7 @@ export interface Routine {
   request: string
   intervalMinutes: number
   /**
-   * Snippet del REPL generado UNA vez por el modelo (con `page` de monperwright).
+   * Snippet del REPL generado UNA vez por el modelo (con `page` de titaniowright).
    * Puede esperar contenido diferido o leer la API interna del sitio, no solo el DOM.
    */
   extractor: string
@@ -790,7 +790,7 @@ export interface UpdateState {
 
 /** Estado "sin novedades", para inicializar en el main y en los renderers sin duplicar. */
 /**
- * Páginas propias de Monper (no son sitios web). El main las sirve como `file://` en
+ * Páginas propias de Titanio (no son sitios web). El main las sirve como `file://` en
  * producción y como `http://localhost:PORT` en desarrollo, así que se reconocen por el
  * nombre del fichero y no por el origen.
  *
@@ -901,7 +901,7 @@ export interface VaultWinApi {
 }
 
 /** API expuesta a las páginas internas de contenido (new-tab page) */
-export interface MonperTabApi {
+export interface TitanioTabApi {
   navigate: (url: string) => void
   // ---- Descargas (página interna de downloads) ----
   listDownloads: () => Promise<DownloadEntry[]>
@@ -1057,8 +1057,8 @@ export interface MonperTabApi {
 
 declare global {
   interface Window {
-    monper: MonperApi
-    monperTab: MonperTabApi
+    titanio: TitanioApi
+    titanioTab: TitanioTabApi
     vaultwin: VaultWinApi
     omniwin: OmniWinApi
     siteinfo: SiteInfoWinApi

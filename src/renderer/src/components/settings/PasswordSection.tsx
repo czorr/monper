@@ -16,10 +16,10 @@ import IconAlert from '~icons/tabler/alert-triangle'
 import IconPlus from '~icons/tabler/plus'
 import { Card, Group } from './ui'
 
-const { monperTab } = window
+const { titanioTab } = window
 
 const GRUPOS: { type: VaultItemType; title: string; vacio: string; Icon: typeof IconWorld }[] = [
-  { type: 'web-credential', title: 'Sitios web', vacio: 'Cuando inicies sesión en un sitio, Monper te ofrecerá guardarlo.', Icon: IconWorld },
+  { type: 'web-credential', title: 'Sitios web', vacio: 'Cuando inicies sesión en un sitio, Titanio te ofrecerá guardarlo.', Icon: IconWorld },
   { type: 'ai-key', title: 'API keys de IA', vacio: 'Se guardan solas al conectar un proveedor en la sección AI.', Icon: IconSparkles },
   { type: 'service-token', title: 'Tokens de servicio', vacio: 'Los usan las herramientas del agente y los servidores MCP.', Icon: IconPlug },
   { type: 'secret', title: 'Otros secretos', vacio: 'Cualquier valor que quieras guardar cifrado.', Icon: IconLock }
@@ -63,7 +63,7 @@ function Fila({ item, favicon, onCambio }: { item: VaultItemMeta; favicon?: stri
   const [error, setError] = useState('')
 
   const copiar = async (): Promise<void> => {
-    const ok = await monperTab.vaultCopy(item.id)
+    const ok = await titanioTab.vaultCopy(item.id)
     if (!ok) { setError('No se pudo leer el secreto. ¿Se guardó con otro usuario del sistema?'); return }
     setError('')
     setCopiado(true)
@@ -76,7 +76,7 @@ function Fila({ item, favicon, onCambio }: { item: VaultItemMeta; favicon?: stri
    */
   const alternarVer = async (): Promise<void> => {
     if (visible !== null) { setVisible(null); return }
-    const v = await monperTab.vaultReveal(item.id)
+    const v = await titanioTab.vaultReveal(item.id)
     if (v === null) { setError('No se pudo leer el secreto.'); return }
     setError('')
     setVisible(v)
@@ -89,12 +89,12 @@ function Fila({ item, favicon, onCambio }: { item: VaultItemMeta; favicon?: stri
     if (!l) { setLabel(item.label); setEditando(false); return }
     const patch: { label: string; data?: Record<string, string> } = { label: l }
     if (item.type === 'web-credential') patch.data = { username: usuario.trim() }
-    onCambio(await monperTab.vaultUpdate(item.id, patch))
+    onCambio(await titanioTab.vaultUpdate(item.id, patch))
     setEditando(false)
   }
 
   const borrar = async (): Promise<void> => {
-    onCambio(await monperTab.vaultRemove(item.id))
+    onCambio(await titanioTab.vaultRemove(item.id))
   }
 
   const campo = 'h-8 px-2.5 rounded-lg bg-white/[0.05] border border-white/[0.10] text-[13px] text-text outline-none focus:border-white/30 select-text'
@@ -111,7 +111,7 @@ function Fila({ item, favicon, onCambio }: { item: VaultItemMeta; favicon?: stri
         <div className="flex items-center gap-2">
           <button onClick={() => void guardar()} className="h-8 px-3 rounded-lg bg-white/90 text-black text-[12.5px] font-medium hover:bg-white transition-colors">Guardar</button>
           <button onClick={() => setEditando(false)} className="h-8 px-3 rounded-lg text-[12.5px] text-text-dim hover:text-text transition-colors">Cancelar</button>
-          {/* La contraseña no se edita aquí: cambiarla es cosa del sitio, y Monper la vuelve
+          {/* La contraseña no se edita aquí: cambiarla es cosa del sitio, y Titanio la vuelve
               a capturar al siguiente login. Un campo aquí solo desincronizaría las dos. */}
         </div>
       </div>
@@ -224,7 +224,7 @@ function Alta({ onHecho, onCancelar }: { onHecho: (l: VaultItemMeta[]) => void; 
     if (!nombre) { setError('Ponle un nombre para poder encontrarlo.'); return }
 
     try {
-      onHecho(await monperTab.vaultAdd(type, nombre, data, secreto))
+      onHecho(await titanioTab.vaultAdd(type, nombre, data, secreto))
       onCancelar()
     } catch (e) {
       console.error('[vault] no se pudo guardar:', e)
@@ -304,13 +304,13 @@ export default function PasswordSection(): JSX.Element {
 
   const leer = useCallback(async (): Promise<void> => {
     try {
-      setItems(await monperTab.vaultList())
-      setFavicons(await monperTab.vaultFavicons())
-      setDisponible(await monperTab.vaultAvailable())
+      setItems(await titanioTab.vaultList())
+      setFavicons(await titanioTab.vaultFavicons())
+      setDisponible(await titanioTab.vaultAvailable())
       setError('')
     } catch (e) {
       console.error('[vault] no se pudo leer:', e)
-      setError('No se pudo leer el vault. Reinicia Monper: los cambios en el preload necesitan reiniciar la app, no solo recargar.')
+      setError('No se pudo leer el vault. Reinicia Titanio: los cambios en el preload necesitan reiniciar la app, no solo recargar.')
     }
   }, [])
   // Se escucha además de leer: se puede guardar una credencial desde otra pestaña mientras
@@ -318,7 +318,7 @@ export default function PasswordSection(): JSX.Element {
   // `onVaultChanged(setItems)` refrescaba SOLO la lista: los iconos se leían una vez al montar
   // y no volvían a mirarse nunca. Los de sitios nunca visitados se resuelven en segundo plano y
   // llegan después, así que se quedaban invisibles para siempre. Se recarga todo.
-  useEffect(() => { void leer(); return monperTab.onVaultChanged(() => { void leer() }) }, [leer])
+  useEffect(() => { void leer(); return titanioTab.onVaultChanged(() => { void leer() }) }, [leer])
 
   const filtrados = useMemo(() => {
     const t = q.trim().toLowerCase()
@@ -355,7 +355,7 @@ export default function PasswordSection(): JSX.Element {
           <IconAlert className="w-[17px] h-[17px] text-amber-400 shrink-0 mt-px" />
           <div className="text-[13px] text-text-dim">
             El llavero del sistema no está disponible, así que <span className="text-text">no se puede guardar nada</span>.
-            Monper prefiere no guardar a guardar en claro.
+            Titanio prefiere no guardar a guardar en claro.
           </div>
         </div>
       )}

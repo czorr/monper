@@ -20,7 +20,7 @@ import {
 let base = ''
 
 test.beforeEach(() => {
-  base = mkdtempSync(join(tmpdir(), 'monper-widgets-'))
+  base = mkdtempSync(join(tmpdir(), 'titanio-widgets-'))
   initWidgets(join(base, 'widgets.json'))
 })
 test.afterEach(() => { rmSync(base, { recursive: true, force: true }) })

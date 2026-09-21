@@ -25,7 +25,7 @@ test.afterAll(async () => { await h?.close(); await site?.close() })
 const marcadores = (): Promise<Bookmark[]> => api<Bookmark[]>(h.win, 'getBookmarks')
 
 /**
- * Llama a `window.monperTab.<metodo>` dentro de la página de marcadores.
+ * Llama a `window.titanioTab.<metodo>` dentro de la página de marcadores.
  *
  * Hace falta porque `bookmarks:remove` está restringido a páginas internas —el chrome NO lo es,
  * ver isInternalSender— así que borrar desde el sidebar va por el menú nativo, que un test no
@@ -35,7 +35,7 @@ async function enGestor<T>(metodo: string, ...args: unknown[]): Promise<T> {
   return h.app.evaluate(async ({ webContents }, { metodo, args }) => {
     const wc = webContents.getAllWebContents().find((w) => w.getURL().includes('bookmarks.html'))
     if (!wc) throw new Error('la página de marcadores no está abierta')
-    const call = `window.monperTab.${metodo}(${args.map((a) => JSON.stringify(a)).join(',')})`
+    const call = `window.titanioTab.${metodo}(${args.map((a) => JSON.stringify(a)).join(',')})`
     return (await wc.executeJavaScript(call)) as T
   }, { metodo, args }) as Promise<T>
 }

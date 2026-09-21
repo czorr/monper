@@ -22,7 +22,7 @@ import { contextBridge, ipcRenderer } from 'electron'
  * - Se comunican con un atributo en el elemento y un evento, que es lo que sí cruza.
  */
 
-const MARCA = 'data-monper-pip'
+const MARCA = 'data-titanio-pip'
 
 let pc: RTCPeerConnection | null = null
 let videoActual: HTMLVideoElement | null = null
@@ -86,13 +86,13 @@ export function setupPipSource(): void {
     else if (cmd === 'cerrar') limpiar()
   })
 
-  document.addEventListener('monper:pip', () => {
+  document.addEventListener('titanio:pip', () => {
     const v = document.querySelector<HTMLVideoElement>(`video[${MARCA}]`)
     if (v) void abrir(v)
   })
 
   // La página (o el auto-PiP al volver a la pestaña) pide salir: se cierra la ventana.
-  document.addEventListener('monper:pip-salir', () => {
+  document.addEventListener('titanio:pip-salir', () => {
     if (!pc) return
     limpiar()
     ipcRenderer.send('pip:cerrar')
@@ -112,7 +112,7 @@ export function setupPipSource(): void {
   // La ventana se cerró por su cuenta (botón X, o el main la cerró): el mundo principal tiene
   // que enterarse, o `document.pictureInPictureElement` se quedaría mintiendo.
   ipcRenderer.on('pip:comando', (_e, cmd: string) => {
-    if (cmd === 'cerrar') document.dispatchEvent(new CustomEvent('monper:pip-cerrado'))
+    if (cmd === 'cerrar') document.dispatchEvent(new CustomEvent('titanio:pip-cerrado'))
   })
 
   contextBridge.executeInMainWorld({
@@ -136,17 +136,17 @@ export function setupPipSource(): void {
           configurable: true
         })
       } catch (e) {
-        console.warn('[monper] no se pudo reflejar pictureInPictureElement:', e)
+        console.warn('[titanio] no se pudo reflejar pictureInPictureElement:', e)
       }
-      document.addEventListener('monper:pip-cerrado', () => { actual = null })
+      document.addEventListener('titanio:pip-cerrado', () => { actual = null })
 
       proto.requestPictureInPicture = function (this: HTMLVideoElement): Promise<unknown> {
         try {
           this.setAttribute(marca, '1')
           actual = this
-          document.dispatchEvent(new CustomEvent('monper:pip'))
+          document.dispatchEvent(new CustomEvent('titanio:pip'))
         } catch (e) {
-          console.warn('[monper] no se pudo abrir el picture-in-picture:', e)
+          console.warn('[titanio] no se pudo abrir el picture-in-picture:', e)
           return Promise.reject(new DOMException('No se pudo abrir el PiP', 'NotAllowedError'))
         }
         const falso = document.createElement('div')
@@ -160,7 +160,7 @@ export function setupPipSource(): void {
       const doc = document as unknown as { exitPictureInPicture?: () => Promise<void> }
       doc.exitPictureInPicture = function (): Promise<void> {
         actual = null
-        document.dispatchEvent(new CustomEvent('monper:pip-salir'))
+        document.dispatchEvent(new CustomEvent('titanio:pip-salir'))
         return Promise.resolve()
       }
     },

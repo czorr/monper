@@ -80,10 +80,10 @@ export interface SettingsControl {
   openSettings: (section?: string) => void
 }
 
-export const SYSTEM = `Eres Monper, un agente que opera el navegador del usuario para cumplir su tarea.
-Tu herramienta principal es run_js: un REPL donde ESCRIBES CÓDIGO JavaScript para operar el navegador con la librería "monperwright" (API con la forma de Playwright). Prefiérela para cualquier tarea no trivial; puedes leer, actuar y decidir en un solo bloque de código, lo que es más eficiente que muchas tools atómicas.
+export const SYSTEM = `Eres Titanio, un agente que opera el navegador del usuario para cumplir su tarea.
+Tu herramienta principal es run_js: un REPL donde ESCRIBES CÓDIGO JavaScript para operar el navegador con la librería "titaniowright" (API con la forma de Playwright). Prefiérela para cualquier tarea no trivial; puedes leer, actuar y decidir en un solo bloque de código, lo que es más eficiente que muchas tools atómicas.
 En run_js tienes disponibles: 'page' (la pestaña activa), 'state' (objeto que PERSISTE entre llamadas a run_js del mismo turno: guarda ahí lo que quieras reusar), y 'log(...)' (para imprimir valores). El código es async: usa await y 'return' para devolver un valor.
-Globals extra que usan las skills: 'googleSearch.search(q, opts)' (→[{title,url,snippet}]), 'imageSearch.search(q)', 'cua.getVisibleScreenshot()', 'youtube.search/getMetadata/getTranscript/getComments', 'twitter.search/getTimeline/getUser/getTweet' (read-only), 'gmail.search/getInbox/getThread/openComposer/openThreadDetailsPage' (openComposer solo ABRE el borrador, no envía), 'notion.getClient()' → cliente read-only (client.search/getBlock) + global 'blockToMarkdown(block)', 'slack.listWorkspaces()/getClient(teamId)' → WebClient de @slack/web-api (client.conversations.history/list, chat.postMessage, search.messages…; postMessage ENVÍA, confirma antes), 'googleAccounts.list()/print()', 'googleDocs.getDocumentHTML/getDocumentText(url)', 'googleSheets.readSheet(url) → {cells}'. Los de servicios con sesión requieren que el usuario esté logueado. 'passwordManager' (vault interno de Monper): passwordManager.list() (metadata SIN secretos), passwordManager.fill()/fillAndSubmit() rellenan la credencial guardada del sitio actual. IMPORTANTE: NUNCA verás la contraseña — el relleno lo hace Monper y solo te devuelve qué campos se llenaron; el usuario aprueba cada relleno. No intentes leer el valor del campo de contraseña ni pedirle al usuario que te la diga. Las escrituras/ediciones (googleDocs/googleSheets edit, notion, gmail.downloadAttachment…) aún no están portadas: úsalas con page: si los llamas lanzan un error que te indica operar ese servicio con 'page' (navegar la web y usar page.click/type/evaluate).
+Globals extra que usan las skills: 'googleSearch.search(q, opts)' (→[{title,url,snippet}]), 'imageSearch.search(q)', 'cua.getVisibleScreenshot()', 'youtube.search/getMetadata/getTranscript/getComments', 'twitter.search/getTimeline/getUser/getTweet' (read-only), 'gmail.search/getInbox/getThread/openComposer/openThreadDetailsPage' (openComposer solo ABRE el borrador, no envía), 'notion.getClient()' → cliente read-only (client.search/getBlock) + global 'blockToMarkdown(block)', 'slack.listWorkspaces()/getClient(teamId)' → WebClient de @slack/web-api (client.conversations.history/list, chat.postMessage, search.messages…; postMessage ENVÍA, confirma antes), 'googleAccounts.list()/print()', 'googleDocs.getDocumentHTML/getDocumentText(url)', 'googleSheets.readSheet(url) → {cells}'. Los de servicios con sesión requieren que el usuario esté logueado. 'passwordManager' (vault interno de Titanio): passwordManager.list() (metadata SIN secretos), passwordManager.fill()/fillAndSubmit() rellenan la credencial guardada del sitio actual. IMPORTANTE: NUNCA verás la contraseña — el relleno lo hace Titanio y solo te devuelve qué campos se llenaron; el usuario aprueba cada relleno. No intentes leer el valor del campo de contraseña ni pedirle al usuario que te la diga. Las escrituras/ediciones (googleDocs/googleSheets edit, notion, gmail.downloadAttachment…) aún no están portadas: úsalas con page: si los llamas lanzan un error que te indica operar ese servicio con 'page' (navegar la web y usar page.click/type/evaluate).
 API de 'page' (subset): await page.goto(url); page.snapshotText() (árbol de accesibilidad podado con [ref]); page.click(sel)/fill(sel,val)/type(sel,txt)/press(sel,key)/hover(sel)/selectOption(sel,val); page.clickRef(n)/fillRef(n,val) (usando un [ref] de snapshotText); page.locator(sel).nth(i).click(); page.waitForSelector(sel)/waitForText(txt); page.textContent(sel); page.$$text(sel) (textos de todos los que casan); page.evaluate(fn) (ejecuta una función en la página y devuelve su valor); page.keyboard/page.mouse. Ejemplo: const s = await page.snapshotText(); log(s); await page.clickRef(3); return await page.title();
 Red / APIs internas (para ir mucho más rápido que por la UI): page.resourceRequests({type:'fetch'}) descubre endpoints que la página ya llamó; page.installNetworkCapture() + luego page.capturedRequests() capturan método/URL/status de peticiones futuras; page.fetch(url, init) reproduce una petición DESDE la página (hereda cookies/origin del sitio, indistinguible de sus llamadas) y devuelve status/headers/body. Úsalo para leer datos directo de la API interna en vez de raspar el DOM.
 Si en una observación aparece "[EVENTOS DEL NAVEGADOR]" (popups, descargas), tenlos en cuenta: reacciona a ellos (cerrar/cambiar de pestaña, seguir el popup) según la tarea.
@@ -104,7 +104,7 @@ PERSISTENCIA (muy importante): no te detengas hasta COMPLETAR la tarea que te pi
 - Muchos elementos (cajas de comentario, botones) aparecen solo tras hacer scroll hasta ellos y esperar a que carguen: usa wait_for (por texto o selector) tras un scroll o navegación, y luego read_page de nuevo.
 - Herramientas disponibles además de las básicas: wait_for (esperar contenido diferido), press_key (enter/escape/tab/flechas + modificadores), hover (revelar menús), select_option (dropdowns nativos), history (atrás/adelante/recargar).
 - Pestañas: list_tabs (ver todas), open_tab (abrir una nueva con una URL), switch_tab (cambiar a una por id), close_tab (cerrar una por id). Úsalas para trabajar en varias páginas.
-- Settings de Monper: get_settings (leer el nombre del perfil y las skills con su estado), set_profile_name (cambiar el nombre del usuario), set_skill (activar/desactivar una skill por id), open_settings (abrir la pantalla de ajustes en una sección: general, account, ai, skills, privacy, about). Un cambio de skill aplica a partir de la próxima ejecución del agente. No manejas claves de API ni borras datos de navegación desde aquí: para eso, dirige al usuario a Settings con open_settings.
+- Settings de Titanio: get_settings (leer el nombre del perfil y las skills con su estado), set_profile_name (cambiar el nombre del usuario), set_skill (activar/desactivar una skill por id), open_settings (abrir la pantalla de ajustes en una sección: general, account, ai, skills, privacy, about). Un cambio de skill aplica a partir de la próxima ejecución del agente. No manejas claves de API ni borras datos de navegación desde aquí: para eso, dirige al usuario a Settings con open_settings.
 - Visión: si read_page no captura un elemento (canvas, mapas, PDFs, UIs complejas), usa screenshot para VER la página y luego click_at con las coordenadas del elemento. Es tu último recurso cuando no hay un ref utilizable.
 - Reintenta una acción fallida hasta 3 veces con enfoques distintos antes de considerarla bloqueada.
 - Solo termina cuando (a) la tarea está hecha, o (b) tras reintentos reales sigue bloqueada; en ese caso explica CLARAMENTE qué intentaste y por qué no se pudo. Nunca termines en silencio.
@@ -235,7 +235,7 @@ function buildTools(ctrl: BrowserControl, settings: SettingsControl, skills: Ski
     run_js: createTool({
       id: 'run_js',
       description:
-        'Ejecuta código JavaScript (async) para operar el navegador con la librería monperwright. ' +
+        'Ejecuta código JavaScript (async) para operar el navegador con la librería titaniowright. ' +
         'Globals: page (pestaña activa, API estilo Playwright), state (persiste entre llamadas de este turno), log(...). ' +
         'Usa await y return para devolver un valor. Es tu herramienta principal: prefiérela sobre las tools atómicas. ' +
         'Ej: const s = await page.snapshotText(); log(s); await page.clickRef(2); return await page.title();',
@@ -375,7 +375,7 @@ function buildTools(ctrl: BrowserControl, settings: SettingsControl, skills: Ski
     }),
     get_settings: createTool({
       id: 'get_settings',
-      description: 'Lee los ajustes de Monper: nombre del perfil y las skills disponibles con su estado (activada/desactivada) e id.',
+      description: 'Lee los ajustes de Titanio: nombre del perfil y las skills disponibles con su estado (activada/desactivada) e id.',
       inputSchema: z.object({}),
       execute: async () => {
         const s = settings.read()
@@ -447,7 +447,7 @@ function buildTools(ctrl: BrowserControl, settings: SettingsControl, skills: Ski
     }),
     open_settings: createTool({
       id: 'open_settings',
-      description: 'Abre la pantalla de ajustes de Monper en una sección concreta. Úsalo para dirigir al usuario a algo que no puedes cambiar tú (claves de API, borrar datos, foto de perfil).',
+      description: 'Abre la pantalla de ajustes de Titanio en una sección concreta. Úsalo para dirigir al usuario a algo que no puedes cambiar tú (claves de API, borrar datos, foto de perfil).',
       inputSchema: z.object({
         section: z.enum(['general', 'account', 'ai', 'skills', 'memory', 'privacy', 'about']).optional()
       }),
@@ -502,13 +502,13 @@ function skillsSection(skills: SkillDetail[]): string {
 
 /** Agente sin tools, para preguntas puntuales (p. ej. generar el extractor de una rutina). */
 export function buildOneShotAgent(provider: AIProvider, key: string, model: string, instructions: string): Agent {
-  return new Agent({ id: 'monper-oneshot', name: 'Monper', instructions, model: buildModel(provider, key, model) })
+  return new Agent({ id: 'titanio-oneshot', name: 'Titanio', instructions, model: buildModel(provider, key, model) })
 }
 
 export function buildAgent(provider: AIProvider, key: string, model: string, ctrl: BrowserControl, settings: SettingsControl, skills: SkillDetail[] = [], externas: McpTool[] = [], memoria?: MemoryControl): Agent {
   return new Agent({
-    id: 'monper-agent',
-    name: 'Monper',
+    id: 'titanio-agent',
+    name: 'Titanio',
     instructions: wellFormed(SYSTEM + memorySection(memoria) + skillsSection(skills) + mcpSection(externas)), // las skills traen emojis
     model: buildModel(provider, key, model),
     tools: buildTools(ctrl, settings, skills, externas, memoria)
@@ -595,7 +595,7 @@ export async function runMastra(opts: {
   provider: AIProvider; key: string; model: string
   messages: ChatMessage[]; control: BrowserControl; settings: SettingsControl; emit: Emit; signal: AbortSignal; skills?: SkillDetail[]; memoria?: MemoryControl
 }): Promise<UsoDelTurno> {
-  // Las herramientas externas se piden AQUÍ, no al abrir Monper: si nunca hablas con el
+  // Las herramientas externas se piden AQUÍ, no al abrir Titanio: si nunca hablas con el
   // agente, no se lanza ni un proceso de servidor MCP.
   const externas = await mcpTools().catch((e) => {
     console.error('[mcp] no se pudieron cargar las herramientas externas:', e instanceof Error ? e.message : e)
@@ -610,7 +610,7 @@ export async function runMastra(opts: {
    *
    * Sin pasarlo, pausar solo hacía que NUESTRO bucle dejara de emitir: la generación y las
    * herramientas seguían corriendo por debajo. El agente reabría su pestaña con `openTab`,
-   * seguía operando, y no había forma de pararlo salvo cerrar Monper. Aquí es donde se corta
+   * seguía operando, y no había forma de pararlo salvo cerrar Titanio. Aquí es donde se corta
    * de verdad la petición al proveedor.
    */
   const out = await agent.stream(messages as Parameters<typeof agent.stream>[0], {
@@ -740,7 +740,7 @@ export function diagnosticar(e: unknown, kind?: ProviderKind): ChatFallo {
     return {
       tipo: 'credito',
       titulo: 'Se acabó el crédito',
-      detalle: `Tu cuenta de ${kind === 'openai' ? 'OpenAI' : 'Anthropic'} no tiene saldo. Monper no cobra nada: pagas al proveedor directamente.`,
+      detalle: `Tu cuenta de ${kind === 'openai' ? 'OpenAI' : 'Anthropic'} no tiene saldo. Titanio no cobra nada: pagas al proveedor directamente.`,
       accion: recargar, crudo
     }
   }

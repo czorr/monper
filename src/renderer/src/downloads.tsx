@@ -9,7 +9,7 @@ import './styles.css'
 
 import { fmtBytes } from '@shared/bytes'
 
-const { monperTab } = window
+const { titanioTab } = window
 
 function Row({ d }: { d: DownloadEntry }): JSX.Element {
   const pct = d.total > 0 ? Math.min(100, Math.round((d.received / d.total) * 100)) : 0
@@ -23,7 +23,7 @@ function Row({ d }: { d: DownloadEntry }): JSX.Element {
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <button
-            onClick={() => done && monperTab.openDownload(d.id)}
+            onClick={() => done && titanioTab.openDownload(d.id)}
             className={'text-[14px] truncate text-left ' + (done ? 'text-text hover:underline' : 'text-text')}
             title={d.filename}
           >
@@ -48,10 +48,10 @@ function Row({ d }: { d: DownloadEntry }): JSX.Element {
       </div>
       <div className="shrink-0 flex items-center gap-1">
         {done && (
-          <button title="Mostrar en carpeta" onClick={() => monperTab.showDownload(d.id)} className="w-8 h-8 grid place-items-center rounded-lg text-text-faint hover:text-text hover:bg-white/[0.08] [&>svg]:w-[16px] [&>svg]:h-[16px]"><IconFolder /></button>
+          <button title="Mostrar en carpeta" onClick={() => titanioTab.showDownload(d.id)} className="w-8 h-8 grid place-items-center rounded-lg text-text-faint hover:text-text hover:bg-white/[0.08] [&>svg]:w-[16px] [&>svg]:h-[16px]"><IconFolder /></button>
         )}
         {d.state === 'progressing' && (
-          <button title="Cancelar" onClick={() => monperTab.cancelDownload(d.id)} className="w-8 h-8 grid place-items-center rounded-lg text-text-faint hover:text-red-400 hover:bg-white/[0.08] [&>svg]:w-[16px] [&>svg]:h-[16px]"><IconX /></button>
+          <button title="Cancelar" onClick={() => titanioTab.cancelDownload(d.id)} className="w-8 h-8 grid place-items-center rounded-lg text-text-faint hover:text-red-400 hover:bg-white/[0.08] [&>svg]:w-[16px] [&>svg]:h-[16px]"><IconX /></button>
         )}
       </div>
     </div>
@@ -60,7 +60,7 @@ function Row({ d }: { d: DownloadEntry }): JSX.Element {
 
 function DownloadsPage(): JSX.Element {
   const [list, setList] = useState<DownloadEntry[]>([])
-  useEffect(() => { monperTab.listDownloads().then(setList); return monperTab.onDownloads(setList) }, [])
+  useEffect(() => { titanioTab.listDownloads().then(setList); return titanioTab.onDownloads(setList) }, [])
 
   return (
     <div className="h-full overflow-y-auto page-backdrop text-text select-none [&::-webkit-scrollbar]:w-0">
@@ -68,7 +68,7 @@ function DownloadsPage(): JSX.Element {
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-[30px] font-semibold tracking-tight">Descargas</h1>
           {list.length > 0 && (
-            <button onClick={() => monperTab.clearDownloads()} className="flex items-center gap-1.5 text-[13px] text-text-dim hover:text-text px-3 py-1.5 rounded-lg hover:bg-white/[0.06] [&>svg]:w-4 [&>svg]:h-4">
+            <button onClick={() => titanioTab.clearDownloads()} className="flex items-center gap-1.5 text-[13px] text-text-dim hover:text-text px-3 py-1.5 rounded-lg hover:bg-white/[0.06] [&>svg]:w-4 [&>svg]:h-4">
               <IconTrash /> Limpiar
             </button>
           )}

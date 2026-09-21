@@ -9,7 +9,7 @@ import { nombreDeUrl } from '../../shared/url'
  * Importar de tu navegador anterior.
  *
  * Es el feature que decide si alguien se queda: nadie se cambia de navegador si empieza sin
- * marcadores, sin historial y sin contraseñas. Y en Monper importa el doble — **el vault
+ * marcadores, sin historial y sin contraseñas. Y en Titanio importa el doble — **el vault
  * vacío desperdicia toda la tesis del producto**. Con las contraseñas dentro, el agente puede
  * entrar en tus sitios el primer día; sin ellas, el usuario tiene que reconstruir su vida
  * antes de ver para qué sirve.
@@ -119,7 +119,7 @@ function marcadoresSafari(): MarcadorImportado[] {
     // La carpeta de Safari está protegida por TCC: sin Acceso a Disco Completo, esto falla.
     // Es el caso normal, no una excepción, y hay que poder contarlo.
     throw new Error(
-      'macOS no deja leer los marcadores de Safari. Concede a Monper Acceso a Disco Completo ' +
+      'macOS no deja leer los marcadores de Safari. Concede a Titanio Acceso a Disco Completo ' +
       `en Ajustes → Privacidad y seguridad, y reinícialo. (${e instanceof Error ? e.message.slice(0, 80) : e})`
     )
   }
@@ -165,7 +165,7 @@ export function leerMarcadores(id: NavegadorId): MarcadorImportado[] {
  * medias— y se lee la copia.
  */
 function conCopia<T>(origen: string, fn: (ruta: string) => T): T {
-  const dir = mkdtempSync(join(tmpdir(), 'monper-import-'))
+  const dir = mkdtempSync(join(tmpdir(), 'titanio-import-'))
   try {
     const destino = join(dir, 'db')
     copyFileSync(origen, destino)
@@ -223,7 +223,7 @@ export function leerHistorial(id: NavegadorId, limite = 5000): VisitaImportada[]
 /**
  * La clave con la que Chromium cifra sus contraseñas vive en el Llavero de macOS.
  *
- * Pedirla dispara el diálogo del sistema ("Monper quiere acceder a…"), y eso **es lo
+ * Pedirla dispara el diálogo del sistema ("Titanio quiere acceder a…"), y eso **es lo
  * correcto**: importar contraseñas tiene que requerir un permiso explícito del usuario, no
  * pasar en silencio porque pulsó un botón nuestro.
  */

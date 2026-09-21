@@ -4,7 +4,7 @@ import IconShield from '~icons/tabler/shield-check'
 import IconTrash from '~icons/tabler/trash'
 import { Card, Group, Row, Toggle } from './ui'
 
-const { monperTab } = window
+const { titanioTab } = window
 
 /**
  * Settings → Adblocker.
@@ -20,11 +20,11 @@ export default function AdblockSection(): JSX.Element {
 
   const leer = useCallback(async (): Promise<void> => {
     try {
-      setEstado(await monperTab.getAdblockState())
+      setEstado(await titanioTab.getAdblockState())
       setError('')
     } catch (e) {
       console.error('[adblock] no se pudo leer el estado:', e)
-      setError('No se pudo leer el estado. Reinicia Monper: los cambios en el preload necesitan reiniciar la app, no solo recargar.')
+      setError('No se pudo leer el estado. Reinicia Titanio: los cambios en el preload necesitan reiniciar la app, no solo recargar.')
     }
   }, [])
   useEffect(() => { void leer() }, [leer])
@@ -32,7 +32,7 @@ export default function AdblockSection(): JSX.Element {
   const cambiar = async (on: boolean): Promise<void> => {
     setEstado((s) => (s ? { ...s, enabled: on } : s)) // feedback inmediato
     try {
-      const real = await monperTab.setAdblockEnabled(on)
+      const real = await titanioTab.setAdblockEnabled(on)
       setEstado((s) => (s ? { ...s, enabled: real } : s))
     } catch (e) {
       console.error('[adblock] no se pudo cambiar el estado:', e)
@@ -43,7 +43,7 @@ export default function AdblockSection(): JSX.Element {
   const quitarExcepcion = async (host: string): Promise<void> => {
     setEstado((s) => (s ? { ...s, allow: s.allow.filter((a) => a !== host) } : s))
     try {
-      await monperTab.setAdblockAllowed(host, false)
+      await titanioTab.setAdblockAllowed(host, false)
     } catch (e) {
       console.error('[adblock] no se pudo quitar la excepción:', e)
       void leer()

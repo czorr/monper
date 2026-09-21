@@ -1,4 +1,4 @@
-import type { Page } from '../../../../packages/monperwright/src'
+import type { Page } from '../../../../packages/titaniowright/src'
 
 /** Computer-use: captura visible + click por coordenadas. */
 export function makeCua(page: Page) {

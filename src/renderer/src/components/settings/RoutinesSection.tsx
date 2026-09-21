@@ -5,7 +5,7 @@ import IconTrash from '~icons/tabler/trash'
 import IconRefresh from '~icons/tabler/refresh'
 import IconAlert from '~icons/tabler/alert-triangle'
 
-const { monperTab } = window
+const { titanioTab } = window
 
 const PRESETS = [
   { label: 'Cada 15 min', minutes: 15 },
@@ -49,20 +49,20 @@ function Row({ r }: { r: Routine }): JSX.Element {
         </div>
       </div>
       <button
-        onClick={() => monperTab.runRoutine(r.id)}
+        onClick={() => titanioTab.runRoutine(r.id)}
         title="Revisar ahora"
         className="w-8 h-8 grid place-items-center rounded-lg text-text-faint hover:text-text hover:bg-white/[0.08] opacity-0 group-hover:opacity-100 [&>svg]:w-4 [&>svg]:h-4"
       >
         <IconRefresh />
       </button>
       <button
-        onClick={() => monperTab.removeRoutine(r.id)}
+        onClick={() => titanioTab.removeRoutine(r.id)}
         title="Eliminar"
         className="w-8 h-8 grid place-items-center rounded-lg text-text-faint hover:text-red-400 hover:bg-white/[0.08] opacity-0 group-hover:opacity-100 [&>svg]:w-4 [&>svg]:h-4"
       >
         <IconTrash />
       </button>
-      <Toggle on={r.enabled} onChange={(v) => monperTab.toggleRoutine(r.id, v)} />
+      <Toggle on={r.enabled} onChange={(v) => titanioTab.toggleRoutine(r.id, v)} />
     </div>
   )
 }
@@ -76,11 +76,11 @@ export default function RoutinesSection(): JSX.Element {
   const [request, setRequest] = useState('')
   const [minutes, setMinutes] = useState(60)
 
-  useEffect(() => { monperTab.listRoutines().then(setList); return monperTab.onRoutines(setList) }, [])
+  useEffect(() => { titanioTab.listRoutines().then(setList); return titanioTab.onRoutines(setList) }, [])
 
   const create = async (): Promise<void> => {
     setBusy(true); setError('')
-    const r = await monperTab.createRoutine({ url: url.trim(), request: request.trim(), minutes })
+    const r = await titanioTab.createRoutine({ url: url.trim(), request: request.trim(), minutes })
     setBusy(false)
     if (!r.ok) { setError(r.error || 'No se pudo crear.'); return }
     setCreating(false); setUrl(''); setRequest('')
@@ -102,7 +102,7 @@ export default function RoutinesSection(): JSX.Element {
         )}
       </div>
       <p className="text-[13.5px] text-text-dim leading-relaxed mb-7">
-        Monper revisa una página cada cierto tiempo y te avisa cuando pasa lo que le pidas.
+        Titanio revisa una página cada cierto tiempo y te avisa cuando pasa lo que le pidas.
         Usa tu sesión iniciada, así que funciona también en páginas privadas.
       </p>
 

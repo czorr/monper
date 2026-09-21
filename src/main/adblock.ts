@@ -136,7 +136,7 @@ async function construir(): Promise<ElectronBlocker | null> {
  * Engancha los listeners en la sesión.
  *
  * OJO: Electron admite UN solo listener por sesión y por evento — registrar otro
- * `onBeforeRequest` en `persist:monper` DESACTIVA este sin avisar de nada. Si algún día hace
+ * `onBeforeRequest` en `persist:titanio` DESACTIVA este sin avisar de nada. Si algún día hace
  * falta otro interceptor, tiene que encadenarse aquí dentro, no registrarse por su cuenta.
  */
 function enganchar(ses: Session): void {

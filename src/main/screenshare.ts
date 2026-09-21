@@ -47,10 +47,10 @@ async function permisoOk(padre: BrowserWindow | null): Promise<boolean> {
 
   const { response } = await dialog.showMessageBox(padre ?? undefined!, {
     type: 'warning',
-    message: 'macOS no deja que Monper grabe la pantalla',
+    message: 'macOS no deja que Titanio grabe la pantalla',
     detail:
       'Sin ese permiso se puede elegir una ventana, pero los demás verían un rectángulo en negro.\n\n' +
-      'Actívalo en Ajustes del Sistema → Privacidad y seguridad → Grabación de pantalla, y reinicia Monper.',
+      'Actívalo en Ajustes del Sistema → Privacidad y seguridad → Grabación de pantalla, y reinicia Titanio.',
     buttons: ['Cancelar', 'Abrir Ajustes'],
     defaultId: 1,
     cancelId: 0,

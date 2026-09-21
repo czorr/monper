@@ -22,7 +22,7 @@ export interface Autocomplete {
 
 /**
  * Autocompletado con debounce y guardia de respuestas obsoletas.
- * `suggestFn` es la API concreta (monper.suggest o monperTab.suggest).
+ * `suggestFn` es la API concreta (titanio.suggest o titanioTab.suggest).
  */
 export function useAutocomplete(suggestFn: SuggestFn, debounceMs = 110): Autocomplete {
   const [query, setQueryRaw] = useState('')

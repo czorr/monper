@@ -4,7 +4,7 @@ import IconChart from '~icons/tabler/chart-bar'
 import IconAlert from '~icons/tabler/alert-triangle'
 import { Card } from './ui'
 
-const { monperTab } = window
+const { titanioTab } = window
 
 const RANGOS = [7, 30, 90] as const
 
@@ -69,24 +69,24 @@ export default function UsoSection({ foco }: { foco: 'billing' | 'stats' }): JSX
 
   const leer = useCallback(async (d: number): Promise<void> => {
     try {
-      setR(await monperTab.usageSummary(d))
-      const l = await monperTab.usageLimit()
+      setR(await titanioTab.usageSummary(d))
+      const l = await titanioTab.usageLimit()
       setLimite(l)
       setEditandoLimite(l ? String(l) : '')
       setError('')
     } catch (e) {
       console.error('[uso] no se pudo leer el consumo:', e)
-      setError('No se pudo leer el consumo. Reinicia Monper: los cambios en el preload necesitan reiniciar la app, no solo recargar.')
+      setError('No se pudo leer el consumo. Reinicia Titanio: los cambios en el preload necesitan reiniciar la app, no solo recargar.')
     }
   }, [])
   useEffect(() => { void leer(dias) }, [leer, dias])
   // El resumen cambia solo con cada turno del agente: si no se escuchara, esta pantalla se
   // quedaría con el número de cuando la abriste mientras el agente sigue trabajando.
-  useEffect(() => monperTab.onUsageChanged(setR), [])
+  useEffect(() => titanioTab.onUsageChanged(setR), [])
 
   const guardarLimite = async (): Promise<void> => {
     const v = Number(editandoLimite.replace(',', '.'))
-    const l = await monperTab.usageLimit(Number.isFinite(v) && v > 0 ? v : 0)
+    const l = await titanioTab.usageLimit(Number.isFinite(v) && v > 0 ? v : 0)
     setLimite(l)
     setEditandoLimite(l ? String(l) : '')
   }
@@ -100,7 +100,7 @@ export default function UsoSection({ foco }: { foco: 'billing' | 'stats' }): JSX
           <h1 className="text-[22px] font-semibold tracking-tight">{foco === 'billing' ? 'Billing' : 'Statistics'}</h1>
           <p className="text-[13px] text-text-dim mt-1">
             {foco === 'billing'
-              ? 'Monper no te cobra nada: pagas a tu proveedor. Esto es lo que llevas gastado, estimado.'
+              ? 'Titanio no te cobra nada: pagas a tu proveedor. Esto es lo que llevas gastado, estimado.'
               : 'Qué ha hecho el agente por ti, y cuánto le ha costado.'}
           </p>
         </div>
@@ -212,7 +212,7 @@ export default function UsoSection({ foco }: { foco: 'billing' | 'stats' }): JSX
 
       {!vacio && (
         <button
-          onClick={async () => setR(await monperTab.usageClear())}
+          onClick={async () => setR(await titanioTab.usageClear())}
           className="mt-9 h-8 px-3 rounded-lg text-[12.5px] text-text-faint hover:text-red-400 hover:bg-red-500/10 transition-colors"
         >
           Borrar el historial de consumo

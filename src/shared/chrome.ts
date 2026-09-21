@@ -1,5 +1,5 @@
 /**
- * La identidad de Chrome que Monper presenta a la web.
+ * La identidad de Chrome que Titanio presenta a la web.
  *
  * Esto vive en `shared` a propósito: la identidad se declara en DOS sitios —la cabecera
  * `Sec-CH-UA` (main, `chromehints.ts`) y `navigator.userAgentData` (preload, `content.ts`)—

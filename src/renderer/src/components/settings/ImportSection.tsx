@@ -2,7 +2,7 @@ import { useEffect, useState, type JSX } from 'react'
 import IconDownload from '~icons/tabler/download'
 import { Card, Group } from './ui'
 
-const { monperTab } = window
+const { titanioTab } = window
 
 interface Nav { id: string; nombre: string; disponible: boolean }
 type Que = { bookmarks: boolean; history: boolean; passwords: boolean }
@@ -25,7 +25,7 @@ export default function ImportSection(): JSX.Element {
   const [res, setRes] = useState<Resultado | null>(null)
 
   useEffect(() => {
-    monperTab.listImportBrowsers()
+    titanioTab.listImportBrowsers()
       .then((l) => {
         setNavs(l)
         setSel(l.find((n) => n.disponible)?.id ?? null)
@@ -38,7 +38,7 @@ export default function ImportSection(): JSX.Element {
     setCorriendo(true)
     setRes(null)
     try {
-      setRes(await monperTab.runImport(sel, que))
+      setRes(await titanioTab.runImport(sel, que))
     } catch (e) {
       setRes({ ok: false, bookmarks: 0, history: 0, passwords: 0, error: e instanceof Error ? e.message : String(e) })
     } finally {

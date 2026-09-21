@@ -1,4 +1,4 @@
-# Por qué Monper dice ser Chrome (y dónde lo dice)
+# Por qué Titanio dice ser Chrome (y dónde lo dice)
 
 Google bloquea el inicio de sesión con **"This browser or app may not be secure"** cuando cree
 que estás en un navegador embebido. Y lo creía. Sin login de Google no hay Gmail, ni Drive, ni

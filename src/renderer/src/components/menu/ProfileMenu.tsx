@@ -13,7 +13,7 @@ import IconSettings from '~icons/tabler/settings'
 import IconPlus from '~icons/tabler/plus'
 import IconSpy from '~icons/tabler/spy'
 
-const { monper } = window
+const { titanio } = window
 const Chevron = (): JSX.Element => <IconChevronRight />
 
 interface Props {
@@ -33,16 +33,16 @@ export default function ProfileMenu({ anchor, onClose }: Props): JSX.Element {
     switch (action) {
       case 'new-tab':
       case 'bookmarks':
-        monper.newTab()
+        titanio.newTab()
         break
       case 'settings':
-        monper.openSettings()
+        titanio.openSettings()
         break
       case 'developers':
-        monper.openDevtools()
+        titanio.openDevtools()
         break
       case 'downloads':
-        monper.openDownloads()
+        titanio.openDownloads()
         break
       // TODO (features aún no construidas): new-profile, switch-profile, extensions, history, incognito
     }

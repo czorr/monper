@@ -8,16 +8,16 @@ import IconPencil from '~icons/tabler/pencil'
 import IconChevron from '~icons/tabler/chevron-down'
 import IconFileText from '~icons/tabler/file-text'
 import IconDots from '~icons/tabler/dots'
-import logo from '@renderer/assets/monper.png'
+import logo from '@renderer/assets/titanio.png'
 import SkillIcon from './SkillIcon'
 import { MD_COMPONENTS } from './markdown'
 
-const { monperTab } = window
+const { titanioTab } = window
 
-/** Renderiza un autor; si es "Monper", antepone el iso pequeño con opacity-80. */
+/** Renderiza un autor; si es "Titanio", antepone el iso pequeño con opacity-80. */
 function Author({ name }: { name: string }): JSX.Element {
-  if (name === 'Monper') {
-    return <span className="inline-flex items-center gap-1.5"><img src={logo} alt="" className="w-4 h-4 object-contain opacity-80" />Monper</span>
+  if (name === 'Titanio') {
+    return <span className="inline-flex items-center gap-1.5"><img src={logo} alt="" className="w-4 h-4 object-contain opacity-80" />Titanio</span>
   }
   return <>{name}</>
 }
@@ -44,17 +44,17 @@ export default function SkillsSection(): JSX.Element {
   // falten. Si se esperara a la segunda, la lista tardaría lo que tarde el sitio más lento.
   useEffect(() => {
     let vivo = true
-    void monperTab.skillsList()
+    void titanioTab.skillsList()
       .then((s) => { if (!vivo) return; setSkills(s); setSel((c) => c ?? s[0]?.id ?? null) })
-      .then(() => monperTab.skillsList(true))
+      .then(() => titanioTab.skillsList(true))
       .then((s) => { if (vivo) setSkills(s) })
       .catch((e) => console.error('[skills] no se pudo leer la lista:', e))
     return () => { vivo = false }
   }, [])
-  useEffect(() => { if (sel) monperTab.skillsGet(sel).then(setDetail); else setDetail(null) }, [sel])
+  useEffect(() => { if (sel) titanioTab.skillsGet(sel).then(setDetail); else setDetail(null) }, [sel])
 
   const toggle = async (id: string, on: boolean): Promise<void> => {
-    setSkills(await monperTab.skillsToggle(id, on))
+    setSkills(await titanioTab.skillsToggle(id, on))
     setDetail((d) => (d && d.id === id ? { ...d, enabled: on } : d))
   }
 
@@ -67,7 +67,7 @@ export default function SkillsSection(): JSX.Element {
         <div className="flex items-center justify-between px-3.5 h-12 shrink-0">
           <span className="text-[15px] font-semibold">Skills</span>
           <button
-            onClick={() => monperTab.openSkillsFolder()}
+            onClick={() => titanioTab.openSkillsFolder()}
             title="Abrir la carpeta de skills en Finder"
             className="w-7 h-7 grid place-items-center rounded-md text-text-faint hover:text-text hover:bg-white/[0.06] transition-colors [&>svg]:w-[17px] [&>svg]:h-[17px]"
           >

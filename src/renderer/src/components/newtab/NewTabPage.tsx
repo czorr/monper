@@ -2,18 +2,18 @@ import { useEffect, useState, type JSX } from 'react'
 import type { Suggestion } from '@shared/types'
 import IconSearch from '~icons/tabler/search'
 import { useAutocomplete, useInlineCompletion, SuggestionList } from '@renderer/components/omnibox'
-import logo from '@renderer/assets/monper.png'
+import logo from '@renderer/assets/titanio.png'
 import DefaultBrowserBanner from './DefaultBrowserBanner'
 import Widgets from './Widgets'
 
-const { monperTab } = window
+const { titanioTab } = window
 
 type Mode = 'search' | 'ai'
 
 
 export default function NewTabPage(): JSX.Element {
   const [mode, setMode] = useState<Mode>('search')
-  const ac = useAutocomplete(monperTab.suggest)
+  const ac = useAutocomplete(titanioTab.suggest)
   // Mismo completado inline que la barra de direcciones (lo escrito en blanco, lo completado
   // en gris vía `::selection`). Por eso el input es no-controlado: ver useInlineCompletion.
   const ic = useInlineCompletion(ac)
@@ -28,12 +28,12 @@ export default function NewTabPage(): JSX.Element {
     return () => window.removeEventListener('focus', enfocar)
   }, [ic.inputRef])
 
-  const choose = (s: Suggestion): void => monperTab.navigate(s.url)
+  const choose = (s: Suggestion): void => titanioTab.navigate(s.url)
   const submit = (): void => {
-    if (mode === 'ai') { monperTab.openChat(); return }
+    if (mode === 'ai') { titanioTab.openChat(); return }
     if (ac.current) return choose(ac.current)
     const v = ic.value().trim() || ac.query.trim()
-    if (v) monperTab.navigate(v)
+    if (v) titanioTab.navigate(v)
   }
   const onKeyDown = (e: React.KeyboardEvent): void => {
     if (e.key === 'Tab') { e.preventDefault(); setMode((m) => (m === 'search' ? 'ai' : 'search')); return }
@@ -51,7 +51,7 @@ export default function NewTabPage(): JSX.Element {
       {/* Logo con glow sutil */}
       <div className="relative mb-9">
         <div className="absolute inset-0 blur-2xl bg-white/[0.06] rounded-full scale-125" />
-        <img src={logo} alt="Monper" className="relative w-[68px] h-[68px] object-contain" />
+        <img src={logo} alt="Titanio" className="relative w-[68px] h-[68px] object-contain" />
       </div>
 
       <DefaultBrowserBanner />
@@ -70,7 +70,7 @@ export default function NewTabPage(): JSX.Element {
             onPointerDown={ic.onPointerDown}
             onKeyDown={onKeyDown}
             onBlur={ac.close}
-            placeholder={mode === 'ai' ? 'Pregúntale a Monper…' : 'Busca o escribe una URL'}
+            placeholder={mode === 'ai' ? 'Pregúntale a Titanio…' : 'Busca o escribe una URL'}
             className="flex-1 min-w-0 bg-transparent outline-none text-[16.5px] placeholder:text-text-faint select-text [&[data-completado]::selection]:bg-white/15 [&[data-completado]::selection]:text-text-dim"
           />
           <div className="flex items-center gap-2.5 shrink-0">

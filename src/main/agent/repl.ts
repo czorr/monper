@@ -1,8 +1,8 @@
 import type { WebContents } from 'electron'
 // Consumimos la librería desde su fuente: vite la empaqueta y tsc la tipa, sin
 // necesitar dist/ compilado ni publicarla. (Para publicar, se build por separado.)
-import { pageFromWebContents } from '../../../packages/monperwright/src/electron'
-import type { Page } from '../../../packages/monperwright/src'
+import { pageFromWebContents } from '../../../packages/titaniowright/src/electron'
+import type { Page } from '../../../packages/titaniowright/src'
 import { buildGlobals } from './globals'
 
 // Constructor de funciones async (no expuesto directamente en el runtime).
@@ -23,10 +23,10 @@ function fmt(v: unknown): string {
 }
 
 /**
- * Ejecuta código del agente en un REPL con `page` (monperwright), `state`
+ * Ejecuta código del agente en un REPL con `page` (titaniowright), `state`
  * (persiste entre llamadas del mismo run) y `log()`. El código corre en el
  * proceso main (Node): puede usar await, fetch, etc., y orquesta la página vía
- * monperwright. Es el núcleo del "coding agent".
+ * titaniowright. Es el núcleo del "coding agent".
  */
 export async function runRepl(
   wc: WebContents,
@@ -54,7 +54,7 @@ export async function runRepl(
 }
 
 /**
- * Núcleo del REPL: ejecuta `code` con `page` (monperwright), `state`, `log()` y todos
+ * Núcleo del REPL: ejecuta `code` con `page` (titaniowright), `state`, `log()` y todos
  * los globals de las skills, y devuelve el valor CRUDO. Lo usan tanto la tool del
  * agente (runRepl, que formatea) como las rutinas (que necesitan el valor tal cual).
  */

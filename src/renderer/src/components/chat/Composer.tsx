@@ -95,7 +95,7 @@ export default function Composer({ ctx, running, onSend, onCancel, onPickModel, 
             onKeyDown={onKeyDown}
             onPaste={onPaste}
             rows={1}
-            placeholder="Ask Monper…"
+            placeholder="Ask Titanio…"
             className="flex-1 resize-none bg-transparent outline-none text-[13.5px] leading-6 placeholder:text-text-faint py-1"
           />
           {running ? (

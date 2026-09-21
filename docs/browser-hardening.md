@@ -1,4 +1,4 @@
-# Monper — Endurecimiento para ser un browser confiable y optimizado
+# Titanio — Endurecimiento para ser un browser confiable y optimizado
 
 Auditoría de lo que falta para pasar de "prototipo que funciona" a navegador
 confiable. Verificado contra el código (no hay manejo de crashes, errores de red,
@@ -18,7 +18,7 @@ Prioridad: **P0** bloquea "confiable" · **P1** importante · **P2** esperado/pu
    error y Reintentar. Distinguir `errorCode` (−106 offline, −105 DNS, etc.).
 3. **Errores de certificado** — HECHO. Chromium rechaza el certificado, salta
    `did-fail-load` con un código de −200 a −219 y `error.html` pinta "Tu conexión
-   no es privada". **No hay forma de saltárselo, y es a propósito**: Monper guarda
+   no es privada". **No hay forma de saltárselo, y es a propósito**: Titanio guarda
    contraseñas y las rellena solo, así que dejar pasar un certificado sospechoso es
    justo cómo se roban credenciales. Verificado con un HTTPS autofirmado de verdad
    (`tests/certificado.spec.ts`), no comprobando el mapeo de códigos a mano.
@@ -92,7 +92,7 @@ Prioridad: **P0** bloquea "confiable" · **P1** importante · **P2** esperado/pu
 4. **P2 rendimiento — descarte de tabs** (11): acota el costo del keep-alive.
 5. **P1 descargas** (9) y **P2 UX** (14–18) en paralelo según prioridad tuya.
 
-Los primeros cuatro puntos convierten a Monper de "funciona" a "confiable"; el
+Los primeros cuatro puntos convierten a Titanio de "funciona" a "confiable"; el
 resto es el pulido que se espera de un navegador diario.
 
 
@@ -136,8 +136,8 @@ resolución:
 
 ## Control remoto (Developers → Remote debugging)
 
-Deja que un proceso externo conduzca Monper con los mismos verbos que necesita
-`monperwright` (`goto`, `eval`, `mouse`, `key`, `screenshot`, `tabs`…). Vive en
+Deja que un proceso externo conduzca Titanio con los mismos verbos que necesita
+`titaniowright` (`goto`, `eval`, `mouse`, `key`, `screenshot`, `tabs`…). Vive en
 [`src/main/remote.ts`](../src/main/remote.ts) y **está apagado por defecto**.
 
 ### Qué expone de verdad
@@ -183,7 +183,7 @@ enumera y Settings → Permissions los muestra todos, con "Olvidar" por sitio y 
 dice en la propia página porque las dos cosas se confunden y la diferencia importa.
 
 Los tres canales (`perms:list`, `perms:set`, `perms:clear`) pasan por `isInternalSender`.
-No es teórico: `monperTab` es el preload de **contenido**, así que existe también en una web
+No es teórico: `titanioTab` es el preload de **contenido**, así que existe también en una web
 cualquiera. Sin ese filtro, una página podría enumerar dónde has dado la cámara y
 concedérsela a sí misma. Lo fija `tests/security.spec.ts` → "una web no puede leer ni cambiar
 los permisos de los sitios".
@@ -231,7 +231,7 @@ que resolver es **qué pasa cuando otra app te manda un enlace**, y ahí había 
 Vive en [`src/main/defaultbrowser.ts`](../src/main/defaultbrowser.ts).
 
 1. **Una sola instancia.** Sin `requestSingleInstanceLock`, cada enlace que abras desde Mail o
-   Slack lanza un Monper **nuevo**. Dos instancias sobre el mismo `userData` escriben los
+   Slack lanza un Titanio **nuevo**. Dos instancias sobre el mismo `userData` escriben los
    mismos JSON y la última en guardar gana: **pierdes marcadores y vault**. Es el fallo más
    caro y no se ve hasta que ya pasó. El lock se pide ANTES de crear nada; si no se obtiene, el
    proceso muere sin tocar el perfil.
@@ -251,7 +251,7 @@ navegador pregunte esto en cada arranque es lo que hace que la gente odie estos 
 
 ### Empaquetado
 
-`electron-builder.yml` declara `protocols` con http/https. **Sin eso macOS ni lista a Monper**
+`electron-builder.yml` declara `protocols` con http/https. **Sin eso macOS ni lista a Titanio**
 en Ajustes → Escritorio y Dock → Navegador web predeterminado: el sistema solo ofrece apps que
 declaran manejar esos esquemas, y `LSSetDefaultHandlerForURLScheme` falla si la app no lo hace.
 
@@ -337,10 +337,10 @@ siempre, sin flag.
 
 ### Lo otro que faltaba: el menú contextual
 
-El motor soporta PiP de vídeo, pero **no había forma de pedirlo**. Monper reemplaza el menú
+El motor soporta PiP de vídeo, pero **no había forma de pedirlo**. Titanio reemplaza el menú
 nativo de Chromium por uno propio, y el nativo traía "Picture in picture" de fábrica: al
 construir el nuestro se cubrió el caso de la imagen y el del vídeo se quedó fuera. Desde fuera
-parecía que Monper no soportaba PiP; en realidad faltaba el botón.
+parecía que Titanio no soportaba PiP; en realidad faltaba el botón.
 
 Dos trampas al implementarlo:
 

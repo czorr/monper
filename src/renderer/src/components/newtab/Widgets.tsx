@@ -7,7 +7,7 @@ import IconArrowDownRight from '~icons/tabler/arrow-down-right'
 import IconRefresh from '~icons/tabler/refresh'
 import IconPlus from '~icons/tabler/plus'
 
-const { monperTab } = window
+const { titanioTab } = window
 
 /**
  * Los widgets del new tab: el DATO del sitio pintado como tarjeta nativa.
@@ -109,23 +109,23 @@ export default function Widgets(): JSX.Element {
   const [texto, setTexto] = useState('')
 
   useEffect(() => {
-    void monperTab.widgetsList().then(setWidgets)
+    void titanioTab.widgetsList().then(setWidgets)
     // Abrir el new tab ES el momento de refrescar: es cuando se miran.
-    monperTab.widgetsRefresh()
-    return monperTab.onWidgets(setWidgets)
+    titanioTab.widgetsRefresh()
+    return titanioTab.onWidgets(setWidgets)
   }, [])
 
   const pedir = (): void => {
     const t = texto.trim()
     if (!t) { setPidiendo(false); return }
-    monperTab.widgetsAsk(t)
+    titanioTab.widgetsAsk(t)
     setTexto('')
     setPidiendo(false)
   }
 
   const abrir = (w: WidgetInfo, url?: string): void => {
-    monperTab.widgetsSeen(w.id)
-    monperTab.navigate(url ?? w.url)
+    titanioTab.widgetsSeen(w.id)
+    titanioTab.navigate(url ?? w.url)
   }
 
   const cuerpo = (w: WidgetInfo): JSX.Element => {
@@ -134,7 +134,7 @@ export default function Widgets(): JSX.Element {
         <div className="flex-1 flex flex-col justify-center gap-2 px-4">
           <span title={w.error} className="text-[12px] text-text-dim leading-snug line-clamp-3">{w.error}</span>
           <button
-            onClick={() => monperTab.widgetsRetry(w.id)}
+            onClick={() => titanioTab.widgetsRetry(w.id)}
             className="self-start flex items-center gap-1.5 h-7 px-2.5 rounded-lg bg-white/[0.07] hover:bg-white/[0.12] text-[12px] text-text transition-colors"
           >
             <IconRefresh className="w-3.5 h-3.5" /> Reintentar
@@ -238,7 +238,7 @@ export default function Widgets(): JSX.Element {
 
           <button
             title="Quitar widget"
-            onClick={() => monperTab.widgetsRemove(w.id)}
+            onClick={() => titanioTab.widgetsRemove(w.id)}
             className="absolute top-1.5 right-1.5 hidden group-hover:grid place-items-center w-6 h-6 rounded-md bg-black/60 text-white/60 hover:text-white"
           >
             <IconX className="w-3.5 h-3.5" />

@@ -5,7 +5,7 @@ import type { MenuAnchor } from '../shared/types'
 /**
  * Factoría de popovers nativos.
  *
- * Los overlays de Monper TIENEN que ser ventanas nativas porque la vista de la página
+ * Los overlays de Titanio TIENEN que ser ventanas nativas porque la vista de la página
  * (WebContentsView) se dibuja encima del DOM. Antes cada uno se creaba a mano y cada uno
  * traía sus propios bugs de foco, hover, posicionamiento y auto-cierre. Esto lo centraliza.
  */

@@ -53,7 +53,7 @@ function Extensions(): JSX.Element {
       {cand && !cand.installed && (
         <PopoverRow
           icon={<IconPlus />}
-          label={d.installing ? 'Instalando…' : 'Añadir esta extensión a Monper'}
+          label={d.installing ? 'Instalando…' : 'Añadir esta extensión a Titanio'}
           active
           disabled={d.installing}
           onClick={() => ex.installFromStore()}

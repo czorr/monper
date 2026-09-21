@@ -9,7 +9,7 @@ import IconVolumeOff from '~icons/tabler/volume-off'
 import IconVolume from '~icons/tabler/volume'
 import IconDownload from '~icons/tabler/download'
 import IconPuzzle from '~icons/tabler/puzzle'
-import MonperMark from '@renderer/components/ui/MonperMark'
+import TitanioMark from '@renderer/components/ui/TitanioMark'
 
 interface Props {
   active: ActiveInfo | null
@@ -119,15 +119,15 @@ export default function Topbar({ active, collapsed, mac, chatOpen, editRequest, 
 
         <button
           onClick={onToggleChat}
-          title="Ask Monper (⌘J)"
+          title="Ask Titanio (⌘J)"
           className={
             'ml-1 flex items-center gap-1.5 h-8 pl-2.5 pr-3 rounded-full text-[13px] font-medium transition-colors [-webkit-app-region:no-drag] ' +
             (chatOpen ? 'bg-white/[0.16] text-text' : 'bg-white/[0.08] hover:bg-white/[0.13] text-text-dim hover:text-text')
           }
         >
           {/* Hereda el color del botón: en una página clara se vuelve oscuro solo. */}
-          <MonperMark className="w-4 h-4" />
-          Ask Monper
+          <TitanioMark className="w-4 h-4" />
+          Ask Titanio
         </button>
       </div>
     </header>

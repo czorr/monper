@@ -40,7 +40,7 @@ import IconMessage from '~icons/tabler/message'
 import IconArrowUpRight from '~icons/tabler/arrow-up-right'
 import { Card, Group, Row, Pill, Toggle } from './ui'
 
-const { monperTab } = window
+const { titanioTab } = window
 
 type Cat =
   | 'general' | 'account' | 'appearance' | 'billing' | 'privacy' | 'password' | 'ai' | 'developers'
@@ -109,7 +109,7 @@ const SOON: Partial<Record<Cat, { title: string; desc: string; bullets: string[]
 
   notifications: {
     title: 'Notifications',
-    desc: 'Qué te avisa Monper y cómo.',
+    desc: 'Qué te avisa Titanio y cómo.',
     bullets: ['Avisos de rutinas', 'Cuando el agente termina o necesita ayuda', 'Horario sin molestar']
   }
 }
@@ -175,9 +175,9 @@ export default function SettingsPage(): JSX.Element {
         {/* Accesos externos */}
         <div className="mt-5 pt-5 border-t border-white/[0.06]">
           {[
-            { label: 'Extensions', icon: <IconPuzzle />, onClick: () => monperTab.navigate('https://chromewebstore.google.com/category/extensions') },
-            { label: 'Community', icon: <IconUsers />, onClick: () => monperTab.navigate('https://github.com/czorr/monper') },
-            { label: 'Send feedback', icon: <IconMessage />, onClick: () => monperTab.navigate('https://github.com/czorr/monper/issues/new') }
+            { label: 'Extensions', icon: <IconPuzzle />, onClick: () => titanioTab.navigate('https://chromewebstore.google.com/category/extensions') },
+            { label: 'Community', icon: <IconUsers />, onClick: () => titanioTab.navigate('https://github.com/czorr/titanio') },
+            { label: 'Send feedback', icon: <IconMessage />, onClick: () => titanioTab.navigate('https://github.com/czorr/titanio/issues/new') }
           ].map((l) => (
             <button
               key={l.label}
@@ -227,8 +227,8 @@ export default function SettingsPage(): JSX.Element {
 
 function AIPage(): JSX.Element {
   // Al abrir AI se relee el catálogo del proveedor: es el momento en que el usuario va a mirar
-  // qué modelos hay, y así los nuevos aparecen sin esperar a una versión de Monper.
-  useEffect(() => { void monperTab.refreshModels() }, [])
+  // qué modelos hay, y así los nuevos aparecen sin esperar a una versión de Titanio.
+  useEffect(() => { void titanioTab.refreshModels() }, [])
   return (
     <>
       <h1 className="text-[30px] font-semibold tracking-tight mb-9">AI</h1>
@@ -281,11 +281,11 @@ function AccountPage(): JSX.Element {
   const [avatarError, setAvatarError] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => { monperTab.getProfile().then((p) => { setProfile(p); setName(p.name) }) }, [])
+  useEffect(() => { titanioTab.getProfile().then((p) => { setProfile(p); setName(p.name) }) }, [])
 
   const dirty = !!name.trim() && name.trim() !== profile.name
   const save = async (): Promise<void> => {
-    const p = await monperTab.setProfile(name.trim())
+    const p = await titanioTab.setProfile(name.trim())
     setProfile(p); setName(p.name); setSaved(true); setTimeout(() => setSaved(false), 1500)
   }
   const onPickAvatar = async (e: React.ChangeEvent<HTMLInputElement>): Promise<void> => {
@@ -295,12 +295,12 @@ function AccountPage(): JSX.Element {
     setAvatarError(null)
     // Si falla, el usuario eligió una foto y no pasó nada: hay que decirle por qué.
     try {
-      setProfile(await monperTab.setAvatar(await fileToAvatar(f)))
+      setProfile(await titanioTab.setAvatar(await fileToAvatar(f)))
     } catch (err) {
       setAvatarError(err instanceof Error ? err.message : 'No se pudo usar esa imagen.')
     }
   }
-  const removeAvatar = async (): Promise<void> => setProfile(await monperTab.setAvatar(null))
+  const removeAvatar = async (): Promise<void> => setProfile(await titanioTab.setAvatar(null))
 
   return (
     <>
@@ -356,24 +356,24 @@ function AppearancePage(): JSX.Element {
   // quedarse en blanco (era exactamente el patrón de fallo silencioso que arrastrábamos).
   useEffect(() => {
     Promise.resolve()
-      .then(() => monperTab.getAppearance())
+      .then(() => titanioTab.getAppearance())
       .then(setData)
       .catch((e) => {
         console.error('[appearance] no se pudo leer la configuración:', e)
-        setError('No se pudo leer la configuración. Reinicia Monper: los cambios en el preload necesitan reiniciar la app, no solo recargar.')
+        setError('No se pudo leer la configuración. Reinicia Titanio: los cambios en el preload necesitan reiniciar la app, no solo recargar.')
       })
   }, [])
 
   const pick = (id: string): void => {
     setData((d) => ({ ...d, vibrancy: id })) // feedback inmediato
-    monperTab.setVibrancy(id)
+    titanioTab.setVibrancy(id)
   }
 
   return (
     <>
       <h1 className="text-[30px] font-semibold tracking-tight mb-3">Appearance</h1>
       <p className="text-[13.5px] text-text-dim leading-relaxed mb-7">
-        Cuánto se transparenta el chrome de Monper — el sidebar y el panel de chat — sobre
+        Cuánto se transparenta el chrome de Titanio — el sidebar y el panel de chat — sobre
         lo que hay detrás de la ventana. El contenido de las páginas no cambia.
       </p>
 
@@ -425,11 +425,11 @@ function GeneralPage(): JSX.Element {
   // null = todavía no se sabe; el interruptor va deshabilitado hasta tener el valor real.
   const [pip, setPip] = useState<boolean | null>(null)
   useEffect(() => {
-    monperTab.getPipState().then((r) => setPip(r.enabled)).catch((e) => console.error('[pip] no se pudo leer el estado:', e))
+    titanioTab.getPipState().then((r) => setPip(r.enabled)).catch((e) => console.error('[pip] no se pudo leer el estado:', e))
   }, [])
-  useEffect(() => { monperTab.getProfile().then(setProfile).catch(() => {}) }, [])
+  useEffect(() => { titanioTab.getProfile().then(setProfile).catch(() => {}) }, [])
   useEffect(() => {
-    monperTab.getDefaultBrowser()
+    titanioTab.getDefaultBrowser()
       .then(setPred)
       .catch((e) => { console.error('[predeterminado] no se pudo consultar:', e); setErrPred('No se pudo consultar el estado.') })
   }, [])
@@ -445,22 +445,22 @@ function GeneralPage(): JSX.Element {
       <Group title="Navegador predeterminado">
         <Card>
           <Row
-            label={pred?.isDefault ? 'Monper es tu navegador predeterminado' : 'Monper no es tu navegador predeterminado'}
+            label={pred?.isDefault ? 'Titanio es tu navegador predeterminado' : 'Titanio no es tu navegador predeterminado'}
             desc={errPred || (pred?.isDefault
               ? 'Los enlaces de otras apps se abren aquí.'
-              : 'Los enlaces que abras desde otras apps no llegarán a Monper.')}
+              : 'Los enlaces que abras desde otras apps no llegarán a Titanio.')}
           >
             {pred && !pred.isDefault && (
               <button
                 onClick={async () => {
-                  const r = await monperTab.makeDefaultBrowser()
+                  const r = await titanioTab.makeDefaultBrowser()
                   if (r.ok) setPred({ ...pred, isDefault: true })
                   // Si el sistema lo rechaza hay que decir por qué: si no, el botón parece roto.
                   else setErrPred(r.error || 'El sistema no aceptó el cambio.')
                 }}
                 className="shrink-0 h-9 px-3.5 rounded-lg bg-white/90 text-black text-[13px] font-medium hover:bg-white transition-colors"
               >
-                Usar Monper
+                Usar Titanio
               </button>
             )}
           </Row>
@@ -480,8 +480,8 @@ function GeneralPage(): JSX.Element {
               disabled={pip === null}
               onChange={async (v) => {
                 setPip(v) // respuesta inmediata
-                try { setPip(await monperTab.setPipEnabled(v)) }
-                catch (e) { console.error('[pip] no se pudo cambiar:', e); monperTab.getPipState().then((r) => setPip(r.enabled)).catch(() => {}) }
+                try { setPip(await titanioTab.setPipEnabled(v)) }
+                catch (e) { console.error('[pip] no se pudo cambiar:', e); titanioTab.getPipState().then((r) => setPip(r.enabled)).catch(() => {}) }
               }}
             />
           </Row>
@@ -514,7 +514,7 @@ function PrivacyPage(): JSX.Element {
   const clear = async (): Promise<void> => {
     if (!confirm('¿Borrar cookies, almacenamiento y caché de este perfil? Cerrarás sesión en todos los sitios.')) return
     setClearing(true)
-    const ok = await monperTab.clearBrowsingData()
+    const ok = await titanioTab.clearBrowsingData()
     setClearing(false); setCleared(ok)
     if (ok) setTimeout(() => setCleared(false), 3000)
   }
@@ -542,8 +542,8 @@ function AboutPage(): JSX.Element {
   const [version, setVersion] = useState('')
   const [u, setU] = useState<UpdateState>(NO_UPDATE)
 
-  useEffect(() => { monperTab.getVersion().then(setVersion).catch(() => {}) }, [])
-  useEffect(() => { monperTab.getUpdateState().then(setU).catch(() => {}); return monperTab.onUpdateState(setU) }, [])
+  useEffect(() => { titanioTab.getVersion().then(setVersion).catch(() => {}) }, [])
+  useEffect(() => { titanioTab.getUpdateState().then(setU).catch(() => {}); return titanioTab.onUpdateState(setU) }, [])
 
   // Un solo lugar decide qué se ve: evita estados contradictorios (p. ej. "al día" + botón).
   const status = u.error
@@ -552,7 +552,7 @@ function AboutPage(): JSX.Element {
       : u.downloading ? `Descargando la versión ${u.version}… ${u.percent}%`
         : u.available ? `Versión ${u.version} disponible`
           : u.checking ? 'Buscando actualizaciones…'
-            : 'Monper está al día'
+            : 'Titanio está al día'
 
   const purple = 'px-3.5 h-9 rounded-lg bg-purple-400/15 border border-purple-400/25 text-purple-300 hover:bg-purple-400/25 text-[13px] font-medium transition-colors'
 
@@ -561,19 +561,19 @@ function AboutPage(): JSX.Element {
       <h1 className="text-[30px] font-semibold tracking-tight mb-9">About</h1>
       <Group title="Aplicación">
         <Card>
-          <Row label="Monper" desc="Navegador agéntico" />
+          <Row label="Titanio" desc="Navegador agéntico" />
           <Row label="Versión">
             <span className="text-[13px] text-text-dim tabular-nums">{version || '—'}</span>
           </Row>
           <Row label="Actualizaciones" desc={status}>
             {u.downloaded ? (
-              <button onClick={() => monperTab.installUpdate()} className={purple}>Reiniciar e instalar</button>
+              <button onClick={() => titanioTab.installUpdate()} className={purple}>Reiniciar e instalar</button>
             ) : u.downloading ? (
               <span className="text-[13px] text-purple-300 tabular-nums">{u.percent}%</span>
             ) : u.available ? (
-              <button onClick={() => monperTab.downloadUpdate()} className={purple}>Descargar</button>
+              <button onClick={() => titanioTab.downloadUpdate()} className={purple}>Descargar</button>
             ) : (
-              <Pill onClick={() => monperTab.checkUpdates()}>
+              <Pill onClick={() => titanioTab.checkUpdates()}>
                 {u.checking ? 'Buscando…' : 'Buscar actualizaciones'}
               </Pill>
             )}

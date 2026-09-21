@@ -8,12 +8,12 @@
  *
  *   node scripts/fake-update-server.mjs                 # ZIP de relleno (rápido)
  *   node scripts/fake-update-server.mjs --version 0.3.0
- *   node scripts/fake-update-server.mjs --zip release/Monper-0.1.0-arm64-mac.zip
+ *   node scripts/fake-update-server.mjs --zip release/Titanio-0.1.0-arm64-mac.zip
  *
  * Y en otra terminal:
  *   MONPER_UPDATE_FEED=http://localhost:8788 pnpm dev
  *   # o sobre la app empaquetada:
- *   MONPER_UPDATE_FEED=http://localhost:8788 ./release/mac-arm64/Monper.app/Contents/MacOS/Monper
+ *   MONPER_UPDATE_FEED=http://localhost:8788 ./release/mac-arm64/Titanio.app/Contents/MacOS/Titanio
  *
  * OJO: la INSTALACIÓN fallará si la app no está firmada — macOS lo exige. Esto verifica
  * todo lo anterior, que es justo lo que no podíamos comprobar.
@@ -39,7 +39,7 @@ const DIR = join(process.cwd(), '.update-test')
 mkdirSync(DIR, { recursive: true })
 
 // El ZIP: uno real si nos lo dan, o relleno si solo queremos probar el flujo.
-const zipName = `Monper-${VERSION}-${ARCH}-mac.zip`
+const zipName = `Titanio-${VERSION}-${ARCH}-mac.zip`
 let zip
 if (SRC_ZIP) {
   if (!existsSync(SRC_ZIP)) {
@@ -60,7 +60,7 @@ if (SRC_ZIP) {
     execFileSync('zip', ['-q', '-0', '-j', tmpZip, pad])
   } catch {
     console.error('No se pudo crear el ZIP de relleno (falta el binario `zip`).')
-    console.error('Usa uno real: pnpm dist:mac && node scripts/fake-update-server.mjs --zip release/Monper-0.1.0-arm64-mac.zip')
+    console.error('Usa uno real: pnpm dist:mac && node scripts/fake-update-server.mjs --zip release/Titanio-0.1.0-arm64-mac.zip')
     process.exit(1)
   }
   zip = readFileSync(tmpZip)
@@ -117,6 +117,6 @@ server.listen(PORT, () => {
   console.log(`\nFeed de prueba en http://localhost:${PORT}`)
   console.log(`  versión ofrecida : ${VERSION}  (la app debe tener una MENOR)`)
   console.log(`  archivos         : latest-mac.yml, ${zipName}`)
-  console.log(`\nArranca Monper con:\n  MONPER_UPDATE_FEED=http://localhost:${PORT} pnpm dev\n`)
+  console.log(`\nArranca Titanio con:\n  MONPER_UPDATE_FEED=http://localhost:${PORT} pnpm dev\n`)
   console.log('Ctrl+C para detenerlo.\n')
 })

@@ -40,8 +40,8 @@ export default function FailBlock({ fail }: { fail: ChatFallo }): JSX.Element {
 
   const actuar = (): void => {
     if (!fail.accion) return
-    if (fail.accion.kind === 'settings') window.monper.openSettings('ai')
-    else if (fail.accion.value) window.monper.go(fail.accion.value)
+    if (fail.accion.kind === 'settings') window.titanio.openSettings('ai')
+    else if (fail.accion.value) window.titanio.go(fail.accion.value)
   }
 
   return (

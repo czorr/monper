@@ -15,7 +15,7 @@ import IconSearch from '~icons/tabler/search'
 import IconPlus from '~icons/tabler/plus'
 import IconTrash from '~icons/tabler/trash'
 
-const { monperTab } = window
+const { titanioTab } = window
 
 const ICON_MAP: Record<string, ComponentType<SVGProps<SVGSVGElement>>> = {
   list: IconList, language: IconLanguage, sparkles: IconSparkles, wand: IconWand,
@@ -33,14 +33,14 @@ export default function QuickActionsSection(): JSX.Element {
   const [list, setList] = useState<QuickAction[]>([])
   const [editing, setEditing] = useState<QuickAction | null>(null)
 
-  useEffect(() => { monperTab.listQuickActions().then(setList) }, [])
+  useEffect(() => { titanioTab.listQuickActions().then(setList) }, [])
 
   const save = async (): Promise<void> => {
     if (!editing) return
-    setList(await monperTab.saveQuickAction(editing))
+    setList(await titanioTab.saveQuickAction(editing))
     setEditing(null)
   }
-  const remove = async (id: string): Promise<void> => { setList(await monperTab.removeQuickAction(id)) }
+  const remove = async (id: string): Promise<void> => { setList(await titanioTab.removeQuickAction(id)) }
 
   return (
     <>

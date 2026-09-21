@@ -11,7 +11,7 @@ import IconFolderPlus from '~icons/tabler/folder-plus'
 import IconSpy from '~icons/tabler/spy'
 import { IconButton, SectionLabel } from '@renderer/components/ui'
 import { PlusIcon, SidebarIcon } from '@renderer/lib/icons'
-import monperPng from '@renderer/assets/monper.png' // el PNG a pelo: aquí el fondo es siempre oscuro
+import titanioPng from '@renderer/assets/titanio.png' // el PNG a pelo: aquí el fondo es siempre oscuro
 
 interface Props {
   state: BrowserState
@@ -58,7 +58,7 @@ export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBo
   const hijosDe = (id: string): Bookmark[] => bookmarks.filter((b) => b.parentId === id)
 
   const nuevaCarpeta = async (): Promise<void> => {
-    const f = await window.monper.newBookmarkFolder('Nueva carpeta')
+    const f = await window.titanio.newBookmarkFolder('Nueva carpeta')
     setCarpetaNueva(f.id)
   }
 
@@ -71,7 +71,7 @@ export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBo
   const soltarEnCarpeta = (folderId: string): void => {
     if (arrastre?.tipo === 'bookmark' && arrastre.id !== folderId) {
       const b = bookmarks.find((x) => x.id === arrastre.id)
-      if (b && !b.folder) window.monper.moveBookmark(arrastre.id, folderId)
+      if (b && !b.folder) window.titanio.moveBookmark(arrastre.id, folderId)
       else soltarEnMarcador(folderId)
     } else if (arrastre?.tipo === 'tab') soltarTabEnMarcadores()
     limpiar()
@@ -86,12 +86,12 @@ export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBo
       const origen = bookmarks.find((b) => b.id === arrastre.id)
       const destino = bookmarks.find((b) => b.id === destinoId)
       if (origen && !origen.folder && (origen.parentId ?? null) !== (destino?.parentId ?? null)) {
-        window.monper.moveBookmark(arrastre.id, destino?.parentId ?? null)
+        window.titanio.moveBookmark(arrastre.id, destino?.parentId ?? null)
       }
       const ids = bookmarks.map((b) => b.id).filter((id) => id !== arrastre.id)
       const at = ids.indexOf(destinoId)
       ids.splice(at < 0 ? ids.length : at, 0, arrastre.id)
-      window.monper.reorderBookmarks(ids)
+      window.titanio.reorderBookmarks(ids)
     }
     limpiar()
   }
@@ -101,7 +101,7 @@ export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBo
     if (arrastre?.tipo === 'tab') return soltarTabEnMarcadores()
     if (arrastre?.tipo === 'bookmark') {
       const b = bookmarks.find((x) => x.id === arrastre.id)
-      if (b && !b.folder && b.parentId) window.monper.moveBookmark(arrastre.id, null)
+      if (b && !b.folder && b.parentId) window.titanio.moveBookmark(arrastre.id, null)
     }
     limpiar()
   }
@@ -111,7 +111,7 @@ export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBo
    * como marcar ata la pestaña a su marcador, la fila se mueve sola de una lista a la otra.
    */
   const soltarTabEnMarcadores = (): void => {
-    if (arrastre?.tipo === 'tab') window.monper.toggleBookmark()
+    if (arrastre?.tipo === 'tab') window.titanio.toggleBookmark()
     limpiar()
   }
 
@@ -124,8 +124,8 @@ export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBo
   const soltarMarcadorEnTabs = (): void => {
     if (arrastre?.tipo === 'bookmark') {
       const vivo = state.tabs.find((t) => t.bookmarkId === arrastre.id)
-      if (!vivo) window.monper.openBookmark(arrastre.id)
-      window.monper.detachBookmark(arrastre.id)
+      if (!vivo) window.titanio.openBookmark(arrastre.id)
+      window.titanio.detachBookmark(arrastre.id)
     }
     limpiar()
   }
@@ -239,7 +239,7 @@ export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBo
                         folder={b}
                         count={hijos.length}
                         collapsed={plegada}
-                        onToggle={() => window.monper.collapseBookmarkFolder(b.id, !plegada)}
+                        onToggle={() => window.titanio.collapseBookmarkFolder(b.id, !plegada)}
                         autoRename={carpetaNueva === b.id}
                         onRenamed={() => setCarpetaNueva(null)}
                       />
@@ -280,14 +280,14 @@ export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBo
           onReorder={onReorderTabs}
           onDragTab={(id) => setArrastre({ tipo: 'tab', id: String(id) })}
           onDragEnd={limpiar}
-          onTearOff={(id) => window.monper.tearOffTab(id)}
+          onTearOff={(id) => window.titanio.tearOffTab(id)}
         />
       </div>
 
       {agentTabs.length > 0 && (
         <div className="shrink-0 mt-1">
           <div className="flex items-center gap-1.5 px-2 pb-1 text-[12px] font-medium text-text-faint [&>img]:w-3.5 [&>img]:h-3.5 [&>img]:opacity-80">
-            <img src={monperPng} alt="" />
+            <img src={titanioPng} alt="" />
             <span>Agent tabs</span>
           </div>
           <div className="flex flex-col gap-px pb-px max-h-[40vh] overflow-y-auto [&::-webkit-scrollbar]:w-0">

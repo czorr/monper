@@ -99,8 +99,8 @@ const APP_BG = '#111114' // igual que --color-bg en styles.css
 const isMac = process.platform === 'darwin'
 
 // Nombre de la app: debe fijarse ANTES de whenReady para que el menú de macOS
-// y el dock muestren "Monper" en vez de "Electron" (dev incluido).
-app.setName('Monper')
+// y el dock muestren "Titanio" en vez de "Electron" (dev incluido).
+app.setName('Titanio')
 
 // FedCM (el "Continuar con Google" moderno) necesita UI a nivel navegador que Electron
 // NO implementa: sin esto el click no hace absolutamente nada. Al desactivarlo, Google
@@ -188,7 +188,7 @@ interface Tab {
   errorUrl: string | null
 }
 
-// Alto de la franja inferior reservada para la leyenda "Monper is controlling this tab".
+// Alto de la franja inferior reservada para la leyenda "Titanio is controlling this tab".
 const CONTROLLED_STRIP = 40
 
 /**
@@ -393,7 +393,7 @@ function prepararSesion(particion: string, incognito: boolean): void {
   if (sesionesListas.has(particion)) return
   sesionesListas.add(particion)
   const ses = session.fromPartition(particion)
-  // UA de Chrome limpia (sin "Electron"/"monper"): apps como Figma rompen y Google
+  // UA de Chrome limpia (sin "Electron"/"titanio"): apps como Figma rompen y Google
   // bloquea el login si detectan un navegador embebido.
   const platformUA = isMac
     ? 'Macintosh; Intel Mac OS X 10_15_7'
@@ -773,9 +773,9 @@ function crearVentana(opts: { sinPestanaInicial?: boolean; incognito?: boolean }
     win.webContents.send('state:update', state)
     // El título de la ventana. No se ve en la barra (es frameless), pero sí en Mission
     // Control, en el menú Ventana y al compartir pantalla, donde antes ponía siempre
-    // "Monper": las pestañas son WebContentsView aparte, así que el título del chrome nunca
+    // "Titanio": las pestañas son WebContentsView aparte, así que el título del chrome nunca
     // cambiaba solo.
-    win.setTitle(t?.title ? `${t.title} — Monper` : 'Monper')
+    win.setTitle(t?.title ? `${t.title} — Titanio` : 'Titanio')
     // El peek renderiza el mismo <Sidebar/> con el mismo preload: recibe el mismo estado.
     if (peekWin && !peekWin.isDestroyed()) peekWin.webContents.send('state:update', state)
     // La ventana de extensiones detecta si estás en una página de la Store.
@@ -1108,7 +1108,7 @@ function crearVentana(opts: { sinPestanaInicial?: boolean; incognito?: boolean }
           action: 'allow',
           overrideBrowserWindowOptions: {
             width: 500, height: 640, resizable: true, minimizable: true, maximizable: false,
-            fullscreenable: false, autoHideMenuBar: true, title: 'Monper',
+            fullscreenable: false, autoHideMenuBar: true, title: 'Titanio',
             // El popup hereda la sesión de quien lo abrió: un OAuth lanzado desde incógnito
             // que cayera en la sesión normal iniciaría sesión de verdad, justo lo contrario.
             webPreferences: { partition: suya().particion, contextIsolation: true, sandbox: true }
@@ -1269,7 +1269,7 @@ function crearVentana(opts: { sinPestanaInicial?: boolean; incognito?: boolean }
     if (!t) return
     // Cerrar la pestaña que el agente está operando es una orden de parar inequívoca. Sin
     // esto, el agente la reabría con `openTab` y seguía: el usuario cerraba una pestaña que
-    // volvía sola, una y otra vez, sin forma de detenerla salvo cerrar Monper.
+    // volvía sola, una y otra vez, sin forma de detenerla salvo cerrar Titanio.
     if (t.agent || id === controlledTabId) pararAgente('se cerró su pestaña')
     // Recuerda la URL para poder reabrirla (solo http(s), no agent tabs).
     const u = t.errorUrl ?? t.url
@@ -1465,7 +1465,7 @@ function imprimirActiva(): void {
  * Picture-in-picture automático al dejar de ver una pestaña.
  *
  * Es lo que se espera de un navegador hoy: te cambias de pestaña —o minimizas— y el vídeo que
- * estabas viendo sigue delante en una ventanita, en vez de desaparecer. Monper lo necesita más
+ * estabas viendo sigue delante en una ventanita, en vez de desaparecer. Titanio lo necesita más
  * que nadie: el agente se lleva una pestaña a trabajar mientras tú sigues viendo lo tuyo.
  *
  * Reglas, todas por evitar que moleste:
@@ -1776,20 +1776,20 @@ function menuAction(action: string): void {
 
 function buildAppMenu(): void {
   const appMenu: MenuItemConstructorOptions = {
-    label: 'Monper',
+    label: 'Titanio',
     submenu: [
-      { role: 'about', label: 'Acerca de Monper' },
+      { role: 'about', label: 'Acerca de Titanio' },
       { label: 'Buscar actualizaciones…', click: () => void checkForUpdates(true, vActOpt()?.win) },
       { type: 'separator' },
       { label: 'Ajustes…', accelerator: 'CmdOrCtrl+,', click: () => openSettings() },
       { type: 'separator' },
       { role: 'services' },
       { type: 'separator' },
-      { role: 'hide', label: 'Ocultar Monper' },
+      { role: 'hide', label: 'Ocultar Titanio' },
       { role: 'hideOthers', label: 'Ocultar otros' },
       { role: 'unhide', label: 'Mostrar todo' },
       { type: 'separator' },
-      { role: 'quit', label: 'Salir de Monper' }
+      { role: 'quit', label: 'Salir de Titanio' }
     ]
   }
 
@@ -1838,7 +1838,7 @@ function buildAppMenu(): void {
       { label: 'Zoom normal', accelerator: 'CmdOrCtrl+0', click: () => changeZoom('reset') },
       { type: 'separator' },
       { label: 'Mostrar/ocultar sidebar', accelerator: 'CmdOrCtrl+S', click: () => menuAction('toggle-sidebar') },
-      { label: 'Ask Monper', accelerator: 'CmdOrCtrl+J', click: () => menuAction('toggle-chat') },
+      { label: 'Ask Titanio', accelerator: 'CmdOrCtrl+J', click: () => menuAction('toggle-chat') },
       { type: 'separator' },
       { role: 'togglefullscreen', label: 'Pantalla completa' },
       { label: 'Herramientas de desarrollo', accelerator: 'F12', click: () => vAct().toggleDevtools() }
@@ -1931,7 +1931,7 @@ ipcMain.on('remote:set', (_e, on: boolean) => setRemoteEnabled(!!on))
 /**
  * El mismo interruptor, para Settings → MCPs.
  *
- * Va por un canal aparte y con `isInternalSender` porque `monperTab` es el preload de
+ * Va por un canal aparte y con `isInternalSender` porque `titanioTab` es el preload de
  * CONTENIDO: existe también en cualquier web que cargues. Sin ese filtro, una página podría
  * encender el puente y quedarse conduciendo tu navegador con tus sesiones. No es teórico: es
  * el mismo agujero que ya tapamos en los permisos de sitios.
@@ -2010,7 +2010,7 @@ ipcMain.handle('browser:makeDefault', () => {
 })
 ipcMain.on('browser:dismissDefault', () => descartarOferta())
 
-// ---- Servidores MCP externos: el agente usa herramientas que Monper no tiene ----
+// ---- Servidores MCP externos: el agente usa herramientas que Titanio no tiene ----
 ipcMain.handle('mcp:servers', (e) => (isInternalSender(e.senderFrame?.url) ? mcpServerStates() : []))
 ipcMain.handle('mcp:reload', (e) => {
   if (!isInternalSender(e.senderFrame?.url)) return []
@@ -2322,7 +2322,7 @@ ipcMain.on('bookmarks:move', (_e, id: string, parentId: string | null) => {
   if (!moveBookmark(String(id), parentId ? String(parentId) : null)) return
   broadcastBookmarks()
 })
-// Plegar una carpeta se persiste: si al reabrir Monper volvieran todas desplegadas, plegarlas
+// Plegar una carpeta se persiste: si al reabrir Titanio volvieran todas desplegadas, plegarlas
 // no serviría de nada — que es justo para lo que se pliegan con 79 marcadores.
 ipcMain.on('bookmarks:collapse', (_e, id: string, collapsed: boolean) => {
   setFolderCollapsed(String(id), !!collapsed)
@@ -2671,7 +2671,7 @@ ipcMain.on('vault:capture', async (ev, cred: { username: string; password: strin
     type: 'question',
     icon,
     message: update ? `¿Actualizar la contraseña de ${host}?` : `¿Guardar la contraseña de ${host} en tu Vault?`,
-    detail: cred.username ? `Usuario: ${cred.username}` : 'Monper la guardará cifrada.',
+    detail: cred.username ? `Usuario: ${cred.username}` : 'Titanio la guardará cifrada.',
     buttons: ['Ahora no', update ? 'Actualizar' : 'Guardar'],
     defaultId: 1,
     cancelId: 0,
@@ -3147,14 +3147,14 @@ ipcMain.on('peek:hide', hidePeek)
  * no ofrecen passkey. Requiere que la app esté FIRMADA con el entitlement
  * `keychain-access-groups` que incluya este mismo grupo (ver build/entitlements.mac.plist).
  */
-const BUNDLE_ID = 'com.monper.app'
+const BUNDLE_ID = 'com.titanio.app'
 /**
  * El equipo con el que se firmaría: el PERSONAL (`MRWANXY92L`), no el de la organización.
  *
  * No se usa por defecto a propósito. Firmar con este equipo y el entitlement
  * `keychain-access-groups` **impide que la app arranque**: es un entitlement restringido y
  * macOS solo lo concede con un `embedded.provisionprofile` que lo autorice. Medido: la app
- * firmada moría al lanzar, sin mensaje (AMFI), y solo se veía "Monper no se puede abrir".
+ * firmada moría al lanzar, sin mensaje (AMFI), y solo se veía "Titanio no se puede abrir".
  *
  * Cuando exista el perfil de aprovisionamiento, esto pasa a ser el valor por defecto.
  * Ver docs/pendiente-passkeys-firma.md.
@@ -3170,7 +3170,7 @@ function configurePasskeys(): void {
    * estaría diciendo a Chromium que use un autenticador que no puede abrir el llavero, y eso
    * deja WebAuthn roto en vez de simplemente ausente.
    */
-  const teamId = process.env['MONPER_TEAM_ID']
+  const teamId = process.env['TITANIO_TEAM_ID']
   if (!teamId) {
     console.log(`[passkeys] deshabilitadas: requieren firmar con ${TEAM_ID} + provisioning profile (ver docs/pendiente-passkeys-firma.md).`)
     return
@@ -3264,7 +3264,7 @@ ipcMain.on('extensions:menu', (ev, path: string) => {
     { label: 'Abrir', enabled: !!ui?.popup, click: () => { extPopover.hide(); openExtensionPopup(path) } },
     { label: 'Opciones', enabled: !!ui?.options, click: () => { extPopover.hide(); if (ui?.options) vDe(ev).createTab(ui.options) } },
     { type: 'separator' },
-    { label: 'Quitar de Monper', click: () => { removeExt(path); sendExtensions() } }
+    { label: 'Quitar de Titanio', click: () => { removeExt(path); sendExtensions() } }
   ]
   Menu.buildFromTemplate(items).popup({ window: extPopover.window ?? vActOpt()?.win! })
 })
@@ -3620,7 +3620,7 @@ let refrescandoWidgets = false
 
 function avisarWidgets(): void { paraPaginas('/newtab.html', 'widgets:changed', listWidgets()) }
 
-const WIDGET_SYSTEM = `Escribes extractores para los widgets del new tab de Monper.
+const WIDGET_SYSTEM = `Escribes extractores para los widgets del new tab de Titanio.
 Tu código corre en el REPL con \`page\` (API estilo Playwright) sobre la página YA CARGADA, con la sesión del usuario. DEBE terminar con \`return <valor>\`.
 
 API útil de \`page\`:
@@ -3645,10 +3645,10 @@ Elige la forma que mejor cuente ese sitio DE UN VISTAZO. Un marcador, un precio 
 
 Responde SOLO un JSON: {"title":"Nombre corto del widget","code":"…el snippet…"}`
 
-const FUENTE_SYSTEM = `Eliges DE DÓNDE sacar un dato que el usuario quiere ver como widget en Monper, su navegador.
+const FUENTE_SYSTEM = `Eliges DE DÓNDE sacar un dato que el usuario quiere ver como widget en Titanio, su navegador.
 
 CÓMO SE VA A EJECUTAR (esto manda en tu elección):
-- Monper abre esa URL en una pestaña invisible, con las COOKIES DEL USUARIO. Si tiene sesión en el sitio, la página se carga logueada.
+- Titanio abre esa URL en una pestaña invisible, con las COOKIES DEL USUARIO. Si tiene sesión en el sitio, la página se carga logueada.
 - El JavaScript de la página corre con normalidad, y luego otro paso extrae el dato del DOM o llamando a la API interna del sitio (fetch desde la propia página, heredando su sesión).
 - NO hay interacción: nadie va a pulsar botones, aceptar cookies, resolver un captcha ni hacer scroll. Si el dato solo aparece tras interactuar, esa página NO sirve.
 - El widget se recarga solo cada pocos minutos, así que la URL tiene que seguir sirviendo mañana: nada de enlaces con token o de resultados de búsqueda efímeros.
@@ -3889,7 +3889,7 @@ ipcMain.handle('providers:setActive', (e, id: string) => {
 ipcMain.handle('chat:context', () => getChatContext())
 /**
  * Relee el catálogo del proveedor. Lo llaman Settings al abrirse y al conectar: así los modelos
- * nuevos aparecen el día que salen, sin esperar a una versión de Monper con la lista tocada.
+ * nuevos aparecen el día que salen, sin esperar a una versión de Titanio con la lista tocada.
  */
 ipcMain.handle('providers:models', async (e) => {
   if (!isInternalSender(e.senderFrame?.url)) return []
@@ -3990,7 +3990,7 @@ ipcMain.handle('chat:send', async (ev, messages: ChatMessage[]) => {
     vDe(ev).win.webContents.send('chat:error', {
       tipo: 'sin-proveedor',
       titulo: 'No hay ninguna IA conectada',
-      detalle: 'Monper no trae modelo propio: pon tu API key de Anthropic o de OpenAI y el asistente se activa.',
+      detalle: 'Titanio no trae modelo propio: pon tu API key de Anthropic o de OpenAI y el asistente se activa.',
       accion: { label: 'Abrir Settings', kind: 'settings' }
     } satisfies ChatFallo)
     return
@@ -4126,11 +4126,11 @@ app.whenReady().then(() => {
   if (!app.hasSingleInstanceLock() && app.isPackaged) return // otra instancia manda
   // En dev muestra nuestro icono en el dock (mac) en vez del de Electron.
   if (isMac && app.dock) app.dock.setIcon(appIcon)
-  // Panel "Acerca de Monper" con nuestra info en vez de la de Electron.
+  // Panel "Acerca de Titanio" con nuestra info en vez de la de Electron.
   app.setAboutPanelOptions({
-    applicationName: 'Monper',
+    applicationName: 'Titanio',
     applicationVersion: app.getVersion(),
-    copyright: '© 2026 Monper',
+    copyright: '© 2026 Titanio',
     credits: 'Un navegador agéntico de escritorio'
   })
   /**
@@ -4179,7 +4179,7 @@ app.whenReady().then(() => {
         detail:
           'Podrá abrir páginas, leerlas y actuar en los sitios donde tengas la sesión abierta, ' +
           'igual que tú. No puede ver tus contraseñas ni usar el vault.\n\n' +
-          'Solo para esta sesión: al cerrar Monper se olvida.',
+          'Solo para esta sesión: al cerrar Titanio se olvida.',
         buttons: ['No permitir', 'Permitir'],
         defaultId: 0,
         cancelId: 0,
@@ -4198,7 +4198,7 @@ app.whenReady().then(() => {
   initMcpClient()
   initChats()
   initHistory()
-  // La memoria es del perfil: lo que Monper sabe de ti en "Trabajo" no es lo de "Personal".
+  // La memoria es del perfil: lo que Titanio sabe de ti en "Trabajo" no es lo de "Personal".
   initMemoria(rutaDePerfil('memory'), rutaDePerfil('memory-settings.json'))
   initWidgets(rutaDePerfil('widgets.json'))
   initSkills()

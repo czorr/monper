@@ -1,15 +1,15 @@
-# Empaquetado y distribución de Monper.
+# Empaquetado y distribución de Titanio.
 # `pnpm dist` genera el DMG; `pnpm dist:dir` solo la .app (rápido, para verificar).
-appId: com.monper.app
-productName: Monper
-copyright: © 2026 Monper
+appId: com.titanio.app
+productName: Titanio
+copyright: © 2026 Titanio
 
 directories:
   buildResources: build
   output: release
 
 # Solo lo que la app necesita en runtime. El código de main/preload/renderer ya viene
-# empaquetado por electron-vite en out/, y monperwright se inlinea en el bundle.
+# empaquetado por electron-vite en out/, y titaniowright se inlinea en el bundle.
 files:
   - out/**/*
   - package.json
@@ -42,14 +42,14 @@ mac:
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
   gatekeeperAssess: false
-  # Monper pide cámara/micrófono/ubicación a través de las páginas web que abre:
+  # Titanio pide cámara/micrófono/ubicación a través de las páginas web que abre:
   # macOS exige declarar el motivo o mata el proceso al primer uso.
   extendInfo:
-    NSCameraUsageDescription: Monper necesita la cámara para los sitios web que la usen, como videollamadas.
-    NSMicrophoneUsageDescription: Monper necesita el micrófono para los sitios web que lo usen, como videollamadas.
-    NSLocationWhenInUseUsageDescription: Monper comparte tu ubicación solo con los sitios a los que se lo autorices.
+    NSCameraUsageDescription: Titanio necesita la cámara para los sitios web que la usen, como videollamadas.
+    NSMicrophoneUsageDescription: Titanio necesita el micrófono para los sitios web que lo usen, como videollamadas.
+    NSLocationWhenInUseUsageDescription: Titanio comparte tu ubicación solo con los sitios a los que se lo autorices.
 
-# Sin esto macOS NO ofrece Monper en Ajustes → Escritorio y Dock → Navegador web
+# Sin esto macOS NO ofrece Titanio en Ajustes → Escritorio y Dock → Navegador web
 # predeterminado: el sistema lista las apps que declaran manejar http/https, y `LSSetDefault…`
 # (lo que hay detrás de `setAsDefaultProtocolClient`) falla si la app no lo declara.
 protocols:
@@ -74,4 +74,4 @@ linux:
 publish:
   provider: github
   owner: czorr
-  repo: monper
+  repo: titanio

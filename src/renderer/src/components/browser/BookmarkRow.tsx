@@ -25,7 +25,7 @@ export default function BookmarkRow({ bookmark, onOpen }: Props): JSX.Element {
   return (
     <div
       className="group/bm relative flex items-center"
-      onContextMenu={(e) => { e.preventDefault(); window.monper.bookmarkContextMenu(bookmark.id) }}
+      onContextMenu={(e) => { e.preventDefault(); window.titanio.bookmarkContextMenu(bookmark.id) }}
     >
       <button
         onClick={() => onOpen(bookmark.id)}

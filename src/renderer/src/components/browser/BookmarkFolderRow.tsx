@@ -28,7 +28,7 @@ export default function BookmarkFolderRow({ folder, count, collapsed, onToggle, 
   const confirmar = (): void => {
     const v = input.current?.value.trim()
     // Un nombre vacío dejaría una fila en blanco imposible de identificar: se queda el que había.
-    if (v && v !== folder.title) window.monper.renameBookmark(folder.id, v)
+    if (v && v !== folder.title) window.titanio.renameBookmark(folder.id, v)
     setEditando(false)
     onRenamed?.()
   }
@@ -36,7 +36,7 @@ export default function BookmarkFolderRow({ folder, count, collapsed, onToggle, 
   return (
     <div
       className="group/bm relative flex items-center"
-      onContextMenu={(e) => { e.preventDefault(); window.monper.bookmarkContextMenu(folder.id) }}
+      onContextMenu={(e) => { e.preventDefault(); window.titanio.bookmarkContextMenu(folder.id) }}
       onDoubleClick={() => setEditando(true)}
     >
       <button

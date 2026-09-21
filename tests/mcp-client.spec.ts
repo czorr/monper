@@ -4,10 +4,10 @@ import { join } from 'path'
 import { launch, api, type Harness } from './helpers'
 
 /**
- * Monper como CLIENTE MCP: el agente gana herramientas que un navegador no tiene.
+ * Titanio como CLIENTE MCP: el agente gana herramientas que un navegador no tiene.
  *
  * Nació de que varias skills (docx, pptx, xlsx, pdf, tax) instruyen `python scripts/…` y una
- * tool `bash`, y Monper no tiene ninguna: `run_js` es JavaScript DENTRO de la página. La
+ * tool `bash`, y Titanio no tiene ninguna: `run_js` es JavaScript DENTRO de la página. La
  * respuesta no fue empaquetar Python, fue pedírselo a quien ya lo ofrece.
  *
  * El servidor de prueba ejecuta Python DE VERDAD, no un simulacro: lo que se está afirmando
@@ -74,14 +74,14 @@ test.beforeAll(async () => {
   )
   // El main lee la config al arrancar, o sea ANTES de que el test la escriba. Se le pide
   // releer por el camino real (`ipcMain.emit` no dispara un handler de `ipcMain.handle`).
-  await enSettings('window.monperTab.reloadMcpServers()')
+  await enSettings('window.titanioTab.reloadMcpServers()')
 })
 test.afterAll(async () => { await h?.close() })
 
 test('arranca el servidor externo y descubre sus herramientas', async () => {
   // Handshake real por stdio contra un proceso real: initialize + tools/list.
   const servidores = await enSettings<{ name: string; running: boolean; tools: number; error: string | null }[]>(
-    'window.monperTab.probeMcpServers()'
+    'window.titanioTab.probeMcpServers()'
   )
   const sandbox = servidores.find((s) => s.name === 'sandbox')
   expect(sandbox, 'el servidor configurado tiene que aparecer').toBeTruthy()
@@ -93,22 +93,22 @@ test('arranca el servidor externo y descubre sus herramientas', async () => {
 test('conectar un sandbox de código ACTIVA las skills que lo necesitaban', async () => {
   /**
    * La cadena entera y el motivo de todo esto: docx/pptx/xlsx/pdf/tax instruyen
-   * `python scripts/…`, Monper no ejecuta Python, y pasárselas al agente era garantizar que
+   * `python scripts/…`, Titanio no ejecuta Python, y pasárselas al agente era garantizar que
    * intentara lo imposible. Ahora declaran `requires: code` y solo entran cuando alguien
    * aporta esa capacidad. Aquí se ve el interruptor: antes de arrancar el servidor están
    * fuera; después, dentro.
    */
   const antes = await enSettings<{ id: string; requires: string | null; available: boolean }[]>(
-    'window.monperTab.skillsList()'
+    'window.titanioTab.skillsList()'
   )
   const conRequisito = antes.filter((s) => s.requires === 'code').map((s) => s.id)
   expect(conRequisito, 'las de Office y PDF tienen que declarar el requisito').toEqual(
     expect.arrayContaining(['docx', 'pdf', 'pptx', 'xlsx'])
   )
 
-  await enSettings('window.monperTab.probeMcpServers()')
+  await enSettings('window.titanioTab.probeMcpServers()')
   const despues = await enSettings<{ id: string; requires: string | null; available: boolean }[]>(
-    'window.monperTab.skillsList()'
+    'window.titanioTab.skillsList()'
   )
   for (const id of conRequisito) {
     const s = despues.find((x) => x.id === id)!

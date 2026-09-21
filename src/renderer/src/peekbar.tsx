@@ -5,7 +5,7 @@ import Sidebar from '@renderer/components/browser/Sidebar'
 import { PopoverPanel } from '@renderer/components/popover'
 import './styles.css'
 
-const { monper, peekbar: pk } = window
+const { titanio, peekbar: pk } = window
 
 const EMPTY: BrowserState = { activeId: null, tabs: [], active: null, controlling: false, incognito: false }
 
@@ -20,9 +20,9 @@ function Peek(): JSX.Element {
   const [nonce, setNonce] = useState(0)
   const [closing, setClosing] = useState(false)
 
-  useEffect(() => monper.onState(setState), [])
-  useEffect(() => { monper.getProfile().then(setProfile); return monper.onProfile(setProfile) }, [])
-  useEffect(() => { monper.getBookmarks().then(setBookmarks); return monper.onBookmarks(setBookmarks) }, [])
+  useEffect(() => titanio.onState(setState), [])
+  useEffect(() => { titanio.getProfile().then(setProfile); return titanio.onProfile(setProfile) }, [])
+  useEffect(() => { titanio.getBookmarks().then(setBookmarks); return titanio.onBookmarks(setBookmarks) }, [])
   // `key={nonce}` remonta el panel en cada apertura para que la animación se repita.
   useEffect(() => pk.onShown(() => { setClosing(false); setNonce((n) => n + 1) }), [])
   // El main avisa antes de esconder: da tiempo a retraerse antes de que desaparezca.
@@ -45,13 +45,13 @@ function Peek(): JSX.Element {
           profile={profile}
           bookmarks={bookmarks}
           collapsed={false}
-          onOpenBookmark={(id) => monper.openBookmark(id)}
-          onOpenMenu={(r) => monper.openProfileMenu({ x: r.left, y: r.top, width: r.width, height: r.height })}
+          onOpenBookmark={(id) => titanio.openBookmark(id)}
+          onOpenMenu={(r) => titanio.openProfileMenu({ x: r.left, y: r.top, width: r.width, height: r.height })}
           onCollapse={() => pk.hide()}
-          onNewTab={() => monper.newTab()}
-          onSelectTab={(id) => monper.selectTab(id)}
-          onCloseTab={(id) => monper.closeTab(id)}
-          onReorderTabs={(ids) => monper.reorderTabs(ids)}
+          onNewTab={() => titanio.newTab()}
+          onSelectTab={(id) => titanio.selectTab(id)}
+          onCloseTab={(id) => titanio.closeTab(id)}
+          onReorderTabs={(ids) => titanio.reorderTabs(ids)}
         />
     </PopoverPanel>
   )

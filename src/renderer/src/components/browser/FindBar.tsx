@@ -4,7 +4,7 @@ import IconChevronUp from '~icons/tabler/chevron-up'
 import IconChevronDown from '~icons/tabler/chevron-down'
 import IconX from '~icons/tabler/x'
 
-const { monper } = window
+const { titanio } = window
 
 interface Props {
   /** cambia cada vez que el usuario pulsa ⌘F (para reabrir/enfocar) */
@@ -18,17 +18,17 @@ export default function FindBar({ openRequest, onClose }: Props): JSX.Element {
   const [result, setResult] = useState<FindResult>({ matches: 0, active: 0 })
   const inputRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => monper.onFindResult(setResult), [])
+  useEffect(() => titanio.onFindResult(setResult), [])
   // Cada ⌘F enfoca y selecciona el texto actual.
   useEffect(() => { inputRef.current?.focus(); inputRef.current?.select() }, [openRequest])
 
   const search = (value: string, findNext: boolean, forward = true): void => {
-    if (value) monper.findInPage(value, { forward, findNext })
-    else { monper.stopFindInPage(); setResult({ matches: 0, active: 0 }) }
+    if (value) titanio.findInPage(value, { forward, findNext })
+    else { titanio.stopFindInPage(); setResult({ matches: 0, active: 0 }) }
   }
 
   const onChange = (v: string): void => { setQuery(v); search(v, false) }
-  const close = (): void => { monper.stopFindInPage(); onClose() }
+  const close = (): void => { titanio.stopFindInPage(); onClose() }
 
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>): void => {
     if (e.key === 'Enter') { e.preventDefault(); search(query, true, !e.shiftKey) }

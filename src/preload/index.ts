@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { ChatContext, BrowserState, ChatMessage, MonperApi, Suggestion } from '../shared/types'
+import type { ChatContext, BrowserState, ChatMessage, TitanioApi, Suggestion } from '../shared/types'
 
 function sub(channel: string, cb: (...a: unknown[]) => void): () => void {
   const handler = (_e: unknown, ...args: unknown[]): void => cb(...args)
@@ -7,7 +7,7 @@ function sub(channel: string, cb: (...a: unknown[]) => void): () => void {
   return () => { ipcRenderer.removeListener(channel, handler) }
 }
 
-const api: MonperApi = {
+const api: TitanioApi = {
   platform: process.platform,
   newTab: () => ipcRenderer.invoke('tabs:new'),
   closeTab: (id) => ipcRenderer.invoke('tabs:close', id),
@@ -109,4 +109,4 @@ const api: MonperApi = {
   onFindResult: (cb) => sub('find:result', (r) => cb(r as never))
 }
 
-contextBridge.exposeInMainWorld('monper', api)
+contextBridge.exposeInMainWorld('titanio', api)

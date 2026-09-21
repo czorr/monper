@@ -65,7 +65,7 @@ function readSkill(dir: string, id: string, builtin: boolean): Loaded | null {
     name: (data.name as string) || id,
     description: (data.description as string) || '',
     keywords: Array.isArray(kw) ? (kw as string[]) : typeof kw === 'string' && kw ? [kw] : [],
-    author: (data.author as string) || (builtin ? 'Monper' : 'Tú'),
+    author: (data.author as string) || (builtin ? 'Titanio' : 'Tú'),
     // Identidad visual: dominio del servicio o glifo. Ver SkillMeta.
     host: ((data.host as string) || '').trim() || null,
     icon: ((data.icon as string) || '').trim() || null,
@@ -137,7 +137,7 @@ function cubierta(requires: string | null): boolean {
  * Skills habilitadas con su cuerpo — para inyectar al agente.
  *
  * Se filtran también las que piden una capacidad que no tenemos. Esto NO es cosmético: las
- * de Office y PDF instruyen `python scripts/office/unpack.py` y una tool `bash`, y Monper no
+ * de Office y PDF instruyen `python scripts/office/unpack.py` y una tool `bash`, y Titanio no
  * tiene ninguna de las dos (`run_js` es JavaScript dentro de la página). Pasárselas al
  * agente es garantizar que intente lo imposible o que se invente que lo hizo.
  */

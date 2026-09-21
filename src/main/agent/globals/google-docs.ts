@@ -1,4 +1,4 @@
-import type { Page } from '../../../../packages/monperwright/src'
+import type { Page } from '../../../../packages/titaniowright/src'
 
 interface DocRef { docId: string; uid: number }
 function parseDocUrl(input: string | DocRef): DocRef {

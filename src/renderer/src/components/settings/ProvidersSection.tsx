@@ -5,7 +5,7 @@ import IconX from '~icons/tabler/x'
 import { Group, Card } from './ui'
 import ProviderIcon from '@renderer/components/ui/ProviderIcon'
 
-const { monperTab } = window
+const { titanioTab } = window
 
 const KIND_SHORT: Record<ProviderKind, string> = { anthropic: 'Claude', openai: 'OpenAI-compatible' }
 
@@ -13,10 +13,10 @@ export default function ProvidersSection(): JSX.Element {
   const [providers, setProviders] = useState<ProviderInfo[]>([])
   const [adding, setAdding] = useState(false)
 
-  useEffect(() => { monperTab.listProviders().then(setProviders) }, [])
+  useEffect(() => { titanioTab.listProviders().then(setProviders) }, [])
 
-  const remove = async (id: string): Promise<void> => setProviders(await monperTab.removeProvider(id))
-  const activate = async (id: string): Promise<void> => setProviders(await monperTab.setActiveProvider(id))
+  const remove = async (id: string): Promise<void> => setProviders(await titanioTab.removeProvider(id))
+  const activate = async (id: string): Promise<void> => setProviders(await titanioTab.setActiveProvider(id))
 
   return (
     <Group title="Providers">
@@ -75,10 +75,10 @@ function ConnectForm({ onDone }: { onDone: (next: ProviderInfo[]) => void }): JS
     if (!apiKey.trim() || busy) return
     setBusy(true)
     try {
-      const next = await monperTab.addProvider({ label, kind, baseUrl: baseUrl.trim() || undefined }, apiKey.trim())
+      const next = await titanioTab.addProvider({ label, kind, baseUrl: baseUrl.trim() || undefined }, apiKey.trim())
       onDone(Array.isArray(next) ? next : [])
       // Se le pregunta al proveedor qué modelos tiene, para no depender de la lista de fábrica.
-      void monperTab.refreshModels()
+      void titanioTab.refreshModels()
     } catch (err) {
       console.error('addProvider error:', err)
     } finally {

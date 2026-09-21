@@ -1,4 +1,4 @@
-# Monper Vault — Arquitectura
+# Titanio Vault — Arquitectura
 
 > Almacén único y cifrado para **todos** los secretos del usuario: API keys de IA,
 > credenciales web (logins de sitios), tokens de servicios/MCP y secretos genéricos.
@@ -178,7 +178,7 @@ escribe directo en el portapapeles, así el valor ni siquiera entra en el DOM.
 - El portapapeles **se limpia solo a los 30 s**, y solo si sigue conteniendo lo que copiamos —
   si el usuario copió otra cosa mientras tanto, vaciarlo le destruiría su portapapeles.
 - Editar toca solo la metadata (nombre, usuario). **La contraseña no se edita ahí**: cambiarla
-  es cosa del sitio, y Monper la vuelve a capturar en el siguiente login; un campo aquí solo
+  es cosa del sitio, y Titanio la vuelve a capturar en el siguiente login; un campo aquí solo
   desincronizaría las dos.
 - Los `••••••••` de cada fila son decorativos y de longitud fija a propósito: pintar la longitud
   real filtraría cuánto mide la contraseña a quien mire la pantalla de lejos. Al revelarla se

@@ -11,7 +11,7 @@ import IconBell from '~icons/tabler/bell'
 import IconClipboard from '~icons/tabler/clipboard'
 import IconTrash from '~icons/tabler/trash'
 import IconShield from '~icons/tabler/shield-check'
-import monperLogo from '@renderer/assets/monper.png'
+import titanioLogo from '@renderer/assets/titanio.png'
 import './styles.css'
 
 const si = window.siteinfo
@@ -33,7 +33,7 @@ function SiteInfoWindow(): JSX.Element {
 
   return (
     <PopoverPanel onHeight={si.reportHeight} measure={data}>
-      <PopoverLabel>{data.internal ? 'Monper' : data.domain}</PopoverLabel>
+      <PopoverLabel>{data.internal ? 'Titanio' : data.domain}</PopoverLabel>
 
       {/* Estado de la conexión: la única fila con color propio, por semántica. */}
       {data.internal ? (
@@ -41,8 +41,8 @@ function SiteInfoWindow(): JSX.Element {
         // el candado abierto: "la conexión no es segura" en nuestra propia página, que es
         // una señal falsa. Aquí no hay conexión que juzgar, solo contenido local.
         <div className="mx-1 mb-1 flex items-center gap-3 px-2.5 h-9 rounded-lg bg-white/[0.04]">
-          <img src={monperLogo} alt="" className="w-[18px] h-[18px] shrink-0 object-contain" />
-          <span className="flex-1 text-[13.5px] text-text-dim">Contenido local de Monper</span>
+          <img src={titanioLogo} alt="" className="w-[18px] h-[18px] shrink-0 object-contain" />
+          <span className="flex-1 text-[13.5px] text-text-dim">Contenido local de Titanio</span>
         </div>
       ) : (
         <div className={'mx-1 mb-1 flex items-center gap-3 px-2.5 h-9 rounded-lg ' + (data.secure ? 'bg-emerald-500/10' : 'bg-amber-500/10')}>

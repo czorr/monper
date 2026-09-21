@@ -59,7 +59,7 @@ async function pageContextFor(url: string): Promise<string> {
   })
 }
 
-const EXTRACTOR_SYSTEM = `Escribes extractores para vigilar páginas web dentro del REPL de Monper.
+const EXTRACTOR_SYSTEM = `Escribes extractores para vigilar páginas web dentro del REPL de Titanio.
 Tu código corre con \`page\` disponible (API estilo Playwright) y DEBE terminar con \`return <valor>\`.
 
 API útil de \`page\`:

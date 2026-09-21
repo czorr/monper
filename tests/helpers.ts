@@ -21,10 +21,10 @@ export interface Harness {
 }
 
 /**
- * Arranca Monper con un perfil desechable.
+ * Arranca Titanio con un perfil desechable.
  *
  * `--user-data-dir` no es un detalle: sin él los tests escriben en el perfil real del
- * usuario (~/Library/Application Support/Monper) y le borrarían bookmarks y vault.
+ * usuario (~/Library/Application Support/Titanio) y le borrarían bookmarks y vault.
  */
 export async function launch(
   env: Record<string, string> = {},
@@ -36,7 +36,7 @@ export async function launch(
    */
   opts: { skipStateListener?: boolean; exe?: string } = {}
 ): Promise<Harness> {
-  const userData = reuseProfile ?? mkdtempSync(join(tmpdir(), 'monper-test-'))
+  const userData = reuseProfile ?? mkdtempSync(join(tmpdir(), 'titanio-test-'))
   const app = await electron.launch({
     // Con un binario empaquetado la app ya está dentro: pasarle '.' la haría abrir el cwd.
     ...(opts.exe ? { executablePath: opts.exe } : {}),
@@ -66,13 +66,13 @@ export async function launch(
   }
 }
 
-/** Llama a `window.monper.<method>(...args)` en el chrome y devuelve el resultado. */
+/** Llama a `window.titanio.<method>(...args)` en el chrome y devuelve el resultado. */
 export async function api<T = unknown>(win: Page, method: string, ...args: unknown[]): Promise<T> {
   return (await win.evaluate(
     async ({ method, args }) => {
-      const m = (window as never as Record<string, Record<string, unknown>>)['monper']
+      const m = (window as never as Record<string, Record<string, unknown>>)['titanio']
       const fn = m?.[method]
-      if (typeof fn !== 'function') throw new Error(`window.monper.${method} no existe`)
+      if (typeof fn !== 'function') throw new Error(`window.titanio.${method} no existe`)
       return await (fn as (...a: unknown[]) => unknown)(...args)
     },
     { method, args }
@@ -91,7 +91,7 @@ export async function installStateListener(win: Page): Promise<void> {
   const install = (): void => {
     const w = window as never as Record<string, unknown>
     w['__testState'] = null
-    const m = w['monper'] as Record<string, unknown> | undefined
+    const m = w['titanio'] as Record<string, unknown> | undefined
     const onState = m?.['onState'] as ((cb: (s: unknown) => void) => void) | undefined
     onState?.((s) => { w['__testState'] = s })
   }

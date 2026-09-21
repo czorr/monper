@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { WidgetInfo, Bookmark, DownloadEntry, MonperTabApi, Suggestion } from '../shared/types'
+import type { WidgetInfo, Bookmark, DownloadEntry, TitanioTabApi, Suggestion } from '../shared/types'
 import { setupSelectionUI } from './selectionUI'
 import { setupPasswordCapture } from './passwordCapture'
 import { setupTopColor } from './topColor'
@@ -7,7 +7,7 @@ import { setupStoreInstall } from './storeInstall'
 import { setupChromeIdentity } from './chromeIdentity'
 import { setupPipSource } from './pipSource'
 
-const api: MonperTabApi = {
+const api: TitanioTabApi = {
   navigate: (url) => ipcRenderer.send('tab:navigate', url),
   listDownloads: () => ipcRenderer.invoke('downloads:list'),
   onDownloads: (cb: (list: DownloadEntry[]) => void) => {
@@ -139,7 +139,7 @@ const api: MonperTabApi = {
   removeQuickAction: (id) => ipcRenderer.invoke('quickactions:remove', id)
 }
 
-contextBridge.exposeInMainWorld('monperTab', api)
+contextBridge.exposeInMainWorld('titanioTab', api)
 
 // Avisa al chrome cuando se interactúa con la página, para cerrar overlays (menú de perfil).
 window.addEventListener('pointerdown', () => ipcRenderer.send('tab:pointerdown'), true)
@@ -147,7 +147,7 @@ window.addEventListener('pointerdown', () => ipcRenderer.send('tab:pointerdown')
 // Cada módulo se aísla: si uno falla en algún sitio raro, los demás siguen vivos.
 // (Antes, un throw en el primero dejaba sin ejecutar todos los siguientes.)
 function safeSetup(name: string, fn: () => void): void {
-  try { fn() } catch (e) { console.warn(`[monper] fallo al iniciar ${name}:`, e) }
+  try { fn() } catch (e) { console.warn(`[titanio] fallo al iniciar ${name}:`, e) }
 }
 
 // El primero: si la página lee la identidad antes de que la alineemos, ya la vio mal.
@@ -156,4 +156,4 @@ safeSetup('pip', setupPipSource)                // picture-in-picture propio (ve
 safeSetup('selection', setupSelectionUI)      // acciones rápidas sobre texto seleccionado
 safeSetup('passwordCapture', setupPasswordCapture) // ofrecer guardar credenciales
 safeSetup('topColor', setupTopColor)          // color bajo el topbar al hacer scroll
-safeSetup('storeInstall', setupStoreInstall)  // botón "Install to Monper" en la Store
+safeSetup('storeInstall', setupStoreInstall)  // botón "Install to Titanio" en la Store

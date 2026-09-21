@@ -3,7 +3,7 @@ import type { TabInfo } from '@shared/types'
 import { domainOf } from '@renderer/lib/dom'
 import { CloseIcon } from '@renderer/lib/icons'
 import IconVolumeOff from '~icons/tabler/volume-off'
-import monperLogo from '@renderer/assets/monper.png'
+import titanioLogo from '@renderer/assets/titanio.png'
 
 interface Props {
   tab: TabInfo
@@ -40,11 +40,11 @@ export default function TabRow({ tab, active, onSelect, onClose }: Props): JSX.E
       onPointerLeave={() => setPressed(false)}
       onClick={() => onSelect(tab.id)}
       onAuxClick={(e) => e.button === 1 && onClose(tab.id)}
-      onContextMenu={(e) => { e.preventDefault(); window.monper.tabContextMenu(tab.id) }}
+      onContextMenu={(e) => { e.preventDefault(); window.titanio.tabContextMenu(tab.id) }}
     >
       {tab.internal || !tab.url ? (
         // Nuestras páginas llevan siempre el iso, nunca un favicon por defecto.
-        <img src={monperLogo} alt="" className="w-[17px] h-[17px] shrink-0 object-contain opacity-80" />
+        <img src={titanioLogo} alt="" className="w-[17px] h-[17px] shrink-0 object-contain opacity-80" />
       ) : tab.loading ? (
         <div className="w-[13px] h-[13px] m-0.5 shrink-0 rounded-full border-[1.5px] border-text-faint border-t-text animate-spin" />
       ) : tab.favicon ? (
@@ -64,7 +64,7 @@ export default function TabRow({ tab, active, onSelect, onClose }: Props): JSX.E
       {tab.muted && (
         <button
           title="Reactivar sonido"
-          onClick={(e) => { e.stopPropagation(); window.monper.toggleMute(tab.id) }}
+          onClick={(e) => { e.stopPropagation(); window.titanio.toggleMute(tab.id) }}
           className="shrink-0 w-[18px] h-[18px] grid place-items-center rounded-md text-text-faint hover:text-text hover:bg-white/15 [&>svg]:w-[14px] [&>svg]:h-[14px]"
         >
           <IconVolumeOff />

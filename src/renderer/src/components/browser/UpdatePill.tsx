@@ -71,7 +71,7 @@ export default function UpdatePill({ state, onDownload, onInstall }: Props): JSX
     return (
       <button
         onClick={onInstall}
-        title={`Reiniciar Monper para instalar la versión ${state.version ?? ''}`}
+        title={`Reiniciar Titanio para instalar la versión ${state.version ?? ''}`}
         className={`${base} ${hover} pl-2 pr-2.5`}
       >
         <IconRefresh />

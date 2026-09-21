@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { launch, api, waitForState, serve, type Harness } from './helpers'
 
 /**
- * Monper se presenta como Chrome, no como Chromium.
+ * Titanio se presenta como Chrome, no como Chromium.
  *
  * No es cosmética: Google bloquea el inicio de sesión con "This browser or app may not be
  * secure" cuando detecta un navegador embebido, y lo detecta por aquí. Esto se rompe en

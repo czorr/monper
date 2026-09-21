@@ -81,7 +81,7 @@ export function rutaDePerfil(fichero: string): string {
 
 /** Partición de Chromium del perfil activo. Sin perfiles, es la de siempre. */
 export function particionDelPerfil(): string {
-  return datos.activo === PERFIL_POR_DEFECTO ? PARTICION_NORMAL : `persist:monper-${datos.activo}`
+  return datos.activo === PERFIL_POR_DEFECTO ? PARTICION_NORMAL : `persist:titanio-${datos.activo}`
 }
 
 export function initPerfiles(baseDir: string): void {

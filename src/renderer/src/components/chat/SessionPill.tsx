@@ -59,7 +59,7 @@ export default function SessionPill({ sessions, currentId, onNew, onOpen, onRemo
       <button
         onClick={() => { if (!open) onRefresh(); setOpen((v) => !v) }}
         title="Conversaciones"
-        className="flex items-center gap-1 h-7 pl-2.5 pr-2 rounded-full text-[13px] font-medium text-text-dim hover:text-text bg-white/[0.06] hover:bg-white/[0.10] transition-colors max-w-[240px]"
+        className="flex items-center gap-1 h-7 pl-2.5 pr-2 rounded-full text-[13px] font-medium text-text-dim hover:text-text hover:bg-bg-hover transition-colors max-w-[240px]"
       >
         <span className="truncate">{actual?.title ?? 'New chat'}</span>
         <IconChevron className="w-3.5 h-3.5 shrink-0 opacity-70" />

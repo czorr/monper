@@ -38,7 +38,7 @@ import IconPuzzle from '~icons/tabler/puzzle'
 import IconUsers from '~icons/tabler/users'
 import IconMessage from '~icons/tabler/message'
 import IconArrowUpRight from '~icons/tabler/arrow-up-right'
-import { Card, Group, Row, Pill, Toggle } from './ui'
+import { Card, Group, Row, Pill, Toggle, SettingsHeader, SettingsContent } from './ui'
 
 const { titanioTab } = window
 
@@ -50,7 +50,7 @@ type Cat =
 interface NavItem { id: Cat; label: string; icon: JSX.Element; soon?: boolean }
 interface NavGroup { title?: string; items: NavItem[] }
 
-// El nav es también el roadmap: lo que aún no existe queda visible con "Pronto".
+// Las secciones sin implementar se identifican como pendientes.
 const NAV: NavGroup[] = [
   {
     title: 'Settings',
@@ -84,34 +84,10 @@ const NAV: NavGroup[] = [
   }
 ]
 
-/** Qué será cada sección pendiente: el roadmap, visible dentro del producto. */
-const SOON: Partial<Record<Cat, { title: string; desc: string; bullets: string[] }>> = {
-
-  developers: {
-    title: 'Developers',
-    desc: 'Herramientas para depurar el navegador y el agente.',
-    bullets: ['Logs del agente y de las tools', 'Inspector del REPL', 'Exportar trazas de una ejecución']
-  },
-  projects: {
-    title: 'Projects',
-    desc: 'Espacios de trabajo con su propio contexto e instrucciones.',
-    bullets: ['Pestañas y chats agrupados por proyecto', 'Instrucciones y skills por proyecto', 'Retomar donde lo dejaste']
-  },
-  memory: {
-    title: 'Memory',
-    desc: 'Memoria semántica de todo lo que lees, local y privada.',
-    bullets: [
-      '“¿Dónde vi ese benchmark?” sobre tu historial',
-      'El agente usa lo que ya leíste como contexto',
-      'Tus páginas guardadas no dan 404 nunca'
-    ]
-  },
-
-  notifications: {
-    title: 'Notifications',
-    desc: 'Qué te avisa Titanio y cómo.',
-    bullets: ['Avisos de rutinas', 'Cuando el agente termina o necesita ayuda', 'Horario sin molestar']
-  }
+const SOON: Partial<Record<Cat, { title: string }>> = {
+  developers: { title: 'Developers' },
+  projects: { title: 'Projects' },
+  notifications: { title: 'Notifications' }
 }
 
 const ALL_CATS = NAV.flatMap((g) => g.items.map((i) => i.id))
@@ -120,27 +96,13 @@ function initialCat(): Cat {
   return ALL_CATS.includes(h) ? h : 'ai'
 }
 
-/** Página placeholder que explica qué vendrá en esa sección. */
+/** Estado de una sección que aún no está disponible. */
 function ComingSoon({ cat }: { cat: Cat }): JSX.Element {
   const s = SOON[cat]
   if (!s) return <></>
   return (
     <>
-      <div className="flex items-center gap-3 mb-3">
-        <h1 className="text-[30px] font-semibold tracking-tight">{s.title}</h1>
-        <span className="px-2 py-1 rounded-md bg-white/[0.08] text-[11.5px] font-medium text-text-dim">Pronto</span>
-      </div>
-      <p className="text-[13.5px] text-text-dim leading-relaxed mb-6">{s.desc}</p>
-      <Card>
-        <div className="p-5 flex flex-col gap-3">
-          {s.bullets.map((b) => (
-            <div key={b} className="flex items-start gap-3 text-[13.5px] text-text-dim">
-              <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-white/25 shrink-0" />
-              {b}
-            </div>
-          ))}
-        </div>
-      </Card>
+      <SettingsHeader title={s.title} description="Esta sección aún no está disponible." />
     </>
   )
 }
@@ -166,7 +128,7 @@ export default function SettingsPage(): JSX.Element {
               >
                 {n.icon}
                 <span className="flex-1 truncate">{n.label}</span>
-                {n.soon && <span className="text-[10px] uppercase tracking-wide text-text-faint shrink-0">Pronto</span>}
+                {n.soon && <span className="text-[10px] uppercase tracking-wide text-text-faint shrink-0">Pendiente</span>}
               </button>
             ))}
           </div>
@@ -200,7 +162,7 @@ export default function SettingsPage(): JSX.Element {
           <MemorySection />
         ) : (
           <div className="h-full overflow-y-auto [&::-webkit-scrollbar]:w-0">
-            <div className="max-w-[680px] mx-auto px-8 py-12">
+            <SettingsContent>
               {cat === 'ai' && <AIPage />}
               {cat === 'actions' && <QuickActionsSection />}
               {cat === 'routines' && <RoutinesSection />}
@@ -217,7 +179,7 @@ export default function SettingsPage(): JSX.Element {
               {cat === 'mcps' && <McpSection />}
               {cat === 'about' && <AboutPage />}
               {SOON[cat] && <ComingSoon cat={cat} />}
-            </div>
+            </SettingsContent>
           </div>
         )}
       </main>
@@ -231,20 +193,8 @@ function AIPage(): JSX.Element {
   useEffect(() => { void titanioTab.refreshModels() }, [])
   return (
     <>
-      <h1 className="text-[30px] font-semibold tracking-tight mb-9">AI</h1>
+      <SettingsHeader title="AI" />
       <ProvidersSection />
-      <Group title="Chat settings">
-        <Card>
-          {/* Ninguno de los dos es configurable todavía: son descripciones del comportamiento
-              actual, no controles. Ver el comentario de GeneralPage. */}
-          <Row label="Modelo por defecto" desc="El último proveedor usado se convierte en el default">
-            <span className="text-[13px] text-text-faint">Proveedor activo</span>
-          </Row>
-          <Row label="Comportamiento de seguimiento" desc="Los mensajes se encolan mientras el agente corre">
-            <span className="text-[13px] text-text-faint">Queue · Pronto</span>
-          </Row>
-        </Card>
-      </Group>
     </>
   )
 }
@@ -304,7 +254,7 @@ function AccountPage(): JSX.Element {
 
   return (
     <>
-      <h1 className="text-[30px] font-semibold tracking-tight mb-9">Account</h1>
+      <SettingsHeader title="Account" />
 
       <div className="flex items-center gap-4 mb-8">
         <div className="relative group/av cursor-pointer" onClick={() => fileRef.current?.click()}>
@@ -360,7 +310,7 @@ function AppearancePage(): JSX.Element {
       .then(setData)
       .catch((e) => {
         console.error('[appearance] no se pudo leer la configuración:', e)
-        setError('No se pudo leer la configuración. Reinicia Titanio: los cambios en el preload necesitan reiniciar la app, no solo recargar.')
+        setError('No se pudo cargar la configuración. Reinicia Titanio e inténtalo de nuevo.')
       })
   }, [])
 
@@ -371,11 +321,7 @@ function AppearancePage(): JSX.Element {
 
   return (
     <>
-      <h1 className="text-[30px] font-semibold tracking-tight mb-3">Appearance</h1>
-      <p className="text-[13.5px] text-text-dim leading-relaxed mb-7">
-        Cuánto se transparenta el chrome de Titanio — el sidebar y el panel de chat — sobre
-        lo que hay detrás de la ventana. El contenido de las páginas no cambia.
-      </p>
+      <SettingsHeader title="Appearance" description="Ajusta la transparencia de la barra lateral y del panel de chat." />
 
       {error && (
         <div className="mb-6 px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[13px] text-amber-300 leading-relaxed">
@@ -409,8 +355,7 @@ function AppearancePage(): JSX.Element {
       </Group>
 
       <p className="text-[12.5px] text-text-faint">
-        Atajo: <kbd className="px-1.5 py-0.5 rounded-md bg-white/[0.08] font-sans">⌘⌥V</kbd> cicla
-        los niveles sin salir de la página que estés viendo.
+        Usa <kbd className="px-1.5 py-0.5 rounded-md bg-white/[0.08] font-sans">⌘⌥V</kbd> para cambiar el nivel de transparencia.
       </p>
     </>
   )
@@ -436,10 +381,10 @@ function GeneralPage(): JSX.Element {
 
   return (
     <>
-      <h1 className="text-[30px] font-semibold tracking-tight mb-9">General</h1>
+      <SettingsHeader title="General" />
       <Group title="Perfil">
         <Card>
-          <Row icon={<IconUser />} label={profile.name || 'Sin nombre'} desc="Se edita en Account" />
+          <Row icon={<IconUser />} label={profile.name || 'Sin nombre'} desc="Edita tu perfil en Account" />
         </Card>
       </Group>
       <Group title="Navegador predeterminado">
@@ -448,7 +393,7 @@ function GeneralPage(): JSX.Element {
             label={pred?.isDefault ? 'Titanio es tu navegador predeterminado' : 'Titanio no es tu navegador predeterminado'}
             desc={errPred || (pred?.isDefault
               ? 'Los enlaces de otras apps se abren aquí.'
-              : 'Los enlaces que abras desde otras apps no llegarán a Titanio.')}
+              : 'Abre los enlaces de otras aplicaciones en Titanio.')}
           >
             {pred && !pred.isDefault && (
               <button
@@ -472,7 +417,7 @@ function GeneralPage(): JSX.Element {
           <Row
             label="Picture in picture"
             desc={pip
-              ? 'Al sacar un vídeo del reproductor, flota en una ventana propia siempre encima.'
+              ? 'Reproduce vídeos en una ventana flotante.'
               : 'Los vídeos se quedan en su pestaña.'}
           >
             <Toggle
@@ -494,13 +439,11 @@ function GeneralPage(): JSX.Element {
 
       <Group title="Navegación">
         <Card>
-          {/* Sin `⌄`: no hay nada que elegir todavía. Un desplegable que no despliega es peor
-              que decir "Pronto" — parece que el ajuste existe y que tú lo dejaste así. */}
-          <Row label="Página de inicio" desc="Se abre al crear una pestaña nueva">
-            <Pill>New tab</Pill>
+          <Row label="Página de inicio">
+            <span className="text-[13px] text-text-faint">Nueva pestaña</span>
           </Row>
-          <Row label="Buscador" desc="Hoy siempre Google; el selector llega con el ajuste de verdad">
-            <span className="text-[13px] text-text-faint">Google · Pronto</span>
+          <Row label="Buscador">
+            <span className="text-[13px] text-text-faint">Google</span>
           </Row>
         </Card>
       </Group>
@@ -520,7 +463,7 @@ function PrivacyPage(): JSX.Element {
   }
   return (
     <>
-      <h1 className="text-[30px] font-semibold tracking-tight mb-9">Privacy</h1>
+      <SettingsHeader title="Privacy" />
       <Group title="Datos">
         <Card>
           <Row label="Borrar datos de navegación" desc="Cookies, almacenamiento local y caché del perfil">
@@ -558,10 +501,10 @@ function AboutPage(): JSX.Element {
 
   return (
     <>
-      <h1 className="text-[30px] font-semibold tracking-tight mb-9">About</h1>
+      <SettingsHeader title="About" />
       <Group title="Aplicación">
         <Card>
-          <Row label="Titanio" desc="Navegador agéntico" />
+          <Row label="Titanio" />
           <Row label="Versión">
             <span className="text-[13px] text-text-dim tabular-nums">{version || '—'}</span>
           </Row>

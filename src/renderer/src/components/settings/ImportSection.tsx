@@ -73,11 +73,11 @@ export default function ImportSection(): JSX.Element {
           {navs === null && <div className="px-4 py-4 text-[13px] text-text-faint">Buscando navegadores…</div>}
           {navs?.every((n) => !n.disponible) && (
             <div className="px-4 py-6 text-center">
-              <div className="text-[13.5px] text-text-dim">No hay de dónde importar</div>
+              <div className="text-[13.5px] text-text-dim">No se encontraron navegadores compatibles</div>
               {/* Se dice qué se buscó: si no, "no encuentro nada" es indistinguible de un fallo. */}
               {/* Se dice qué se buscó: si no, "no encuentro nada" es indistinguible de un fallo. */}
               <div className="text-[12.5px] text-text-faint mt-1 max-w-[420px] mx-auto leading-relaxed">
-                Se buscó Chrome, Arc, Brave, Edge y Safari.
+                Navegadores compatibles: Chrome, Arc, Brave, Edge y Safari.
               </div>
             </div>
           )}
@@ -101,11 +101,11 @@ export default function ImportSection(): JSX.Element {
         </Card>
       </Group>
 
-      <Group title="Qué traer">
+      <Group title="Datos a importar">
         <Card>
-          {casilla('bookmarks', 'Marcadores', 'Los repetidos no se duplican.')}
+          {casilla('bookmarks', 'Marcadores', 'Omite los marcadores que ya tienes.')}
           {casilla('history', 'Historial', 'Mejora el autocompletado de la barra de direcciones.')}
-          {casilla('passwords', 'Contraseñas', 'macOS te pedirá permiso. Van al vault cifrado.')}
+          {casilla('passwords', 'Contraseñas', 'Se guardan cifradas en el vault. macOS puede pedirte permiso.')}
         </Card>
       </Group>
 

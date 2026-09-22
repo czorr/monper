@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type JSX } from 'react'
 import type { ResumenUso } from '@shared/types'
 import IconChart from '~icons/tabler/chart-bar'
 import IconAlert from '~icons/tabler/alert-triangle'
-import { Card } from './ui'
+import { Card, SettingsHeader } from './ui'
 
 const { titanioTab } = window
 
@@ -76,7 +76,7 @@ export default function UsoSection({ foco }: { foco: 'billing' | 'stats' }): JSX
       setError('')
     } catch (e) {
       console.error('[uso] no se pudo leer el consumo:', e)
-      setError('No se pudo leer el consumo. Reinicia Titanio: los cambios en el preload necesitan reiniciar la app, no solo recargar.')
+      setError('No se pudo cargar el consumo. Reinicia Titanio e inténtalo de nuevo.')
     }
   }, [])
   useEffect(() => { void leer(dias) }, [leer, dias])
@@ -95,15 +95,10 @@ export default function UsoSection({ foco }: { foco: 'billing' | 'stats' }): JSX
 
   return (
     <div>
-      <div className="flex items-center justify-between gap-4 mb-5">
-        <div>
-          <h1 className="text-[22px] font-semibold tracking-tight">{foco === 'billing' ? 'Billing' : 'Statistics'}</h1>
-          <p className="text-[13px] text-text-dim mt-1">
-            {foco === 'billing'
-              ? 'Titanio no te cobra nada: pagas a tu proveedor. Esto es lo que llevas gastado, estimado.'
-              : 'Qué ha hecho el agente por ti, y cuánto le ha costado.'}
-          </p>
-        </div>
+      <SettingsHeader
+        title={foco === 'billing' ? 'Billing' : 'Statistics'}
+        description={foco === 'billing' ? 'Gasto estimado de tus proveedores de IA.' : 'Uso del agente por fecha y modelo.'}
+        actions={
         <div className="flex items-center gap-1 shrink-0 p-0.5 rounded-xl bg-white/[0.05]">
           {RANGOS.map((d) => (
             <button
@@ -116,15 +111,15 @@ export default function UsoSection({ foco }: { foco: 'billing' | 'stats' }): JSX
             </button>
           ))}
         </div>
-      </div>
+        }
+      />
 
       {error && <div className="mb-5 text-[12.5px] text-amber-400">{error}</div>}
 
       {vacio ? (
         <div className="py-16 flex flex-col items-center gap-2 text-center">
           <IconChart className="w-6 h-6 text-text-faint" />
-          <div className="text-[13.5px] text-text-dim">Todavía no has usado el agente</div>
-          <div className="text-[12.5px] text-text-faint">Cuando le pidas algo, aquí verás qué gastó.</div>
+          <div className="text-[13.5px] text-text-dim">Sin consumo registrado en este período</div>
         </div>
       ) : (
         <>
@@ -151,8 +146,7 @@ export default function UsoSection({ foco }: { foco: 'billing' | 'stats' }): JSX
             <div className="mt-3 flex items-start gap-2 text-[12.5px] text-text-faint">
               <IconAlert className="w-4 h-4 shrink-0 mt-px text-amber-400" />
               <span>
-                Hay modelos cuya tarifa no conocemos, así que su consumo cuenta en tokens pero no en dinero:
-                el gasto real es algo mayor que el de arriba.
+                La estimación excluye los modelos sin tarifa disponible. Sus tokens sí están incluidos.
               </span>
             </div>
           )}
@@ -183,8 +177,8 @@ export default function UsoSection({ foco }: { foco: 'billing' | 'stats' }): JSX
           <h2 className="text-[13px] font-medium text-text-faint mb-3">Límite de gasto</h2>
           <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] px-4 py-4">
             <p className="text-[13px] text-text-dim mb-3 leading-relaxed">
-              El agente deja de trabajar cuando el gasto estimado de hoy pasa de este tope. Se comprueba
-              antes de cada turno, que es el único momento en que sirve de algo — a mitad ya se gastó.
+              Al alcanzar el límite diario estimado, el agente no inicia nuevos turnos.
+              El turno en curso puede superar el límite.
             </p>
             <div className="flex items-center gap-2">
               <span className="text-[14px] text-text-dim">$</span>

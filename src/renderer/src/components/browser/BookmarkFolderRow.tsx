@@ -42,7 +42,7 @@ export default function BookmarkFolderRow({ folder, count, collapsed, onToggle, 
       <button
         onClick={onToggle}
         title={`${folder.title} · ${count} ${count === 1 ? 'marcador' : 'marcadores'}`}
-        className="flex items-center gap-2 w-full py-1 px-2 rounded-lg border border-transparent text-text/75 text-left text-[14.5px] min-h-[29px] hover:bg-bg-hover hover:text-text"
+        className="flex items-center gap-2 w-full py-1 px-2 rounded-xl [corner-shape:superellipse(1.5)] border border-transparent text-text/75 text-left text-[14.5px] min-h-[29px] hover:bg-bg-hover hover:text-text"
       >
         <IconChevron
           className={'w-[13px] h-[13px] shrink-0 opacity-60 transition-transform duration-150 ' + (collapsed ? '' : 'rotate-90')}

@@ -149,6 +149,7 @@ function isInternalSender(url: string | undefined): boolean {
 }
 
 interface Tab {
+  pinnedTitanio?: boolean
   view: WebContentsView
   /** Último radio aplicado; ver applyRadius (reaplicarlo trae de vuelta las muescas). */
   radius: number | null
@@ -745,9 +746,10 @@ function crearVentana(opts: { sinPestanaInicial?: boolean; incognito?: boolean }
     const t = activeId != null ? tabs.get(activeId) : null
     const displayUrl = (u: string) => (isInternal(u) ? '' : u)
     const state: BrowserState = {
+      titanioFavicon: faviconFor('https://app.titanio.ai'),
       activeId,
       tabs: [...tabs.entries()].map(([id, tb]) => ({
-        id, url: tb.errorUrl ?? displayUrl(tb.url), title: tb.title || 'Nueva pestaña', favicon: tb.favicon, loading: tb.loading, recording: tb.recording, muted: tb.muted, audible: tb.audible, agent: tb.agent, bookmarkId: tb.bookmarkId, internal: internalPageOf(tb.url)
+        id, url: tb.errorUrl ?? displayUrl(tb.url), title: tb.title || 'Nueva pestaña', favicon: tb.favicon, loading: tb.loading, recording: tb.recording, muted: tb.muted, audible: tb.audible, agent: tb.agent, bookmarkId: tb.bookmarkId, pinnedTitanio: tb.pinnedTitanio, internal: internalPageOf(tb.url)
       })),
       active: t
         ? {
@@ -1061,6 +1063,7 @@ function crearVentana(opts: { sinPestanaInicial?: boolean; incognito?: boolean }
         t.favicon = data
         if (!suya().incognito) {
           rememberFavicon(url, data)
+          if (t.pinnedTitanio) rememberFavicon('https://app.titanio.ai', data)
           updateMeta(url, undefined, data)
         }
         suya().pushState()
@@ -1662,9 +1665,10 @@ async function showPageContextMenu(wc: Electron.WebContents, p: Electron.Context
 function sessionFile(): string { return rutaDePerfil('session.json') }
 let saveSessionTimer: NodeJS.Timeout | null = null
 
-interface SesionVentana { urls: string[]; activeIndex: number }
+interface SesionVentana { urls: string[]; activeIndex: number; titanioIndex?: number }
 function collectVentana(v: Ventana): SesionVentana {
   const urls: string[] = []
+  let titanioIndex: number | undefined
   let activeIndex = 0
   for (const [id, t] of v.tabs) {
     if (t.agent) continue // las pestañas del agente no se persisten
@@ -1678,9 +1682,10 @@ function collectVentana(v: Ventana): SesionVentana {
     // ERR_CONNECTION_REFUSED en la cara del usuario, en su propia página de bienvenida.
     if (!/^https?:\/\//i.test(u) || isInternal(u)) continue
     if (id === v.activeId()) activeIndex = urls.length
+    if (t.pinnedTitanio) titanioIndex = urls.length
     urls.push(u)
   }
-  return { urls, activeIndex }
+  return { urls, activeIndex, titanioIndex }
 }
 function collectSession(): { ventanas: SesionVentana[] } {
   // Las ventanas de incógnito no se guardan: reabrirlas al arrancar sería contar en voz alta
@@ -1718,7 +1723,11 @@ function restoreSession(v: Ventana): boolean {
   }
   const grupo = colaSesion.shift()
   if (!grupo) return false
-  for (const u of grupo.urls) v.createTab(u, false)
+  for (const [index, u] of grupo.urls.entries()) {
+    const id = v.createTab(u, false)
+    const tab = v.tabs.get(id)
+    if (tab && index === grupo.titanioIndex) tab.pinnedTitanio = true
+  }
   const ids = [...v.tabs.keys()]
   const target = ids[Math.min(Math.max(0, grupo.activeIndex ?? 0), ids.length - 1)]
   if (target != null) v.setActive(target)
@@ -1854,6 +1863,20 @@ function buildAppMenu(): void {
 
 // ---- IPC ----
 ipcMain.handle('tabs:new', (ev) => { hidePeek(); return vDe(ev).createTab() })
+ipcMain.handle('tabs:titanio', (ev) => {
+  hidePeek()
+  const v = vDe(ev)
+  const existing = [...v.tabs.entries()].find(([, t]) => t.pinnedTitanio)
+    ?? [...v.tabs.entries()].find(([, t]) => !t.agent && !t.bookmarkId && originOfUrl(t.url) === 'https://app.titanio.ai')
+  const id = existing?.[0] ?? v.createTab('https://app.titanio.ai', false)
+  const tab = v.tabs.get(id)
+  if (!tab) return
+  tab.pinnedTitanio = true
+  tab.favicon ||= faviconFor('https://app.titanio.ai')
+  v.setActive(id)
+  v.pushState()
+  scheduleSaveSession()
+})
 // La ventana de origen es la que TIENE la pestaña, no la que envía: el id es único en toda la
 // app, así que no hay ambigüedad y así funciona igual si el mensaje llega desde otro sitio.
 ipcMain.on('tabs:tearOff', (ev, id: number) => { moverTabAVentanaNueva(duenoDeTab(id) ?? vDe(ev), id) })
@@ -1894,12 +1917,12 @@ ipcMain.handle('ui:panels', () => ({ sidebar: sidebarWidth, chat: chatWidth, lim
 // ---- Apariencia: nivel de transparencia del chrome (sidebar y panel de chat) ----
 /** Materiales expuestos en Settings, con nombre humano en vez del término de macOS. */
 const VIBRANCY_OPTIONS: { id: VibrancySetting; label: string; desc: string }[] = [
-  { id: 'hud', label: 'Máxima', desc: 'El chrome deja pasar casi todo el fondo' },
-  { id: 'popover', label: 'Alta', desc: 'Translúcido, con algo más de cuerpo' },
-  { id: 'menu', label: 'Media', desc: 'Equilibrio entre fondo y legibilidad' },
-  { id: 'sidebar', label: 'Baja', desc: 'Apenas se intuye lo que hay detrás' },
+  { id: 'hud', label: 'Máxima', desc: 'Fondo muy visible' },
+  { id: 'popover', label: 'Alta', desc: 'Fondo visible' },
+  { id: 'menu', label: 'Media', desc: 'Fondo parcialmente visible' },
+  { id: 'sidebar', label: 'Baja', desc: 'Fondo poco visible' },
   { id: 'under-window', label: 'Mínima', desc: 'Casi opaco' },
-  { id: 'none', label: 'Sin transparencia', desc: 'Fondo sólido, sin efecto de material' }
+  { id: 'none', label: 'Sin transparencia', desc: 'Fondo opaco' }
 ]
 /** Aplica el ajuste en vivo. 'none' quita la vibrancy y pone fondo opaco. */
 function applyVibrancy(v: VibrancySetting): void {

@@ -14,7 +14,7 @@ interface Props {
 }
 
 const rowBase =
-  'group/tab flex items-center gap-2.5 w-full py-1 px-2 rounded-xl text-left text-[14.5px] min-h-[29px] cursor-pointer transition-transform duration-150'
+  'group/tab flex items-center gap-2.5 w-full py-1 px-2 rounded-xl [corner-shape:superellipse(1.5)] text-left text-[14.5px] min-h-[29px] cursor-pointer transition-transform duration-150'
 
 /**
  * Efecto de pulsación de la fila. Va por estado y no por `active:` de CSS a propósito.

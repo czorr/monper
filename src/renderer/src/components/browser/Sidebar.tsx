@@ -3,6 +3,7 @@ import type { BrowserState, Bookmark, Profile, UpdateState } from '@shared/types
 import UpdatePill from './UpdatePill'
 import RemotePill from './RemotePill'
 import AccountPill from './AccountPill'
+import PinnedTitanio from './PinnedTitanio'
 import TabList from './TabList'
 import TabRow from './TabRow'
 import BookmarkRow from './BookmarkRow'
@@ -156,8 +157,8 @@ export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBo
   const resaltado = (id: string): string =>
     sobre === id && arrastre ? 'shadow-[inset_0_2px_0_0_rgba(255,255,255,0.45)] ' : ''
   // Las pestañas ligadas a un bookmark se muestran en su slot de bookmarks, no en Tabs.
-  const userTabs = state.tabs.filter((t) => !t.agent && !t.bookmarkId)
-  const agentTabs = state.tabs.filter((t) => t.agent)
+  const userTabs = state.tabs.filter((t) => !t.agent && !t.bookmarkId && !t.pinnedTitanio)
+  const agentTabs = state.tabs.filter((t) => t.agent && !t.pinnedTitanio)
   const liveBookmark = (id: string): (typeof state.tabs)[number] | undefined =>
     state.tabs.find((t) => t.bookmarkId === id)
   const closeOthers = (): void => userTabs.forEach((t) => t.id !== state.activeId && onCloseTab(t.id))
@@ -203,6 +204,11 @@ export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBo
           <span className="truncate">Ventana de incógnito</span>
         </div>
       )}
+
+      <div className="shrink-0">
+        <SectionLabel label="Titanio" />
+        <PinnedTitanio tab={state.tabs.find((t) => t.pinnedTitanio)} activeId={state.activeId} favicon={state.titanioFavicon} onClose={onCloseTab} />
+      </div>
 
       {bookmarks.length > 0 && (
         <div
@@ -283,7 +289,7 @@ export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBo
             <img src={titanioLogo} alt="" />
             <span>Agent tabs</span>
           </div>
-          <div className="flex flex-col gap-px pb-px max-h-[40vh] overflow-y-auto [&::-webkit-scrollbar]:w-0">
+          <div className="flex flex-col gap-0.5 pb-px max-h-[40vh] overflow-y-auto [&::-webkit-scrollbar]:w-0">
             {agentTabs.map((t) => (
               <TabRow key={t.id} tab={t} active={t.id === state.activeId} onSelect={onSelectTab} onClose={onCloseTab} />
             ))}

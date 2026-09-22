@@ -11,6 +11,7 @@ import IconDots from '~icons/tabler/dots'
 import logo from '@renderer/assets/iso-white.svg'
 import SkillIcon from './SkillIcon'
 import { MD_COMPONENTS } from './markdown'
+import { SettingsHeader, SettingsContent } from './ui'
 
 const { titanioTab } = window
 
@@ -123,17 +124,15 @@ export default function SkillsSection(): JSX.Element {
       {/* Detalle */}
       <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-0">
         {detail ? (
-          <div className="px-8 py-6">
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3 min-w-0">
-                <SkillIcon skill={detail} size="md" />
-                <h1 className="text-[20px] font-semibold tracking-tight truncate">{detail.name}</h1>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
+          <SettingsContent>
+            <SettingsHeader
+              title={detail.name}
+              icon={<SkillIcon skill={detail} size="md" />}
+              actions={<>
                 <Toggle on={detail.enabled} onChange={(v) => toggle(detail.id, v)} />
                 <button className="w-7 h-7 grid place-items-center rounded-md text-text-faint hover:text-text hover:bg-white/[0.06] [&>svg]:w-[18px] [&>svg]:h-[18px]"><IconDots /></button>
-              </div>
-            </div>
+              </>}
+            />
 
             {/* Meta */}
             <div className="flex gap-16 mt-5">
@@ -166,7 +165,7 @@ export default function SkillsSection(): JSX.Element {
 
             <div className="h-px bg-white/[0.06] my-6" />
             <ReactMarkdown remarkPlugins={[remarkGfm]} components={MD_COMPONENTS}>{detail.body}</ReactMarkdown>
-          </div>
+          </SettingsContent>
         ) : (
           <div className="h-full grid place-items-center text-text-faint text-[14px]">Selecciona una skill.</div>
         )}

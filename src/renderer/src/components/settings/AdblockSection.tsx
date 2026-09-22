@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type JSX } from 'react'
 import type { AdblockInfo } from '@shared/types'
 import IconShield from '~icons/tabler/shield-check'
 import IconTrash from '~icons/tabler/trash'
-import { Card, Group, Row, Toggle } from './ui'
+import { Card, Group, Row, Toggle, SettingsHeader } from './ui'
 
 const { titanioTab } = window
 
@@ -24,7 +24,7 @@ export default function AdblockSection(): JSX.Element {
       setError('')
     } catch (e) {
       console.error('[adblock] no se pudo leer el estado:', e)
-      setError('No se pudo leer el estado. Reinicia Titanio: los cambios en el preload necesitan reiniciar la app, no solo recargar.')
+      setError('No se pudo cargar el bloqueador. Reinicia Titanio e inténtalo de nuevo.')
     }
   }, [])
   useEffect(() => { void leer() }, [leer])
@@ -54,10 +54,7 @@ export default function AdblockSection(): JSX.Element {
 
   return (
     <>
-      <h1 className="text-[30px] font-semibold tracking-tight mb-3">Adblocker</h1>
-      <p className="text-[13.5px] text-text-dim leading-relaxed mb-7">
-        Bloquea anuncios y rastreadores antes de que salgan de tu máquina.
-      </p>
+      <SettingsHeader title="Adblocker" description="Bloquea anuncios y rastreadores en las páginas que visitas." />
 
       {error && (
         <div className="mb-6 px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[13px] text-amber-300 leading-relaxed">
@@ -77,8 +74,8 @@ export default function AdblockSection(): JSX.Element {
                 {estado && !estado.ready
                   ? 'Cargando las listas de filtros…'
                   : on
-                    ? 'Activo en todas las pestañas, y también cuando el agente navega por su cuenta.'
-                    : 'Apagado. Las páginas cargan con su publicidad y sus rastreadores.'}
+                    ? 'Activo en tus pestañas y en las del agente.'
+                    : 'Desactivado.'}
               </div>
             </div>
             <div className="mt-0.5">
@@ -87,8 +84,7 @@ export default function AdblockSection(): JSX.Element {
           </div>
 
           <div className="px-4 py-3.5 text-[12.5px] text-text-dim leading-relaxed">
-            Si un sitio se rompe, desactívalo solo ahí desde el candado de la barra de
-            direcciones.
+            Si una página no funciona, desactiva el bloqueo para ese sitio desde la barra de direcciones.
           </div>
         </Card>
       </Group>

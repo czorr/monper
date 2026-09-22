@@ -14,6 +14,7 @@ import IconMail from '~icons/tabler/mail'
 import IconSearch from '~icons/tabler/search'
 import IconPlus from '~icons/tabler/plus'
 import IconTrash from '~icons/tabler/trash'
+import { SettingsHeader } from './ui'
 
 const { titanioTab } = window
 
@@ -44,20 +45,21 @@ export default function QuickActionsSection(): JSX.Element {
 
   return (
     <>
-      <div className="flex items-center justify-between mb-9">
-        <h1 className="text-[30px] font-semibold tracking-tight">Quick actions</h1>
+      <SettingsHeader
+        title="Quick actions"
+        description={<>
+          Estas acciones aparecen al seleccionar texto en una página.
+          Usa <code className="px-1 py-0.5 rounded bg-white/[0.08] text-[12.5px]">{'{{selection}}'}</code> para incluirlo en las instrucciones del agente.
+        </>}
+        actions={
         <button
           onClick={() => setEditing({ ...BLANK })}
           className="flex items-center gap-1.5 px-3.5 h-9 rounded-lg bg-white/[0.08] hover:bg-white/[0.13] text-[13.5px] [&>svg]:w-4 [&>svg]:h-4"
         >
           <IconPlus /> Nueva
         </button>
-      </div>
-
-      <p className="text-[13.5px] text-text-dim mb-6 leading-relaxed">
-        Al seleccionar texto en una página, aparece un icono con estas acciones. Cada una es una
-        plantilla de prompt para el agente; usa <code className="px-1 py-0.5 rounded bg-white/[0.08] text-[12.5px]">{'{{selection}}'}</code> donde quieras insertar el texto seleccionado.
-      </p>
+        }
+      />
 
       <div className="flex flex-col gap-1.5 mb-8">
         {list.map((a) => (
@@ -70,7 +72,7 @@ export default function QuickActionsSection(): JSX.Element {
             <button onClick={() => remove(a.id)} title="Eliminar" className="w-8 h-8 grid place-items-center rounded-lg text-text-faint hover:text-red-400 hover:bg-white/[0.08] opacity-0 group-hover:opacity-100 [&>svg]:w-4 [&>svg]:h-4"><IconTrash /></button>
           </div>
         ))}
-        {list.length === 0 && <div className="text-[13.5px] text-text-faint py-6 text-center">Sin acciones. Crea una con "Nueva".</div>}
+        {list.length === 0 && <div className="text-[13.5px] text-text-faint py-6 text-center">No hay acciones guardadas.</div>}
       </div>
 
       {editing && (
@@ -78,7 +80,7 @@ export default function QuickActionsSection(): JSX.Element {
           <input
             value={editing.name}
             onChange={(e) => setEditing({ ...editing, name: e.target.value })}
-            placeholder="Nombre (p. ej. Summarize)"
+            placeholder="Nombre (por ejemplo, Resumir)"
             className="w-full h-10 px-3.5 rounded-xl bg-white/[0.04] border border-white/[0.08] text-[14px] outline-none focus:border-white/25 placeholder:text-text-faint"
           />
           <div className="flex flex-wrap gap-1.5">
@@ -96,7 +98,7 @@ export default function QuickActionsSection(): JSX.Element {
             value={editing.template}
             onChange={(e) => setEditing({ ...editing, template: e.target.value })}
             rows={4}
-            placeholder="Plantilla del prompt… usa {{selection}}"
+            placeholder="Instrucciones para el agente. Usa {{selection}} para incluir el texto."
             className="w-full px-3.5 py-3 rounded-xl bg-white/[0.04] border border-white/[0.08] text-[13.5px] leading-relaxed outline-none focus:border-white/25 resize-none placeholder:text-text-faint"
           />
           <div className="flex items-center gap-2">

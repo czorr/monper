@@ -7,7 +7,7 @@ import IconArchiveOff from '~icons/tabler/archive-off'
 import IconPencil from '~icons/tabler/pencil'
 import IconTrash from '~icons/tabler/trash'
 import IconArrowBack from '~icons/tabler/arrow-back-up'
-import { Card } from './ui'
+import { Card, SettingsHeader } from './ui'
 
 const { titanioTab } = window
 
@@ -118,7 +118,7 @@ export default function ArchivedChatsSection(): JSX.Element {
       setError('')
     } catch (e) {
       console.error('[chats] no se pudo leer el historial:', e)
-      setError('No se pudo leer el historial. Reinicia Titanio: los cambios en el preload necesitan reiniciar la app, no solo recargar.')
+      setError('No se pudieron cargar las conversaciones. Reinicia Titanio e inténtalo de nuevo.')
     }
   }, [])
   useEffect(() => { void buscar(q, verArchivadas) }, [buscar, q, verArchivadas])
@@ -128,15 +128,11 @@ export default function ArchivedChatsSection(): JSX.Element {
 
   return (
     <div>
-      <div className="flex items-center justify-between gap-4 mb-5">
-        <div>
-          <h1 className="text-[22px] font-semibold tracking-tight">Chats</h1>
-          <p className="text-[13px] text-text-dim mt-1">
-            Todo lo que has hablado con el agente. Se guarda en tu máquina y no sale de ahí.
-          </p>
-        </div>
-        <span className="text-[13px] text-text-faint tabular-nums shrink-0">{lista.length}</span>
-      </div>
+      <SettingsHeader
+        title="Chats"
+        description="Busca, retoma y organiza tus conversaciones."
+        actions={<span className="text-[13px] text-text-faint tabular-nums">{lista.length}</span>}
+      />
 
       {error && <div className="mb-5 text-[12.5px] text-amber-400">{error}</div>}
 
@@ -159,7 +155,7 @@ export default function ArchivedChatsSection(): JSX.Element {
         <div className="py-16 flex flex-col items-center gap-2 text-center">
           <IconMessage className="w-6 h-6 text-text-faint" />
           <div className="text-[13.5px] text-text-dim">
-            {q.trim() ? `Nada coincide con “${q.trim()}”` : 'Todavía no has hablado con el agente'}
+            {q.trim() ? `No hay resultados para “${q.trim()}”` : 'No hay conversaciones guardadas'}
           </div>
         </div>
       )}
@@ -176,8 +172,8 @@ export default function ArchivedChatsSection(): JSX.Element {
           <h2 className="text-[13px] font-medium text-text-faint mb-3">Archivadas</h2>
           <Card>{archivadas.map((s) => <Fila key={s.id} s={s} onLista={setLista} />)}</Card>
           <p className="text-[12.5px] text-text-faint mt-3 leading-relaxed">
-            Las archivadas no salen en el desplegable del chat y no se borran solas: el historial
-            se queda con las 200 más recientes, pero nunca a costa de una archivada.
+            El historial conserva las 200 conversaciones más recientes. Las archivadas quedan
+            fuera de ese límite y no aparecen en el menú del chat.
           </p>
         </section>
       )}

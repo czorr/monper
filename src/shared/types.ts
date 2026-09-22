@@ -1,6 +1,7 @@
 import type { VaultItemMeta, VaultItemType } from './vault'
 
 export interface TabInfo {
+  pinnedTitanio?: boolean
   id: number
   url: string
   title: string
@@ -294,6 +295,7 @@ export interface Suggestion {
 }
 
 export interface BrowserState {
+  titanioFavicon?: string | null
   activeId: number | null
   tabs: TabInfo[]
   active: ActiveInfo | null
@@ -540,6 +542,7 @@ export type MenuActionName =
 export interface TitanioApi {
   platform: NodeJS.Platform
   newTab: () => void
+  openTitanioTab: () => void
   closeTab: (id: number) => void
   selectTab: (id: number) => void
   reorderTabs: (ids: number[]) => void

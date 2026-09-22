@@ -10,6 +10,7 @@ function sub(channel: string, cb: (...a: unknown[]) => void): () => void {
 const api: TitanioApi = {
   platform: process.platform,
   newTab: () => ipcRenderer.invoke('tabs:new'),
+  openTitanioTab: () => ipcRenderer.invoke('tabs:titanio'),
   closeTab: (id) => ipcRenderer.invoke('tabs:close', id),
   selectTab: (id) => ipcRenderer.invoke('tabs:select', id),
   reorderTabs: (ids: number[]) => ipcRenderer.send('tabs:reorder', ids),

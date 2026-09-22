@@ -9,7 +9,7 @@ import IconLock from '~icons/tabler/lock-check'
 import IconWorld from '~icons/tabler/world'
 import IconSearch from '~icons/tabler/search'
 import IconChevron from '~icons/tabler/chevron-down'
-import { Card, Group, Toggle } from './ui'
+import { Card, Group, Toggle, SettingsHeader } from './ui'
 
 const { titanioTab } = window
 
@@ -129,7 +129,7 @@ export default function PermissionsSection(): JSX.Element {
     } catch (e) {
       console.error('[permisos] no se pudo leer la lista:', e)
       setSites([])
-      setError('No se pudieron leer los permisos. Reinicia Titanio: los cambios en el preload necesitan reiniciar la app, no solo recargar.')
+      setError('No se pudieron cargar los permisos. Reinicia Titanio e inténtalo de nuevo.')
     }
   }, [])
 
@@ -163,10 +163,7 @@ export default function PermissionsSection(): JSX.Element {
 
   return (
     <>
-      <h1 className="text-[30px] font-semibold tracking-tight mb-3">Permissions</h1>
-      <p className="text-[13.5px] text-text-dim leading-relaxed mb-7">
-        Los sitios sobre los que ya has decidido algo. Al olvidarlos, volverán a preguntarte.
-      </p>
+      <SettingsHeader title="Permissions" description="Administra el acceso de los sitios a la cámara, el micrófono y otros permisos." />
 
       {error && (
         <div className="mb-6 px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[13px] text-amber-300 leading-relaxed">
@@ -194,7 +191,7 @@ export default function PermissionsSection(): JSX.Element {
           {sites?.length === 0 && !error && (
             <div className="px-4 py-8 flex flex-col items-center gap-2 text-center">
               <IconLock className="w-6 h-6 text-text-faint" />
-              <div className="text-[13.5px] text-text-dim">Ningún sitio te ha pedido permisos todavía</div>
+              <div className="text-[13.5px] text-text-dim">No hay permisos guardados</div>
               <div className="text-[12.5px] text-text-faint max-w-[380px] leading-relaxed">
                 Cuando una página pida la cámara, el micrófono o tu ubicación, tu respuesta
                 aparecerá aquí.
@@ -229,7 +226,7 @@ export default function PermissionsSection(): JSX.Element {
               <div className="flex-1 min-w-0">
                 <div className="text-[14px] text-text leading-tight">Olvidar todos los permisos</div>
                 <div className="text-[12.5px] text-text-dim mt-0.5">
-                  {sites!.length} {sites!.length === 1 ? 'sitio' : 'sitios'} volverán a preguntarte
+                  {sites!.length} {sites!.length === 1 ? 'sitio volverá' : 'sitios volverán'} a pedir permiso
                 </div>
               </div>
               <button
@@ -243,20 +240,6 @@ export default function PermissionsSection(): JSX.Element {
         </Group>
       )}
 
-      {/* Lo que esta sección va a ser y todavía no es. Se dice, no se insinúa con un control
-          que no hace nada: ver el comentario de GeneralPage. */}
-      <Group title="Del agente · Pronto">
-        <Card>
-          <div className="p-5 flex flex-col gap-3">
-            {['Acciones que el agente debe confirmar antes de hacer', 'Sitios donde el agente no puede entrar'].map((b) => (
-              <div key={b} className="flex items-start gap-3 text-[13.5px] text-text-dim">
-                <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-white/25 shrink-0" />
-                {b}
-              </div>
-            ))}
-          </div>
-        </Card>
-      </Group>
     </>
   )
 }

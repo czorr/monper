@@ -30,7 +30,7 @@ export default function BookmarkRow({ bookmark, onOpen }: Props): JSX.Element {
       <button
         onClick={() => onOpen(bookmark.id)}
         title={bookmark.url}
-        className="flex items-center gap-2.5 w-full py-1 px-2 rounded-lg border border-transparent text-text/75 text-left text-[14.5px] min-h-[29px] hover:bg-bg-hover hover:text-text"
+        className="flex items-center gap-2.5 w-full py-1 px-2 rounded-xl [corner-shape:superellipse(1.5)] border border-transparent text-text/75 text-left text-[14.5px] min-h-[29px] hover:bg-bg-hover hover:text-text"
       >
         {broken || !faviconUrl(bookmark) ? (
           <IconWorld className="w-[17px] h-[17px] shrink-0 opacity-70" />

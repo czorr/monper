@@ -54,7 +54,7 @@ export default function TabList({ tabs, activeId, onSelect, onClose, onReorder, 
   }
 
   return (
-    <div ref={lista} className="flex-1 overflow-y-auto flex flex-col gap-px mt-px pb-px [&::-webkit-scrollbar]:w-0">
+    <div ref={lista} className="flex-1 overflow-y-auto flex flex-col gap-0.5 mt-0.5 pb-px [&::-webkit-scrollbar]:w-0">
       {tabs.map((t) => (
         <div
           key={t.id}
@@ -69,7 +69,7 @@ export default function TabList({ tabs, activeId, onSelect, onClose, onReorder, 
           }}
           onDrop={() => drop(t.id)}
           className={
-            'rounded-lg ' +
+            'rounded-xl [corner-shape:superellipse(1.5)] ' +
             (dragId === t.id ? 'opacity-40 ' : '') +
             (overId === t.id && dragId != null && dragId !== t.id ? 'shadow-[inset_0_2px_0_0_rgba(255,255,255,0.4)] ' : '')
           }

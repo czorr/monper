@@ -1,5 +1,32 @@
 import type { JSX, ReactNode } from 'react'
 
+interface SettingsHeaderProps {
+  title: string
+  description?: ReactNode
+  icon?: ReactNode
+  actions?: ReactNode
+}
+
+export function SettingsHeader({ title, description, icon, actions }: SettingsHeaderProps): JSX.Element {
+  return (
+    <header className="mb-9">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+        <div className="flex flex-1 items-center gap-3 min-w-0">
+          {icon && <span className="shrink-0">{icon}</span>}
+          <h1 className="text-[30px] leading-9 font-semibold tracking-tight break-words min-w-0">{title}</h1>
+        </div>
+        {actions && <div className="flex items-center gap-3 shrink-0">{actions}</div>}
+      </div>
+      {description && <p className="mt-3 text-[13.5px] leading-relaxed text-text-dim">{description}</p>}
+    </header>
+  )
+}
+
+/** El mismo margen de entrada, también en las secciones con navegación propia. */
+export function SettingsContent({ children }: { children: ReactNode }): JSX.Element {
+  return <div className="max-w-[680px] mx-auto px-8 py-12">{children}</div>
+}
+
 export function Card({ children }: { children: ReactNode }): JSX.Element {
   return (
     <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] divide-y divide-white/[0.05] overflow-hidden">

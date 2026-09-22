@@ -15,15 +15,15 @@ import IconLock from '~icons/tabler/lock'
 import IconShieldLock from '~icons/tabler/shield-lock'
 import IconAlert from '~icons/tabler/alert-triangle'
 import IconPlus from '~icons/tabler/plus'
-import { Card, Group } from './ui'
+import { Card, Group, SettingsHeader } from './ui'
 
 const { titanioTab } = window
 
 const GRUPOS: { type: VaultItemType; title: string; vacio: string; Icon: typeof IconWorld }[] = [
   { type: 'web-credential', title: 'Sitios web', vacio: 'Cuando inicies sesión en un sitio, Titanio te ofrecerá guardarlo.', Icon: IconWorld },
   { type: 'ai-key', title: 'API keys de IA', vacio: 'Se guardan solas al conectar un proveedor en la sección AI.', Icon: IconSparkles },
-  { type: 'service-token', title: 'Tokens de servicio', vacio: 'Los usan las herramientas del agente y los servidores MCP.', Icon: IconPlug },
-  { type: 'secret', title: 'Otros secretos', vacio: 'Cualquier valor que quieras guardar cifrado.', Icon: IconLock }
+  { type: 'service-token', title: 'Tokens de servicio', vacio: 'No hay tokens guardados.', Icon: IconPlug },
+  { type: 'secret', title: 'Otros secretos', vacio: 'No hay otros secretos guardados.', Icon: IconLock }
 ]
 
 /** Lo que identifica al ítem debajo de su nombre. Cada tipo lo tiene en un sitio distinto. */
@@ -102,7 +102,7 @@ function Fila({ item, favicon, onCambio }: { item: VaultItemMeta; favicon?: stri
   const guardar = async (): Promise<void> => {
     const l = label.trim()
     if (guardando) return
-    if (!l) { setError('Ponle un nombre para poder encontrarlo.'); return }
+    if (!l) { setError('Introduce un nombre.'); return }
     const patch: { label: string; data?: Record<string, string>; secret?: string } = { label: l }
     if (item.type === 'web-credential') {
       const origin = normalizeCredentialOrigin(sitio)
@@ -254,13 +254,13 @@ function Alta({ onHecho, onCancelar }: { onHecho: (l: VaultItemMeta[]) => void; 
   const campo = 'w-full h-9 px-3 rounded-lg bg-white/[0.05] border border-white/[0.10] text-[13.5px] text-text outline-none focus:border-white/30 select-text'
 
   const guardar = async (): Promise<void> => {
-    if (!secreto) { setError('Falta la contraseña.'); return }
+    if (!secreto) { setError(type === 'web-credential' ? 'Introduce la contraseña.' : 'Introduce el valor que quieres guardar.'); return }
     const data: Record<string, string> = {}
     let nombre = label.trim()
 
     if (type === 'web-credential') {
       const origin = normalizeCredentialOrigin(sitio)
-      if (!origin) { setError('Ese sitio no se entiende. Escribe algo como github.com'); return }
+      if (!origin) { setError('Introduce un sitio válido, por ejemplo, github.com.'); return }
       data.origin = origin
       data.username = usuario.trim()
       // El nombre por defecto es el dominio: obligar a escribirlo cuando ya lo has puesto en
@@ -271,7 +271,7 @@ function Alta({ onHecho, onCancelar }: { onHecho: (l: VaultItemMeta[]) => void; 
     } else if (type === 'service-token') {
       data.service = nombre || 'Servicio'
     }
-    if (!nombre) { setError('Ponle un nombre para poder encontrarlo.'); return }
+    if (!nombre) { setError('Introduce un nombre.'); return }
 
     try {
       onHecho(await titanioTab.vaultAdd(type, nombre, data, secreto))
@@ -358,7 +358,7 @@ export default function PasswordSection(): JSX.Element {
       setError('')
     } catch (e) {
       console.error('[vault] no se pudo leer:', e)
-      setError('No se pudo leer el vault. Reinicia Titanio: los cambios en el preload necesitan reiniciar la app, no solo recargar.')
+      setError('No se pudo cargar el vault. Reinicia Titanio e inténtalo de nuevo.')
     }
   }, [])
   // Se escucha además de leer: se puede guardar una credencial desde otra pestaña mientras
@@ -377,14 +377,10 @@ export default function PasswordSection(): JSX.Element {
 
   return (
     <div>
-      <div className="flex items-center justify-between gap-4 mb-5">
-        <div>
-          <h1 className="text-[22px] font-semibold tracking-tight">Password</h1>
-          <p className="text-[13px] text-text-dim mt-1">
-            Todo va cifrado con el llavero del sistema. El agente puede rellenar tus datos sin llegar a verlos.
-          </p>
-        </div>
-        <div className="flex items-center gap-3 shrink-0">
+      <SettingsHeader
+        title="Password"
+        description="Contraseñas, claves y tokens guardados con el cifrado del sistema."
+        actions={<>
           <button
             onClick={() => setAnadiendo((v) => !v)}
             disabled={!disponible}
@@ -393,8 +389,8 @@ export default function PasswordSection(): JSX.Element {
             <IconPlus /> Añadir
           </button>
           <span className="text-[13px] text-text-faint tabular-nums">{items.length}</span>
-        </div>
-      </div>
+        </>}
+      />
 
       {anadiendo && <Alta onHecho={setItems} onCancelar={() => setAnadiendo(false)} />}
 
@@ -402,8 +398,7 @@ export default function PasswordSection(): JSX.Element {
         <div className="mb-5 rounded-xl border border-amber-400/25 bg-amber-400/[0.06] px-3.5 py-3 flex items-start gap-2.5">
           <IconAlert className="w-[17px] h-[17px] text-amber-400 shrink-0 mt-px" />
           <div className="text-[13px] text-text-dim">
-            El llavero del sistema no está disponible, así que <span className="text-text">no se puede guardar nada</span>.
-            Titanio prefiere no guardar a guardar en claro.
+            El llavero del sistema no está disponible. No se pueden guardar secretos.
           </div>
         </div>
       )}
@@ -440,7 +435,7 @@ export default function PasswordSection(): JSX.Element {
       })}
 
       <p className="text-[12.5px] text-text-faint leading-relaxed">
-        ¿Vienes de otro navegador? Trae tus contraseñas desde <span className="text-text-dim">General → Importar</span>.
+        Importa contraseñas de otro navegador desde <span className="text-text-dim">General → Importar</span>.
       </p>
     </div>
   )

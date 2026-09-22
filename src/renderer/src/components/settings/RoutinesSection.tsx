@@ -4,6 +4,7 @@ import IconPlus from '~icons/tabler/plus'
 import IconTrash from '~icons/tabler/trash'
 import IconRefresh from '~icons/tabler/refresh'
 import IconAlert from '~icons/tabler/alert-triangle'
+import { SettingsHeader } from './ui'
 
 const { titanioTab } = window
 
@@ -90,9 +91,10 @@ export default function RoutinesSection(): JSX.Element {
 
   return (
     <>
-      <div className="flex items-center justify-between mb-3">
-        <h1 className="text-[30px] font-semibold tracking-tight">Rutinas</h1>
-        {!creating && (
+      <SettingsHeader
+        title="Rutinas"
+        description="Programa revisiones de una página y recibe un aviso cuando se cumpla tu condición. Titanio usa tu sesión iniciada."
+        actions={!creating && (
           <button
             onClick={() => setCreating(true)}
             className="flex items-center gap-1.5 px-3.5 h-9 rounded-lg bg-white/[0.08] hover:bg-white/[0.13] text-[13.5px] [&>svg]:w-4 [&>svg]:h-4"
@@ -100,11 +102,7 @@ export default function RoutinesSection(): JSX.Element {
             <IconPlus /> Nueva
           </button>
         )}
-      </div>
-      <p className="text-[13.5px] text-text-dim leading-relaxed mb-7">
-        Titanio revisa una página cada cierto tiempo y te avisa cuando pasa lo que le pidas.
-        Usa tu sesión iniciada, así que funciona también en páginas privadas.
-      </p>
+      />
 
       {creating && (
         <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 flex flex-col gap-3 mb-6">
@@ -146,7 +144,7 @@ export default function RoutinesSection(): JSX.Element {
         {list.map((r) => <Row key={r.id} r={r} />)}
         {list.length === 0 && !creating && (
           <div className="text-[13.5px] text-text-faint py-10 text-center">
-            Aún no tienes rutinas. Crea una con “Nueva”.
+            No hay rutinas guardadas.
           </div>
         )}
       </div>

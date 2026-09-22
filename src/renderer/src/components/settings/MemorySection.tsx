@@ -9,6 +9,7 @@ import IconChevron from '~icons/tabler/chevron-down'
 import IconSettings from '~icons/tabler/settings'
 import IconTrash from '~icons/tabler/trash'
 import { MD_COMPONENTS } from './markdown'
+import { SettingsHeader, SettingsContent } from './ui'
 
 const { titanioTab } = window
 
@@ -159,13 +160,8 @@ export default function MemorySection(): JSX.Element {
       {/* Contenido */}
       <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-0">
         {!sel ? (
-          <div className="px-8 py-10 max-w-[760px]">
-            <h1 className="text-[26px] font-semibold tracking-[-0.4px]">Memory</h1>
-            <p className="mt-2 text-[13.5px] text-text-dim leading-relaxed">
-              Lo que Titanio recuerda entre sesiones. Son ficheros markdown que escribe el propio
-              agente; puedes leerlos y editarlos aquí, o abrirlos en tu carpeta con el editor que
-              quieras.
-            </p>
+          <SettingsContent>
+            <SettingsHeader title="Memory" description="Consulta y edita las notas que el agente guarda entre sesiones." />
 
             <h2 className="mt-9 mb-3 text-[15px] font-semibold">Ajustes</h2>
             <div className="rounded-2xl border border-border overflow-hidden">
@@ -173,7 +169,7 @@ export default function MemorySection(): JSX.Element {
                 <div className="flex-1 min-w-0">
                   <div className="text-[13.5px] text-text">Activar memoria</div>
                   <div className="text-[12.5px] text-text-dim">
-                    El agente guarda y consulta lo que aprende. Apagada, no lee ni escribe nada.
+                    Permite que el agente guarde y consulte estas notas.
                   </div>
                 </div>
                 <Toggle on={enabled} onChange={(v) => { void titanioTab.memoryEnabled(v).then(setEnabled) }} />
@@ -181,16 +177,13 @@ export default function MemorySection(): JSX.Element {
             </div>
 
             <p className="mt-4 text-[12.5px] text-text-faint leading-relaxed">
-              Solo <code className="px-1 py-0.5 rounded bg-white/[0.07] text-[12px]">MEMORY.md</code> entra
-              en cada mensaje: es el índice. Los demás ficheros los abre el agente cuando los necesita.
+              El agente recibe <code className="px-1 py-0.5 rounded bg-white/[0.07] text-[12px]">MEMORY.md</code> con
+              cada mensaje y consulta las demás notas cuando las necesita.
             </p>
-          </div>
+          </SettingsContent>
         ) : (
-          <div className="px-8 py-6">
-            <div className="flex items-center justify-between gap-4 mb-5">
-              <h1 className="text-[20px] font-semibold tracking-tight truncate">{sel}</h1>
-              <div className="flex items-center gap-2 shrink-0">
-                {editando ? (
+          <SettingsContent>
+            <SettingsHeader title={sel} actions={editando ? (
                   <>
                     <button onClick={() => setEditando(false)} className="px-3 h-8 rounded-lg text-[13px] text-text-dim hover:text-text hover:bg-white/[0.06]">Cancelar</button>
                     <button onClick={() => void guardar()} className="px-3 h-8 rounded-lg text-[13px] text-text bg-white/[0.10] hover:bg-white/[0.16]">Guardar</button>
@@ -203,8 +196,7 @@ export default function MemorySection(): JSX.Element {
                     Editar
                   </button>
                 )}
-              </div>
-            </div>
+            />
 
             {editando ? (
               <textarea
@@ -221,7 +213,7 @@ export default function MemorySection(): JSX.Element {
                 <ReactMarkdown remarkPlugins={[remarkGfm]} components={MD_COMPONENTS}>{texto}</ReactMarkdown>
               </div>
             )}
-          </div>
+          </SettingsContent>
         )}
       </div>
     </div>

@@ -42,7 +42,7 @@ export default function ProvidersSection(): JSX.Element {
             </button>
             <button
               onClick={() => activate(p.id)}
-              title={p.active ? 'Activo' : 'Usar este'}
+              title={p.active ? 'Proveedor activo' : 'Usar este proveedor'}
               className={'w-[18px] h-[18px] rounded-full border shrink-0 grid place-items-center transition-colors ' + (p.active ? 'border-white' : 'border-white/25 hover:border-white/50')}
             >
               {p.active && <span className="w-[9px] h-[9px] rounded-full bg-white" />}
@@ -111,7 +111,7 @@ function ConnectForm({ onDone }: { onDone: (next: ProviderInfo[]) => void }): JS
         <div>
           <input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="https://api.openai.com/v1" className={field} />
           <p className="mt-1.5 px-1 text-[12px] text-text-faint">
-            Déjalo vacío para OpenAI. Rellénalo solo si usas otro servicio compatible (OpenRouter, Groq, un modelo local…).
+            Opcional para OpenAI. Para otros servicios compatibles, introduce su URL de API.
           </p>
         </div>
       )}

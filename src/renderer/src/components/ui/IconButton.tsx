@@ -7,7 +7,7 @@ interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const base =
-  'grid place-items-center rounded-lg transition-colors text-text-dim ' +
+  'grid place-items-center rounded-xl [corner-shape:superellipse(1.5)] transition-colors text-text-dim ' +
   'hover:bg-bg-hover hover:text-text disabled:opacity-30 disabled:bg-transparent ' +
   '[-webkit-app-region:no-drag]'
 

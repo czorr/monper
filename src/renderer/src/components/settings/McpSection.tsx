@@ -4,7 +4,7 @@ import IconPlug from '~icons/tabler/plug'
 import IconRefresh from '~icons/tabler/refresh'
 import IconCopy from '~icons/tabler/copy'
 import IconCheck from '~icons/tabler/check'
-import { Card, Group, Toggle } from './ui'
+import { Card, Group, Toggle, SettingsHeader } from './ui'
 
 const { titanioTab } = window
 
@@ -25,10 +25,10 @@ const CONFIG = JSON.stringify({ mcpServers: { titanio: { command: 'npx', args: [
 const HERRAMIENTAS: { nombre: string; que: string }[] = [
   { nombre: 'open_page', que: 'Abre una URL con tu sesión, en segundo plano' },
   { nombre: 'read_page', que: 'Texto legible, sin menús ni pies de página' },
-  { nombre: 'list_tabs', que: 'Qué tienes abierto' },
+  { nombre: 'list_tabs', que: 'Lista las pestañas abiertas' },
   { nombre: 'click', que: 'Pulsa por texto visible' },
   { nombre: 'fill', que: 'Escribe en un campo (nunca en uno de contraseña)' },
-  { nombre: 'screenshot', que: 'Captura, cuando importa el diseño' }
+  { nombre: 'screenshot', que: 'Captura la página' }
 ]
 
 function Copiar({ texto }: { texto: string }): JSX.Element {
@@ -81,7 +81,7 @@ export default function McpSection(): JSX.Element {
       setError('')
     } catch (e) {
       console.error('[mcp] no se pudo leer el estado:', e)
-      setError('No se pudo leer el estado. Reinicia Titanio: los cambios en el preload necesitan reiniciar la app, no solo recargar.')
+      setError('No se pudo cargar el estado de MCP. Reinicia Titanio e inténtalo de nuevo.')
     }
   }, [])
   useEffect(() => { void leer() }, [leer])
@@ -101,10 +101,7 @@ export default function McpSection(): JSX.Element {
 
   return (
     <>
-      <h1 className="text-[30px] font-semibold tracking-tight mb-3">MCPs</h1>
-      <p className="text-[13.5px] text-text-dim leading-relaxed mb-7">
-        Conecta Titanio con otras IAs y con herramientas externas.
-      </p>
+      <SettingsHeader title="MCPs" description="Conecta Titanio con otras IAs y con herramientas externas." />
 
       {error && (
         <div className="mb-6 px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[13px] text-amber-300 leading-relaxed">
@@ -112,15 +109,15 @@ export default function McpSection(): JSX.Element {
         </div>
       )}
 
-      <Group title="Puente">
+      <Group title="Acceso desde otras aplicaciones">
         <Card>
           <div className="flex items-start gap-3.5 px-4 py-4">
             <div className="flex-1 min-w-0">
-              <div className="text-[14px] text-text leading-tight">Servir Titanio por MCP</div>
+              <div className="text-[14px] text-text leading-tight">Activar servidor MCP</div>
               <div className="text-[12.5px] text-text-dim mt-1 leading-relaxed">
                 {on
-                  ? <>Escuchando en <span className="tabular-nums">127.0.0.1:{estado?.port}</span>. Solo tu máquina, con token.</>
-                  : 'Apagado. Se enciende a mano y no sobrevive al cierre de Titanio.'}
+                  ? <>Conexión local en <span className="tabular-nums">127.0.0.1:{estado?.port}</span>, protegida con un token.</>
+                  : 'Desactivado. Debes activarlo cada vez que abres Titanio.'}
               </div>
             </div>
             <div className="mt-0.5">
@@ -134,9 +131,8 @@ export default function McpSection(): JSX.Element {
             y esa frase es la diferencia entre una decisión y un descuido.
           */}
           <div className="px-4 py-3.5 text-[12.5px] text-text-dim leading-relaxed">
-            Un cliente autorizado podrá abrir páginas y actuar en los sitios donde tengas la
-            sesión abierta. Te preguntaremos la primera vez que lo intente.
-            <strong className="text-text"> Nunca</strong> accede a tus contraseñas.
+            Los clientes autorizados pueden abrir páginas e interactuar con tus sesiones iniciadas.
+            Titanio pide permiso en la primera conexión.
           </div>
         </Card>
       </Group>
@@ -172,7 +168,7 @@ export default function McpSection(): JSX.Element {
               </button>
               <button
                 onClick={async () => { setServidores(await titanioTab.probeMcpServers()) }}
-                title="Arrancarlos ahora y ver si responden"
+                title="Comprobar conexión"
                 className="h-8 px-3 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] text-[12.5px] text-text-dim hover:text-text transition-colors"
               >
                 Probar
@@ -213,7 +209,7 @@ export default function McpSection(): JSX.Element {
                     ? sv.error
                     : !sv.enabled ? 'desactivado en la configuración'
                       : sv.running ? `${sv.tools} ${sv.tools === 1 ? 'herramienta' : 'herramientas'}`
-                        : 'se lanzará la primera vez que el agente lo necesite'}
+                        : 'se inicia al usarlo'}
                 </div>
               </div>
             </div>
@@ -221,7 +217,7 @@ export default function McpSection(): JSX.Element {
         </Card>
       </Group>
 
-      <Group title="Lo que gana tu IA">
+      <Group title="Herramientas disponibles">
         <Card>
           {HERRAMIENTAS.map((h) => (
             <div key={h.nombre} className="flex items-baseline gap-3 px-4 py-3">

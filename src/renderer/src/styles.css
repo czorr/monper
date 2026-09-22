@@ -1,6 +1,20 @@
 @import '@fontsource-variable/geist';
 @import "tailwindcss";
 
+/* La forma pertenece al componente, no a cada pantalla que lo usa. */
+[data-ui-button="rounded"] {
+  border-radius: 14px;
+  corner-shape: superellipse(1.5);
+}
+[data-ui-button="pill"] {
+  border-radius: 9999px;
+  corner-shape: round;
+}
+[data-ui-button]:focus-visible {
+  outline: 2px solid rgb(255 255 255 / 55%);
+  outline-offset: 2px;
+}
+
 /* Menú del perfil: medidas en puntos (la referencia es una captura Retina a 2×). */
 .profile-menu {
   --color-text: #d9d9dd;

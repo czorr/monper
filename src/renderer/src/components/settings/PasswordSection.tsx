@@ -15,7 +15,7 @@ import IconLock from '~icons/tabler/lock'
 import IconShieldLock from '~icons/tabler/shield-lock'
 import IconAlert from '~icons/tabler/alert-triangle'
 import IconPlus from '~icons/tabler/plus'
-import { Card, Group, SettingsHeader } from './ui'
+import { Card, Group, SettingsHeader, Button } from './ui'
 
 const { titanioTab } = window
 
@@ -171,8 +171,8 @@ function Fila({ item, favicon, onCambio }: { item: VaultItemMeta; favicon?: stri
         <p className="text-xs text-text-faint">Actualiza el valor guardado en Titanio; no cambia la contraseña ni el token en el servicio.</p>
         {error && <p role="alert" className="text-xs text-amber-400">{error}</p>}
         <div className="flex items-center gap-2">
-          <button type="submit" className="h-8 px-3 rounded-lg bg-white/90 text-black text-[12.5px] font-medium hover:bg-white transition-colors disabled:opacity-50">{guardando ? 'Guardando…' : 'Guardar'}</button>
-          <button type="button" onClick={cancelar} className="h-8 px-3 rounded-lg text-[12.5px] text-text-dim hover:text-text transition-colors">Cancelar</button>
+          <Button variant="primary" size="sm" type="submit">{guardando ? 'Guardando…' : 'Guardar'}</Button>
+          <Button variant="ghost" size="sm" onClick={cancelar}>Cancelar</Button>
         </div>
         </fieldset>
       </form>
@@ -207,29 +207,25 @@ function Fila({ item, favicon, onCambio }: { item: VaultItemMeta; favicon?: stri
         // Con la contraseña a la vista los botones NO se esconden: si desaparecieran al apartar
         // el ratón, no habría forma de volver a taparla salvo esperar los 15 s.
         (visible !== null || copiado ? 'opacity-100' : 'opacity-0 group-hover/v:opacity-100')}>
-        <button
+        <Button variant="ghost" size="icon"
           onClick={() => void alternarVer()}
           title={visible !== null ? 'Ocultar' : 'Ver la contraseña (se tapa sola en 15 s)'}
-          className="w-8 h-8 grid place-items-center rounded-lg text-text-faint hover:text-text hover:bg-white/[0.08] transition-colors [&>svg]:w-4 [&>svg]:h-4"
         >
           {visible !== null ? <IconEyeOff /> : <IconEye />}
-        </button>
-        <button
+        </Button>
+        <Button variant={copiado ? 'custom' : 'ghost'} size="icon"
           onClick={() => void copiar()}
           title="Copiar al portapapeles (se borra solo en 30 s)"
-          className={'w-8 h-8 grid place-items-center rounded-lg transition-colors [&>svg]:w-4 [&>svg]:h-4 ' +
-            (copiado ? 'text-emerald-400' : 'text-text-faint hover:text-text hover:bg-white/[0.08]')}
+          className={copiado ? 'text-emerald-400' : ''}
         >
           {copiado ? <IconCheck /> : <IconCopy />}
-        </button>
-        <button onClick={editar} title="Editar"
-          className="w-8 h-8 grid place-items-center rounded-lg text-text-faint hover:text-text hover:bg-white/[0.08] transition-colors [&>svg]:w-4 [&>svg]:h-4">
+        </Button>
+        <Button variant="ghost" size="icon" onClick={editar} title="Editar">
           <IconPencil />
-        </button>
-        <button onClick={() => void borrar()} title="Borrar"
-          className="w-8 h-8 grid place-items-center rounded-lg text-text-faint hover:text-red-400 hover:bg-red-500/15 transition-colors [&>svg]:w-4 [&>svg]:h-4">
+        </Button>
+        <Button variant="danger-ghost" size="icon" onClick={() => void borrar()} title="Borrar">
           <IconTrash />
-        </button>
+        </Button>
       </div>
     </div>
   )
@@ -288,14 +284,14 @@ function Alta({ onHecho, onCancelar }: { onHecho: (l: VaultItemMeta[]) => void; 
         {/* Solo los tipos que tiene sentido crear a mano: las API keys se guardan solas al
             conectar un proveedor, y duplicarlas aquí dejaría dos fuentes de verdad. */}
         {([['web-credential', 'Sitio web'], ['service-token', 'Token'], ['secret', 'Secreto']] as const).map(([t, l]) => (
-          <button
+          <Button
             key={t}
             onClick={() => setType(t)}
             className={'h-7 px-3 rounded-lg text-[12.5px] transition-colors ' +
               (type === t ? 'bg-white/[0.14] text-text' : 'text-text-dim hover:text-text')}
           >
             {l}
-          </button>
+          </Button>
         ))}
       </div>
 
@@ -325,8 +321,8 @@ function Alta({ onHecho, onCancelar }: { onHecho: (l: VaultItemMeta[]) => void; 
       {error && <div className="text-[12.5px] text-amber-400">{error}</div>}
 
       <div className="flex items-center gap-2">
-        <button onClick={() => void guardar()} className="h-8 px-3 rounded-lg bg-white/90 text-black text-[12.5px] font-medium hover:bg-white transition-colors">Guardar</button>
-        <button onClick={onCancelar} className="h-8 px-3 rounded-lg text-[12.5px] text-text-dim hover:text-text transition-colors">Cancelar</button>
+        <Button variant="primary" size="sm" onClick={() => void guardar()}>Guardar</Button>
+        <Button variant="ghost" size="sm" onClick={onCancelar}>Cancelar</Button>
       </div>
     </div>
   )
@@ -381,13 +377,12 @@ export default function PasswordSection(): JSX.Element {
         title="Password"
         description="Contraseñas, claves y tokens guardados con el cifrado del sistema."
         actions={<>
-          <button
+          <Button variant="secondary" size="sm"
             onClick={() => setAnadiendo((v) => !v)}
             disabled={!disponible}
-            className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] disabled:opacity-40 disabled:hover:bg-white/[0.06] text-[12.5px] text-text transition-colors [&>svg]:w-4 [&>svg]:h-4 [&>svg]:text-text-dim"
           >
             <IconPlus /> Añadir
-          </button>
+          </Button>
           <span className="text-[13px] text-text-faint tabular-nums">{items.length}</span>
         </>}
       />

@@ -7,7 +7,7 @@ import IconArchiveOff from '~icons/tabler/archive-off'
 import IconPencil from '~icons/tabler/pencil'
 import IconTrash from '~icons/tabler/trash'
 import IconArrowBack from '~icons/tabler/arrow-back-up'
-import { Card, SettingsHeader } from './ui'
+import { Card, SettingsHeader, Button } from './ui'
 
 const { titanioTab } = window
 
@@ -47,8 +47,8 @@ function Fila({ s, onLista }: { s: ChatSessionBusqueda; onLista: (l: ChatSession
           onKeyDown={(e) => { if (e.key === 'Enter') void guardar(); if (e.key === 'Escape') { setTitulo(s.title); setEditando(false) } }}
           className="flex-1 h-8 px-2.5 rounded-lg bg-white/[0.05] border border-white/[0.10] text-[13.5px] text-text outline-none focus:border-white/30 select-text"
         />
-        <button onClick={() => void guardar()} className="h-8 px-3 rounded-lg bg-white/90 text-black text-[12.5px] font-medium hover:bg-white transition-colors">Guardar</button>
-        <button onClick={() => { setTitulo(s.title); setEditando(false) }} className="h-8 px-3 rounded-lg text-[12.5px] text-text-dim hover:text-text transition-colors">Cancelar</button>
+        <Button variant="primary" size="sm" onClick={() => void guardar()}>Guardar</Button>
+        <Button variant="ghost" size="sm" onClick={() => { setTitulo(s.title); setEditando(false) }}>Cancelar</Button>
       </div>
     )
   }
@@ -61,7 +61,7 @@ function Fila({ s, onLista }: { s: ChatSessionBusqueda; onLista: (l: ChatSession
 
       {/* Toda la fila retoma la conversación: es lo que uno quiere el 90% de las veces, y
           obligarle a apuntar a un botón de 32px para el caso normal es pedirle puntería. */}
-      <button onClick={() => titanioTab.chatsResume(s.id)} className="flex-1 min-w-0 text-left" title="Retomar esta conversación">
+      <Button onClick={() => titanioTab.chatsResume(s.id)} className="flex-1 min-w-0 text-left" title="Retomar esta conversación">
         <div className="text-[14px] text-text leading-tight truncate">{s.title}</div>
         <div className="text-[12.5px] text-text-dim mt-0.5 truncate">
           {hace(s.updatedAt)} · {s.count} {s.count === 1 ? 'mensaje' : 'mensajes'}
@@ -69,28 +69,24 @@ function Fila({ s, onLista }: { s: ChatSessionBusqueda; onLista: (l: ChatSession
         {/* El fragmento solo aparece al buscar: es lo que explica POR QUÉ salió este resultado
             cuando la coincidencia no está en el título. */}
         {s.snippet && <div className="text-[12.5px] text-text-faint mt-1 line-clamp-2">{s.snippet}</div>}
-      </button>
+      </Button>
 
       <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover/c:opacity-100 transition-opacity">
-        <button onClick={() => titanioTab.chatsResume(s.id)} title="Retomar"
-          className="w-8 h-8 grid place-items-center rounded-lg text-text-faint hover:text-text hover:bg-white/[0.08] [&>svg]:w-4 [&>svg]:h-4">
+        <Button variant="ghost" size="icon" onClick={() => titanioTab.chatsResume(s.id)} title="Retomar">
           <IconArrowBack />
-        </button>
-        <button
+        </Button>
+        <Button variant="ghost" size="icon"
           onClick={async () => onLista(await titanioTab.chatsArchive(s.id, !s.archived))}
           title={s.archived ? 'Desarchivar' : 'Archivar'}
-          className="w-8 h-8 grid place-items-center rounded-lg text-text-faint hover:text-text hover:bg-white/[0.08] [&>svg]:w-4 [&>svg]:h-4"
         >
           {s.archived ? <IconArchiveOff /> : <IconArchive />}
-        </button>
-        <button onClick={() => setEditando(true)} title="Renombrar"
-          className="w-8 h-8 grid place-items-center rounded-lg text-text-faint hover:text-text hover:bg-white/[0.08] [&>svg]:w-4 [&>svg]:h-4">
+        </Button>
+        <Button variant="ghost" size="icon" onClick={() => setEditando(true)} title="Renombrar">
           <IconPencil />
-        </button>
-        <button onClick={async () => onLista(await titanioTab.chatsDelete(s.id))} title="Borrar"
-          className="w-8 h-8 grid place-items-center rounded-lg text-text-faint hover:text-red-400 hover:bg-red-500/15 [&>svg]:w-4 [&>svg]:h-4">
+        </Button>
+        <Button variant="danger-ghost" size="icon" onClick={async () => onLista(await titanioTab.chatsDelete(s.id))} title="Borrar">
           <IconTrash />
-        </button>
+        </Button>
       </div>
     </div>
   )

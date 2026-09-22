@@ -38,7 +38,7 @@ import IconPuzzle from '~icons/tabler/puzzle'
 import IconUsers from '~icons/tabler/users'
 import IconMessage from '~icons/tabler/message'
 import IconArrowUpRight from '~icons/tabler/arrow-up-right'
-import { Card, Group, Row, Pill, Toggle, SettingsHeader, SettingsContent } from './ui'
+import { Card, Group, Row, Pill, Toggle, SettingsHeader, SettingsContent, Button } from './ui'
 
 const { titanioTab } = window
 
@@ -118,7 +118,7 @@ export default function SettingsPage(): JSX.Element {
           <div key={group.title ?? gi} className={gi > 0 ? 'mt-5 pt-5 border-t border-white/[0.06]' : ''}>
             {group.title && <div className="px-2 mb-2 text-[12px] font-medium text-text-faint">{group.title}</div>}
             {group.items.map((n) => (
-              <button
+              <Button
                 key={n.id}
                 onClick={() => setCat(n.id)}
                 className={
@@ -129,7 +129,7 @@ export default function SettingsPage(): JSX.Element {
                 {n.icon}
                 <span className="flex-1 truncate">{n.label}</span>
                 {n.soon && <span className="text-[10px] uppercase tracking-wide text-text-faint shrink-0">Pendiente</span>}
-              </button>
+              </Button>
             ))}
           </div>
         ))}
@@ -141,7 +141,7 @@ export default function SettingsPage(): JSX.Element {
             { label: 'Community', icon: <IconUsers />, onClick: () => titanioTab.navigate('https://github.com/czorr/titanio') },
             { label: 'Send feedback', icon: <IconMessage />, onClick: () => titanioTab.navigate('https://github.com/czorr/titanio/issues/new') }
           ].map((l) => (
-            <button
+            <Button
               key={l.label}
               onClick={l.onClick}
               className="flex items-center gap-2.5 w-full h-9 px-2.5 rounded-lg text-[14px] text-left text-text-dim hover:bg-white/[0.04] hover:text-text transition-colors [&>svg]:w-[18px] [&>svg]:h-[18px] [&>svg]:shrink-0"
@@ -149,7 +149,7 @@ export default function SettingsPage(): JSX.Element {
               {l.icon}
               <span className="flex-1 truncate">{l.label}</span>
               <IconArrowUpRight className="w-3.5 h-3.5 text-text-faint shrink-0" />
-            </button>
+            </Button>
           ))}
         </div>
       </nav>
@@ -257,17 +257,17 @@ function AccountPage(): JSX.Element {
       <SettingsHeader title="Account" />
 
       <div className="flex items-center gap-4 mb-8">
-        <div className="relative group/av cursor-pointer" onClick={() => fileRef.current?.click()}>
+        <Button shape="pill" title="Cambiar foto" className="relative group/av" onClick={() => fileRef.current?.click()}>
           <Avatar initials={profile.initials} src={profile.avatar} size="lg" />
           <div className="absolute inset-0 rounded-full grid place-items-center bg-black/50 opacity-0 group-hover/av:opacity-100 transition-opacity [&>svg]:w-5 [&>svg]:h-5 [&>svg]:text-white">
             <IconCamera />
           </div>
-        </div>
+        </Button>
         <div>
           <div className="text-[16px] font-medium">{profile.name || '—'}</div>
           <div className="flex items-center gap-3 mt-1">
-            <button onClick={() => fileRef.current?.click()} className="text-[13px] text-text-dim hover:text-text transition-colors">Cambiar foto</button>
-            {profile.avatar && <button onClick={removeAvatar} className="text-[13px] text-text-faint hover:text-red-400 transition-colors">Quitar</button>}
+            <Button variant="ghost" size="sm" onClick={() => fileRef.current?.click()}>Cambiar foto</Button>
+            {profile.avatar && <Button variant="danger-ghost" size="sm" onClick={removeAvatar}>Quitar</Button>}
           </div>
           {avatarError && <div className="mt-1 text-[12.5px] text-amber-400">{avatarError}</div>}
         </div>
@@ -284,13 +284,13 @@ function AccountPage(): JSX.Element {
               placeholder="Tu nombre"
               className="w-full h-11 px-4 rounded-xl bg-white/[0.04] border border-white/[0.08] text-[14px] text-text outline-none focus:border-white/25 placeholder:text-text-faint transition-colors"
             />
-            <button
+            <Button variant="primary" size="md"
               onClick={save}
               disabled={!dirty && !saved}
-              className="self-start px-4 h-10 rounded-xl bg-white/90 text-black text-[13.5px] font-medium hover:bg-white disabled:opacity-40 disabled:bg-white/20 disabled:text-text transition-colors"
+              className="self-start"
             >
               {saved ? 'Guardado ✓' : 'Guardar'}
-            </button>
+            </Button>
           </div>
         </Card>
       </Group>
@@ -337,7 +337,7 @@ function AppearancePage(): JSX.Element {
           {data.options.map((o) => {
             const on = o.id === data.vibrancy
             return (
-              <button key={o.id} onClick={() => pick(o.id)} className="w-full text-left">
+              <Button key={o.id} onClick={() => pick(o.id)} className="w-full text-left overflow-hidden">
                 <Row label={o.label} desc={o.desc}>
                   <span
                     className={
@@ -348,7 +348,7 @@ function AppearancePage(): JSX.Element {
                     {on && <span className="w-2.5 h-2.5 rounded-full bg-white" />}
                   </span>
                 </Row>
-              </button>
+              </Button>
             )
           })}
         </Card>
@@ -396,17 +396,17 @@ function GeneralPage(): JSX.Element {
               : 'Abre los enlaces de otras aplicaciones en Titanio.')}
           >
             {pred && !pred.isDefault && (
-              <button
+              <Button variant="primary" size="sm"
                 onClick={async () => {
                   const r = await titanioTab.makeDefaultBrowser()
                   if (r.ok) setPred({ ...pred, isDefault: true })
                   // Si el sistema lo rechaza hay que decir por qué: si no, el botón parece roto.
                   else setErrPred(r.error || 'El sistema no aceptó el cambio.')
                 }}
-                className="shrink-0 h-9 px-3.5 rounded-lg bg-white/90 text-black text-[13px] font-medium hover:bg-white transition-colors"
+                className="shrink-0"
               >
                 Usar Titanio
-              </button>
+              </Button>
             )}
           </Row>
         </Card>
@@ -467,13 +467,12 @@ function PrivacyPage(): JSX.Element {
       <Group title="Datos">
         <Card>
           <Row label="Borrar datos de navegación" desc="Cookies, almacenamiento local y caché del perfil">
-            <button
+            <Button variant="danger" size="sm"
               onClick={clear}
               disabled={clearing}
-              className="text-[13px] font-medium px-3.5 py-2 rounded-lg bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-colors disabled:opacity-50"
             >
               {clearing ? 'Borrando…' : cleared ? 'Listo ✓' : 'Borrar'}
-            </button>
+            </Button>
           </Row>
         </Card>
       </Group>
@@ -497,8 +496,6 @@ function AboutPage(): JSX.Element {
           : u.checking ? 'Buscando actualizaciones…'
             : 'Titanio está al día'
 
-  const purple = 'px-3.5 h-9 rounded-lg bg-purple-400/15 border border-purple-400/25 text-purple-300 hover:bg-purple-400/25 text-[13px] font-medium transition-colors'
-
   return (
     <>
       <SettingsHeader title="About" />
@@ -510,11 +507,11 @@ function AboutPage(): JSX.Element {
           </Row>
           <Row label="Actualizaciones" desc={status}>
             {u.downloaded ? (
-              <button onClick={() => titanioTab.installUpdate()} className={purple}>Reiniciar e instalar</button>
+              <Button variant="primary" size="sm" onClick={() => titanioTab.installUpdate()}>Reiniciar e instalar</Button>
             ) : u.downloading ? (
               <span className="text-[13px] text-purple-300 tabular-nums">{u.percent}%</span>
             ) : u.available ? (
-              <button onClick={() => titanioTab.downloadUpdate()} className={purple}>Descargar</button>
+              <Button variant="primary" size="sm" onClick={() => titanioTab.downloadUpdate()}>Descargar</Button>
             ) : (
               <Pill onClick={() => titanioTab.checkUpdates()}>
                 {u.checking ? 'Buscando…' : 'Buscar actualizaciones'}

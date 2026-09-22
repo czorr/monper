@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type JSX } from 'react'
 import type { AdblockInfo } from '@shared/types'
 import IconShield from '~icons/tabler/shield-check'
 import IconTrash from '~icons/tabler/trash'
-import { Card, Group, Row, Toggle, SettingsHeader } from './ui'
+import { Card, Group, Row, Toggle, SettingsHeader, Button } from './ui'
 
 const { titanioTab } = window
 
@@ -94,13 +94,13 @@ export default function AdblockSection(): JSX.Element {
           <Card>
             {estado.allow.map((host) => (
               <Row key={host} label={host}>
-                <button
+                <Button
                   onClick={() => void quitarExcepcion(host)}
                   title="Volver a bloquear aquí"
                   className="w-8 h-8 rounded-lg grid place-items-center text-text-faint hover:text-text hover:bg-white/[0.06] transition-colors [&>svg]:w-[17px] [&>svg]:h-[17px]"
                 >
                   <IconTrash />
-                </button>
+                </Button>
               </Row>
             ))}
           </Card>

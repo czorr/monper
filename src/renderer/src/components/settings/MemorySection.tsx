@@ -9,7 +9,7 @@ import IconChevron from '~icons/tabler/chevron-down'
 import IconSettings from '~icons/tabler/settings'
 import IconTrash from '~icons/tabler/trash'
 import { MD_COMPONENTS } from './markdown'
-import { SettingsHeader, SettingsContent } from './ui'
+import { SettingsHeader, SettingsContent, Button, Toggle } from './ui'
 
 const { titanioTab } = window
 
@@ -22,17 +22,6 @@ const { titanioTab } = window
  * no se parecía en nada a lo que se pidió.
  */
 
-function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }): JSX.Element {
-  return (
-    <button
-      onClick={() => onChange(!on)}
-      className={'w-9 h-5 rounded-full shrink-0 relative transition-colors ' + (on ? 'bg-emerald-500/90' : 'bg-white/15')}
-    >
-      <span className={'absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ' + (on ? 'left-[18px]' : 'left-0.5')} />
-    </button>
-  )
-}
-
 /** Fila del árbol. Las carpetas se pliegan; los ficheros se seleccionan. */
 function Nodo({ n, nivel, sel, onSel, onBorrar }: {
   n: NodoMemoriaInfo; nivel: number; sel: string; onSel: (p: string) => void; onBorrar: (p: string) => void
@@ -43,7 +32,7 @@ function Nodo({ n, nivel, sel, onSel, onBorrar }: {
   if (n.tipo === 'carpeta') {
     return (
       <>
-        <button
+        <Button
           onClick={() => setAbierta((v) => !v)}
           style={sangria}
           className="flex items-center gap-2.5 w-full h-8 pr-2 rounded-md text-[13px] text-text-dim hover:bg-white/[0.04] hover:text-text transition-colors [&>svg]:w-4 [&>svg]:h-4 [&>svg]:shrink-0"
@@ -51,7 +40,7 @@ function Nodo({ n, nivel, sel, onSel, onBorrar }: {
           {abierta ? <IconFolderOpen className="text-text-faint" /> : <IconFolder className="text-text-faint" />}
           <span className="flex-1 text-left truncate">{n.nombre}</span>
           <IconChevron className={'text-text-faint transition-transform ' + (abierta ? '' : '-rotate-90')} />
-        </button>
+        </Button>
         {abierta && (n.hijos ?? []).map((h) => (
           <Nodo key={h.path} n={h} nivel={nivel + 1} sel={sel} onSel={onSel} onBorrar={onBorrar} />
         ))}
@@ -61,7 +50,7 @@ function Nodo({ n, nivel, sel, onSel, onBorrar }: {
 
   return (
     <div className="group relative">
-      <button
+      <Button
         onClick={() => onSel(n.path)}
         style={sangria}
         className={'flex items-center gap-2.5 w-full h-8 pr-8 rounded-md text-[13px] transition-colors [&>svg]:w-4 [&>svg]:h-4 [&>svg]:shrink-0 ' +
@@ -69,16 +58,16 @@ function Nodo({ n, nivel, sel, onSel, onBorrar }: {
       >
         <IconFileText className="text-text-faint" />
         <span className="flex-1 text-left truncate">{n.nombre}</span>
-      </button>
+      </Button>
       {/* MEMORY.md no se borra: es la raíz del índice. Vaciarlo sí, editándolo. */}
       {n.path !== 'MEMORY.md' && (
-        <button
+        <Button
           title="Borrar"
           onClick={() => onBorrar(n.path)}
           className="absolute right-1.5 top-1/2 -translate-y-1/2 hidden group-hover:grid place-items-center w-6 h-6 rounded-md text-text-faint hover:text-red-400 hover:bg-red-500/15"
         >
           <IconTrash className="w-3.5 h-3.5" />
-        </button>
+        </Button>
       )}
     </div>
   )
@@ -130,20 +119,20 @@ export default function MemorySection(): JSX.Element {
       <div className="w-[268px] shrink-0 border-r border-white/[0.06] flex flex-col">
         <div className="flex items-center justify-between px-3.5 h-12 shrink-0">
           <span className="text-[15px] font-semibold">Memory</span>
-          <button
+          <Button
             onClick={() => titanioTab.memoryOpenFolder()}
             title="Abrir la carpeta de memoria en Finder"
             className="w-7 h-7 grid place-items-center rounded-md text-text-faint hover:text-text hover:bg-white/[0.06] transition-colors [&>svg]:w-[17px] [&>svg]:h-[17px]"
           >
             <IconFolder />
-          </button>
+          </Button>
         </div>
 
         <div className="px-2">
-          <button onClick={() => setSel('')} className={navRow(!sel)}>
+          <Button onClick={() => setSel('')} className={navRow(!sel)}>
             <IconSettings />
             <span className="flex-1 text-left">Settings</span>
-          </button>
+          </Button>
         </div>
 
         <div className="mx-3.5 my-2 border-t border-white/[0.06]" />
@@ -185,16 +174,15 @@ export default function MemorySection(): JSX.Element {
           <SettingsContent>
             <SettingsHeader title={sel} actions={editando ? (
                   <>
-                    <button onClick={() => setEditando(false)} className="px-3 h-8 rounded-lg text-[13px] text-text-dim hover:text-text hover:bg-white/[0.06]">Cancelar</button>
-                    <button onClick={() => void guardar()} className="px-3 h-8 rounded-lg text-[13px] text-text bg-white/[0.10] hover:bg-white/[0.16]">Guardar</button>
+                    <Button variant="ghost" size="sm" onClick={() => setEditando(false)}>Cancelar</Button>
+                    <Button variant="primary" size="sm" onClick={() => void guardar()}>Guardar</Button>
                   </>
                 ) : (
-                  <button
+                  <Button variant="secondary" size="sm"
                     onClick={() => { setBorrador(texto ?? ''); setEditando(true) }}
-                    className="px-3 h-8 rounded-lg border border-white/[0.08] text-[13px] text-text-dim hover:text-text hover:bg-white/[0.06]"
                   >
                     Editar
-                  </button>
+                  </Button>
                 )}
             />
 

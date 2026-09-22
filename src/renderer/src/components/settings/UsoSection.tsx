@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type JSX } from 'react'
 import type { ResumenUso } from '@shared/types'
 import IconChart from '~icons/tabler/chart-bar'
 import IconAlert from '~icons/tabler/alert-triangle'
-import { Card, SettingsHeader } from './ui'
+import { Card, SettingsHeader, Button } from './ui'
 
 const { titanioTab } = window
 
@@ -101,14 +101,14 @@ export default function UsoSection({ foco }: { foco: 'billing' | 'stats' }): JSX
         actions={
         <div className="flex items-center gap-1 shrink-0 p-0.5 rounded-xl bg-white/[0.05]">
           {RANGOS.map((d) => (
-            <button
+            <Button
               key={d}
               onClick={() => setDias(d)}
               className={'h-7 px-2.5 rounded-lg text-[12.5px] transition-colors ' +
                 (dias === d ? 'bg-white/[0.14] text-text' : 'text-text-dim hover:text-text')}
             >
               {d}d
-            </button>
+            </Button>
           ))}
         </div>
         }
@@ -191,9 +191,9 @@ export default function UsoSection({ foco }: { foco: 'billing' | 'stats' }): JSX
                 className="w-28 h-9 px-3 rounded-lg bg-white/[0.05] border border-white/[0.10] text-[13.5px] text-text outline-none focus:border-white/30 select-text"
               />
               <span className="text-[13px] text-text-dim">al día</span>
-              <button onClick={() => void guardarLimite()} className="h-9 px-3 rounded-lg bg-white/[0.08] hover:bg-white/[0.14] text-[12.5px] text-text transition-colors">
+              <Button variant="secondary" size="sm" onClick={() => void guardarLimite()}>
                 Guardar
-              </button>
+              </Button>
             </div>
             {limite > 0 && (
               <p className="text-[12.5px] text-text-faint mt-3">
@@ -205,12 +205,12 @@ export default function UsoSection({ foco }: { foco: 'billing' | 'stats' }): JSX
       )}
 
       {!vacio && (
-        <button
+        <Button variant="danger-ghost" size="sm"
           onClick={async () => setR(await titanioTab.usageClear())}
-          className="mt-9 h-8 px-3 rounded-lg text-[12.5px] text-text-faint hover:text-red-400 hover:bg-red-500/10 transition-colors"
+          className="mt-9"
         >
           Borrar el historial de consumo
-        </button>
+        </Button>
       )}
     </div>
   )

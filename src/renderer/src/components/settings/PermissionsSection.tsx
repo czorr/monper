@@ -9,7 +9,7 @@ import IconLock from '~icons/tabler/lock-check'
 import IconWorld from '~icons/tabler/world'
 import IconSearch from '~icons/tabler/search'
 import IconChevron from '~icons/tabler/chevron-down'
-import { Card, Group, Toggle, SettingsHeader } from './ui'
+import { Card, Group, Toggle, SettingsHeader, Button } from './ui'
 
 const { titanioTab } = window
 
@@ -71,7 +71,7 @@ function SiteRow({
     <div>
       {/* La cabecera entera abre y cierra. Los controles viven dentro, al desplegar, para que
           no haya nada que se pueda pulsar por error al ir a expandir. */}
-      <button onClick={onToggleOpen} className="flex items-center gap-3.5 w-full px-4 py-3 text-left hover:bg-white/[0.02] transition-colors">
+      <Button onClick={onToggleOpen} className="flex items-center gap-3.5 w-full px-4 py-3 text-left hover:bg-white/[0.02]">
         <SiteIcon src={site.favicon} />
         <div className="flex-1 min-w-0">
           <div className="text-[14px] text-text leading-tight truncate">{prettyOrigin(site.origin)}</div>
@@ -85,7 +85,7 @@ function SiteRow({
         <IconChevron
           className={'w-4 h-4 text-text-faint shrink-0 transition-transform duration-150 ' + (open ? 'rotate-180' : '')}
         />
-      </button>
+      </Button>
 
       {open && (
         <div className="px-4 pb-3.5 pl-[62px] flex flex-col gap-2.5">
@@ -104,9 +104,9 @@ function SiteRow({
           })}
           <div className="flex items-center gap-3 pt-1">
             <span className="flex-1 text-[12px] text-text-faint truncate">{site.origin}</span>
-            <button onClick={onForget} className="text-[12.5px] text-text-faint hover:text-red-400 transition-colors shrink-0">
+            <Button variant="danger-ghost" size="sm" onClick={onForget} className="shrink-0">
               Olvidar este sitio
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -229,12 +229,12 @@ export default function PermissionsSection(): JSX.Element {
                   {sites!.length} {sites!.length === 1 ? 'sitio volverá' : 'sitios volverán'} a pedir permiso
                 </div>
               </div>
-              <button
+              <Button variant="danger" size="sm"
                 onClick={() => forget(null)}
-                className="text-[13px] font-medium px-3.5 py-2 rounded-lg bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-colors shrink-0"
+                className="shrink-0"
               >
                 Olvidar todo
-              </button>
+              </Button>
             </div>
           </Card>
         </Group>

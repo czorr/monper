@@ -4,7 +4,7 @@ import IconPlug from '~icons/tabler/plug'
 import IconRefresh from '~icons/tabler/refresh'
 import IconCopy from '~icons/tabler/copy'
 import IconCheck from '~icons/tabler/check'
-import { Card, Group, Toggle, SettingsHeader } from './ui'
+import { Card, Group, Toggle, SettingsHeader, Button } from './ui'
 
 const { titanioTab } = window
 
@@ -49,13 +49,12 @@ function Copiar({ texto }: { texto: string }): JSX.Element {
   return (
     <div className="flex items-center gap-2">
       {error && <span className="text-[12px] text-amber-400">{error}</span>}
-      <button
+      <Button variant="secondary" size="sm"
         onClick={copiar}
-        className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] text-[12.5px] text-text-dim hover:text-text transition-colors [&>svg]:w-3.5 [&>svg]:h-3.5"
       >
         {copiado ? <IconCheck /> : <IconCopy />}
         {copiado ? 'Copiado' : 'Copiar'}
-      </button>
+      </Button>
     </div>
   )
 }
@@ -159,26 +158,23 @@ export default function McpSection(): JSX.Element {
               consultar bases de datos.
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              <button
+              <Button variant="secondary" size="icon"
                 onClick={() => leerServidores(true)}
                 title="Releer el fichero de configuración"
-                className="w-8 h-8 grid place-items-center rounded-lg bg-white/[0.06] hover:bg-white/[0.1] text-text-dim hover:text-text transition-colors [&>svg]:w-4 [&>svg]:h-4"
               >
                 <IconRefresh />
-              </button>
-              <button
+              </Button>
+              <Button variant="secondary" size="sm"
                 onClick={async () => { setServidores(await titanioTab.probeMcpServers()) }}
                 title="Comprobar conexión"
-                className="h-8 px-3 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] text-[12.5px] text-text-dim hover:text-text transition-colors"
               >
                 Probar
-              </button>
-              <button
+              </Button>
+              <Button variant="secondary" size="sm"
                 onClick={() => titanioTab.openMcpConfig()}
-                className="h-8 px-3 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] text-[12.5px] text-text-dim hover:text-text transition-colors"
               >
                 Editar configuración
-              </button>
+              </Button>
             </div>
           </div>
 

@@ -1,6 +1,6 @@
 import { useEffect, useState, type JSX } from 'react'
 import IconDownload from '~icons/tabler/download'
-import { Card, Group } from './ui'
+import { Card, Group, Button } from './ui'
 
 const { titanioTab } = window
 
@@ -47,7 +47,7 @@ export default function ImportSection(): JSX.Element {
   }
 
   const casilla = (k: keyof Que, label: string, nota: string): JSX.Element => (
-    <button
+    <Button
       onClick={() => setQue((q) => ({ ...q, [k]: !q[k] }))}
       className="flex items-start gap-3 w-full px-4 py-3 text-left hover:bg-white/[0.02] transition-colors"
     >
@@ -63,7 +63,7 @@ export default function ImportSection(): JSX.Element {
         <span className="block text-[14px] text-text">{label}</span>
         <span className="block text-[12.5px] text-text-dim mt-0.5">{nota}</span>
       </span>
-    </button>
+    </Button>
   )
 
   return (
@@ -82,7 +82,7 @@ export default function ImportSection(): JSX.Element {
             </div>
           )}
           {navs?.filter((n) => n.disponible).map((n) => (
-            <button
+            <Button
               key={n.id}
               onClick={() => setSel(n.id)}
               className="flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-white/[0.02] transition-colors"
@@ -96,7 +96,7 @@ export default function ImportSection(): JSX.Element {
                 {sel === n.id && <span className="w-2.5 h-2.5 rounded-full bg-white" />}
               </span>
               <span className="text-[14px] text-text">{n.nombre}</span>
-            </button>
+            </Button>
           ))}
         </Card>
       </Group>
@@ -115,14 +115,13 @@ export default function ImportSection(): JSX.Element {
         título de la sección siguiente, porque esta pieza se incrusta dentro de General.
       */}
       <div className="mb-9">
-      <button
+      <Button variant="primary" size="md"
         onClick={importar}
         disabled={!sel || corriendo || !(que.bookmarks || que.history || que.passwords)}
-        className="flex items-center gap-2 px-4 h-10 rounded-xl bg-white/90 text-black text-[13.5px] font-medium hover:bg-white disabled:opacity-40 disabled:bg-white/20 disabled:text-text transition-colors [&>svg]:w-4 [&>svg]:h-4"
       >
         <IconDownload />
         {corriendo ? 'Importando…' : 'Importar'}
-      </button>
+      </Button>
 
       {/*
         El resumen cuenta lo que entró Y lo que falló. Uno que solo suma éxitos miente: Safari,

@@ -1,4 +1,6 @@
 import type { JSX, ReactNode } from 'react'
+import Button from '@renderer/components/ui/Button'
+export { Button }
 
 interface SettingsHeaderProps {
   title: string
@@ -82,7 +84,7 @@ export function Toggle({
   disabled?: boolean
 }): JSX.Element {
   return (
-    <button
+    <Button shape="pill"
       role="switch"
       aria-checked={on}
       disabled={disabled}
@@ -98,17 +100,16 @@ export function Toggle({
           (on ? 'left-[19px]' : 'left-[3px]')
         }
       />
-    </button>
+    </Button>
   )
 }
 
 export function Pill({ children, onClick }: { children: ReactNode; onClick?: () => void }): JSX.Element {
   return (
-    <button
+    <Button variant="secondary" size="sm"
       onClick={onClick}
-      className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] text-[13px] text-text-dim transition-colors"
     >
       {children}
-    </button>
+    </Button>
   )
 }

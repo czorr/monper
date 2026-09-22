@@ -14,7 +14,7 @@ import IconMail from '~icons/tabler/mail'
 import IconSearch from '~icons/tabler/search'
 import IconPlus from '~icons/tabler/plus'
 import IconTrash from '~icons/tabler/trash'
-import { SettingsHeader } from './ui'
+import { SettingsHeader, Button } from './ui'
 
 const { titanioTab } = window
 
@@ -52,12 +52,11 @@ export default function QuickActionsSection(): JSX.Element {
           Usa <code className="px-1 py-0.5 rounded bg-white/[0.08] text-[12.5px]">{'{{selection}}'}</code> para incluirlo en las instrucciones del agente.
         </>}
         actions={
-        <button
+        <Button variant="secondary" size="sm"
           onClick={() => setEditing({ ...BLANK })}
-          className="flex items-center gap-1.5 px-3.5 h-9 rounded-lg bg-white/[0.08] hover:bg-white/[0.13] text-[13.5px] [&>svg]:w-4 [&>svg]:h-4"
         >
           <IconPlus /> Nueva
-        </button>
+        </Button>
         }
       />
 
@@ -65,11 +64,11 @@ export default function QuickActionsSection(): JSX.Element {
         {list.map((a) => (
           <div key={a.id} className="group flex items-center gap-3 px-3.5 py-3 rounded-xl bg-white/[0.03] hover:bg-white/[0.05]">
             <div className="w-8 h-8 shrink-0 grid place-items-center rounded-lg bg-white/[0.06] text-text-dim [&>svg]:w-[18px] [&>svg]:h-[18px]"><Icon name={a.icon} /></div>
-            <button onClick={() => setEditing({ ...a })} className="flex-1 min-w-0 text-left">
+            <Button onClick={() => setEditing({ ...a })} className="flex-1 min-w-0 text-left">
               <div className="text-[14px] text-text">{a.name}</div>
               <div className="text-[12.5px] text-text-faint truncate">{a.template.replace(/\s+/g, ' ')}</div>
-            </button>
-            <button onClick={() => remove(a.id)} title="Eliminar" className="w-8 h-8 grid place-items-center rounded-lg text-text-faint hover:text-red-400 hover:bg-white/[0.08] opacity-0 group-hover:opacity-100 [&>svg]:w-4 [&>svg]:h-4"><IconTrash /></button>
+            </Button>
+            <Button variant="danger-ghost" size="icon" onClick={() => remove(a.id)} title="Eliminar" className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100"><IconTrash /></Button>
           </div>
         ))}
         {list.length === 0 && <div className="text-[13.5px] text-text-faint py-6 text-center">No hay acciones guardadas.</div>}
@@ -85,13 +84,13 @@ export default function QuickActionsSection(): JSX.Element {
           />
           <div className="flex flex-wrap gap-1.5">
             {QUICK_ICONS.map((n) => (
-              <button
+              <Button
                 key={n}
                 onClick={() => setEditing({ ...editing, icon: n })}
                 className={'w-9 h-9 grid place-items-center rounded-lg [&>svg]:w-[18px] [&>svg]:h-[18px] ' + (editing.icon === n ? 'bg-white/[0.16] text-text' : 'bg-white/[0.04] text-text-dim hover:bg-white/[0.08]')}
               >
                 <Icon name={n} />
-              </button>
+              </Button>
             ))}
           </div>
           <textarea
@@ -102,8 +101,8 @@ export default function QuickActionsSection(): JSX.Element {
             className="w-full px-3.5 py-3 rounded-xl bg-white/[0.04] border border-white/[0.08] text-[13.5px] leading-relaxed outline-none focus:border-white/25 resize-none placeholder:text-text-faint"
           />
           <div className="flex items-center gap-2">
-            <button onClick={save} disabled={!editing.name.trim()} className="px-4 h-10 rounded-xl bg-white/90 text-black text-[13.5px] font-medium hover:bg-white disabled:opacity-40">Guardar</button>
-            <button onClick={() => setEditing(null)} className="px-4 h-10 rounded-xl text-[13.5px] text-text-dim hover:text-text hover:bg-white/[0.06]">Cancelar</button>
+            <Button variant="primary" size="md" onClick={save} disabled={!editing.name.trim()}>Guardar</Button>
+            <Button variant="ghost" size="md" onClick={() => setEditing(null)}>Cancelar</Button>
           </div>
         </div>
       )}

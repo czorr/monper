@@ -4,7 +4,7 @@ import IconPlus from '~icons/tabler/plus'
 import IconTrash from '~icons/tabler/trash'
 import IconRefresh from '~icons/tabler/refresh'
 import IconAlert from '~icons/tabler/alert-triangle'
-import { SettingsHeader } from './ui'
+import { SettingsHeader, Button, Toggle } from './ui'
 
 const { titanioTab } = window
 
@@ -14,17 +14,6 @@ const PRESETS = [
   { label: 'Cada 6 horas', minutes: 360 },
   { label: 'Una vez al día', minutes: 1440 }
 ]
-
-function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }): JSX.Element {
-  return (
-    <button
-      onClick={() => onChange(!on)}
-      className={'w-9 h-5 rounded-full shrink-0 relative transition-colors ' + (on ? 'bg-emerald-500/90' : 'bg-white/15')}
-    >
-      <span className={'absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ' + (on ? 'left-[18px]' : 'left-0.5')} />
-    </button>
-  )
-}
 
 function ago(ts: number): string {
   if (!ts) return 'nunca'
@@ -49,20 +38,20 @@ function Row({ r }: { r: Routine }): JSX.Element {
           {r.lastError && <span className="text-amber-400/80"> · {r.lastError}</span>}
         </div>
       </div>
-      <button
+      <Button
         onClick={() => titanioTab.runRoutine(r.id)}
         title="Revisar ahora"
         className="w-8 h-8 grid place-items-center rounded-lg text-text-faint hover:text-text hover:bg-white/[0.08] opacity-0 group-hover:opacity-100 [&>svg]:w-4 [&>svg]:h-4"
       >
         <IconRefresh />
-      </button>
-      <button
+      </Button>
+      <Button
         onClick={() => titanioTab.removeRoutine(r.id)}
         title="Eliminar"
         className="w-8 h-8 grid place-items-center rounded-lg text-text-faint hover:text-red-400 hover:bg-white/[0.08] opacity-0 group-hover:opacity-100 [&>svg]:w-4 [&>svg]:h-4"
       >
         <IconTrash />
-      </button>
+      </Button>
       <Toggle on={r.enabled} onChange={(v) => titanioTab.toggleRoutine(r.id, v)} />
     </div>
   )
@@ -95,12 +84,11 @@ export default function RoutinesSection(): JSX.Element {
         title="Rutinas"
         description="Programa revisiones de una página y recibe un aviso cuando se cumpla tu condición. Titanio usa tu sesión iniciada."
         actions={!creating && (
-          <button
+          <Button variant="secondary" size="sm"
             onClick={() => setCreating(true)}
-            className="flex items-center gap-1.5 px-3.5 h-9 rounded-lg bg-white/[0.08] hover:bg-white/[0.13] text-[13.5px] [&>svg]:w-4 [&>svg]:h-4"
           >
             <IconPlus /> Nueva
-          </button>
+          </Button>
         )}
       />
 
@@ -115,27 +103,26 @@ export default function RoutinesSection(): JSX.Element {
           />
           <div className="flex flex-wrap gap-1.5">
             {PRESETS.map((p) => (
-              <button
+              <Button
                 key={p.minutes}
                 onClick={() => setMinutes(p.minutes)}
                 className={'px-3 h-8 rounded-lg text-[12.5px] transition-colors ' + (minutes === p.minutes ? 'bg-white/[0.16] text-text' : 'bg-white/[0.04] text-text-dim hover:bg-white/[0.08]')}
               >
                 {p.label}
-              </button>
+              </Button>
             ))}
           </div>
           {error && <div className="text-[13px] text-red-400">{error}</div>}
           <div className="flex items-center gap-2">
-            <button
+            <Button variant="primary" size="md"
               onClick={create}
               disabled={busy || !url.trim() || !request.trim()}
-              className="px-4 h-10 rounded-xl bg-white/90 text-black text-[13.5px] font-medium hover:bg-white disabled:opacity-40"
             >
               {busy ? 'Analizando la página…' : 'Crear rutina'}
-            </button>
-            <button onClick={() => { setCreating(false); setError('') }} className="px-4 h-10 rounded-xl text-[13.5px] text-text-dim hover:text-text hover:bg-white/[0.06]">
+            </Button>
+            <Button variant="ghost" size="md" onClick={() => { setCreating(false); setError('') }}>
               Cancelar
-            </button>
+            </Button>
           </div>
         </div>
       )}

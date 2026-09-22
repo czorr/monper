@@ -1,3 +1,4 @@
+import { t as tr } from '../shared/i18n'
 import { join } from 'path'
 import { app, BrowserWindow } from 'electron'
 import { readJson, writeJson } from './jsonfile'
@@ -9,12 +10,12 @@ import { readJson, writeJson } from './jsonfile'
  * **al hacer clic en un enlace desde otra app pase lo correcto**, y ahí hay tres trampas:
  *
  * 1. **Una sola instancia.** Sin `requestSingleInstanceLock`, cada enlace que abras desde
- *    Mail o Slack lanza un Monper NUEVO. Con dos instancias sobre el mismo `userData`, las
+ *    Mail o Slack lanza un Titanio NUEVO. Con dos instancias sobre el mismo `userData`, las
  *    dos escriben los mismos JSON y la última en guardar gana: pierdes marcadores y vault.
  *    Es el fallo más caro de todos y no se ve hasta que ya pasó.
  * 2. **La URL llega antes de que exista la ventana.** En macOS, abrir un enlace con la app
  *    cerrada dispara `open-url` **antes** de `ready`. Si no se guarda, se pierde y el usuario
- *    ve arrancar Monper en la página de inicio, sin su enlace.
+ *    ve arrancar Titanio en la página de inicio, sin su enlace.
  * 3. **Cada plataforma la entrega distinto.** macOS por `open-url`; Windows y Linux en
  *    `argv`, tanto al arrancar como en `second-instance`.
  *
@@ -111,16 +112,16 @@ export function esPredeterminado(): boolean {
  * Pide al sistema ser el predeterminado. macOS enseña su propio diálogo de confirmación.
  *
  * En desarrollo NO se hace: `electron .` corre dentro de Electron.app, así que registraría
- * **Electron** como tu navegador, no Monper — y el usuario se quedaría con enlaces abriendo
+ * **Electron** como tu navegador, no Titanio — y el usuario se quedaría con enlaces abriendo
  * un binario de desarrollo que un día borra. Se devuelve el motivo en vez de fallar mudo.
  */
 export function hacerPredeterminado(): { ok: boolean; error?: string } {
   if (!app.isPackaged) {
-    return { ok: false, error: 'En desarrollo esto registraría Electron, no Monper. Pruébalo en la app empaquetada.' }
+    return { ok: false, error: tr("En desarrollo esto registraría Electron, no Titanio. Pruébalo en la app empaquetada.") }
   }
   try {
     const ok = ESQUEMAS.every((e) => app.setAsDefaultProtocolClient(e))
-    return ok ? { ok: true } : { ok: false, error: 'El sistema no aceptó el cambio.' }
+    return ok ? { ok: true } : { ok: false, error: tr("El sistema no aceptó el cambio.") }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) }
   }

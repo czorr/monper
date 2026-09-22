@@ -1,4 +1,4 @@
-import type { Page } from '../../../../packages/monperwright/src'
+import type { Page } from '../../../../packages/titaniowright/src'
 
 // Cliente sobre la Slack Web API. Extrae el token xoxc- del localStorage de la sesión
 // (localConfig_v2) y llama https://<team>.slack.com/api/<method> con el cookie de sesión.

@@ -1,13 +1,17 @@
+import { t as tr } from '../shared/i18n'
+import { initLanguage } from './language'
 import { join } from 'path'
 import { readFileSync } from 'fs'
 import { app, BrowserWindow, Menu, Notification, WebContentsView, clipboard, dialog, ipcMain, nativeImage, net, screen, session, shell, type WebContents } from 'electron'
 import type { MenuItemConstructorOptions } from 'electron'
 import type { IpcMainEvent } from 'electron'
-import type { AIProvider, BrowserState, Bookmark, ChatFallo, ChatMessage, MenuAnchor, ProviderKind, InternalPage, SubmenuData, SubmenuSection } from '../shared/types'
+import type { BrowserState, Bookmark, ChatFallo, ChatMessage, MenuAnchor, ProviderKind, InternalPage, SubmenuData, SubmenuSection } from '../shared/types'
 import { internalPageOf, type DatosMenuPerfil } from '../shared/types'
 import { nombreDeUrl } from '../shared/url'
 import { initBookmarks, listBookmarks, isBookmarked, addBookmark, removeBookmark, toggleBookmark, reorderBookmarks, updateBookmark, createFolder, moveBookmark, setFolderCollapsed } from './bookmarks'
-import { initAI, listProviders, addProvider, removeProvider, setActive as setActiveProvider, setModel, setEffort, getChatContext, getActiveProvider, refrescarModelos } from './ai/store'
+import { initAI, listProviders, addProvider, removeProvider, setActive as setActiveProvider, setModel, setEffort, getChatContext, refrescarModelos, providerSettings, saveProvider, providerConfigPath } from './ai/store'
+import type { ProviderInput } from '../shared/types'
+import { discoverProvider, prepareActiveProvider } from './ai/store'
 import { runMastra, diagnosticar } from './agent/mastra'
 import { initUsage, anotarTurno, resumen as resumenUso, gastoDeHoy, borrarUso, limiteDiario, setLimiteDiario } from './usage'
 import { initHistory, recordVisit, updateMeta, recent as historyRecent, browse as historyBrowse, removeEntry as historyRemove, clearHistory as historyClear } from './history'
@@ -25,14 +29,13 @@ import {
   initPermissions, attachPermissionHandlers, stateOf, setState, requestedKeys,
   allSites, clearOrigin, clearAllOrigins
 } from './permissions'
-import { initSkills, listSkills, getSkill, toggleSkill, enabledSkills, skillsDir, resolveSkillFavicons } from './skills'
+import { initSkills, listSkills, getSkill, saveSkill, skillFolder, toggleSkill, enabledSkills, skillsDir, resolveSkillFavicons } from './skills'
 import { initProfile, getProfile, setProfile, setAvatar } from './profile'
 import { PARTICION_NORMAL, particionDe } from './particiones'
-import { initWidgets, listWidgets, widgetDe, crearPendiente, completarWidget, marcarError, reintentar, validarFuente, quitarWidget, registrarDatos, registrarFallo, marcarVisto, repararExtractor, validarDatos, type Widget as WidgetInfo } from './widgets'
-import { withHeadlessPage, runHeadlessSnippet } from './agent/headless'
-import { askModel, parseJsonLoose } from './agent/oneshot'
 import { initMemoria, listarMemoria, leerMemoria, escribirMemoria, borrarMemoria, memoriaHabilitada, setMemoriaHabilitada, contextoDeMemoria, dirMemoria } from './memoria'
-import { rutaDePerfil, particionDelPerfil, listaPerfiles, perfilActivoId, crearPerfil, activarPerfil, borrarPerfil } from './perfiles'
+import { rutaDePerfil, particionDelPerfil, listaPerfiles, perfilActivoId, crearPerfil, activarPerfil, borrarPerfil, preferencesFor, profileSettings, updateBrowserProfile } from './perfiles'
+import { searchUrlFor, SEARCH_ENGINES, type BrowserProfile } from '../shared/profiles'
+import { applyDefaultProfileModel, todosLosModelos } from './ai/store'
 import { initDownloads, attachDownloads, listDownloads, activeDownloadCount, cancelDownload, openDownload, showDownload, clearDownloads } from './downloads'
 import { credentialsFor, fillFromVault } from './autofill'
 import { initExtensions, listExtensions, addExtension, setExtensionEnabled, removeExtension as removeExt, installFromStore, extensionUi } from './extensions'
@@ -42,7 +45,7 @@ import { initRemote, remoteState, setRemoteEnabled, onRemoteState } from './remo
 import { initAdblock, adjuntarAdblock, adblockState, setAdblockEnabled, setAdblockAllowed, adblockCountFor } from './adblock'
 import { attachChromeHints } from './chromehints'
 import { initPip, attachPip, pipState, setPipEnabled } from './pip'
-import { initFavicons, rememberFavicon, faviconFor, resolveFavicon } from './favicons'
+import { initFavicons, rememberFavicon, faviconFor, resolveFavicon, cacheVisitedFavicon } from './favicons'
 import { initMcpClient, reloadMcpConfig, mcpServerStates, mcpTools, configPath as mcpConfigPath, stopAllMcp } from './mcp/client'
 import { initChats, listSessions, searchSessions, archiveSession, renameSession, resumeOrNew, startSession, openSession, sessionForNextMessage, saveSession, removeSession as removeChatSession } from './chats'
 import { writeJson } from './jsonfile'
@@ -94,13 +97,15 @@ const VIBRANCY_DEFAULT: VibrancyMaterial = 'hud'
 /** 'none' = ventana opaca (sin vibrancy). Es un valor de ajuste, no un material de macOS. */
 type VibrancySetting = VibrancyMaterial | 'none'
 let vibrancyMaterial: VibrancySetting = VIBRANCY_DEFAULT
+let appearanceTint: string | null = null
 const NO_VIBRANCY = process.env['MONPER_NO_VIBRANCY'] === '1'
 const APP_BG = '#111114' // igual que --color-bg en styles.css
 const isMac = process.platform === 'darwin'
 
-// Nombre de la app: debe fijarse ANTES de whenReady para que el menú de macOS
-// y el dock muestren "Monper" en vez de "Electron" (dev incluido).
-app.setName('Monper')
+// Nombre usado por Electron en los menús; el bundle de macOS se nombra al empaquetar.
+app.setName('Titanio Browser')
+// Conserva los perfiles existentes y la ruta que usa el puente MCP tras el cambio de nombre.
+app.setPath('userData', join(app.getPath('appData'), 'Titanio'))
 
 // FedCM (el "Continuar con Google" moderno) necesita UI a nivel navegador que Electron
 // NO implementa: sin esto el click no hace absolutamente nada. Al desactivarlo, Google
@@ -151,6 +156,7 @@ function isInternalSender(url: string | undefined): boolean {
 }
 
 interface Tab {
+  pinnedTitanio?: boolean
   view: WebContentsView
   /** Último radio aplicado; ver applyRadius (reaplicarlo trae de vuelta las muescas). */
   radius: number | null
@@ -188,7 +194,7 @@ interface Tab {
   errorUrl: string | null
 }
 
-// Alto de la franja inferior reservada para la leyenda "Monper is controlling this tab".
+// Alto de la franja inferior reservada para la leyenda "Titanio is controlling this tab".
 const CONTROLLED_STRIP = 40
 
 /**
@@ -393,7 +399,7 @@ function prepararSesion(particion: string, incognito: boolean): void {
   if (sesionesListas.has(particion)) return
   sesionesListas.add(particion)
   const ses = session.fromPartition(particion)
-  // UA de Chrome limpia (sin "Electron"/"monper"): apps como Figma rompen y Google
+  // UA de Chrome limpia (sin "Electron"/"titanio"): apps como Figma rompen y Google
   // bloquea el login si detectan un navegador embebido.
   const platformUA = isMac
     ? 'Macintosh; Intel Mac OS X 10_15_7'
@@ -752,9 +758,11 @@ function crearVentana(opts: { sinPestanaInicial?: boolean; incognito?: boolean }
     const t = activeId != null ? tabs.get(activeId) : null
     const displayUrl = (u: string) => (isInternal(u) ? '' : u)
     const state: BrowserState = {
+      tint: appearanceTint,
+      titanioFavicon: faviconFor('https://app.titanio.ai'),
       activeId,
       tabs: [...tabs.entries()].map(([id, tb]) => ({
-        id, url: tb.errorUrl ?? displayUrl(tb.url), title: tb.title || 'Nueva pestaña', favicon: tb.favicon, loading: tb.loading, recording: tb.recording, muted: tb.muted, audible: tb.audible, agent: tb.agent, bookmarkId: tb.bookmarkId, internal: internalPageOf(tb.url)
+        id, url: tb.errorUrl ?? displayUrl(tb.url), title: tb.title || tr("Nueva pestaña"), favicon: tb.favicon, loading: tb.loading, recording: tb.recording, muted: tb.muted, audible: tb.audible, agent: tb.agent, bookmarkId: tb.bookmarkId, pinnedTitanio: tb.pinnedTitanio, internal: internalPageOf(tb.url)
       })),
       active: t
         ? {
@@ -778,9 +786,9 @@ function crearVentana(opts: { sinPestanaInicial?: boolean; incognito?: boolean }
     win.webContents.send('state:update', state)
     // El título de la ventana. No se ve en la barra (es frameless), pero sí en Mission
     // Control, en el menú Ventana y al compartir pantalla, donde antes ponía siempre
-    // "Monper": las pestañas son WebContentsView aparte, así que el título del chrome nunca
+    // "Titanio": las pestañas son WebContentsView aparte, así que el título del chrome nunca
     // cambiaba solo.
-    win.setTitle(t?.title ? `${t.title} — Monper` : 'Monper')
+    win.setTitle(t?.title ? `${t.title} — Titanio Browser` : 'Titanio Browser')
     // El peek renderiza el mismo <Sidebar/> con el mismo preload: recibe el mismo estado.
     if (peekWin && !peekWin.isDestroyed()) peekWin.webContents.send('state:update', state)
     // La ventana de extensiones detecta si estás en una página de la Store.
@@ -963,7 +971,7 @@ function crearVentana(opts: { sinPestanaInicial?: boolean; incognito?: boolean }
     return `#${h(m[1])}${h(m[2])}${h(m[3])}`
   }
 
-  function createTab(url = newtabUrl(), activate = true, agent = false): number {
+  function createTab(url = (preferencesFor().newTab === 'home' && preferencesFor().homePage) || newtabUrl(), activate = true, agent = false): number {
     const id = nextId++
     /**
      * Una pestaña puede MUDARSE a otra ventana (arrastrarla fuera, "Abrir en ventana nueva").
@@ -1008,6 +1016,7 @@ function crearVentana(opts: { sinPestanaInicial?: boolean; incognito?: boolean }
     })
     wc.on('did-navigate', (_e, u) => { // sólo main-frame
       t.url = u; t.recording = false
+      t.favicon = faviconFor(u)
       // Una pestaña cruza la frontera en los dos sentidos (newtab → web → newtab), así que el
       // fondo se decide en cada navegación, no al crear la vista. Y hay que rehacer el layout:
       // volverse translúcida cambia QUÉ otras vistas pueden quedar visibles detrás (ver
@@ -1051,7 +1060,10 @@ function crearVentana(opts: { sinPestanaInicial?: boolean; incognito?: boolean }
       suya().pushState()
     })
     wc.on('page-favicon-updated', (_e, icons) => {
-      t.favicon = icons?.[0] || null
+      const url = t.url
+      const icon = icons?.[0]
+      if (!icon) return
+      t.favicon = faviconFor(url) || icon
       // Se recuerda por host: es el icono de verdad del sitio, y sirve para los marcadores sin
       // icono propio en vez de pedírselo a un tercero.
       if (!suya().incognito) {
@@ -1059,6 +1071,15 @@ function crearVentana(opts: { sinPestanaInicial?: boolean; incognito?: boolean }
         updateMeta(t.url, undefined, t.favicon)
       }
       suya().pushState()
+      void cacheVisitedFavicon(icon, wc.session).then((data) => {
+        if (!data || wc.isDestroyed() || t.url !== url) return
+        t.favicon = data
+        if (!suya().incognito) {
+          rememberFavicon(url, data)
+          updateMeta(url, undefined, data)
+        }
+        suya().pushState()
+      })
     })
     wc.on('did-change-theme-color', (_e, color) => { t.themeColor = color; suya().pushState() })
     wc.on('audio-state-changed', (e) => { t.audible = e.audible; suya().pushState() })
@@ -1108,12 +1129,12 @@ function crearVentana(opts: { sinPestanaInicial?: boolean; incognito?: boolean }
         isAuthUrl(details.url)
       console.log('[popup]', { url: details.url, disposition: details.disposition, feats, isPopup })
       if (isPopup) {
-        pushAgentEvent(`Se abrió una ventana emergente: ${details.url}`)
+        pushAgentEvent(tr("Se abrió una ventana emergente: {0}", details.url))
         return {
           action: 'allow',
           overrideBrowserWindowOptions: {
             width: 500, height: 640, resizable: true, minimizable: true, maximizable: false,
-            fullscreenable: false, autoHideMenuBar: true, title: 'Monper',
+            fullscreenable: false, autoHideMenuBar: true, title: 'Titanio Browser',
             // El popup hereda la sesión de quien lo abrió: un OAuth lanzado desde incógnito
             // que cayera en la sesión normal iniciaría sesión de verdad, justo lo contrario.
             webPreferences: { partition: suya().particion, contextIsolation: true, sandbox: true }
@@ -1121,7 +1142,7 @@ function crearVentana(opts: { sinPestanaInicial?: boolean; incognito?: boolean }
         }
       }
       // Links normales (target=_blank) → nueva pestaña.
-      pushAgentEvent(`Se abrió una pestaña nueva: ${details.url}`)
+      pushAgentEvent(tr("Se abrió una pestaña nueva: {0}", details.url))
       suya().createTab(details.url)
       return { action: 'deny' }
     })
@@ -1197,14 +1218,14 @@ function crearVentana(opts: { sinPestanaInicial?: boolean; incognito?: boolean }
     if (respondio || avisandoCuelgue || activeId !== idEnCurso || !win || win.isDestroyed() || !win.isVisible()) return
 
     avisandoCuelgue = true
-    const nombre = t.title || nombreDeUrl(t.url) || 'La página'
+    const nombre = t.title || nombreDeUrl(t.url) || tr("La página")
     const { response } = await dialog.showMessageBox(win, {
       type: 'warning',
-      buttons: ['Esperar', 'Cerrar la pestaña'],
+      buttons: [tr("Esperar"), tr("Cerrar la pestaña")],
       defaultId: 0,
       cancelId: 0,
-      message: `${nombre} no responde`,
-      detail: 'La página se quedó bloqueada. Puedes darle más tiempo o cerrarla y perder lo que no hayas guardado.'
+      message: tr("{0} no responde", nombre),
+      detail: tr("La página se quedó bloqueada. Puedes darle más tiempo o cerrarla y perder lo que no hayas guardado.")
     })
     avisandoCuelgue = false
     if (response === 1 && tabs.has(idEnCurso)) closeTab(idEnCurso)
@@ -1274,8 +1295,8 @@ function crearVentana(opts: { sinPestanaInicial?: boolean; incognito?: boolean }
     if (!t) return
     // Cerrar la pestaña que el agente está operando es una orden de parar inequívoca. Sin
     // esto, el agente la reabría con `openTab` y seguía: el usuario cerraba una pestaña que
-    // volvía sola, una y otra vez, sin forma de detenerla salvo cerrar Monper.
-    if (t.agent || id === controlledTabId) pararAgente('se cerró su pestaña')
+    // volvía sola, una y otra vez, sin forma de detenerla salvo cerrar Titanio.
+    if (t.agent || id === controlledTabId) pararAgente(tr("se cerró su pestaña"))
     // Recuerda la URL para poder reabrirla (solo http(s), no agent tabs).
     const u = t.errorUrl ?? t.url
     if (!t.agent && /^https?:\/\//i.test(u)) { closedStack.push(u); if (closedStack.length > 25) closedStack.shift() }
@@ -1391,7 +1412,7 @@ function crearVentana(opts: { sinPestanaInicial?: boolean; incognito?: boolean }
       // creara la de bienvenida, la ventana abriría con dos y habría que cerrar una a la vista
       // del usuario.
       if (tabs.size === 0 && !opts.sinPestanaInicial) {
-        if (!restoreSession(ventanas.get(win!.id) ?? vAct())) createTab()
+        if (!restoreSession(ventanas.get(win!.id) ?? vAct())) createTab(preferencesFor().startup === 'home' ? preferencesFor().homePage || newtabUrl() : undefined)
       } else pushState()
       // Pre-carga las ventanas nativas de popups (site-info, menú de perfil) para que
       // abran instantáneo — crearlas en el primer click era lento (2-3 clicks).
@@ -1460,7 +1481,7 @@ function imprimirActiva(): void {
     if (!ok && motivo && motivo !== 'cancelled') {
       console.error('[imprimir] no se pudo:', motivo)
       dialog.showMessageBox(vActOpt()?.win ?? undefined!, {
-        type: 'error', buttons: ['OK'], message: 'No se pudo imprimir esta página', detail: motivo
+        type: 'error', buttons: ['OK'], message: tr("No se pudo imprimir esta página"), detail: motivo
       })
     }
   })
@@ -1470,7 +1491,7 @@ function imprimirActiva(): void {
  * Picture-in-picture automático al dejar de ver una pestaña.
  *
  * Es lo que se espera de un navegador hoy: te cambias de pestaña —o minimizas— y el vídeo que
- * estabas viendo sigue delante en una ventanita, en vez de desaparecer. Monper lo necesita más
+ * estabas viendo sigue delante en una ventanita, en vez de desaparecer. Titanio lo necesita más
  * que nadie: el agente se lleva una pestaña a trabajar mientras tú sigues viendo lo tuyo.
  *
  * Reglas, todas por evitar que moleste:
@@ -1597,20 +1618,20 @@ async function showPageContextMenu(wc: Electron.WebContents, p: Electron.Context
   const nav = wc.navigationHistory
   const items: MenuItemConstructorOptions[] = []
   if (!p.isEditable && !p.linkURL && !p.selectionText) {
-    items.push({ label: 'Imprimir…', accelerator: 'CmdOrCtrl+P', click: () => imprimirActiva() }, { type: 'separator' })
+    items.push({ label: tr("Imprimir…"), accelerator: 'CmdOrCtrl+P', click: () => imprimirActiva() }, { type: 'separator' })
   }
   if (p.linkURL) {
     items.push(
-      { label: 'Abrir enlace en pestaña nueva', click: () => vAct().createTab(p.linkURL) },
-      { label: 'Copiar dirección del enlace', click: () => clipboard.writeText(p.linkURL) },
+      { label: tr("Abrir enlace en pestaña nueva"), click: () => vAct().createTab(p.linkURL) },
+      { label: tr("Copiar dirección del enlace"), click: () => clipboard.writeText(p.linkURL) },
       { type: 'separator' }
     )
   }
   if (p.mediaType === 'image' && p.srcURL) {
     items.push(
-      { label: 'Abrir imagen en pestaña nueva', click: () => vAct().createTab(p.srcURL) },
-      { label: 'Copiar dirección de la imagen', click: () => clipboard.writeText(p.srcURL) },
-      { label: 'Guardar imagen', click: () => wc.downloadURL(p.srcURL) },
+      { label: tr("Abrir imagen en pestaña nueva"), click: () => vAct().createTab(p.srcURL) },
+      { label: tr("Copiar dirección de la imagen"), click: () => clipboard.writeText(p.srcURL) },
+      { label: tr("Guardar imagen"), click: () => wc.downloadURL(p.srcURL) },
       { type: 'separator' }
     )
   }
@@ -1626,56 +1647,41 @@ async function showPageContextMenu(wc: Electron.WebContents, p: Electron.Context
   }))
   if (p.isEditable) {
     items.push(
-      { role: 'cut', enabled: p.editFlags.canCut },
-      { role: 'copy', enabled: p.editFlags.canCopy },
-      { role: 'paste', enabled: p.editFlags.canPaste },
-      { role: 'selectAll' },
+      { role: 'cut', label: tr('Cortar'), enabled: p.editFlags.canCut },
+      { role: 'copy', label: tr('Copiar'), enabled: p.editFlags.canCopy },
+      { role: 'paste', label: tr('Pegar'), enabled: p.editFlags.canPaste },
+      { role: 'selectAll', label: tr('Seleccionar todo') },
       { type: 'separator' }
     )
   } else if (p.selectionText) {
     const sel = p.selectionText.trim().slice(0, 40)
     items.push(
-      { role: 'copy' },
-      { label: `Buscar "${sel}" en Google`, click: () => vAct().createTab('https://www.google.com/search?q=' + encodeURIComponent(p.selectionText)) },
-      { type: 'separator' }
-    )
-  }
-  // Widget: solo páginas de verdad (una interna o un error no tienen nada que extraer).
-  const urlPagina = wc.getURL()
-  if (/^https?:\/\//i.test(urlPagina) && !isInternal(urlPagina)) {
-    const ya = widgetDe(urlPagina)
-    items.push(
-      ya
-        ? { label: 'Quitar el widget de esta página', click: () => { quitarWidget(ya.id); avisarWidgets() } }
-        : {
-            label: 'Crear widget de esta página',
-            click: () => {
-              const t = [...vAct().tabs.values()].find((x) => x.view.webContents === wc)
-              void generarWidget(urlPagina, t?.title ?? wc.getTitle(), t?.favicon ?? null)
-            }
-          },
+      { role: 'copy', label: tr('Copiar') },
+      { label: tr('Buscar "{0}" en {1}', sel, SEARCH_ENGINES[preferencesFor().searchEngine]), click: () => vAct().createTab(searchUrlFor(p.selectionText, preferencesFor().searchEngine)) },
       { type: 'separator' }
     )
   }
   items.push(
-    { label: 'Atrás', enabled: nav.canGoBack(), click: () => nav.goBack() },
-    { label: 'Adelante', enabled: nav.canGoForward(), click: () => nav.goForward() },
-    { label: 'Recargar', click: () => wc.reload() },
+    { label: tr("Atrás"), enabled: nav.canGoBack(), click: () => nav.goBack() },
+    { label: tr("Adelante"), enabled: nav.canGoForward(), click: () => nav.goForward() },
+    { label: tr("Recargar"), click: () => wc.reload() },
     { type: 'separator' },
-    { label: 'Copiar dirección de la página', click: () => clipboard.writeText(wc.getURL()) },
-    { label: 'Inspeccionar elemento', click: () => wc.inspectElement(p.x, p.y) }
+    { label: tr("Copiar dirección de la página"), click: () => clipboard.writeText(wc.getURL()) },
+    { label: tr("Inspeccionar elemento"), click: () => wc.inspectElement(p.x, p.y) }
   )
   Menu.buildFromTemplate(items).popup({ window: vActOpt()?.win })
 }
 
 // ---- Restauración de sesión: persistir las pestañas abiertas y reabrirlas al arrancar ----
 // Por perfil: las pestañas abiertas son suyas, igual que su historial.
-function sessionFile(): string { return rutaDePerfil('session.json') }
+let loadedSessionFile = ''
+function sessionFile(): string { return loadedSessionFile ||= rutaDePerfil('session.json') }
 let saveSessionTimer: NodeJS.Timeout | null = null
 
-interface SesionVentana { urls: string[]; activeIndex: number }
+interface SesionVentana { urls: string[]; activeIndex: number; titanioIndex?: number }
 function collectVentana(v: Ventana): SesionVentana {
   const urls: string[] = []
+  let titanioIndex: number | undefined
   let activeIndex = 0
   for (const [id, t] of v.tabs) {
     if (t.agent) continue // las pestañas del agente no se persisten
@@ -1689,9 +1695,10 @@ function collectVentana(v: Ventana): SesionVentana {
     // ERR_CONNECTION_REFUSED en la cara del usuario, en su propia página de bienvenida.
     if (!/^https?:\/\//i.test(u) || isInternal(u)) continue
     if (id === v.activeId()) activeIndex = urls.length
+    if (t.pinnedTitanio) titanioIndex = urls.length
     urls.push(u)
   }
-  return { urls, activeIndex }
+  return { urls, activeIndex, titanioIndex }
 }
 function collectSession(): { ventanas: SesionVentana[] } {
   // Las ventanas de incógnito no se guardan: reabrirlas al arrancar sería contar en voz alta
@@ -1720,6 +1727,7 @@ function leerSesion(): SesionVentana[] {
   return Array.isArray(d?.ventanas) ? d.ventanas.filter((g) => Array.isArray(g?.urls) && g.urls.length > 0) : []
 }
 function restoreSession(v: Ventana): boolean {
+  if (preferencesFor().startup === 'home') return false
   // Ni se restaura EN una ventana de incógnito: abriría ahí las pestañas de la sesión normal.
   if (v.incognito) return false
   if (colaSesion === null) {
@@ -1729,7 +1737,11 @@ function restoreSession(v: Ventana): boolean {
   }
   const grupo = colaSesion.shift()
   if (!grupo) return false
-  for (const u of grupo.urls) v.createTab(u, false)
+  for (const [index, u] of grupo.urls.entries()) {
+    const id = v.createTab(u, false)
+    const tab = v.tabs.get(id)
+    if (tab && index === grupo.titanioIndex) tab.pinnedTitanio = true
+  }
   const ids = [...v.tabs.keys()]
   const target = ids[Math.min(Math.max(0, grupo.activeIndex ?? 0), ids.length - 1)]
   if (target != null) v.setActive(target)
@@ -1744,7 +1756,7 @@ function normalizeUrl(raw: string): string | null {
   // Si el sistema se hace cargo, no hay nada que navegar.
   if (abrirConElSistema(url)) return null
   if (/^[\w-]+(\.[\w-]+)+(\/.*)?$/.test(url) || url === 'localhost' || url.startsWith('localhost:')) return 'https://' + url
-  return 'https://www.google.com/search?q=' + encodeURIComponent(url)
+  return searchUrlFor(url, preferencesFor().searchEngine)
 }
 
 // WebContents de la pestaña activa (para acciones de navegación del menú).
@@ -1781,78 +1793,84 @@ function menuAction(action: string): void {
 
 function buildAppMenu(): void {
   const appMenu: MenuItemConstructorOptions = {
-    label: 'Monper',
+    label: 'Titanio',
     submenu: [
-      { role: 'about', label: 'Acerca de Monper' },
-      { label: 'Buscar actualizaciones…', click: () => void checkForUpdates(true, vActOpt()?.win) },
+      { role: 'about', label: tr("Acerca de Titanio") },
+      { label: tr("Buscar actualizaciones…"), click: () => void checkForUpdates(true, vActOpt()?.win) },
       { type: 'separator' },
-      { label: 'Ajustes…', accelerator: 'CmdOrCtrl+,', click: () => openSettings() },
+      { label: tr("Ajustes…"), accelerator: 'CmdOrCtrl+,', click: () => openSettings() },
       { type: 'separator' },
       { role: 'services' },
       { type: 'separator' },
-      { role: 'hide', label: 'Ocultar Monper' },
-      { role: 'hideOthers', label: 'Ocultar otros' },
-      { role: 'unhide', label: 'Mostrar todo' },
+      { role: 'hide', label: tr("Ocultar Titanio") },
+      { role: 'hideOthers', label: tr("Ocultar otros") },
+      { role: 'unhide', label: tr("Mostrar todo") },
       { type: 'separator' },
-      { role: 'quit', label: 'Salir de Monper' }
+      { role: 'quit', label: tr("Salir de Titanio") }
     ]
   }
 
   const fileMenu: MenuItemConstructorOptions = {
-    label: 'Archivo',
+    label: tr("Archivo"),
     submenu: [
-      { label: 'Nueva ventana', accelerator: 'CmdOrCtrl+N', click: () => { createWindow() } },
-      { label: 'Nueva ventana de incógnito', accelerator: 'CmdOrCtrl+Shift+N', click: () => { createWindow({ incognito: true }) } },
-      { label: 'Nueva pestaña', accelerator: 'CmdOrCtrl+T', click: () => vAct().createTab() },
-      { label: 'Reabrir pestaña cerrada', accelerator: 'CmdOrCtrl+Shift+T', click: () => vAct().reopenClosedTab() },
-      { label: 'Historial', accelerator: 'CmdOrCtrl+Y', click: () => openHistory() },
-      { label: 'Marcadores', accelerator: 'CmdOrCtrl+Alt+B', click: () => openBookmarksManager() },
+      { label: tr("Nueva ventana"), accelerator: 'CmdOrCtrl+N', click: () => { createWindow() } },
+      { label: tr("Nueva ventana de incógnito"), accelerator: 'CmdOrCtrl+Shift+N', click: () => { createWindow({ incognito: true }) } },
+      { label: tr("Nueva pestaña"), accelerator: 'CmdOrCtrl+T', click: () => vAct().createTab() },
+      { label: tr("Reabrir pestaña cerrada"), accelerator: 'CmdOrCtrl+Shift+T', click: () => vAct().reopenClosedTab() },
+      { label: tr("Historial"), accelerator: 'CmdOrCtrl+Y', click: () => openHistory() },
+      { label: tr("Marcadores"), accelerator: 'CmdOrCtrl+Alt+B', click: () => openBookmarksManager() },
       { type: 'separator' },
-      { label: 'Imprimir…', accelerator: 'CmdOrCtrl+P', click: () => imprimirActiva() },
-      { label: 'Cerrar pestaña', accelerator: 'CmdOrCtrl+W', click: () => { const id = vAct().activeId(); if (id != null) vAct().closeTab(id) } },
+      { label: tr("Imprimir…"), accelerator: 'CmdOrCtrl+P', click: () => imprimirActiva() },
+      { label: tr("Cerrar pestaña"), accelerator: 'CmdOrCtrl+W', click: () => { const id = vAct().activeId(); if (id != null) vAct().closeTab(id) } },
       { type: 'separator' },
-      { label: 'Editar URL', accelerator: 'CmdOrCtrl+L', click: () => menuAction('edit-url') }
+      { label: tr("Editar URL"), accelerator: 'CmdOrCtrl+L', click: () => menuAction('edit-url') }
     ]
   }
 
   const editMenu: MenuItemConstructorOptions = {
-    label: 'Editar',
+    label: tr("Editar"),
     submenu: [
-      { role: 'undo', label: 'Deshacer' },
-      { role: 'redo', label: 'Rehacer' },
+      { role: 'undo', label: tr("Deshacer") },
+      { role: 'redo', label: tr("Rehacer") },
       { type: 'separator' },
-      { role: 'cut', label: 'Cortar' },
-      { role: 'copy', label: 'Copiar' },
-      { role: 'paste', label: 'Pegar' },
-      { role: 'selectAll', label: 'Seleccionar todo' },
+      { role: 'cut', label: tr("Cortar") },
+      { role: 'copy', label: tr("Copiar") },
+      { role: 'paste', label: tr("Pegar") },
+      { role: 'selectAll', label: tr("Seleccionar todo") },
       { type: 'separator' },
-      { label: 'Buscar en la página', accelerator: 'CmdOrCtrl+F', click: () => menuAction('find') }
+      { label: tr("Buscar en la página"), accelerator: 'CmdOrCtrl+F', click: () => menuAction('find') }
     ]
   }
 
   const viewMenu: MenuItemConstructorOptions = {
-    label: 'Ver',
+    label: tr("Ver"),
     submenu: [
-      { label: 'Recargar', accelerator: 'CmdOrCtrl+R', click: () => activeWc()?.reload() },
-      { label: 'Atrás', accelerator: 'CmdOrCtrl+[', click: () => { const wc = activeWc(); if (wc?.navigationHistory.canGoBack()) wc.navigationHistory.goBack() } },
-      { label: 'Adelante', accelerator: 'CmdOrCtrl+]', click: () => { const wc = activeWc(); if (wc?.navigationHistory.canGoForward()) wc.navigationHistory.goForward() } },
+      { label: tr("Recargar"), accelerator: 'CmdOrCtrl+R', click: () => activeWc()?.reload() },
+      { label: tr("Atrás"), accelerator: 'CmdOrCtrl+[', click: () => { const wc = activeWc(); if (wc?.navigationHistory.canGoBack()) wc.navigationHistory.goBack() } },
+      { label: tr("Adelante"), accelerator: 'CmdOrCtrl+]', click: () => { const wc = activeWc(); if (wc?.navigationHistory.canGoForward()) wc.navigationHistory.goForward() } },
       { type: 'separator' },
-      { label: 'Acercar', accelerator: 'CmdOrCtrl+Plus', click: () => changeZoom(1) },
-      { label: 'Acercar', accelerator: 'CmdOrCtrl+=', visible: false, click: () => changeZoom(1) },
-      { label: 'Alejar', accelerator: 'CmdOrCtrl+-', click: () => changeZoom(-1) },
-      { label: 'Zoom normal', accelerator: 'CmdOrCtrl+0', click: () => changeZoom('reset') },
+      { label: tr("Acercar"), accelerator: 'CmdOrCtrl+Plus', click: () => changeZoom(1) },
+      { label: tr("Acercar"), accelerator: 'CmdOrCtrl+=', visible: false, click: () => changeZoom(1) },
+      { label: tr("Alejar"), accelerator: 'CmdOrCtrl+-', click: () => changeZoom(-1) },
+      { label: tr("Zoom normal"), accelerator: 'CmdOrCtrl+0', click: () => changeZoom('reset') },
       { type: 'separator' },
-      { label: 'Mostrar/ocultar sidebar', accelerator: 'CmdOrCtrl+S', click: () => menuAction('toggle-sidebar') },
-      { label: 'Ask Monper', accelerator: 'CmdOrCtrl+J', click: () => menuAction('toggle-chat') },
+      { label: tr("Mostrar/ocultar sidebar"), accelerator: 'CmdOrCtrl+S', click: () => menuAction('toggle-sidebar') },
+      { label: tr("Ask Titanio"), accelerator: 'CmdOrCtrl+J', click: () => menuAction('toggle-chat') },
       { type: 'separator' },
-      { role: 'togglefullscreen', label: 'Pantalla completa' },
-      { label: 'Herramientas de desarrollo', accelerator: 'F12', click: () => vAct().toggleDevtools() }
+      { role: 'togglefullscreen', label: tr("Pantalla completa") },
+      { label: tr("Herramientas de desarrollo"), accelerator: 'F12', click: () => vAct().toggleDevtools() }
     ]
   }
 
   const windowMenu: MenuItemConstructorOptions = {
-    label: 'Ventana',
-    role: 'windowMenu'
+    label: tr("Ventana"),
+    role: 'windowMenu',
+    submenu: [
+      { role: 'minimize', label: tr('Minimizar') },
+      { role: 'zoom', label: tr('Ampliar ventana') },
+      { type: 'separator' },
+      { role: 'front', label: tr('Traer todo al frente') }
+    ]
   }
 
   const template: MenuItemConstructorOptions[] = isMac
@@ -1865,6 +1883,20 @@ function buildAppMenu(): void {
 
 // ---- IPC ----
 ipcMain.handle('tabs:new', (ev) => { hidePeek(); return vDe(ev).createTab() })
+ipcMain.handle('tabs:titanio', (ev) => {
+  hidePeek()
+  const v = vDe(ev)
+  const existing = [...v.tabs.entries()].find(([, t]) => t.pinnedTitanio)
+    ?? [...v.tabs.entries()].find(([, t]) => !t.agent && !t.bookmarkId && originOfUrl(t.url) === 'https://app.titanio.ai')
+  const id = existing?.[0] ?? v.createTab('https://app.titanio.ai', false)
+  const tab = v.tabs.get(id)
+  if (!tab) return
+  tab.pinnedTitanio = true
+  tab.favicon ||= faviconFor('https://app.titanio.ai')
+  v.setActive(id)
+  v.pushState()
+  scheduleSaveSession()
+})
 // La ventana de origen es la que TIENE la pestaña, no la que envía: el id es único en toda la
 // app, así que no hay ambigüedad y así funciona igual si el mensaje llega desde otro sitio.
 ipcMain.on('tabs:tearOff', (ev, id: number) => { moverTabAVentanaNueva(duenoDeTab(id) ?? vDe(ev), id) })
@@ -1880,23 +1912,26 @@ ipcMain.handle('nav:back', (ev) => { const t = vDe(ev).tabActiva(); if (t?.view.
 ipcMain.handle('nav:forward', (ev) => { const t = vDe(ev).tabActiva(); if (t?.view.webContents.navigationHistory.canGoForward()) t.view.webContents.navigationHistory.goForward() })
 ipcMain.handle('nav:reload', (ev) => { const t = vDe(ev).tabActiva(); t?.view.webContents.reload() })
 // ---- Anchos de los paneles (redimensionables, persistidos) ----
-function panelsFile(): string { return join(app.getPath('userData'), 'panels.json') }
+function panelsFile(): string { return rutaDePerfil('panels.json') }
 function loadPanels(): void {
   try {
-    const d = JSON.parse(readFileSync(panelsFile(), 'utf-8')) as { sidebar?: number; chat?: number; vibrancy?: string }
+    const d = JSON.parse(readFileSync(panelsFile(), 'utf-8')) as { sidebar?: number; chat?: number; vibrancy?: string; tint?: string }
     const L = PANEL_LIMITS
     if (d.sidebar) sidebarWidth = Math.min(L.sidebarMax, Math.max(L.sidebarMin, Math.round(d.sidebar)))
     if (d.chat) chatWidth = Math.min(L.chatMax, Math.max(L.chatMin, Math.round(d.chat)))
     // Solo aceptamos un valor conocido: el JSON lo puede editar el usuario.
     const v = d.vibrancy as VibrancySetting
     if (v === 'none' || VIBRANCY_MATERIALS.includes(v as VibrancyMaterial)) vibrancyMaterial = v
+    if (typeof d.tint === 'string' && /^#[0-9a-f]{6}$/i.test(d.tint)) appearanceTint = d.tint.toLowerCase()
   } catch { /* valores por defecto */ }
+  if (listaPerfiles().find((p) => p.id === perfilActivoId())?.preferences) appearanceTint = preferencesFor().tint
 }
 let savePanelsTimer: NodeJS.Timeout | null = null
 function savePanels(): void {
+  const file = panelsFile()
   if (savePanelsTimer) clearTimeout(savePanelsTimer)
   savePanelsTimer = setTimeout(() => {
-    writeJson(panelsFile(), { sidebar: sidebarWidth, chat: chatWidth, vibrancy: vibrancyMaterial }, 'el tamaño de los paneles', false)
+    writeJson(file, { sidebar: sidebarWidth, chat: chatWidth, vibrancy: vibrancyMaterial, tint: appearanceTint }, 'la apariencia y el tamaño de los paneles', false)
   }, 400)
 }
 ipcMain.handle('state:get', (ev) => vDe(ev).buildState())
@@ -1905,23 +1940,34 @@ ipcMain.handle('ui:panels', () => ({ sidebar: sidebarWidth, chat: chatWidth, lim
 // ---- Apariencia: nivel de transparencia del chrome (sidebar y panel de chat) ----
 /** Materiales expuestos en Settings, con nombre humano en vez del término de macOS. */
 const VIBRANCY_OPTIONS: { id: VibrancySetting; label: string; desc: string }[] = [
-  { id: 'hud', label: 'Máxima', desc: 'El chrome deja pasar casi todo el fondo' },
-  { id: 'popover', label: 'Alta', desc: 'Translúcido, con algo más de cuerpo' },
-  { id: 'menu', label: 'Media', desc: 'Equilibrio entre fondo y legibilidad' },
-  { id: 'sidebar', label: 'Baja', desc: 'Apenas se intuye lo que hay detrás' },
-  { id: 'under-window', label: 'Mínima', desc: 'Casi opaco' },
-  { id: 'none', label: 'Sin transparencia', desc: 'Fondo sólido, sin efecto de material' }
+  { id: 'hud', get label() { return tr("Máxima") }, get desc() { return tr("Fondo muy visible") } },
+  { id: 'popover', get label() { return tr("Alta") }, get desc() { return tr("Fondo visible") } },
+  { id: 'menu', get label() { return tr("Media") }, get desc() { return tr("Fondo parcialmente visible") } },
+  { id: 'sidebar', get label() { return tr("Baja") }, get desc() { return tr("Fondo poco visible") } },
+  { id: 'under-window', get label() { return tr("Mínima") }, get desc() { return tr("Casi opaco") } },
+  { id: 'none', get label() { return tr("Sin transparencia") }, get desc() { return tr("Fondo opaco") } }
 ]
 /** Aplica el ajuste en vivo. 'none' quita la vibrancy y pone fondo opaco. */
 function applyVibrancy(v: VibrancySetting): void {
-  if (!vActOpt()?.win || vActOpt()?.win.isDestroyed() || !isMac) return
-  if (v === 'none') {
-    vActOpt()?.win.setVibrancy(null)
-    vActOpt()?.win.setBackgroundColor(APP_BG)
-  } else {
-    vActOpt()?.win.setBackgroundColor('#00000000') // necesario para que el material se vea
-    vActOpt()?.win.setVibrancy(v)
+  if (!isMac || NO_VIBRANCY) return
+  for (const { win } of ventanas.values()) {
+    if (win.isDestroyed()) continue
+    if (v === 'none') {
+      win.setVibrancy(null)
+      win.setBackgroundColor(APP_BG)
+    } else {
+      win.setBackgroundColor('#00000000') // necesario para que el material se vea
+      win.setVibrancy(v)
+    }
   }
+}
+
+function appearanceData() {
+  return { vibrancy: vibrancyMaterial, tint: appearanceTint, options: VIBRANCY_OPTIONS }
+}
+function broadcastAppearance(): void {
+  paraPaginas('/settings.html', 'ui:appearanceChanged', appearanceData())
+  for (const v of ventanas.values()) v.pushState()
 }
 // ---- Actualizaciones: estado compartido con el chrome (pill) y con Settings ----
 function broadcastUpdateState(s: ReturnType<typeof getUpdateState>): void {
@@ -1936,7 +1982,7 @@ ipcMain.on('remote:set', (_e, on: boolean) => setRemoteEnabled(!!on))
 /**
  * El mismo interruptor, para Settings → MCPs.
  *
- * Va por un canal aparte y con `isInternalSender` porque `monperTab` es el preload de
+ * Va por un canal aparte y con `isInternalSender` porque `titanioTab` es el preload de
  * CONTENIDO: existe también en cualquier web que cargues. Sin ese filtro, una página podría
  * encender el puente y quedarse conduciendo tu navegador con tus sesiones. No es teórico: es
  * el mismo agujero que ya tapamos en los permisos de sitios.
@@ -1963,7 +2009,7 @@ ipcMain.handle('history:clear', (e, desde?: number) => (isInternalSender(e.sende
 // historial completo del usuario y sus contraseñas). Una web no puede ni preguntar.
 ipcMain.handle('import:browsers', (e) => (isInternalSender(e.senderFrame?.url) ? navegadoresDisponibles() : []))
 ipcMain.handle('import:run', async (e, id: NavegadorId, que: { bookmarks: boolean; history: boolean; passwords: boolean }) => {
-  if (!isInternalSender(e.senderFrame?.url)) return { ok: false, error: 'No permitido.' }
+  if (!isInternalSender(e.senderFrame?.url)) return { ok: false, error: tr("No permitido.") }
   const resumen = { bookmarks: 0, history: 0, passwords: 0 }
   const errores: string[] = []
 
@@ -1992,13 +2038,13 @@ ipcMain.handle('import:run', async (e, id: NavegadorId, que: { bookmarks: boolea
   if (que.passwords) {
     try {
       for (const c of leerCredenciales(id)) {
-        let host = c.url
-        try { host = new URL(c.url).hostname.replace(/^www\./, '') } catch { /* url rara: se usa cruda */ }
-        vault.add('web-credential', host, { username: c.username, url: c.url }, c.password)
-        resumen.passwords++
+        try {
+          if (vault.importCredential(c.url, c.username, c.password)) resumen.passwords++
+        } catch (err) { errores.push(err instanceof Error ? err.message : String(err)) }
       }
     } catch (err) { errores.push(err instanceof Error ? err.message : String(err)) }
   }
+  if (resumen.passwords) { notifyVault(); notifyChatContext() }
   // Se devuelve lo importado Y lo que falló: un resumen que solo cuenta éxitos miente.
   return { ok: errores.length === 0, ...resumen, error: errores.join(' · ') || undefined }
 })
@@ -2015,7 +2061,7 @@ ipcMain.handle('browser:makeDefault', () => {
 })
 ipcMain.on('browser:dismissDefault', () => descartarOferta())
 
-// ---- Servidores MCP externos: el agente usa herramientas que Monper no tiene ----
+// ---- Servidores MCP externos: el agente usa herramientas que Titanio no tiene ----
 ipcMain.handle('mcp:servers', (e) => (isInternalSender(e.senderFrame?.url) ? mcpServerStates() : []))
 ipcMain.handle('mcp:reload', (e) => {
   if (!isInternalSender(e.senderFrame?.url)) return []
@@ -2076,12 +2122,24 @@ ipcMain.on('update:check', () => void checkForUpdates(true, vActOpt()?.win))
 ipcMain.on('update:download', () => void downloadUpdate())
 ipcMain.on('update:install', () => installUpdate())
 
-ipcMain.handle('ui:appearance', () => ({ vibrancy: vibrancyMaterial, options: VIBRANCY_OPTIONS }))
+ipcMain.handle('ui:appearance', () => appearanceData())
+ipcMain.handle('ui:setTint', (e, color: unknown) => {
+  if (!isInternalSender(e.senderFrame?.url)) throw new Error(tr("No permitido."))
+  if (color !== null && (typeof color !== 'string' || !/^#[0-9a-f]{6}$/i.test(color))) throw new Error(tr("Color no válido."))
+  const tint = typeof color === 'string' ? color.toLowerCase() : null
+  const current = profileSettings().profiles.find((p) => p.id === perfilActivoId())!
+  updateBrowserProfile({ ...current, preferences: { ...current.preferences, tint } })
+  appearanceTint = tint
+  broadcastAppearance()
+  savePanels()
+  return appearanceTint
+})
 ipcMain.on('ui:setVibrancy', (e, v: VibrancySetting) => {
   if (!isInternalSender(e.senderFrame?.url)) return
   if (!VIBRANCY_OPTIONS.some((o) => o.id === v)) return
   vibrancyMaterial = v
   applyVibrancy(v)
+  broadcastAppearance()
   savePanels()
 })
 ipcMain.on('ui:setPanel', (ev, which: 'sidebar' | 'chat', width: number) => {
@@ -2204,12 +2262,12 @@ ipcMain.on('bookmark:contextMenu', (ev: IpcMainEvent, id: string) => {
   const b = listBookmarks().find((x) => x.id === id)
   if (!b || !vActOpt()?.win) return
   const template: MenuItemConstructorOptions[] = [
-    { label: 'Abrir', click: () => { for (const [tid, t] of vDe(ev).tabs) { if (t.bookmarkId === id) { vDe(ev).setActive(tid); return } } const nid = vDe(ev).createTab(b.url, true); const nt = vDe(ev).tabs.get(nid); if (nt) { nt.bookmarkId = id; vDe(ev).pushState() } } },
-    { label: 'Abrir en pestaña nueva', click: () => vDe(ev).createTab(b.url) },
+    { label: tr("Abrir"), click: () => { for (const [tid, t] of vDe(ev).tabs) { if (t.bookmarkId === id) { vDe(ev).setActive(tid); return } } const nid = vDe(ev).createTab(b.url, true); const nt = vDe(ev).tabs.get(nid); if (nt) { nt.bookmarkId = id; vDe(ev).pushState() } } },
+    { label: tr("Abrir en pestaña nueva"), click: () => vDe(ev).createTab(b.url) },
     {
       // Un marcador abierto es una pestaña como otra: se muda entera, con su historial. Si no
       // está abierto no hay nada que mudar y se abre de cero en la ventana nueva.
-      label: 'Abrir en ventana nueva',
+      label: tr("Abrir en ventana nueva"),
       click: () => {
         const v = vDe(ev)
         const abierta = [...v.tabs.entries()].find(([, t]) => t.bookmarkId === id)
@@ -2220,9 +2278,9 @@ ipcMain.on('bookmark:contextMenu', (ev: IpcMainEvent, id: string) => {
         if (nt) { nt.bookmarkId = id; destino.pushState() }
       }
     },
-    { label: 'Copiar enlace', click: () => clipboard.writeText(b.url) },
+    { label: tr("Copiar enlace"), click: () => clipboard.writeText(b.url) },
     { type: 'separator' },
-    { label: 'Quitar de bookmarks', click: () => { soltarTabsDelBookmark(id); removeBookmark(id); broadcastBookmarks() } }
+    { label: tr("Quitar de bookmarks"), click: () => { soltarTabsDelBookmark(id); removeBookmark(id); broadcastBookmarks() } }
   ]
   Menu.buildFromTemplate(template).popup({ window: vDe(ev).win })
 })
@@ -2237,17 +2295,17 @@ ipcMain.on('tab:contextMenu', (ev: IpcMainEvent, id: number) => {
   const others = ids.filter((x) => x !== id)
   const internal = isInternal(t.url)
   const template: MenuItemConstructorOptions[] = [
-    { label: 'Nueva pestaña', click: () => vDe(ev).createTab() },
-    { label: 'Duplicar', enabled: !internal, click: () => vDe(ev).createTab(t.url) },
+    { label: tr("Nueva pestaña"), click: () => vDe(ev).createTab() },
+    { label: tr("Duplicar"), enabled: !internal, click: () => vDe(ev).createTab(t.url) },
     {
-      label: 'Abrir en ventana nueva',
+      label: tr("Abrir en ventana nueva"),
       enabled: [...vDe(ev).tabs.values()].filter((tb) => !tb.agent).length > 1,
       click: () => { moverTabAVentanaNueva(vDe(ev), id) }
     },
     { type: 'separator' },
-    { label: 'Recargar', click: () => wc.reload() },
+    { label: tr("Recargar"), click: () => wc.reload() },
     {
-      label: isBookmarked(t.url) ? 'Quitar de bookmarks' : 'Agregar a bookmarks',
+      label: isBookmarked(t.url) ? tr("Quitar de bookmarks") : 'Agregar a bookmarks',
       enabled: !internal,
       click: () => {
         if (t.bookmarkId) soltarTabsDelBookmark(t.bookmarkId)
@@ -2255,12 +2313,12 @@ ipcMain.on('tab:contextMenu', (ev: IpcMainEvent, id: number) => {
         broadcastBookmarks()
       }
     },
-    { label: t.muted ? 'Reactivar sonido' : 'Silenciar sitio', click: () => setTabMuted(id, !t.muted) },
-    { label: 'Copiar enlace', enabled: !internal, click: () => clipboard.writeText(t.url) },
+    { label: t.muted ? tr("Reactivar sonido") : tr("Silenciar sitio"), click: () => setTabMuted(id, !t.muted) },
+    { label: tr("Copiar enlace"), enabled: !internal, click: () => clipboard.writeText(t.url) },
     { type: 'separator' },
-    { label: 'Cerrar', click: () => vDe(ev).closeTab(id) },
-    { label: 'Cerrar otras', enabled: others.length > 0, click: () => others.forEach((x) => vDe(ev).closeTab(x)) },
-    { label: 'Cerrar las de abajo', enabled: below.length > 0, click: () => below.forEach((x) => vDe(ev).closeTab(x)) }
+    { label: tr("Cerrar"), click: () => vDe(ev).closeTab(id) },
+    { label: tr("Cerrar otras"), enabled: others.length > 0, click: () => others.forEach((x) => vDe(ev).closeTab(x)) },
+    { label: tr("Cerrar las de abajo"), enabled: below.length > 0, click: () => below.forEach((x) => vDe(ev).closeTab(x)) }
   ]
   Menu.buildFromTemplate(template).popup({ window: vDe(ev).win })
 })
@@ -2327,7 +2385,7 @@ ipcMain.on('bookmarks:move', (_e, id: string, parentId: string | null) => {
   if (!moveBookmark(String(id), parentId ? String(parentId) : null)) return
   broadcastBookmarks()
 })
-// Plegar una carpeta se persiste: si al reabrir Monper volvieran todas desplegadas, plegarlas
+// Plegar una carpeta se persiste: si al reabrir Titanio volvieran todas desplegadas, plegarlas
 // no serviría de nada — que es justo para lo que se pliegan con 79 marcadores.
 ipcMain.on('bookmarks:collapse', (_e, id: string, collapsed: boolean) => {
   setFolderCollapsed(String(id), !!collapsed)
@@ -2448,6 +2506,17 @@ ipcMain.handle('skills:list', async (e, resolve?: boolean) => {
   return listSkills()
 })
 ipcMain.handle('skills:get', (e, id: string) => (isInternalSender(e.senderFrame?.url) ? getSkill(id) : null))
+ipcMain.handle('skills:save', (e, id: string, source: string, expectedSource: string) => {
+  if (!isInternalSender(e.senderFrame?.url)) throw new Error(tr("No permitido."))
+  const detail = saveSkill(id, source, expectedSource)
+  notifyChatContext()
+  return detail
+})
+ipcMain.handle('skills:openItemFolder', async (e, id: string) => {
+  if (!isInternalSender(e.senderFrame?.url)) throw new Error(tr("No permitido."))
+  const error = await shell.openPath(skillFolder(id))
+  if (error) throw new Error(error)
+})
 ipcMain.handle('skills:toggle', (e, id: string, on: boolean) => (isInternalSender(e.senderFrame?.url) ? toggleSkill(id, on) : listSkills()))
 ipcMain.on('skills:openFolder', (e) => { if (isInternalSender(e.senderFrame?.url)) shell.openPath(skillsDir()) })
 
@@ -2562,14 +2631,14 @@ function reportVaultError(e: unknown): void {
   const detail = e instanceof Error ? e.message : String(e)
   console.error('[vault]', detail)
   dialog.showMessageBox(vActOpt()?.win ?? undefined!, {
-    type: 'error', buttons: ['OK'], message: 'No se pudo guardar en el Vault', detail
+    type: 'error', buttons: ['OK'], message: tr("No se pudo guardar en el Vault"), detail
   })
 }
 
 ipcMain.handle('vault:list', () => vault.list())
 ipcMain.handle('vault:add', (e, type: VaultItemType, label: string, data: Record<string, string>, secret: string) => {
   if (!isInternalSender(e.senderFrame?.url)) return vault.list()
-  try { vault.add(type, label, data, secret) } catch (err) { reportVaultError(err) }
+  vault.add(type, label, data, secret)
   notifyVault(); notifyChatContext()
   return vault.list()
 })
@@ -2580,7 +2649,7 @@ ipcMain.handle('vault:remove', (e, id: string) => {
 })
 ipcMain.handle('vault:update', (e, id: string, patch: { label?: string; data?: Record<string, string>; secret?: string }) => {
   if (!isInternalSender(e.senderFrame?.url)) return vault.list()
-  try { vault.update(String(id), patch ?? {}) } catch (err) { reportVaultError(err) }
+  vault.update(String(id), patch ?? {})
   notifyVault(); notifyChatContext()
   return vault.list()
 })
@@ -2666,7 +2735,8 @@ ipcMain.on('vault:capture', async (ev, cred: { username: string; password: strin
   const origin = ((): string => { try { return new URL(ev.senderFrame?.url || '').origin } catch { return '' } })()
   if (!origin || !/^https?:/.test(origin) || !cred?.password) return
   const host = origin.replace(/^https?:\/\//, '').replace(/^www\./, '')
-  const existing = vault.findCredential(origin)
+  const username = (cred.username || '').trim()
+  const existing = vault.findCredential(origin, username)
   // Ya guardada con la misma contraseña → no molestar.
   if (existing && vault.getSecret(existing.id) === cred.password) return
   const t = [...vDe(ev).tabs.values()].find((tb) => tb.view.webContents === ev.sender)
@@ -2675,17 +2745,17 @@ ipcMain.on('vault:capture', async (ev, cred: { username: string; password: strin
   const { response } = await dialog.showMessageBox(vActOpt()?.win ?? undefined!, {
     type: 'question',
     icon,
-    message: update ? `¿Actualizar la contraseña de ${host}?` : `¿Guardar la contraseña de ${host} en tu Vault?`,
-    detail: cred.username ? `Usuario: ${cred.username}` : 'Monper la guardará cifrada.',
-    buttons: ['Ahora no', update ? 'Actualizar' : 'Guardar'],
+    message: update ? tr("¿Actualizar la contraseña de {0}?", host) : tr("¿Guardar la contraseña de {0} en tu Vault?", host),
+    detail: cred.username ? `Usuario: ${cred.username}` : tr("Titanio la guardará cifrada."),
+    buttons: [tr("Ahora no"), update ? tr("Actualizar") : tr("Guardar")],
     defaultId: 1,
     cancelId: 0,
     noLink: true
   })
   if (response !== 1) return
   try {
-    if (existing) vault.update(existing.id, { data: { ...existing.data, username: cred.username || existing.data.username || '' }, secret: cred.password })
-    else vault.add('web-credential', host, { origin, username: cred.username || '' }, cred.password)
+    if (existing) vault.update(existing.id, { secret: cred.password })
+    else vault.add('web-credential', host, { origin, username }, cred.password)
   } catch (err) { reportVaultError(err); return }
   notifyVault()
 })
@@ -2892,7 +2962,7 @@ ipcMain.on('siteinfo:clear', async () => {
     console.error('[siteinfo] no se pudieron borrar los datos de', activeUrl(), detail)
     dialog.showMessageBox(vActOpt()?.win ?? undefined!, {
       type: 'error', buttons: ['OK'],
-      message: 'No se pudieron borrar los datos del sitio', detail
+      message: tr("No se pudieron borrar los datos del sitio"), detail
     })
   }
   sitePopover.hide()
@@ -2939,6 +3009,44 @@ function datosMenuPerfil(): DatosMenuPerfil {
   }
 }
 
+ipcMain.handle('profiles:settings', (e) => {
+  if (!isInternalSender(e.senderFrame?.url)) throw new Error('Acceso denegado.')
+  return profileSettings()
+})
+ipcMain.handle('profiles:save', (e, input: BrowserProfile) => {
+  if (!isInternalSender(e.senderFrame?.url)) throw new Error('Acceso denegado.')
+  const before = profileSettings().profiles.find((p) => p.id === input.id)
+  const modelChanged = JSON.stringify(before?.preferences.agent.defaultModel) !== JSON.stringify(input.preferences?.agent.defaultModel)
+  const selected = input.preferences?.agent.defaultModel
+  if (modelChanged && selected && !todosLosModelos().some((m) => m.providerId === selected.providerId && m.id === selected.id)) throw new Error('El modelo elegido ya no está disponible. Revisa la conexión.')
+  const result = updateBrowserProfile(input)
+  if (input.id === perfilActivoId()) {
+    appearanceTint = preferencesFor().tint
+    if (modelChanged) applyDefaultProfileModel()
+    savePanels(); broadcastAppearance(); broadcastProfile(); notifyChatContext()
+  }
+  pmPopover.send('profilemenu:profile', datosMenuPerfil())
+  return result
+})
+ipcMain.handle('profiles:create', (e, name: string) => {
+  if (!isInternalSender(e.senderFrame?.url)) throw new Error('Acceso denegado.')
+  if (!name?.trim()) throw new Error('Escribe un nombre para el perfil.')
+  const created = crearPerfil(name)
+  pmPopover.send('profilemenu:profile', datosMenuPerfil())
+  return { ...profileSettings(), createdId: created.id }
+})
+ipcMain.handle('profiles:delete', (e, id: string) => {
+  if (!isInternalSender(e.senderFrame?.url)) throw new Error('Acceso denegado.')
+  if (id === perfilActivoId() || !borrarPerfil(id)) throw new Error('No se puede quitar el perfil activo ni el predeterminado.')
+  pmPopover.send('profilemenu:profile', datosMenuPerfil())
+  return profileSettings()
+})
+ipcMain.handle('profiles:switch', (e, id: string) => {
+  if (!isInternalSender(e.senderFrame?.url)) throw new Error('Acceso denegado.')
+  if (!listaPerfiles().some((p) => p.id === id)) throw new Error('El perfil ya no existe.')
+  cambiarDePerfil(id)
+})
+
 /**
  * Cambia de perfil REINICIANDO la app.
  *
@@ -2947,18 +3055,20 @@ function datosMenuPerfil(): DatosMenuPerfil {
  * de pestañas se guarda antes de salir y cada perfil restaura la suya, así que no se pierde nada.
  */
 function cambiarDePerfil(id: string): void {
+  if (id === perfilActivoId()) return
+  saveSessionNow()
   if (!activarPerfil(id)) {
     console.error('[perfiles] se pidió activar un perfil que no existe:', id)
     return
   }
-  saveSessionNow()
   app.relaunch()
   app.quit()
 }
 
 // ---- Menú de perfil: ventana nativa (flota sobre la página) ----
 const pmPopover = createPopover(() => vActOpt()?.win ?? null, {
-  name: 'profilemenu', width: 264, height: 380,
+  name: 'profilemenu', width: 240, height: 395,
+  side: 'top',
   preload: 'profilemenu', page: 'profilemenu',
   data: { channel: 'profilemenu:profile', get: datosMenuPerfil },
   // El submenú es una ventana aparte: si el menú se va, se va con él.
@@ -2980,6 +3090,8 @@ function anchorDelPeek(ev: Electron.IpcMainEvent, anchor: MenuAnchor): MenuAncho
   return { ...anchor, x: pb.x + anchor.x - cb.x, y: pb.y + anchor.y - cb.y }
 }
 ipcMain.on('profilemenu:open', (ev, anchor: MenuAnchor) => pmPopover.show(anchorDelPeek(ev, anchor)))
+// Anticipa el primer clic sin mostrar ni enfocar la ventana.
+ipcMain.on('profilemenu:warm', () => { if (vActOpt()) pmPopover.ensure() })
 /**
  * Se precalienta solo ESTE popover, y con retraso.
  *
@@ -3152,14 +3264,14 @@ ipcMain.on('peek:hide', hidePeek)
  * no ofrecen passkey. Requiere que la app esté FIRMADA con el entitlement
  * `keychain-access-groups` que incluya este mismo grupo (ver build/entitlements.mac.plist).
  */
-const BUNDLE_ID = 'com.monper.app'
+const BUNDLE_ID = 'com.titanio.app'
 /**
  * El equipo con el que se firmaría: el PERSONAL (`MRWANXY92L`), no el de la organización.
  *
  * No se usa por defecto a propósito. Firmar con este equipo y el entitlement
  * `keychain-access-groups` **impide que la app arranque**: es un entitlement restringido y
  * macOS solo lo concede con un `embedded.provisionprofile` que lo autorice. Medido: la app
- * firmada moría al lanzar, sin mensaje (AMFI), y solo se veía "Monper no se puede abrir".
+ * firmada moría al lanzar, sin mensaje (AMFI), y solo se veía "Titanio no se puede abrir".
  *
  * Cuando exista el perfil de aprovisionamiento, esto pasa a ser el valor por defecto.
  * Ver docs/pendiente-passkeys-firma.md.
@@ -3175,7 +3287,7 @@ function configurePasskeys(): void {
    * estaría diciendo a Chromium que use un autenticador que no puede abrir el llavero, y eso
    * deja WebAuthn roto en vez de simplemente ausente.
    */
-  const teamId = process.env['MONPER_TEAM_ID']
+  const teamId = process.env['TITANIO_TEAM_ID']
   if (!teamId) {
     console.log(`[passkeys] deshabilitadas: requieren firmar con ${TEAM_ID} + provisioning profile (ver docs/pendiente-passkeys-firma.md).`)
     return
@@ -3200,7 +3312,7 @@ function broadcastRoutines(): void {
 }
 ipcMain.handle('routines:list', (e) => (isInternalSender(e.senderFrame?.url) ? listRoutines() : []))
 ipcMain.handle('routines:create', async (e, input: { url: string; request: string; minutes: number }) => {
-  if (!isInternalSender(e.senderFrame?.url)) return { ok: false, error: 'No permitido.' }
+  if (!isInternalSender(e.senderFrame?.url)) return { ok: false, error: tr("No permitido.") }
   try {
     await createWatchRoutine(input)
     return { ok: true }
@@ -3266,10 +3378,10 @@ ipcMain.on('extensions:openPopup', (_e, path: string) => {
 ipcMain.on('extensions:menu', (ev, path: string) => {
   const ui = extensionUi(path)
   const items: MenuItemConstructorOptions[] = [
-    { label: 'Abrir', enabled: !!ui?.popup, click: () => { extPopover.hide(); openExtensionPopup(path) } },
-    { label: 'Opciones', enabled: !!ui?.options, click: () => { extPopover.hide(); if (ui?.options) vDe(ev).createTab(ui.options) } },
+    { label: tr("Abrir"), enabled: !!ui?.popup, click: () => { extPopover.hide(); openExtensionPopup(path) } },
+    { label: tr("Opciones"), enabled: !!ui?.options, click: () => { extPopover.hide(); if (ui?.options) vDe(ev).createTab(ui.options) } },
     { type: 'separator' },
-    { label: 'Quitar de Monper', click: () => { removeExt(path); sendExtensions() } }
+    { label: tr("Quitar de Titanio"), click: () => { removeExt(path); sendExtensions() } }
   ]
   Menu.buildFromTemplate(items).popup({ window: extPopover.window ?? vActOpt()?.win! })
 })
@@ -3292,17 +3404,17 @@ ipcMain.on('extensions:installFromStore', async (ev) => {
     const parent = extPopover.isVisible() ? extPopover.window : vActOpt()?.win
     dialog.showMessageBox(parent!, {
       type: 'error', buttons: ['OK'],
-      message: 'No se pudo añadir la extensión',
+      message: tr("No se pudo añadir la extensión"),
       detail: r.error
     })
   } else if (r.ok) {
-    new Notification({ title: 'Extensión añadida', body: r.name ?? 'Listo' }).show()
+    new Notification({ title: tr("Extensión añadida"), body: r.name ?? 'Listo' }).show()
   }
 })
 async function importarExtensionDesdeCarpeta(): Promise<void> {
   const parent = extPopover.window ?? vActOpt()?.win
   const res = await dialog.showOpenDialog(parent!, {
-    title: 'Elige la carpeta de la extensión',
+    title: tr("Elige la carpeta de la extensión"),
     properties: ['openDirectory']
   })
   const dir = res.filePaths?.[0]
@@ -3310,7 +3422,7 @@ async function importarExtensionDesdeCarpeta(): Promise<void> {
   const r = await addExtension(dir)
   sendExtensions()
   if (!r.ok && r.error) {
-    dialog.showMessageBox(parent!, { type: 'error', message: 'No se pudo añadir la extensión', detail: r.error, buttons: ['OK'] })
+    dialog.showMessageBox(parent!, { type: 'error', message: tr("No se pudo añadir la extensión"), detail: r.error, buttons: ['OK'] })
   }
 }
 ipcMain.on('extensions:installFromFolder', () => void importarExtensionDesdeCarpeta())
@@ -3380,7 +3492,7 @@ function datosSubmenu(): SubmenuData {
       return {
         section: 'downloads',
         rows: [
-          { id: 'all', label: 'Show all downloads', icon: 'download', action: 'downloads:all', primary: true },
+          { id: 'all', label: tr("Show all downloads"), icon: 'download', action: 'downloads:all', primary: true },
           ...listDownloads().slice(0, 8).map((d) => ({
             id: d.id,
             label: d.filename,
@@ -3397,8 +3509,8 @@ function datosSubmenu(): SubmenuData {
         section: 'extensions',
         listLabel: items.length ? 'Installed extensions' : undefined,
         rows: [
-          { id: 'manage', label: 'Manage all extensions', icon: 'puzzle', action: 'extensions:manage', primary: true },
-          { id: 'import', label: 'Import extensions', icon: 'download', action: 'extensions:import', primary: true },
+          { id: 'manage', label: tr("Manage all extensions"), icon: 'puzzle', action: 'extensions:manage', primary: true },
+          { id: 'import', label: tr("Import extensions"), icon: 'download', action: 'extensions:import', primary: true },
           ...items.map((e) => ({
             id: e.path,
             label: e.name,
@@ -3415,7 +3527,7 @@ function datosSubmenu(): SubmenuData {
         // Los 12 primeros son un atajo, no la lista: con 79 marcadores importados hacía falta
         // una puerta al gestor, igual que en historial.
         rows: [
-          { id: 'todos', label: 'Gestionar marcadores', icon: 'bookmark' as const, meta: '⌘⌥B', action: 'bookmarks:all', primary: true },
+          { id: 'todos', label: tr("Gestionar marcadores"), icon: 'bookmark' as const, meta: '⌘⌥B', action: 'bookmarks:all', primary: true },
           ...items.slice(0, 12).map((b) => ({
           id: b.id,
           label: b.title || b.url,
@@ -3433,7 +3545,7 @@ function datosSubmenu(): SubmenuData {
         // un atajo, no el historial: sin esta fila no había forma de llegar a la lista
         // completa desde la UI.
         rows: [
-          { id: 'todo', label: 'Ver todo el historial', icon: 'history' as const, meta: '⌘Y', action: 'history:all', primary: true },
+          { id: 'todo', label: tr("Ver todo el historial"), icon: 'history' as const, meta: '⌘Y', action: 'history:all', primary: true },
           ...historyRecent(10).map((h) => ({
           id: h.url,
           label: h.title || h.url,
@@ -3451,18 +3563,18 @@ function datosSubmenu(): SubmenuData {
         section: 'developers',
         listLabel: 'Advanced',
         rows: [
-          { id: 'devtools', label: 'Developer tools', icon: 'code', meta: '⌥⌘I', action: 'dev:devtools', primary: true },
-          { id: 'reload', label: 'Recargar sin caché', icon: 'gauge', meta: '⇧⌘R', action: 'dev:hardReload', primary: true },
+          { id: 'devtools', label: tr("Developer tools"), icon: 'code', meta: '⌥⌘I', action: 'dev:devtools', primary: true },
+          { id: 'reload', label: tr("Recargar sin caché"), icon: 'gauge', meta: '⇧⌘R', action: 'dev:hardReload', primary: true },
           {
             id: 'remote',
-            label: 'Remote debugging',
+            label: tr("Remote debugging"),
             sub: r.enabled ? `Escuchando en 127.0.0.1:${r.port}` : 'Deja que una IA externa controle el navegador',
             toggle: true,
             on: r.enabled,
             action: 'dev:remote'
           },
           ...(r.enabled
-            ? [{ id: 'token', label: 'Copiar token de acceso', icon: 'code' as const, action: 'dev:copyToken' }]
+            ? [{ id: 'token', label: tr("Copiar token de acceso"), icon: 'code' as const, action: 'dev:copyToken' }]
             : [])
         ]
       }
@@ -3578,6 +3690,7 @@ ipcMain.on('profilemenu:action', (ev, name: string) => {
     case 'new-tab':
     case 'bookmarks': openBookmarksManager(); break
     case 'settings': openSettings(); break
+    case 'profiles': openSettings('profiles'); break
     case 'downloads': openDownloads(); break
     case 'developers': vDe(ev).toggleDevtools(); break
     case 'history': openHistory(); break
@@ -3597,9 +3710,9 @@ ipcMain.on('profilemenu:deleteProfile', (ev, id: string) => {
   const p = listaPerfiles().find((x) => x.id === String(id))
   if (!p) return
   const r = dialog.showMessageBoxSync(vDe(ev).win, {
-    type: 'warning', buttons: ['Cancelar', 'Quitar'], defaultId: 0, cancelId: 0, noLink: true,
-    message: `¿Quitar el perfil "${p.nombre}"?`,
-    detail: 'Deja de aparecer en la lista. Sus datos (historial, marcadores, sesión) se quedan en el disco.'
+    type: 'warning', buttons: [tr("Cancelar"), tr("Quitar")], defaultId: 0, cancelId: 0, noLink: true,
+    message: tr("¿Quitar el perfil \"{0}\"?", p.nombre),
+    detail: tr("Deja de aparecer en la lista. Sus datos (historial, marcadores, sesión) se quedan en el disco.")
   })
   if (r !== 1) return
   if (!borrarPerfil(p.id)) {
@@ -3618,238 +3731,6 @@ ipcMain.on('profilemenu:createProfile', (_e, nombre: string) => {
  * Memoria del agente. Solo páginas internas: son notas sobre el usuario, escritas por el
  * modelo — misma regla que el historial o el vault.
  */
-// ---- Widgets del new tab: el dato del sitio, no una captura del sitio ----
-/** No re-extraer antes de esto: abrir tres new tab seguidos no debe cargar tu banco tres veces. */
-const FRESCURA_MS = 120_000
-let refrescandoWidgets = false
-
-function avisarWidgets(): void { paraPaginas('/newtab.html', 'widgets:changed', listWidgets()) }
-
-const WIDGET_SYSTEM = `Escribes extractores para los widgets del new tab de Monper.
-Tu código corre en el REPL con \`page\` (API estilo Playwright) sobre la página YA CARGADA, con la sesión del usuario. DEBE terminar con \`return <valor>\`.
-
-API útil de \`page\`:
-- await page.waitForSelector(sel) / page.waitForText(txt)
-- await page.textContent(sel) · await page.$$text(sel) · await page.evaluate(fn)
-- await page.fetch(url) ← la API interna del sitio (hereda cookies). Si el dato vive en un endpoint JSON, PREFIERE esto: es mucho más estable que raspar el DOM, y suele traer también el HISTÓRICO.
-
-El return debe ser UNA de estas tres formas:
-
-1) Métrica — un número que importa. Añade \`serie\` SIEMPRE que el sitio dé histórico (el gráfico es lo que hace útil la tarjeta):
-{"tipo":"metrica","valor":"$8.01","etiqueta":"Tesla Inc.","delta":{"texto":"+1.24%","signo":"sube"},"serie":[7.9,8.1,8.0,8.2,8.01],"forma":"linea"}
-- "signo": "sube" | "baja" | "neutro" — manda el color, no lo deduzcas del texto.
-- "forma": "linea" para una evolución continua (precio, seguidores); "barras" para valores por periodo (ventas por día, horas por semana).
-
-2) Progreso — una proporción:
-{"tipo":"progreso","porcentaje":73,"valor":"73%","etiqueta":"Objetivo del mes"}
-
-3) Lista — filas (máx 5): titulares, PRs, correos, partidos:
-{"tipo":"lista","items":[{"texto":"Rayados 2 - 1 Tigres","meta":"90'","url":"https://…"}]}
-
-Elige la forma que mejor cuente ese sitio DE UN VISTAZO. Un marcador, un precio o un contador NUNCA son una lista de un elemento: son una métrica. Usa selectores estables (data-*, aria-*, id).
-
-Responde SOLO un JSON: {"title":"Nombre corto del widget","code":"…el snippet…"}`
-
-const FUENTE_SYSTEM = `Eliges DE DÓNDE sacar un dato que el usuario quiere ver como widget en Monper, su navegador.
-
-CÓMO SE VA A EJECUTAR (esto manda en tu elección):
-- Monper abre esa URL en una pestaña invisible, con las COOKIES DEL USUARIO. Si tiene sesión en el sitio, la página se carga logueada.
-- El JavaScript de la página corre con normalidad, y luego otro paso extrae el dato del DOM o llamando a la API interna del sitio (fetch desde la propia página, heredando su sesión).
-- NO hay interacción: nadie va a pulsar botones, aceptar cookies, resolver un captcha ni hacer scroll. Si el dato solo aparece tras interactuar, esa página NO sirve.
-- El widget se recarga solo cada pocos minutos, así que la URL tiene que seguir sirviendo mañana: nada de enlaces con token o de resultados de búsqueda efímeros.
-
-Responde SOLO un JSON, sin prosa ni explicación:
-{"url":"https://…","que":"qué extraer exactamente de esa página"}
-
-Ejemplos:
-- "el precio del bitcoin" → {"url":"https://www.coingecko.com/en/coins/bitcoin","que":"el precio actual en USD y la variación de 24 h"}
-- "mis PRs pendientes en GitHub" → {"url":"https://github.com/pulls","que":"los pull requests abiertos que esperan mi revisión, con su repositorio"}
-- "el clima en Monterrey" → {"url":"https://www.google.com/search?q=clima+monterrey","que":"la temperatura actual y la máxima/mínima de hoy"}
-
-Reglas:
-- La URL tiene que ser la página CONCRETA donde vive el dato, no la home del sitio.
-- Si la petición es sobre SUS cosas (su correo, sus PRs, sus pedidos), elige el sitio donde ya tenga sesión — se cargará con sus cookies.
-- Prefiere páginas que rindan el dato en el HTML o que tengan una API interna clara.
-- Si la petición es ambigua, elige la interpretación más común y dilo en "que".`
-
-/**
- * Widget desde lo que el usuario PIDIÓ, no desde la página que tuviera abierta.
- *
- * Es el camino principal, y el que arregla el problema de fondo: pedirle a una página
- * cualquiera que se convierta en widget fallaba casi siempre, porque la mayoría de páginas no
- * tienen un dato que extraer. Aquí el modelo ELIGE la fuente, así que puede escoger una que sí
- * sirva — y si el usuario tiene sesión allí, la usa.
- */
-async function generarWidgetDesdePeticion(peticion: string): Promise<void> {
-  const active = getActiveProvider()
-  const win = vActOpt()?.win
-  if (!active || !win) { avisarSinIA(); return }
-  const w = crearPendiente('', peticion, null, peticion)
-  avisarWidgets()
-  try {
-    // Los sitios donde el usuario vive: es lo que permite al modelo preferir uno con sesión.
-    const suyos = [...new Set(historyBrowse('', 0, 120).entries.map((e) => {
-      try { return new URL(e.url).hostname.replace(/^www\./, '') } catch { return '' }
-    }).filter(Boolean))].slice(0, 25)
-
-    const fuenteRaw = await askModel(active.provider, active.key, active.model, FUENTE_SYSTEM,
-      `El usuario quiere ver: ${peticion}\n\nSitios que usa a menudo (puede tener sesión iniciada):\n${suyos.join(', ')}`)
-    const fuente = validarFuente(parseJsonLoose(fuenteRaw))
-    if (!fuente) {
-      // Se enseña LO QUE CONTESTÓ. "No se pudo decidir" no dice nada: con la respuesta cruda
-      // delante se ve si el modelo divagó, si devolvió una URL inválida o si no contestó.
-      const pista = fuenteRaw.trim().replace(/\s+/g, ' ').slice(0, 140)
-      throw new Error(pista ? `el modelo no eligió una fuente usable — dijo: "${pista}"` : 'el modelo no respondió')
-    }
-
-    const { title, code, datos, favicon } = await construirExtractor(win, active, fuente.url, peticion, fuente.que)
-    completarWidget(w.id, title, code, datos, { url: fuente.url, favicon })
-  } catch (e) {
-    const motivo = e instanceof Error ? e.message : String(e)
-    console.error('[widgets] no se pudo crear el widget de', peticion, motivo)
-    marcarError(w.id, motivo)
-  }
-  avisarWidgets()
-}
-
-function avisarSinIA(): void {
-  const win = vActOpt()?.win
-  if (!win) return
-  void dialog.showMessageBox(win, {
-    type: 'info', message: 'Los widgets los construye el agente',
-    detail: 'Conecta un proveedor de IA en Settings → AI y vuelve a intentarlo.', buttons: ['OK'], noLink: true
-  })
-}
-
-/**
- * Carga la página, le pide al modelo el extractor y lo PRUEBA corriéndolo. Devolver solo lo
- * que ya funcionó es lo que evita guardar widgets rotos que fallarían mañana en silencio.
- */
-async function construirExtractor(
-  win: BrowserWindow,
-  active: { provider: AIProvider; key: string; model: string },
-  url: string,
-  peticion: string,
-  que?: string
-): Promise<{ title: string; code: string; datos: import('./widgets').DatosWidget; favicon: string | null }> {
-  const contexto = await withHeadlessPage(win, url, async ({ page }) => {
-    const snap = await page.snapshotText({ maxText: 2500, maxNodes: 60 })
-    return snap.slice(0, 6000)
-  }, { partition: particionDelPerfil() })
-  const raw = await askModel(active.provider, active.key, active.model, WIDGET_SYSTEM,
-    `URL: ${url}\nLo que el usuario quiere ver: ${peticion}${que ? `\nQué extraer: ${que}` : ''}\n\nLa página ahora mismo:\n${contexto}`)
-  const j = parseJsonLoose<{ title?: string; code?: string }>(raw)
-  if (!j?.code) {
-    const pista = raw.trim().replace(/\s+/g, ' ').slice(0, 140)
-    throw new Error(pista ? `el modelo no devolvió un extractor — dijo: "${pista}"` : 'el modelo no respondió')
-  }
-  const datos = validarDatos(await runHeadlessSnippet(win, url, j.code, { partition: particionDelPerfil() }))
-  if (!datos) throw new Error('el extractor no devolvió datos con forma válida')
-  return { title: j.title || peticion, code: j.code, datos, favicon: faviconFor(url) }
-}
-
-/** Crea el widget: el modelo mira la página y escribe el extractor; se valida corriéndolo. */
-async function generarWidget(url: string, title: string, favicon: string | null, existente?: WidgetInfo): Promise<void> {
-  const active = getActiveProvider()
-  const win = vActOpt()?.win
-  if (!active || !win) { avisarSinIA(); return }
-  const w = existente ?? crearPendiente(url, title, favicon)
-  if (!w.creando) return // ya existía y está bien
-  avisarWidgets()
-  try {
-    const r = await construirExtractor(win, active, url, w.peticion || title || url, undefined)
-    completarWidget(w.id, r.title, r.code, r.datos)
-  } catch (e) {
-    // El motivo se GUARDA y se enseña en la tarjeta. Borrarla dejaba al usuario pidiendo un
-    // widget, no viendo nada y sin saber por qué — ver docs/errores-silenciosos.md.
-    const motivo = e instanceof Error ? e.message : String(e)
-    console.error('[widgets] no se pudo crear el widget de', url, motivo)
-    marcarError(w.id, motivo)
-  }
-  avisarWidgets()
-}
-
-/**
- * Refresca los caducados, de uno en uno (cada uno es una página real cargándose). Tras cada
- * uno se avisa: el muro se actualiza widget a widget. Con 2 fallos seguidos se asume que el
- * sitio cambió su HTML y se le pide al modelo un extractor nuevo, como en las rutinas.
- */
-async function refrescarWidgets(): Promise<void> {
-  if (refrescandoWidgets) return
-  const win = vActOpt()?.win
-  if (!win) return
-  refrescandoWidgets = true
-  try {
-    for (const w of listWidgets()) {
-      if (w.creando || !w.extractor) continue
-      if (Date.now() - w.updatedAt < FRESCURA_MS) continue
-      try {
-        const datos = validarDatos(await runHeadlessSnippet(win, w.url, w.extractor, { partition: particionDelPerfil() }))
-        if (datos) { registrarDatos(w.id, datos); avisarWidgets(); continue }
-        throw new Error('datos sin forma válida')
-      } catch (e) {
-        console.error('[widgets] falló el extractor de', w.url, e instanceof Error ? e.message : e)
-        registrarFallo(w.id)
-        const roto = listWidgets().find((x) => x.id === w.id)
-        if (roto && roto.fallos >= 2) void repararWidget(roto)
-      }
-    }
-  } finally { refrescandoWidgets = false }
-}
-
-/** El sitio cambió su HTML: el modelo reescribe el extractor mirando la página de hoy. */
-async function repararWidget(w: WidgetInfo): Promise<void> {
-  const active = getActiveProvider()
-  const win = vActOpt()?.win
-  if (!active || !win) return
-  try {
-    const contexto = await withHeadlessPage(win, w.url, async ({ page }) => {
-      const snap = await page.snapshotText({ maxText: 2500, maxNodes: 60 })
-      return snap.slice(0, 6000)
-    }, { partition: particionDelPerfil() })
-    const raw = await askModel(active.provider, active.key, active.model, WIDGET_SYSTEM,
-      `URL: ${w.url}\nTítulo: ${w.title}\nEl extractor anterior dejó de funcionar (el sitio cambió). Escribe uno nuevo.\n\nLa página ahora mismo:\n${contexto}`)
-    const j = parseJsonLoose<{ code?: string }>(raw)
-    if (!j?.code) return
-    const datos = validarDatos(await runHeadlessSnippet(win, w.url, j.code, { partition: particionDelPerfil() }))
-    if (!datos) return
-    repararExtractor(w.id, j.code)
-    registrarDatos(w.id, datos)
-    avisarWidgets()
-  } catch (e) {
-    console.error('[widgets] no se pudo reparar el widget de', w.url, e instanceof Error ? e.message : e)
-  }
-}
-
-ipcMain.handle('widgets:list', (e) => (isInternalSender(e.senderFrame?.url) ? listWidgets() : []))
-ipcMain.on('widgets:refresh', (e) => { if (isInternalSender(e.senderFrame?.url)) void refrescarWidgets() })
-ipcMain.on('widgets:remove', (e, id: string) => {
-  if (!isInternalSender(e.senderFrame?.url)) return
-  if (quitarWidget(String(id))) avisarWidgets()
-})
-ipcMain.on('widgets:seen', (e, id: string) => {
-  if (!isInternalSender(e.senderFrame?.url)) return
-  marcarVisto(String(id))
-  avisarWidgets()
-})
-ipcMain.on('widgets:create', (e, url: string, title: string, favicon: string | null) => {
-  if (!isInternalSender(e.senderFrame?.url)) return
-  void generarWidget(String(url), String(title ?? ''), favicon || null)
-})
-ipcMain.on('widgets:ask', (e, peticion: string) => {
-  if (!isInternalSender(e.senderFrame?.url)) return
-  const t = String(peticion ?? '').trim()
-  if (t) void generarWidgetDesdePeticion(t.slice(0, 200))
-})
-ipcMain.on('widgets:retry', (e, id: string) => {
-  if (!isInternalSender(e.senderFrame?.url)) return
-  const w = reintentar(String(id))
-  if (!w) return
-  avisarWidgets()
-  // Si nació de una petición, se vuelve a elegir la fuente: quizá la de antes era la mala.
-  if (w.peticion && !w.extractor) { quitarWidget(w.id); void generarWidgetDesdePeticion(w.peticion); return }
-  void generarWidget(w.url, w.title, w.favicon, w)
-})
 ipcMain.handle('memory:list', (e) => (isInternalSender(e.senderFrame?.url) ? listarMemoria() : []))
 ipcMain.handle('memory:read', (e, path: string) => (isInternalSender(e.senderFrame?.url) ? leerMemoria(String(path)) : null))
 ipcMain.handle('memory:write', (e, path: string, contenido: string) => {
@@ -3874,7 +3755,7 @@ function notifyChatContext(): void { vActOpt()?.win?.webContents.send('chat:cont
 ipcMain.handle('providers:list', (e) => (isInternalSender(e.senderFrame?.url) ? listProviders() : []))
 ipcMain.handle('providers:add', (e, input: { label: string; kind: ProviderKind; baseUrl?: string }, apiKey: string) => {
   if (!isInternalSender(e.senderFrame?.url)) { console.warn('[providers:add] denegado, sender:', e.senderFrame?.url); return listProviders() }
-  try { addProvider(input, apiKey) } catch (err) { reportVaultError(err) }
+  addProvider(input, apiKey)
   notifyChatContext(); notifyVault()
   return listProviders()
 })
@@ -3883,6 +3764,34 @@ ipcMain.handle('providers:remove', (e, id: string) => {
   removeProvider(id)
   notifyChatContext(); notifyVault()
   return listProviders()
+})
+ipcMain.handle('providers:settings', (e) => {
+  if (!isInternalSender(e.senderFrame?.url)) throw new Error('Acceso denegado.')
+  return providerSettings()
+})
+ipcMain.handle('providers:discover', async (e, id: string) => {
+  if (!isInternalSender(e.senderFrame?.url)) throw new Error('Acceso denegado.')
+  const models = await discoverProvider(id)
+  notifyChatContext()
+  return models
+})
+ipcMain.handle('providers:save', (e, input: ProviderInput, apiKey: string, revision: string) => {
+  if (!isInternalSender(e.senderFrame?.url)) throw new Error('Acceso denegado.')
+  const state = saveProvider(input, apiKey, revision)
+  notifyChatContext(); notifyVault()
+  void refrescarModelos().then(notifyChatContext).catch(() => console.error('[providers] no se pudo actualizar el catálogo'))
+  return state
+})
+ipcMain.handle('providers:delete', (e, id: string, revision: string) => {
+  if (!isInternalSender(e.senderFrame?.url)) throw new Error('Acceso denegado.')
+  removeProvider(id, revision)
+  notifyChatContext(); notifyVault()
+  return providerSettings()
+})
+ipcMain.handle('providers:openConfig', async (e) => {
+  if (!isInternalSender(e.senderFrame?.url)) throw new Error('Acceso denegado.')
+  const error = await shell.openPath(providerConfigPath())
+  if (error) throw new Error('No se pudo abrir titanio.jsonc. Asocia los archivos .jsonc con tu editor.')
 })
 ipcMain.handle('providers:setActive', (e, id: string) => {
   if (!isInternalSender(e.senderFrame?.url)) return []
@@ -3894,7 +3803,7 @@ ipcMain.handle('providers:setActive', (e, id: string) => {
 ipcMain.handle('chat:context', () => getChatContext())
 /**
  * Relee el catálogo del proveedor. Lo llaman Settings al abrirse y al conectar: así los modelos
- * nuevos aparecen el día que salen, sin esperar a una versión de Monper con la lista tocada.
+ * nuevos aparecen el día que salen, sin esperar a una versión de Titanio con la lista tocada.
  */
 ipcMain.handle('providers:models', async (e) => {
   if (!isInternalSender(e.senderFrame?.url)) return []
@@ -3902,7 +3811,7 @@ ipcMain.handle('providers:models', async (e) => {
   notifyChatContext()
   return lista
 })
-ipcMain.on('chat:setModel', (_e, id: string) => setModel(id))
+ipcMain.on('chat:setModel', (_e, id: string, providerId?: string) => { setModel(id, providerId); notifyChatContext() })
 ipcMain.on('chat:setEffort', (_e, e: 'low' | 'medium' | 'high') => setEffort(e))
 
 // ---- Chat en streaming (desde el ChatPanel del chrome) ----
@@ -3930,7 +3839,7 @@ function controllingActive(): boolean {
 function setAgentRunning(on: boolean): void {
   if (agentRunning === on) return
   agentRunning = on
-  controlledTabId = on ? vAct().activeId() : null // arranca controlando la pestaña activa
+  controlledTabId = on && preferencesFor().agent.browserTools ? vAct().activeId() : null
   vAct().layoutActive() // ajusta la franja inferior de la vista nativa
   vAct().pushState()
 }
@@ -3944,7 +3853,7 @@ function setControlledTab(id: number): void {
 // Cola de eventos asíncronos del navegador (popups, descargas) para steering del agente.
 let agentEvents: string[] = []
 function pushAgentEvent(msg: string): void { if (agentEvents.length < 20) agentEvents.push(msg) }
-ipcMain.on('chat:cancel', () => pararAgente('el usuario lo canceló'))
+ipcMain.on('chat:cancel', () => pararAgente(tr("el usuario lo canceló")))
 // El historial de chats vive en el chrome como el propio chat, así que estos canales no
 // llevan la guarda de `isInternalSender` — igual que `chat:send`.
 ipcMain.handle('chats:list', () => listSessions())
@@ -3952,7 +3861,7 @@ ipcMain.handle('chats:resume', () => resumeOrNew())
 ipcMain.handle('chats:new', () => startSession())
 ipcMain.handle('chats:open', (_e, id: string) => openSession(id))
 ipcMain.handle('chats:forNext', (_e, id: string) => sessionForNextMessage(id))
-ipcMain.on('chats:save', (_e, id: string, messages) => saveSession(id, messages))
+ipcMain.handle('chats:save', (_e, id: string, messages) => saveSession(id, messages))
 ipcMain.on('chats:remove', (_e, id: string) => removeChatSession(id))
 
 // ---- Gestión del historial de chats (Settings → Archived chats) ----
@@ -3988,27 +3897,23 @@ ipcMain.on('chats:resumeInPanel', (ev, id: string) => {
   v.win.webContents.send('chat:openSession', String(id))
 })
 // "Take over": el usuario retoma el control → aborta el agente.
-ipcMain.on('agent:takeOver', () => pararAgente('el usuario retomó el control'))
+ipcMain.on('agent:takeOver', () => pararAgente(tr("el usuario retomó el control")))
 ipcMain.handle('chat:send', async (ev, messages: ChatMessage[]) => {
-  const active = getActiveProvider()
-  if (!active) {
-    vDe(ev).win.webContents.send('chat:error', {
-      tipo: 'sin-proveedor',
-      titulo: 'No hay ninguna IA conectada',
-      detalle: 'Monper no trae modelo propio: pon tu API key de Anthropic o de OpenAI y el asistente se activa.',
-      accion: { label: 'Abrir Settings', kind: 'settings' }
-    } satisfies ChatFallo)
+  const prepared = prepareActiveProvider()
+  if (!prepared.ok) {
+    ev.sender.send('chat:error', prepared.error)
     return
   }
+  const active = prepared.active
   // Techo de gasto diario: se comprueba ANTES de arrancar, que es el único momento en que
   // sirve de algo. Con el turno en marcha ya se está gastando.
   const tope = limiteDiario()
   if (tope > 0 && gastoDeHoy() >= tope) {
     vDe(ev).win.webContents.send('chat:error', {
       tipo: 'tope',
-      titulo: 'Llegaste a tu límite de gasto de hoy',
-      detalle: `Lo pusiste tú en ${tope.toFixed(2)} $/día. El agente no va a gastar más hasta mañana, o hasta que subas el tope.`,
-      accion: { label: 'Abrir Settings', kind: 'settings' }
+      titulo: tr("Llegaste a tu límite de gasto de hoy"),
+      detalle: tr("Lo pusiste tú en {0} $/día. El agente no va a gastar más hasta mañana, o hasta que subas el tope.", tope.toFixed(2)),
+      accion: { label: tr("Abrir Settings"), kind: 'settings' }
     } satisfies ChatFallo)
     return
   }
@@ -4108,9 +4013,10 @@ ipcMain.handle('usage:limit', (e, valor?: number) => {
 ipcMain.on('ui:cycleVibrancy', () => {
   if (!vActOpt()?.win || !isMac) return
   // Cicla solo entre materiales; 'none' se elige desde Settings.
-  const i = VIBRANCY_MATERIALS.indexOf(vibrancyMaterial as VibrancyMaterial)
-  vibrancyMaterial = VIBRANCY_MATERIALS[(i + 1) % VIBRANCY_MATERIALS.length]
+  const i = VIBRANCY_OPTIONS.findIndex((o) => o.id === vibrancyMaterial)
+  vibrancyMaterial = VIBRANCY_OPTIONS[(i + 1) % VIBRANCY_OPTIONS.length].id
   applyVibrancy(vibrancyMaterial)
+  broadcastAppearance()
   savePanels()
   console.log('[vibrancy]', vibrancyMaterial, '· ⌘⌥V para el siguiente')
 })
@@ -4129,14 +4035,26 @@ if (reservarInstanciaUnica()) {
 
 app.whenReady().then(() => {
   if (!app.hasSingleInstanceLock() && app.isPackaged) return // otra instancia manda
+  initLanguage((raw) => {
+    if (!raw) return false
+    try {
+      const url = new URL(raw)
+      const settings = new URL(internalUrl('settings'))
+      return url.protocol === settings.protocol && url.host === settings.host && url.pathname === settings.pathname
+    } catch { return false }
+  }, () => {
+    buildAppMenu()
+    app.setAboutPanelOptions({ credits: tr('Un navegador agéntico de escritorio') })
+    broadcastAppearance()
+  })
   // En dev muestra nuestro icono en el dock (mac) en vez del de Electron.
   if (isMac && app.dock) app.dock.setIcon(appIcon)
-  // Panel "Acerca de Monper" con nuestra info en vez de la de Electron.
+  // Panel "Acerca de Titanio" con nuestra info en vez de la de Electron.
   app.setAboutPanelOptions({
-    applicationName: 'Monper',
+    applicationName: 'Titanio',
     applicationVersion: app.getVersion(),
-    copyright: '© 2026 Monper',
-    credits: 'Un navegador agéntico de escritorio'
+    copyright: '© 2026 Titanio',
+    credits: tr("Un navegador agéntico de escritorio")
   })
   /**
    * Lo PRIMERO de todo: decide qué perfil está activo, y de ahí salen las rutas de los ficheros
@@ -4180,12 +4098,12 @@ app.whenReady().then(() => {
     confirmClient: async (nombre) => {
       const { response } = await dialog.showMessageBox(vActOpt()?.win ?? undefined!, {
         type: 'warning',
-        message: `«${nombre}» quiere conducir tu navegador`,
+        message: tr("«{0}» quiere conducir tu navegador", nombre),
         detail:
-          'Podrá abrir páginas, leerlas y actuar en los sitios donde tengas la sesión abierta, ' +
-          'igual que tú. No puede ver tus contraseñas ni usar el vault.\n\n' +
-          'Solo para esta sesión: al cerrar Monper se olvida.',
-        buttons: ['No permitir', 'Permitir'],
+          tr("Podrá abrir páginas, leerlas y actuar en los sitios donde tengas la sesión abierta, ") +
+          tr("igual que tú. No puede ver tus contraseñas ni usar el vault.\n\n") +
+          tr("Solo para esta sesión: al cerrar Titanio se olvida."),
+        buttons: [tr("No permitir"), tr("Permitir")],
         defaultId: 0,
         cancelId: 0,
         noLink: true
@@ -4203,15 +4121,17 @@ app.whenReady().then(() => {
   initMcpClient()
   initChats()
   initHistory()
-  // La memoria es del perfil: lo que Monper sabe de ti en "Trabajo" no es lo de "Personal".
+  // La memoria es del perfil: lo que Titanio sabe de ti en "Trabajo" no es lo de "Personal".
   initMemoria(rutaDePerfil('memory'), rutaDePerfil('memory-settings.json'))
-  initWidgets(rutaDePerfil('widgets.json'))
   initSkills()
   initQuickActions()
   initWindowState()
   loadPanels()
   vault.initVault()
-  initAI()
+  initAI(() => {
+    notifyChatContext()
+    void refrescarModelos().then(notifyChatContext).catch(() => console.error('[providers] no se pudo actualizar el catálogo'))
+  })
   createWindow()
   // Catálogo de modelos al arrancar, con retraso y sin bloquear: es una petición de red y el
   // usuario no está esperándola. Si falla, se sigue con la lista de fábrica.

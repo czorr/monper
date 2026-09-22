@@ -1,8 +1,8 @@
+import { t as tr, useLocale } from '@renderer/lib/i18n'
 import { useEffect, useState, type JSX } from 'react'
 import type { VaultItemMeta, VaultItemType } from '@shared/vault'
 import { useNoInitialFocus } from '@renderer/components/popover/focus'
 import IconLock from '~icons/tabler/lock'
-import IconSparkles from '~icons/tabler/sparkles'
 import IconKey from '~icons/tabler/key'
 import IconWorld from '~icons/tabler/world'
 import IconTag from '~icons/tabler/tag'
@@ -11,10 +11,10 @@ import IconSettings from '~icons/tabler/settings'
 const { vaultwin } = window
 
 const GROUPS: { type: VaultItemType; label: string; icon: JSX.Element }[] = [
-  { type: 'ai-key', label: 'AI Keys', icon: <IconSparkles /> },
-  { type: 'web-credential', label: 'Passwords', icon: <IconWorld /> },
-  { type: 'service-token', label: 'Tokens', icon: <IconKey /> },
-  { type: 'secret', label: 'Secrets', icon: <IconTag /> }
+  { type: 'ai-key', get label() { return tr("AI Keys") }, icon: <IconKey /> },
+  { type: 'web-credential', get label() { return tr("Passwords") }, icon: <IconWorld /> },
+  { type: 'service-token', get label() { return tr("Tokens") }, icon: <IconKey /> },
+  { type: 'secret', get label() { return tr("Secrets") }, icon: <IconTag /> }
 ]
 
 function subtext(it: VaultItemMeta): string {
@@ -22,6 +22,7 @@ function subtext(it: VaultItemMeta): string {
 }
 
 export default function VaultWindow(): JSX.Element {
+  useLocale()
   const [items, setItems] = useState<VaultItemMeta[]>([])
   const [favicons, setFavicons] = useState<Record<string, string>>({})
   useNoInitialFocus() // si no, abre con "Gestionar en Settings" resaltado
@@ -37,12 +38,12 @@ export default function VaultWindow(): JSX.Element {
     <div className="h-full flex flex-col bg-[#1b1b1f] text-text select-none">
       <div className="flex items-center gap-2 px-4 h-11 shrink-0 border-b border-border">
         <IconLock className="w-[15px] h-[15px] text-text-dim" />
-        <span className="flex-1 text-[13px] font-semibold">Vault</span>
+        <span className="flex-1 text-[13px] font-semibold">{tr("Vault")}</span>
       </div>
 
       <div className="flex-1 overflow-y-auto py-1.5 [&::-webkit-scrollbar]:w-0">
         {items.length === 0 && (
-          <div className="px-4 py-6 text-center text-[13px] text-text-dim">Vacío. Agrega secretos en Settings.</div>
+          <div className="px-4 py-6 text-center text-[13px] text-text-dim">{tr("Vacío. Agrega secretos en Settings.")}</div>
         )}
         {GROUPS.map((g) => {
           const rows = items.filter((i) => i.type === g.type)
@@ -75,8 +76,7 @@ export default function VaultWindow(): JSX.Element {
         onClick={() => vaultwin.manage()}
         className="flex items-center gap-2 w-full h-11 shrink-0 px-4 border-t border-border text-[13px] text-text-dim hover:text-text hover:bg-white/[0.04] transition-colors [&>svg]:w-4 [&>svg]:h-4"
       >
-        <IconSettings /> Gestionar en Settings
-      </button>
+        <IconSettings /> {tr("Gestionar en Settings")} </button>
     </div>
   )
 }

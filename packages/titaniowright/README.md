@@ -1,4 +1,4 @@
-# monperwright
+# titaniowright
 
 Token-efficient, **Playwright-shaped** browser automation over a pluggable
 transport. Built for LLM coding agents: the model writes ordinary Playwright-like
@@ -19,14 +19,14 @@ globals are a `Page`.
 ## Install
 
 ```bash
-npm install monperwright
+npm install titaniowright
 # electron is an optional peer, only needed for the Electron adapter
 ```
 
 ## Usage (Electron)
 
 ```ts
-import { pageFromWebContents } from 'monperwright/electron'
+import { pageFromWebContents } from 'titaniowright/electron'
 
 // wc: Electron WebContents (e.g. a WebContentsView's webContents)
 const page = pageFromWebContents(wc, { actionDelay: 200 })
@@ -51,7 +51,7 @@ const prices = await page.evaluate(() =>
 Implement `Transport` and pass it to `new Page(transport)`:
 
 ```ts
-import { Page, type Transport } from 'monperwright'
+import { Page, type Transport } from 'titaniowright'
 
 const transport: Transport = {
   eval: (expr) => cdp.Runtime.evaluate({ expression: expr, awaitPromise: true, returnByValue: true }).then(r => r.result.value),

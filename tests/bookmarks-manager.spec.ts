@@ -40,7 +40,7 @@ async function marcar(ruta: string): Promise<void> {
 test('renombrar un marcador lo cambia de verdad', async () => {
   await marcar('/uno')
   const bm = (await api<{ id: string; url: string }[]>(h.win, 'getBookmarks')).find((b) => b.url.endsWith('/uno'))!
-  await enGestor(`window.monperTab.updateBookmark(${JSON.stringify(bm.id)}, { title: "Mi nombre" })`)
+  await enGestor(`window.titanioTab.updateBookmark(${JSON.stringify(bm.id)}, { title: "Mi nombre" })`)
   await expect
     .poll(async () => (await api<{ id: string; title: string }[]>(h.win, 'getBookmarks')).find((b) => b.id === bm.id)?.title)
     .toBe('Mi nombre')
@@ -48,7 +48,7 @@ test('renombrar un marcador lo cambia de verdad', async () => {
 
 test('un título vacío cae al nombre del sitio, no deja la fila en blanco', async () => {
   const bm = (await api<{ id: string; url: string }[]>(h.win, 'getBookmarks')).find((b) => b.url.endsWith('/uno'))!
-  await enGestor(`window.monperTab.updateBookmark(${JSON.stringify(bm.id)}, { title: "   " })`)
+  await enGestor(`window.titanioTab.updateBookmark(${JSON.stringify(bm.id)}, { title: "   " })`)
   const t = (await api<{ id: string; title: string }[]>(h.win, 'getBookmarks')).find((b) => b.id === bm.id)!.title
   expect(t.length, 'una fila sin texto es imposible de volver a encontrar').toBeGreaterThan(0)
   expect(t).toBe('127.0.0.1:' + new URL(site.url).port)
@@ -60,20 +60,20 @@ test('una URL inválida se rechaza y no toca el marcador', async () => {
    * peor que no haber editado — parece que está y no funciona.
    */
   const antes = (await api<{ id: string; url: string }[]>(h.win, 'getBookmarks')).find((b) => b.url.endsWith('/uno'))!
-  const r = await enGestor<unknown>(`window.monperTab.updateBookmark(${JSON.stringify(antes.id)}, { url: "no-es-una-url" })`)
+  const r = await enGestor<unknown>(`window.titanioTab.updateBookmark(${JSON.stringify(antes.id)}, { url: "no-es-una-url" })`)
   expect(r, 'debe rechazarse').toBeNull()
   const despues = (await api<{ id: string; url: string }[]>(h.win, 'getBookmarks')).find((b) => b.id === antes.id)!
   expect(despues.url, 'la URL original tiene que seguir intacta').toBe(antes.url)
 })
 
 test('una web no puede editar marcadores', async () => {
-  // Mismo filtro que `bookmarks:add` y `bookmarks:remove`: `monperTab` existe en cualquier web.
+  // Mismo filtro que `bookmarks:add` y `bookmarks:remove`: `titanioTab` existe en cualquier web.
   await marcar('/dos')
   const bm = (await api<{ id: string; url: string }[]>(h.win, 'getBookmarks')).find((b) => b.url.endsWith('/dos'))!
   const r = await h.app.evaluate(async ({ webContents }, id) => {
     const wc = webContents.getAllWebContents().find((w) => w.getURL().endsWith('/dos'))
     if (!wc) throw new Error('no hay pestaña web')
-    return wc.executeJavaScript(`window.monperTab.updateBookmark(${JSON.stringify(id)}, { title: "hackeado" })`)
+    return wc.executeJavaScript(`window.titanioTab.updateBookmark(${JSON.stringify(id)}, { title: "hackeado" })`)
   }, bm.id)
   expect(r, 'una web no debe poder editar').toBeNull()
   const t = (await api<{ id: string; title: string }[]>(h.win, 'getBookmarks')).find((b) => b.id === bm.id)!.title

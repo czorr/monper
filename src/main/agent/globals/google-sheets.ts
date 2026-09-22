@@ -1,4 +1,4 @@
-import type { Page } from '../../../../packages/monperwright/src'
+import type { Page } from '../../../../packages/titaniowright/src'
 
 interface SheetRef { docId: string; uid: number; gid: string }
 function parseSheetUrl(input: string | Partial<SheetRef>): SheetRef {

@@ -1,6 +1,6 @@
 import { app } from 'electron'
 import type { Profile } from '../shared/types'
-import { initPerfiles, perfilActivo, perfilActivoId, renombrarPerfil, setAvatarPerfil } from './perfiles'
+import { initPerfiles, perfilActivo, perfilActivoId, renombrarPerfil, setAvatarPerfil, preferencesFor } from './perfiles'
 
 /**
  * El perfil que se ve en la UI (nombre, iniciales, avatar).
@@ -25,7 +25,8 @@ function initialsOf(n: string): string {
 
 export function getProfile(): Profile {
   const p = perfilActivo()
-  return { name: p.nombre, initials: initialsOf(p.nombre), avatar: p.avatar }
+  const prefs = preferencesFor()
+  return { name: p.nombre, initials: initialsOf(p.nombre), avatar: p.avatar, color: prefs.color, icon: prefs.icon }
 }
 
 export function setProfile(newName: string): Profile {

@@ -5,7 +5,7 @@ import { launch, api, serve, type Harness } from './helpers'
  * Página que no responde: el usuario tiene que poder salir.
  *
  * Un bucle infinito en el JS de una web congela su pestaña: no repinta y no responde a clics.
- * Sin aviso, el usuario no sabe si es la web, la red o Monper — y no tiene forma de cerrarla.
+ * Sin aviso, el usuario no sabe si es la web, la red o Titanio — y no tiene forma de cerrarla.
  *
  * El evento `unresponsive` de Electron NO sirve aquí: medido, no dispara nunca en un
  * `WebContentsView`. La detección es propia — se le pide a la página que evalúe algo trivial y

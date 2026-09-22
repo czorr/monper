@@ -22,7 +22,7 @@ let base = ''
 
 test.beforeEach(() => {
   // Carpeta limpia por test: el módulo tiene estado y encadenar tests lo haría ilegible.
-  base = mkdtempSync(join(tmpdir(), 'monper-perfiles-'))
+  base = mkdtempSync(join(tmpdir(), 'titanio-perfiles-'))
   initPerfiles(base)
 })
 test.afterEach(() => { rmSync(base, { recursive: true, force: true }) })
@@ -71,8 +71,8 @@ test('cada perfil navega en su propia sesión de Chromium', () => {
 
 test('incógnito manda sobre el perfil: nunca cae en una partición persistente', () => {
   // Estar en "Trabajo" y abrir incógnito no puede escribir en las cookies de Trabajo.
-  expect(particionDe(true, 'persist:monper-trabajo')).toBe(PARTICION_INCOGNITO)
-  expect(particionDe(false, 'persist:monper-trabajo')).toBe('persist:monper-trabajo')
+  expect(particionDe(true, 'persist:titanio-trabajo')).toBe(PARTICION_INCOGNITO)
+  expect(particionDe(false, 'persist:titanio-trabajo')).toBe('persist:titanio-trabajo')
 })
 
 test('activar un perfil que no existe se rechaza y no deja el activo a medias', () => {
@@ -151,7 +151,7 @@ test('el perfil de antes de que hubiera perfiles no se pierde al actualizar', ()
    * La migración. Un usuario que ya tenía su nombre y su avatar en `profile.json` no puede ver
    * cómo la novedad se los borra de la cara: el primer arranque con perfiles los absorbe.
    */
-  const otra = mkdtempSync(join(tmpdir(), 'monper-migra-'))
+  const otra = mkdtempSync(join(tmpdir(), 'titanio-migra-'))
   try {
     writeFileSync(join(otra, 'profile.json'), JSON.stringify({ name: 'Luis Carlos', avatar: 'data:image/png;base64,AA' }))
     initPerfiles(otra)
@@ -164,7 +164,7 @@ test('el perfil de antes de que hubiera perfiles no se pierde al actualizar', ()
 test('una lista de perfiles corrupta no deja la app sin perfil', () => {
   // Un JSON roto no puede dejar `perfiles` vacío: el menú saldría sin nada donde pulsar y sin
   // forma de volver.
-  const otra = mkdtempSync(join(tmpdir(), 'monper-roto-'))
+  const otra = mkdtempSync(join(tmpdir(), 'titanio-roto-'))
   try {
     writeFileSync(join(otra, 'perfiles.json'), '{ esto no es json')
     initPerfiles(otra)
@@ -176,7 +176,7 @@ test('una lista de perfiles corrupta no deja la app sin perfil', () => {
 test('un activo que apunta a un perfil inexistente se corrige al arrancar', () => {
   // Pasa si alguien edita el JSON a mano o si un borrado se queda a medias. Sin esto, la app
   // arrancaría leyendo una carpeta que no está.
-  const otra = mkdtempSync(join(tmpdir(), 'monper-colgado-'))
+  const otra = mkdtempSync(join(tmpdir(), 'titanio-colgado-'))
   try {
     writeFileSync(join(otra, 'perfiles.json'), JSON.stringify({
       activo: 'fantasma',

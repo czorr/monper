@@ -1,7 +1,7 @@
 # Adblocker
 
 Bloqueo de anuncios y rastreadores **a nivel de red**, en el main. Vive en
-[`src/main/adblock.ts`](../src/main/adblock.ts) y se engancha en la sesión `persist:monper`
+[`src/main/adblock.ts`](../src/main/adblock.ts) y se engancha en la sesión `persist:titanio`
 justo después de `configurePasskeys()`, antes que nada que pueda navegar.
 
 ## Por qué así
@@ -31,7 +31,7 @@ agente.
 ## Trampas
 
 - **Electron admite UN listener por sesión y evento.** Registrar otro `onBeforeRequest` sobre
-  `persist:monper` **desactiva el del adblocker sin error ni aviso**. Si hace falta otro
+  `persist:titanio` **desactiva el del adblocker sin error ni aviso**. Si hace falta otro
   interceptor, tiene que encadenarse dentro de `enganchar()`, nunca registrarse aparte.
 - **La allowlist NO puede salir del referrer.** `Request.sourceHostname` de Ghostery se
   rellena con el `referrer`, que llega vacío o recortado según la política de la página: la

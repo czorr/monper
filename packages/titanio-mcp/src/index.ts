@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 /**
- * monper-mcp — tu web logueada, como herramientas, para cualquier IA.
+ * titanio-mcp — tu web logueada, como herramientas, para cualquier IA.
  *
  * El navegador es el único software de tu máquina que ya está autenticado en todo lo que
  * usas. Y hasta ahora era el único que no lo exponía a nada: por eso existe una industria
  * entera construyendo integraciones y apps OAuth para datos que ya están renderizados en una
  * pestaña con tu sesión abierta.
  *
- * Esto es el puente. Un servidor MCP por stdio, sin dependencias, que habla con un Monper en
+ * Esto es el puente. Un servidor MCP por stdio, sin dependencias, que habla con un Titanio en
  * marcha por su servidor local. Cualquier cliente MCP —Claude Code, Cursor, lo que sea— pasa
  * a poder abrir, leer y operar sitios **con tu sesión**, sin API, sin OAuth y sin que los
  * datos salgan de tu máquina.
@@ -15,7 +15,7 @@
  * Lo que NO hace, y no es un descuido:
  *  - no expone el vault ni el autofill: los secretos siguen siendo solo del usuario;
  *  - no rellena campos de contraseña (`fill` los rechaza), por lo mismo;
- *  - no arranca Monper ni enciende el control remoto: eso es una decisión del usuario, en su
+ *  - no arranca Titanio ni enciende el control remoto: eso es una decisión del usuario, en su
  *    UI, con un indicador visible mientras esté activo.
  */
 
@@ -24,18 +24,18 @@ import { homedir } from 'os'
 import { join } from 'path'
 import { createInterface } from 'readline'
 
-const NOMBRE = 'monper-mcp'
+const NOMBRE = 'titanio-mcp'
 const VERSION = '0.1.0'
 /** Versiones del protocolo que sabemos hablar, de más nueva a más vieja. */
 const PROTOCOLOS = ['2025-06-18', '2025-03-26', '2024-11-05']
 
-// ---------------------------------------------------------------- conexión con Monper
+// ---------------------------------------------------------------- conexión con Titanio
 
 const PUERTO = Number(process.env['MONPER_PORT'] || 9223)
 const BASE = `http://127.0.0.1:${PUERTO}`
 
 /**
- * El token lo genera Monper y vive en su carpeta de datos. Se lee de ahí para que instalar
+ * El token lo genera Titanio y vive en su carpeta de datos. Se lee de ahí para que instalar
  * esto sea pegar cuatro líneas de config y nada más — pedirle al usuario que copie un token
  * a mano es una barrera por nada, y acaba en un fichero de configuración compartido.
  */
@@ -43,9 +43,9 @@ function leerToken(): string {
   const delEntorno = process.env['MONPER_TOKEN']
   if (delEntorno) return delEntorno
   const candidatos = [
-    join(homedir(), 'Library', 'Application Support', 'Monper', 'remote.json'), // macOS
-    join(process.env['APPDATA'] || join(homedir(), 'AppData', 'Roaming'), 'Monper', 'remote.json'),
-    join(process.env['XDG_CONFIG_HOME'] || join(homedir(), '.config'), 'Monper', 'remote.json')
+    join(homedir(), 'Library', 'Application Support', 'Titanio', 'remote.json'), // macOS
+    join(process.env['APPDATA'] || join(homedir(), 'AppData', 'Roaming'), 'Titanio', 'remote.json'),
+    join(process.env['XDG_CONFIG_HOME'] || join(homedir(), '.config'), 'Titanio', 'remote.json')
   ]
   for (const f of candidatos) {
     try {
@@ -56,7 +56,7 @@ function leerToken(): string {
     }
   }
   throw new Error(
-    'No encuentro el token de Monper. Abre Monper al menos una vez, o define MONPER_TOKEN.'
+    'No encuentro el token de Titanio. Abre Titanio al menos una vez, o define MONPER_TOKEN.'
   )
 }
 
@@ -74,21 +74,21 @@ async function cmd<T = unknown>(c: Cmd): Promise<T> {
       headers: {
         'content-type': 'application/json',
         authorization: `Bearer ${token}`,
-        'x-monper-client': process.env['MONPER_CLIENT_NAME'] || 'un cliente MCP'
+        'x-titanio-client': process.env['MONPER_CLIENT_NAME'] || 'un cliente MCP'
       },
       body: JSON.stringify(c)
     })
   } catch {
-    // El caso común con diferencia: Monper cerrado, o el control remoto apagado.
+    // El caso común con diferencia: Titanio cerrado, o el control remoto apagado.
     throw new Error(
-      `No hay ningún Monper escuchando en 127.0.0.1:${PUERTO}. Ábrelo y enciende ` +
+      `No hay ningún Titanio escuchando en 127.0.0.1:${PUERTO}. Ábrelo y enciende ` +
       'Perfil → Developers → Remote debugging.'
     )
   }
-  if (r.status === 401) throw new Error('Token rechazado por Monper. Borra su remote.json o define MONPER_TOKEN.')
-  if (r.status === 403) throw new Error('El usuario no autorizó a este cliente en el diálogo de Monper.')
+  if (r.status === 401) throw new Error('Token rechazado por Titanio. Borra su remote.json o define MONPER_TOKEN.')
+  if (r.status === 403) throw new Error('El usuario no autorizó a este cliente en el diálogo de Titanio.')
   const cuerpo = (await r.json().catch(() => ({}))) as { result?: T; error?: string }
-  if (!r.ok || cuerpo.error) throw new Error(cuerpo.error || `Monper respondió ${r.status}`)
+  if (!r.ok || cuerpo.error) throw new Error(cuerpo.error || `Titanio respondió ${r.status}`)
   return cuerpo.result as T
 }
 
@@ -141,7 +141,7 @@ const JS_FILL = (etiqueta: string, valor: string): string => `(() => {
   const campo = campos.filter(visible).find((el) => nombre(el) === objetivo)
     || campos.filter(visible).find((el) => nombre(el).includes(objetivo))
   if (!campo) return { ok: false, error: 'no encuentro ese campo' }
-  if (campo.type === 'password') return { ok: false, error: 'Monper no escribe contraseñas: eso es cosa del vault y del usuario' }
+  if (campo.type === 'password') return { ok: false, error: 'Titanio no escribe contraseñas: eso es cosa del vault y del usuario' }
   const setter = Object.getOwnPropertyDescriptor(campo.constructor.prototype, 'value')?.set
   setter ? setter.call(campo, ${JSON.stringify(valor)}) : (campo.value = ${JSON.stringify(valor)})
   campo.dispatchEvent(new Event('input', { bubbles: true }))
@@ -173,7 +173,7 @@ const HERRAMIENTAS: Herramienta[] = [
   {
     name: 'open_page',
     description:
-      'Abre una URL en Monper CON LA SESIÓN DEL USUARIO y espera a que cargue. Sirve para sitios ' +
+      'Abre una URL en Titanio CON LA SESIÓN DEL USUARIO y espera a que cargue. Sirve para sitios ' +
       'que requieren login y que por tanto no puedes leer de ninguna otra forma. Abre en segundo ' +
       'plano por defecto: no le quita al usuario lo que está mirando.',
     inputSchema: objeto({
@@ -204,7 +204,7 @@ const HERRAMIENTAS: Herramienta[] = [
   },
   {
     name: 'list_tabs',
-    description: 'Las pestañas abiertas en Monper, con su id, título y URL.',
+    description: 'Las pestañas abiertas en Titanio, con su id, título y URL.',
     inputSchema: objeto({}),
     run: async () => texto(JSON.stringify(await cmd<Tab[]>({ action: 'tabs' }), null, 2))
   },
@@ -315,7 +315,7 @@ rl.on('line', (linea) => {
     m = JSON.parse(l)
   } catch {
     // Sin `id` no hay a quién contestar; que se vea en stderr, que no lo lee el protocolo.
-    console.error('[monper-mcp] línea que no es JSON, ignorada')
+    console.error('[titanio-mcp] línea que no es JSON, ignorada')
     return
   }
   void manejar(m).catch((e) => fallar(m.id, -32603, e instanceof Error ? e.message : String(e)))

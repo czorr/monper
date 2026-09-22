@@ -1,7 +1,9 @@
+import { t as tr } from '../../shared/i18n'
 import { join } from 'path'
 import { readJson, writeJson } from '../jsonfile'
 import { app, safeStorage } from 'electron'
 import type { VaultItemMeta, VaultItemType } from '../../shared/vault'
+import { normalizeCredentialOrigin, sameCredentialSite } from '../../shared/vault'
 
 let metaFile = ''
 let secFile = ''
@@ -21,17 +23,17 @@ function persistSecrets(): boolean { return writeJson(secFile, secrets, 'los sec
  */
 function storeSecret(id: string, secret: string): { ok: boolean; error?: string } {
   if (!safeStorage.isEncryptionAvailable()) {
-    return { ok: false, error: 'el llavero del sistema no está disponible, así que no se puede cifrar' }
+    return { ok: false, error: tr("el llavero del sistema no está disponible, así que no se puede cifrar") }
   }
   const enc = encrypt(secret)
-  if (!enc) return { ok: false, error: 'el cifrado falló' }
+  if (!enc) return { ok: false, error: tr("el cifrado falló") }
   const before = secrets[id]
   secrets[id] = enc
   if (persistSecrets()) return { ok: true }
   // No dejar el secreto solo en memoria: al reiniciar no estaría y parecería que se perdió solo.
   if (before === undefined) delete secrets[id]
   else secrets[id] = before
-  return { ok: false, error: 'no se pudo escribir en el disco' }
+  return { ok: false, error: tr("no se pudo escribir en el disco") }
 }
 
 /** Error de vault que el llamante debe mostrar al usuario, no tragarse. */
@@ -44,6 +46,17 @@ export function initVault(): void {
   // "vacío" como si el usuario nunca hubiera guardado nada.
   items = readJson<VaultItemMeta[]>(metaFile, [], 'el vault')
   secrets = readJson<Record<string, string>>(secFile, {}, 'los secretos del vault')
+  let migrated = false
+  items = items.map((item) => {
+    if (item.type !== 'web-credential') return item
+    const origin = normalizeCredentialOrigin(item.data.origin || item.data.url || '')
+    if (!origin) return item // Se conserva para que el usuario pueda corregirlo en el editor.
+    const data: Record<string, string> = { ...item.data, origin, username: (item.data.username || '').trim() }
+    delete data.url
+    if (JSON.stringify(data) !== JSON.stringify(item.data)) migrated = true
+    return { ...item, data }
+  })
+  if (migrated) persistMeta()
 }
 
 export function isAvailable(): boolean { return safeStorage.isEncryptionAvailable() }
@@ -64,38 +77,82 @@ export function itemsByType(type: VaultItemType): VaultItemMeta[] { return items
 export function get(id: string): VaultItemMeta | undefined { return items.find((i) => i.id === id) }
 export function hasSecret(id: string): boolean { return !!secrets[id] }
 export function getSecret(id: string): string | null { return decrypt(id) }
-export function findCredential(origin: string): VaultItemMeta | undefined {
-  return items.find((i) => i.type === 'web-credential' && i.data.origin === origin)
+export function credentialsForSite(origin: string): VaultItemMeta[] {
+  return items.filter((i) => i.type === 'web-credential' && sameCredentialSite(i.data.origin || '', origin))
+}
+
+export function findCredential(origin: string, username?: string): VaultItemMeta | undefined {
+  const matches = credentialsForSite(origin).filter((i) => username === undefined || i.data.username === username.trim())
+  // Sin cuenta explícita, nunca elegir arbitrariamente entre varias.
+  return matches.length === 1 ? matches[0] : undefined
+}
+
+function validatedData(type: VaultItemType, data: Record<string, string>, id?: string): Record<string, string> {
+  if (type !== 'web-credential') return { ...data }
+  const origin = normalizeCredentialOrigin(data.origin || data.url || '')
+  if (!origin) throw new VaultError(tr("Escribe un sitio HTTP o HTTPS válido."))
+  const username = (data.username || '').trim()
+  if (credentialsForSite(origin).some((i) => i.id !== id && i.data.username === username)) {
+    throw new VaultError('Ya existe una credencial para este sitio y usuario. Edita esa cuenta.')
+  }
+  const normalized: Record<string, string> = { ...data, origin, username }
+  delete normalized.url
+  return normalized
 }
 
 // ---- escritura ----
+export function importCredential(url: string, username: string, password: string): boolean {
+  const origin = normalizeCredentialOrigin(url)
+  if (!origin) throw new VaultError(tr("Una credencial importada no contiene un sitio HTTP o HTTPS válido."))
+  if (credentialsForSite(origin).some((i) => i.data.username === username.trim())) return false
+  add('web-credential', new URL(origin).hostname.replace(/^www\./, ''), { origin, username }, password)
+  return true
+}
+
 export function add(type: VaultItemType, label: string, data: Record<string, string>, secret: string): VaultItemMeta {
   const now = Date.now()
-  const item: VaultItemMeta = { id: Math.random().toString(36).slice(2), type, label, createdAt: now, updatedAt: now, data }
+  if (!label.trim()) throw new VaultError(tr("El nombre no puede estar vacío."))
+  const item: VaultItemMeta = { id: Math.random().toString(36).slice(2), type, label: label.trim(), createdAt: now, updatedAt: now, data: validatedData(type, data) }
   const previous = items
   items = [...items, item]
   const r = storeSecret(item.id, secret)
   if (!r.ok) {
     // Se deshace: un item sin secreto es una trampa, mejor que no aparezca.
     items = previous
-    throw new VaultError(`No se pudo guardar "${label}" en el Vault: ${r.error}.`)
+    throw new VaultError(tr("No se pudo guardar \"{0}\" en el Vault: {1}.", label, r.error))
   }
-  persistMeta()
+  if (!persistMeta()) {
+    items = previous
+    delete secrets[item.id]
+    persistSecrets()
+    throw new VaultError(tr("No se pudieron guardar los datos del elemento."))
+  }
   return item
 }
 
 export function update(id: string, patch: { label?: string; data?: Record<string, string>; secret?: string }): VaultItemMeta | null {
   const i = items.find((x) => x.id === id)
-  if (!i) return null
-  if (patch.label !== undefined) i.label = patch.label
-  if (patch.data) i.data = { ...i.data, ...patch.data }
-  i.updatedAt = Date.now()
+  if (!i) throw new VaultError('El elemento ya no existe.')
+  const label = (patch.label ?? i.label).trim()
+  if (!label) throw new VaultError(tr("El nombre no puede estar vacío."))
+  const next = { ...i, label, data: validatedData(i.type, { ...i.data, ...patch.data }, id), updatedAt: Date.now() }
+  const previousSecret = secrets[id]
   if (patch.secret !== undefined) {
     const r = storeSecret(id, patch.secret)
-    if (!r.ok) throw new VaultError(`No se pudo actualizar el secreto de "${i.label}": ${r.error}.`)
+    if (!r.ok) throw new VaultError(tr("No se pudo actualizar el secreto de \"{0}\": {1}.", i.label, r.error))
   }
-  persistMeta()
-  return i
+  const previous = items
+  items = items.map((item) => item.id === id ? next : item)
+  if (!persistMeta()) {
+    items = previous
+    if (patch.secret !== undefined) {
+      if (previousSecret === undefined) delete secrets[id]
+      else secrets[id] = previousSecret
+      persistSecrets()
+    }
+    throw new VaultError(tr("No se pudieron guardar los cambios del elemento."))
+  }
+  return next
 }
 
 export function remove(id: string): void {

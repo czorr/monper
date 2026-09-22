@@ -1,5 +1,5 @@
 import type { WebContents } from 'electron'
-import type { Page } from '../../../../packages/monperwright/src'
+import type { Page } from '../../../../packages/titaniowright/src'
 import { withFallback } from './shared'
 import { makePasswordManager } from './password-manager'
 import { makeGoogleSearch } from './google-search'
@@ -17,7 +17,7 @@ import { makeGoogleSheets } from './google-sheets'
 /**
  * Globals del REPL que usan las skills (portadas de Aside): googleSearch, cua, youtube, …
  * Los implementados viven en un archivo por servicio; el resto son stubs que guían al
- * agente a operar el servicio con `page` (monperwright).
+ * agente a operar el servicio con `page` (titaniowright).
  *
  * Para portar un servicio nuevo: crea `./<servicio>.ts` con su `make…(page)` y añádelo aquí
  * envuelto en `withFallback(...)` (para que los métodos aún no implementados guíen a `page`).
@@ -38,7 +38,7 @@ export function buildGlobals(page: Page, wc: WebContents): Record<string, unknow
     googleAccounts: makeGoogleAccounts(page),
     googleDocs: withFallback(makeGoogleDocs(page), 'googleDocs', 'Google Docs', 'https://docs.google.com'),
     googleSheets: withFallback(makeGoogleSheets(page), 'googleSheets', 'Google Sheets', 'https://docs.google.com'),
-    // Vault interno de Monper: rellena credenciales sin exponer el secreto al agente.
+    // Vault interno de Titanio: rellena credenciales sin exponer el secreto al agente.
     passwordManager: withFallback(makePasswordManager(page, wc), 'passwordManager', 'el gestor de contraseñas', '')
   }
 }

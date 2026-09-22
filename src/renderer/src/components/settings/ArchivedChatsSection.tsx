@@ -1,3 +1,4 @@
+import { t as tr, useLocale, getLocale } from '@renderer/lib/i18n'
 import { useCallback, useEffect, useState, type JSX } from 'react'
 import type { ChatSessionBusqueda } from '@shared/types'
 import IconSearch from '~icons/tabler/search'
@@ -7,25 +8,26 @@ import IconArchiveOff from '~icons/tabler/archive-off'
 import IconPencil from '~icons/tabler/pencil'
 import IconTrash from '~icons/tabler/trash'
 import IconArrowBack from '~icons/tabler/arrow-back-up'
-import { Card } from './ui'
+import { Card, SettingsHeader, Button } from './ui'
 
-const { monperTab } = window
+const { titanioTab } = window
 
 /** "hace 5 min", "ayer"… Misma escala que el desplegable del panel, para que no se contradigan. */
 function hace(ms: number): string {
   const s = Math.max(0, Math.round((Date.now() - ms) / 1000))
-  if (s < 60) return 'ahora'
+  if (s < 60) return tr('ahora')
   const m = Math.round(s / 60)
-  if (m < 60) return `hace ${m} min`
+  if (m < 60) return tr("hace {0} min", m)
   const h = Math.round(m / 60)
-  if (h < 24) return `hace ${h} h`
+  if (h < 24) return tr("hace {0} h", h)
   const d = Math.round(h / 24)
-  if (d === 1) return 'ayer'
-  if (d < 30) return `hace ${d} días`
-  return new Date(ms).toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric' })
+  if (d === 1) return tr('ayer')
+  if (d < 30) return tr("hace {0} días", d)
+  return new Date(ms).toLocaleDateString(getLocale(), { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
 function Fila({ s, onLista }: { s: ChatSessionBusqueda; onLista: (l: ChatSessionBusqueda[]) => void }): JSX.Element {
+  useLocale()
   const [editando, setEditando] = useState(false)
   const [titulo, setTitulo] = useState(s.title)
 
@@ -33,7 +35,7 @@ function Fila({ s, onLista }: { s: ChatSessionBusqueda; onLista: (l: ChatSession
     const t = titulo.trim()
     // Sin título la fila queda en blanco: se deja el que había.
     if (!t) { setTitulo(s.title); setEditando(false); return }
-    onLista(await monperTab.chatsRename(s.id, t))
+    onLista(await titanioTab.chatsRename(s.id, t))
     setEditando(false)
   }
 
@@ -47,8 +49,8 @@ function Fila({ s, onLista }: { s: ChatSessionBusqueda; onLista: (l: ChatSession
           onKeyDown={(e) => { if (e.key === 'Enter') void guardar(); if (e.key === 'Escape') { setTitulo(s.title); setEditando(false) } }}
           className="flex-1 h-8 px-2.5 rounded-lg bg-white/[0.05] border border-white/[0.10] text-[13.5px] text-text outline-none focus:border-white/30 select-text"
         />
-        <button onClick={() => void guardar()} className="h-8 px-3 rounded-lg bg-white/90 text-black text-[12.5px] font-medium hover:bg-white transition-colors">Guardar</button>
-        <button onClick={() => { setTitulo(s.title); setEditando(false) }} className="h-8 px-3 rounded-lg text-[12.5px] text-text-dim hover:text-text transition-colors">Cancelar</button>
+        <Button variant="primary" size="sm" onClick={() => void guardar()}>{tr("Guardar")}</Button>
+        <Button variant="ghost" size="sm" onClick={() => { setTitulo(s.title); setEditando(false) }}>{tr("Cancelar")}</Button>
       </div>
     )
   }
@@ -61,7 +63,7 @@ function Fila({ s, onLista }: { s: ChatSessionBusqueda; onLista: (l: ChatSession
 
       {/* Toda la fila retoma la conversación: es lo que uno quiere el 90% de las veces, y
           obligarle a apuntar a un botón de 32px para el caso normal es pedirle puntería. */}
-      <button onClick={() => monperTab.chatsResume(s.id)} className="flex-1 min-w-0 text-left" title="Retomar esta conversación">
+      <Button onClick={() => titanioTab.chatsResume(s.id)} className="flex-1 min-w-0 text-left" title={tr("Retomar esta conversación")}>
         <div className="text-[14px] text-text leading-tight truncate">{s.title}</div>
         <div className="text-[12.5px] text-text-dim mt-0.5 truncate">
           {hace(s.updatedAt)} · {s.count} {s.count === 1 ? 'mensaje' : 'mensajes'}
@@ -69,28 +71,24 @@ function Fila({ s, onLista }: { s: ChatSessionBusqueda; onLista: (l: ChatSession
         {/* El fragmento solo aparece al buscar: es lo que explica POR QUÉ salió este resultado
             cuando la coincidencia no está en el título. */}
         {s.snippet && <div className="text-[12.5px] text-text-faint mt-1 line-clamp-2">{s.snippet}</div>}
-      </button>
+      </Button>
 
       <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover/c:opacity-100 transition-opacity">
-        <button onClick={() => monperTab.chatsResume(s.id)} title="Retomar"
-          className="w-8 h-8 grid place-items-center rounded-lg text-text-faint hover:text-text hover:bg-white/[0.08] [&>svg]:w-4 [&>svg]:h-4">
+        <Button variant="ghost" size="icon" onClick={() => titanioTab.chatsResume(s.id)} title={tr("Retomar")}>
           <IconArrowBack />
-        </button>
-        <button
-          onClick={async () => onLista(await monperTab.chatsArchive(s.id, !s.archived))}
-          title={s.archived ? 'Desarchivar' : 'Archivar'}
-          className="w-8 h-8 grid place-items-center rounded-lg text-text-faint hover:text-text hover:bg-white/[0.08] [&>svg]:w-4 [&>svg]:h-4"
+        </Button>
+        <Button variant="ghost" size="icon"
+          onClick={async () => onLista(await titanioTab.chatsArchive(s.id, !s.archived))}
+          title={s.archived ? tr("Desarchivar") : tr("Archivar")}
         >
           {s.archived ? <IconArchiveOff /> : <IconArchive />}
-        </button>
-        <button onClick={() => setEditando(true)} title="Renombrar"
-          className="w-8 h-8 grid place-items-center rounded-lg text-text-faint hover:text-text hover:bg-white/[0.08] [&>svg]:w-4 [&>svg]:h-4">
+        </Button>
+        <Button variant="ghost" size="icon" onClick={() => setEditando(true)} title={tr("Renombrar")}>
           <IconPencil />
-        </button>
-        <button onClick={async () => onLista(await monperTab.chatsDelete(s.id))} title="Borrar"
-          className="w-8 h-8 grid place-items-center rounded-lg text-text-faint hover:text-red-400 hover:bg-red-500/15 [&>svg]:w-4 [&>svg]:h-4">
+        </Button>
+        <Button variant="danger-ghost" size="icon" onClick={async () => onLista(await titanioTab.chatsDelete(s.id))} title={tr("Borrar")}>
           <IconTrash />
-        </button>
+        </Button>
       </div>
     </div>
   )
@@ -107,6 +105,7 @@ function Fila({ s, onLista }: { s: ChatSessionBusqueda; onLista: (l: ChatSession
  * querer retomar algo es de qué acabaron tratando.
  */
 export default function ArchivedChatsSection(): JSX.Element {
+  useLocale()
   const [lista, setLista] = useState<ChatSessionBusqueda[]>([])
   const [q, setQ] = useState('')
   const [verArchivadas, setVerArchivadas] = useState(true)
@@ -114,11 +113,11 @@ export default function ArchivedChatsSection(): JSX.Element {
 
   const buscar = useCallback(async (texto: string, incluir: boolean): Promise<void> => {
     try {
-      setLista(await monperTab.chatsSearch(texto, incluir))
+      setLista(await titanioTab.chatsSearch(texto, incluir))
       setError('')
     } catch (e) {
       console.error('[chats] no se pudo leer el historial:', e)
-      setError('No se pudo leer el historial. Reinicia Monper: los cambios en el preload necesitan reiniciar la app, no solo recargar.')
+      setError(tr("No se pudieron cargar las conversaciones. Reinicia Titanio e inténtalo de nuevo."))
     }
   }, [])
   useEffect(() => { void buscar(q, verArchivadas) }, [buscar, q, verArchivadas])
@@ -128,15 +127,11 @@ export default function ArchivedChatsSection(): JSX.Element {
 
   return (
     <div>
-      <div className="flex items-center justify-between gap-4 mb-5">
-        <div>
-          <h1 className="text-[22px] font-semibold tracking-tight">Chats</h1>
-          <p className="text-[13px] text-text-dim mt-1">
-            Todo lo que has hablado con el agente. Se guarda en tu máquina y no sale de ahí.
-          </p>
-        </div>
-        <span className="text-[13px] text-text-faint tabular-nums shrink-0">{lista.length}</span>
-      </div>
+      <SettingsHeader
+        title={tr("Chats")}
+        description={tr("Busca, retoma y organiza tus conversaciones.")}
+        actions={<span className="text-[13px] text-text-faint tabular-nums">{lista.length}</span>}
+      />
 
       {error && <div className="mb-5 text-[12.5px] text-amber-400">{error}</div>}
 
@@ -145,40 +140,37 @@ export default function ArchivedChatsSection(): JSX.Element {
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Buscar en tus conversaciones"
+          placeholder={tr("Buscar en tus conversaciones")}
           className="w-full h-10 pl-9 pr-3 rounded-xl bg-white/[0.04] border border-white/[0.08] text-[13.5px] text-text outline-none focus:border-white/25 placeholder:text-text-faint transition-colors select-text"
         />
       </div>
 
       <label className="flex items-center gap-2 mb-5 text-[12.5px] text-text-dim cursor-pointer select-none">
         <input type="checkbox" checked={verArchivadas} onChange={(e) => setVerArchivadas(e.target.checked)} className="accent-white/80" />
-        Incluir las archivadas
-      </label>
+        {tr("Incluir las archivadas")} </label>
 
       {lista.length === 0 && (
         <div className="py-16 flex flex-col items-center gap-2 text-center">
           <IconMessage className="w-6 h-6 text-text-faint" />
           <div className="text-[13.5px] text-text-dim">
-            {q.trim() ? `Nada coincide con “${q.trim()}”` : 'Todavía no has hablado con el agente'}
+            {q.trim() ? tr("No hay resultados para “{0}”", q.trim()) : tr("No hay conversaciones guardadas")}
           </div>
         </div>
       )}
 
       {activas.length > 0 && (
         <section className="mb-9">
-          <h2 className="text-[13px] font-medium text-text-faint mb-3">Conversaciones</h2>
+          <h2 className="text-[13px] font-medium text-text-faint mb-3">{tr("Conversaciones")}</h2>
           <Card>{activas.map((s) => <Fila key={s.id} s={s} onLista={setLista} />)}</Card>
         </section>
       )}
 
       {archivadas.length > 0 && (
         <section className="mb-9">
-          <h2 className="text-[13px] font-medium text-text-faint mb-3">Archivadas</h2>
+          <h2 className="text-[13px] font-medium text-text-faint mb-3">{tr("Archivadas")}</h2>
           <Card>{archivadas.map((s) => <Fila key={s.id} s={s} onLista={setLista} />)}</Card>
           <p className="text-[12.5px] text-text-faint mt-3 leading-relaxed">
-            Las archivadas no salen en el desplegable del chat y no se borran solas: el historial
-            se queda con las 200 más recientes, pero nunca a costa de una archivada.
-          </p>
+            {tr("El historial conserva las 200 conversaciones más recientes. Las archivadas quedan fuera de ese límite y no aparecen en el menú del chat.")} </p>
         </section>
       )}
     </div>

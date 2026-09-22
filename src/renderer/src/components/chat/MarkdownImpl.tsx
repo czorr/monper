@@ -2,7 +2,7 @@ import type { JSX } from 'react'
 import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
-const { monper } = window
+const { titanio } = window
 
 // Componentes a medida: tipografía compacta y coherente con el tema oscuro del panel.
 const COMPONENTS: Components = {
@@ -10,7 +10,7 @@ const COMPONENTS: Components = {
   a: ({ href, children }) => (
     <a
       href={href}
-      onClick={(e) => { e.preventDefault(); if (href) monper.go(href) }}
+      onClick={(e) => { e.preventDefault(); if (href) titanio.go(href) }}
       className="text-sky-400 hover:underline underline-offset-2 cursor-pointer"
     >
       {children}

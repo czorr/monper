@@ -1,3 +1,4 @@
+import { t as tr } from '../shared/i18n'
 import type { MenuItemConstructorOptions } from 'electron'
 
 /**
@@ -32,10 +33,10 @@ export function itemsDeCorrector(
 
   // Una entrada desactivada y no un menú vacío: sin ella, el usuario ve el subrayado, abre el
   // menú, no encuentra nada y no sabe si el corrector funciona o si esa palabra no tiene arreglo.
-  if (!items.length) items.push({ label: 'Sin sugerencias', enabled: false })
+  if (!items.length) items.push({ label: tr("Sin sugerencias"), enabled: false })
 
   items.push({
-    label: `Añadir “${p.misspelledWord}” al diccionario`,
+    label: tr("Añadir “{0}” al diccionario", p.misspelledWord),
     click: () => acciones.aprender(p.misspelledWord)
   })
   items.push({ type: 'separator' })
@@ -66,7 +67,7 @@ export interface VideoEnPagina {
 /**
  * Las entradas de vídeo del menú contextual — sobre todo **picture-in-picture**.
  *
- * Faltaban por completo. Monper reemplaza el menú nativo de Chromium por uno propio, y ese
+ * Faltaban por completo. Titanio reemplaza el menú nativo de Chromium por uno propio, y ese
  * traía "Picture in picture" de fábrica: al construir el nuestro se cubrió el caso de la imagen
  * y el del vídeo se quedó fuera.
  *
@@ -81,7 +82,7 @@ export function itemsDeVideo(v: VideoEnPagina, acciones: AccionesVideo): MenuIte
 
   const items: MenuItemConstructorOptions[] = [
     {
-      label: v.enPip ? 'Salir de picture in picture' : 'Picture in picture',
+      label: v.enPip ? tr("Salir de picture in picture") : tr("Picture in picture"),
       click: acciones.alternarPip
     }
   ]
@@ -89,8 +90,8 @@ export function itemsDeVideo(v: VideoEnPagina, acciones: AccionesVideo): MenuIte
   // esas dos entradas solo salen cuando llevan a algún sitio.
   if (v.url) {
     items.push(
-      { label: 'Copiar dirección del vídeo', click: () => acciones.copiarUrl(v.url) },
-      { label: 'Guardar vídeo', click: () => acciones.guardar(v.url) }
+      { label: tr("Copiar dirección del vídeo"), click: () => acciones.copiarUrl(v.url) },
+      { label: tr("Guardar vídeo"), click: () => acciones.guardar(v.url) }
     )
   }
   items.push({ type: 'separator' })

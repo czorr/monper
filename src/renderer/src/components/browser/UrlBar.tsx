@@ -1,10 +1,11 @@
+import { t as tr, useLocale } from '@renderer/lib/i18n'
 import { useEffect, useRef, useState, type JSX } from 'react'
 import type { ActiveInfo, Suggestion } from '@shared/types'
 import { domainOf } from '@renderer/lib/dom'
-import MonperMark from '@renderer/components/ui/MonperMark'
+import TitanioLogo from '@renderer/components/ui/TitanioLogo'
 import { useAutocomplete, useInlineCompletion } from '@renderer/components/omnibox'
 
-const { monper } = window
+const { titanio } = window
 
 interface Props {
   active: ActiveInfo | null
@@ -14,8 +15,9 @@ interface Props {
 }
 
 export default function UrlBar({ active, editRequest, onGo }: Props): JSX.Element {
+  useLocale()
   const [editing, setEditing] = useState(false)
-  const ac = useAutocomplete(monper.suggest)
+  const ac = useAutocomplete(titanio.suggest)
   // Completado inline compartido con la new-tab page: misma lógica, un solo sitio.
   const ic = useInlineCompletion(ac)
   const inputRef = ic.inputRef
@@ -24,7 +26,7 @@ export default function UrlBar({ active, editRequest, onGo }: Props): JSX.Elemen
     ac.setQuery(active && active.url !== 'about:blank' ? active.url : '')
     setEditing(true)
   }
-  const stopEditing = (): void => { setEditing(false); ac.reset(); monper.omniHide() }
+  const stopEditing = (): void => { setEditing(false); ac.reset(); titanio.omniHide() }
   useEffect(() => { if (editRequest > 0) startEditing() }, [editRequest]) // eslint-disable-line react-hooks/exhaustive-deps
   // Al entrar en edición, vuelca la query al input (no-controlado) y selecciona todo.
   useEffect(() => {
@@ -51,9 +53,9 @@ export default function UrlBar({ active, editRequest, onGo }: Props): JSX.Elemen
    */
   const barraRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    return monper.onPermAsk(() => {
+    return titanio.onPermAsk(() => {
       const r = barraRef.current?.getBoundingClientRect()
-      if (r) monper.permAnchor({ x: r.left, y: r.top, width: r.width, height: r.height })
+      if (r) titanio.permAnchor({ x: r.left, y: r.top, width: r.width, height: r.height })
     })
   }, [])
 
@@ -61,17 +63,17 @@ export default function UrlBar({ active, editRequest, onGo }: Props): JSX.Elemen
   const ref = useRef({ items: ac.items, setActive: ac.setActive, choose })
   ref.current = { items: ac.items, setActive: ac.setActive, choose }
   useEffect(() => {
-    const offC = monper.onOmniChosen((i) => { const s = ref.current.items[i]; if (s) ref.current.choose(s) })
-    const offH = monper.onOmniHovered((i) => ref.current.setActive(i))
+    const offC = titanio.onOmniChosen((i) => { const s = ref.current.items[i]; if (s) ref.current.choose(s) })
+    const offH = titanio.onOmniHovered((i) => ref.current.setActive(i))
     return () => { offC(); offH() }
   }, [])
 
   // Muestra/actualiza/oculta la ventana nativa del dropdown según el estado del omnibox.
   useEffect(() => {
-    if (!editing || !ac.open || ac.items.length === 0) { monper.omniHide(); return }
+    if (!editing || !ac.open || ac.items.length === 0) { titanio.omniHide(); return }
     const r = inputRef.current?.getBoundingClientRect()
     if (!r) return
-    monper.omniShow(
+    titanio.omniShow(
       { x: r.left, y: r.top, width: r.width, height: r.height },
       { items: ac.items, active: ac.active, query: ac.query }
     )
@@ -80,7 +82,7 @@ export default function UrlBar({ active, editRequest, onGo }: Props): JSX.Elemen
   // En nuestras páginas no hay dominio que mostrar (el main manda la url vacía a propósito),
   // así que ese hueco lo ocupa la marca. El nombre de la página lo pone el título de al lado.
   const interna = !!active?.internal
-  const domain = active ? (interna ? 'Monper' : domainOf(active.url) || 'New tab') : ''
+  const domain = active ? (interna ? 'Titanio' : domainOf(active.url) || tr("New tab")) : ''
   const title = active && active.title && active.title !== domain ? active.title : ''
 
   return (
@@ -91,7 +93,7 @@ export default function UrlBar({ active, editRequest, onGo }: Props): JSX.Elemen
           type="text"
           spellCheck={false}
           autoComplete="off"
-          placeholder="Busca en Google o escribe una URL"
+          placeholder={tr("Busca en Google o escribe una URL")}
           onChange={ic.onChange}
           onPointerDown={ic.onPointerDown}
           onBlur={() => stopEditing()}
@@ -104,12 +106,11 @@ export default function UrlBar({ active, editRequest, onGo }: Props): JSX.Elemen
           <button
             onClick={(e) => {
               const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
-              monper.openSiteInfo({ x: r.left, y: r.top, width: r.width, height: r.height })
+              titanio.openSiteInfo({ x: r.left, y: r.top, width: r.width, height: r.height })
             }}
-            className="flex items-center gap-1.5 shrink-0 h-[30px] pl-2 pr-3 rounded-full text-[13px] font-medium text-text bg-bg-elev hover:bg-bg-hover transition-colors whitespace-nowrap tracking-[-0.08px]"
+            className={`flex items-center justify-center gap-1.5 shrink-0 h-[30px] ${interna ? 'px-3' : 'pl-2 pr-3'} rounded-full text-[13px] font-medium text-text bg-bg-elev hover:bg-bg-hover transition-colors whitespace-nowrap tracking-[-0.08px]`}
           >
-            {interna && <MonperMark className="w-[15px] h-[15px]" />}
-            <span className={interna ? '' : 'pl-1'}>{domain}</span>
+            {interna ? <TitanioLogo height={12} /> : <span className="pl-1">{domain}</span>}
           </button>
           {/* Título → abre el input */}
           <button
@@ -124,7 +125,7 @@ export default function UrlBar({ active, editRequest, onGo }: Props): JSX.Elemen
           onClick={startEditing}
           className="flex items-center w-full min-w-0 h-[30px] px-3 rounded-lg text-[13px] text-left hover:bg-bg-elev"
         >
-          <span className="text-text font-medium whitespace-nowrap tracking-[-0.08px]">New tab</span>
+          <span className="text-text font-medium whitespace-nowrap tracking-[-0.08px]">{tr("New tab")}</span>
         </button>
       )}
     </div>

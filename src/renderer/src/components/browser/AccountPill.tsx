@@ -1,4 +1,6 @@
+import { t as tr, useLocale } from '@renderer/lib/i18n'
 import type { JSX } from 'react'
+import type { ProfileIcon } from '@shared/profiles'
 import { Avatar } from '@renderer/components/ui'
 import { ChevronDown } from '@renderer/lib/icons'
 
@@ -6,22 +8,25 @@ interface Props {
   initials: string
   name: string
   avatar?: string | null
+  color?: string
+  icon?: ProfileIcon
   onOpen: (rect: DOMRect) => void
 }
 
-export default function AccountPill({ initials, name, avatar, onOpen }: Props): JSX.Element {
+export default function AccountPill({ initials, name, avatar, color, icon, onOpen }: Props): JSX.Element {
+  useLocale()
   return (
     <button
+      title={name}
+      aria-label={tr("Abrir menú de {0}", name)}
+      aria-haspopup="menu"
+      onPointerEnter={() => window.titanio.warmProfileMenu()}
+      onFocus={() => window.titanio.warmProfileMenu()}
       onClick={(e) => onOpen((e.currentTarget as HTMLElement).getBoundingClientRect())}
-      className="flex items-center gap-0.5 py-1 px-2 rounded-lg hover:bg-bg-hover [-webkit-app-region:no-drag] max-w-full min-w-0"
+      className="flex items-center gap-2 h-10 px-2.5 rounded-[18px] [corner-shape:superellipse(1.5)] hover:bg-bg-hover [-webkit-app-region:no-drag]"
     >
-      <div className="flex items-center gap-2 min-w-0">
-        <Avatar initials={initials} src={avatar} />
-        <span className="text-[14px] font-semibold truncate max-w-[150px] tracking-[-0.1px]">
-          {name}
-        </span>
-      </div>
-      <ChevronDown className="text-text-faint shrink-0 w-3.5 h-3.5" />
+      <Avatar initials={initials} src={avatar} color={color} icon={icon} size="xs" />
+      <ChevronDown className="w-3.5 h-3.5 shrink-0 text-text-faint" />
     </button>
   )
 }

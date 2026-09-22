@@ -28,7 +28,7 @@ export default function BookmarkFolderRow({ folder, count, collapsed, onToggle, 
   const confirmar = (): void => {
     const v = input.current?.value.trim()
     // Un nombre vacío dejaría una fila en blanco imposible de identificar: se queda el que había.
-    if (v && v !== folder.title) window.monper.renameBookmark(folder.id, v)
+    if (v && v !== folder.title) window.titanio.renameBookmark(folder.id, v)
     setEditando(false)
     onRenamed?.()
   }
@@ -36,13 +36,13 @@ export default function BookmarkFolderRow({ folder, count, collapsed, onToggle, 
   return (
     <div
       className="group/bm relative flex items-center"
-      onContextMenu={(e) => { e.preventDefault(); window.monper.bookmarkContextMenu(folder.id) }}
+      onContextMenu={(e) => { e.preventDefault(); window.titanio.bookmarkContextMenu(folder.id) }}
       onDoubleClick={() => setEditando(true)}
     >
       <button
         onClick={onToggle}
         title={`${folder.title} · ${count} ${count === 1 ? 'marcador' : 'marcadores'}`}
-        className="flex items-center gap-2 w-full py-1 px-2 rounded-lg border border-transparent text-text/75 text-left text-[14.5px] min-h-[29px] hover:bg-bg-hover hover:text-text"
+        className="flex items-center gap-2 w-full py-1 px-2 rounded-xl [corner-shape:superellipse(1.5)] border border-transparent text-text/75 text-left text-[14.5px] min-h-[29px] hover:bg-bg-hover hover:text-text"
       >
         <IconChevron
           className={'w-[13px] h-[13px] shrink-0 opacity-60 transition-transform duration-150 ' + (collapsed ? '' : 'rotate-90')}

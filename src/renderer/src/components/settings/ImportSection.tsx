@@ -1,8 +1,9 @@
+import { t as tr, useLocale } from '@renderer/lib/i18n'
 import { useEffect, useState, type JSX } from 'react'
 import IconDownload from '~icons/tabler/download'
-import { Card, Group } from './ui'
+import { Card, Group, Button } from './ui'
 
-const { monperTab } = window
+const { titanioTab } = window
 
 interface Nav { id: string; nombre: string; disponible: boolean }
 type Que = { bookmarks: boolean; history: boolean; passwords: boolean }
@@ -18,6 +19,7 @@ type Resultado = { ok: boolean; bookmarks: number; history: number; passwords: n
  * y mueve secretos de sitio. Que sea un gesto consciente, no una casilla que ya venía puesta.
  */
 export default function ImportSection(): JSX.Element {
+  useLocale()
   const [navs, setNavs] = useState<Nav[] | null>(null)
   const [sel, setSel] = useState<string | null>(null)
   const [que, setQue] = useState<Que>({ bookmarks: true, history: true, passwords: false })
@@ -25,7 +27,7 @@ export default function ImportSection(): JSX.Element {
   const [res, setRes] = useState<Resultado | null>(null)
 
   useEffect(() => {
-    monperTab.listImportBrowsers()
+    titanioTab.listImportBrowsers()
       .then((l) => {
         setNavs(l)
         setSel(l.find((n) => n.disponible)?.id ?? null)
@@ -38,7 +40,7 @@ export default function ImportSection(): JSX.Element {
     setCorriendo(true)
     setRes(null)
     try {
-      setRes(await monperTab.runImport(sel, que))
+      setRes(await titanioTab.runImport(sel, que))
     } catch (e) {
       setRes({ ok: false, bookmarks: 0, history: 0, passwords: 0, error: e instanceof Error ? e.message : String(e) })
     } finally {
@@ -47,7 +49,7 @@ export default function ImportSection(): JSX.Element {
   }
 
   const casilla = (k: keyof Que, label: string, nota: string): JSX.Element => (
-    <button
+    <Button
       onClick={() => setQue((q) => ({ ...q, [k]: !q[k] }))}
       className="flex items-start gap-3 w-full px-4 py-3 text-left hover:bg-white/[0.02] transition-colors"
     >
@@ -63,26 +65,25 @@ export default function ImportSection(): JSX.Element {
         <span className="block text-[14px] text-text">{label}</span>
         <span className="block text-[12.5px] text-text-dim mt-0.5">{nota}</span>
       </span>
-    </button>
+    </Button>
   )
 
   return (
     <>
-      <Group title="Importar de otro navegador">
+      <Group title={tr("Importar de otro navegador")}>
         <Card>
-          {navs === null && <div className="px-4 py-4 text-[13px] text-text-faint">Buscando navegadores…</div>}
+          {navs === null && <div className="px-4 py-4 text-[13px] text-text-faint">{tr("Buscando navegadores…")}</div>}
           {navs?.every((n) => !n.disponible) && (
             <div className="px-4 py-6 text-center">
-              <div className="text-[13.5px] text-text-dim">No hay de dónde importar</div>
+              <div className="text-[13.5px] text-text-dim">{tr("No se encontraron navegadores compatibles")}</div>
               {/* Se dice qué se buscó: si no, "no encuentro nada" es indistinguible de un fallo. */}
               {/* Se dice qué se buscó: si no, "no encuentro nada" es indistinguible de un fallo. */}
               <div className="text-[12.5px] text-text-faint mt-1 max-w-[420px] mx-auto leading-relaxed">
-                Se buscó Chrome, Arc, Brave, Edge y Safari.
-              </div>
+                {tr("Navegadores compatibles: Chrome, Arc, Brave, Edge y Safari.")} </div>
             </div>
           )}
           {navs?.filter((n) => n.disponible).map((n) => (
-            <button
+            <Button
               key={n.id}
               onClick={() => setSel(n.id)}
               className="flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-white/[0.02] transition-colors"
@@ -96,16 +97,16 @@ export default function ImportSection(): JSX.Element {
                 {sel === n.id && <span className="w-2.5 h-2.5 rounded-full bg-white" />}
               </span>
               <span className="text-[14px] text-text">{n.nombre}</span>
-            </button>
+            </Button>
           ))}
         </Card>
       </Group>
 
-      <Group title="Qué traer">
+      <Group title={tr("Datos a importar")}>
         <Card>
-          {casilla('bookmarks', 'Marcadores', 'Los repetidos no se duplican.')}
-          {casilla('history', 'Historial', 'Mejora el autocompletado de la barra de direcciones.')}
-          {casilla('passwords', 'Contraseñas', 'macOS te pedirá permiso. Van al vault cifrado.')}
+          {casilla('bookmarks', tr("Marcadores"), tr("Omite los marcadores que ya tienes."))}
+          {casilla('history', tr("Historial"), tr("Mejora el autocompletado de la barra de direcciones."))}
+          {casilla('passwords', tr("Contraseñas"), tr("Se guardan cifradas en el vault. macOS puede pedirte permiso."))}
         </Card>
       </Group>
 
@@ -115,14 +116,13 @@ export default function ImportSection(): JSX.Element {
         título de la sección siguiente, porque esta pieza se incrusta dentro de General.
       */}
       <div className="mb-9">
-      <button
+      <Button variant="primary" size="md"
         onClick={importar}
         disabled={!sel || corriendo || !(que.bookmarks || que.history || que.passwords)}
-        className="flex items-center gap-2 px-4 h-10 rounded-xl bg-white/90 text-black text-[13.5px] font-medium hover:bg-white disabled:opacity-40 disabled:bg-white/20 disabled:text-text transition-colors [&>svg]:w-4 [&>svg]:h-4"
       >
         <IconDownload />
-        {corriendo ? 'Importando…' : 'Importar'}
-      </button>
+        {corriendo ? tr("Importando…") : tr("Importar")}
+      </Button>
 
       {/*
         El resumen cuenta lo que entró Y lo que falló. Uno que solo suma éxitos miente: Safari,
@@ -134,8 +134,8 @@ export default function ImportSection(): JSX.Element {
           <Card>
             <div className="px-4 py-3.5 text-[13.5px] text-text">
               {res.bookmarks + res.history + res.passwords > 0
-                ? `Importado: ${res.bookmarks} marcadores, ${res.history} páginas de historial, ${res.passwords} contraseñas.`
-                : 'No se importó nada.'}
+                ? tr("Importado: {0} marcadores, {1} páginas de historial, {2} contraseñas.", res.bookmarks, res.history, res.passwords)
+                : tr("No se importó nada.")}
             </div>
             {res.error && (
               <div className="px-4 py-3.5 text-[12.5px] text-amber-300 leading-relaxed">{res.error}</div>

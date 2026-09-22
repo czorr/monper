@@ -62,7 +62,7 @@ ausente — roto en vez de simplemente no disponible. El log lo dice:
 Lanzar el build firmado desde terminal, que es donde se ve el log:
 
 ```bash
-./release/mac-arm64/Monper.app/Contents/MacOS/Monper
+./release/mac-arm64/Titanio.app/Contents/MacOS/Titanio
 ```
 
 Debe aparecer `[passkeys] Touch ID habilitado para WebAuthn.` Después, en la consola de
@@ -75,8 +75,8 @@ PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()  // true
 Y para verificar la firma sin ejecutar nada:
 
 ```bash
-codesign -dv release/mac-arm64/Monper.app                      # TeamIdentifier=MRWANXY92L
-codesign -d --entitlements - --xml release/mac-arm64/Monper.app # el grupo del llavero
+codesign -dv release/mac-arm64/Titanio.app                      # TeamIdentifier=MRWANXY92L
+codesign -d --entitlements - --xml release/mac-arm64/Titanio.app # el grupo del llavero
 ```
 
 ## Limitaciones que siguen
@@ -90,5 +90,5 @@ codesign -d --entitlements - --xml release/mac-arm64/Monper.app # el grupo del l
 ## Qué identidad usar
 
 Se firma con el equipo **personal** (`MRWANXY92L`). El llavero tiene también uno de
-organización (`NSMK2YAHUW`, AI Founders Inc.) que **no** se usa: Monper no es un proyecto de
+organización (`NSMK2YAHUW`, AI Founders Inc.) que **no** se usa: Titanio no es un proyecto de
 empresa.

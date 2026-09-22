@@ -1,3 +1,4 @@
+import { t as tr } from '../shared/i18n'
 import { desktopCapturer, dialog, systemPreferences, shell, type BrowserWindow, type Session } from 'electron'
 
 /**
@@ -47,11 +48,11 @@ async function permisoOk(padre: BrowserWindow | null): Promise<boolean> {
 
   const { response } = await dialog.showMessageBox(padre ?? undefined!, {
     type: 'warning',
-    message: 'macOS no deja que Monper grabe la pantalla',
+    message: tr("macOS no deja que Titanio grabe la pantalla"),
     detail:
       'Sin ese permiso se puede elegir una ventana, pero los demás verían un rectángulo en negro.\n\n' +
-      'Actívalo en Ajustes del Sistema → Privacidad y seguridad → Grabación de pantalla, y reinicia Monper.',
-    buttons: ['Cancelar', 'Abrir Ajustes'],
+      tr("Actívalo en Ajustes del Sistema → Privacidad y seguridad → Grabación de pantalla, y reinicia Titanio."),
+    buttons: [tr("Cancelar"), tr("Abrir Ajustes")],
     defaultId: 1,
     cancelId: 0,
     noLink: true
@@ -77,11 +78,11 @@ async function elegirFuente(padre: BrowserWindow | null): Promise<Electron.Deskt
     ...fuentes.filter((f) => !f.id.startsWith('screen:'))
   ].slice(0, MAX_FUENTES)
 
-  const botones = [...orden.map((f) => f.name.slice(0, 60)), 'Cancelar']
+  const botones = [...orden.map((f) => f.name.slice(0, 60)), tr("Cancelar")]
   const { response } = await dialog.showMessageBox(padre ?? undefined!, {
     type: 'none',
-    message: '¿Qué quieres compartir?',
-    detail: fuentes.length > MAX_FUENTES ? `Se muestran ${MAX_FUENTES} de ${fuentes.length} fuentes.` : undefined,
+    message: tr("¿Qué quieres compartir?"),
+    detail: fuentes.length > MAX_FUENTES ? tr("Se muestran {0} de {1} fuentes.", MAX_FUENTES, fuentes.length) : undefined,
     buttons: botones,
     cancelId: botones.length - 1,
     noLink: true

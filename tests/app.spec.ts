@@ -9,13 +9,13 @@ test.beforeAll(async () => { h = await launch() })
 test.afterAll(async () => { await h?.close() })
 
 test('arranca y abre la ventana de chrome', async () => {
-  expect(await h.app.evaluate(({ app }) => app.getName())).toBe('Monper')
+  expect(await h.app.evaluate(({ app }) => app.getName())).toBe('Titanio')
   expect(await h.win.title()).toBeTruthy()
 })
 
-test('expone window.monper al renderer', async () => {
+test('expone window.titanio al renderer', async () => {
   const keys = await h.win.evaluate(() =>
-    Object.keys((window as never as Record<string, object>)['monper'] ?? {})
+    Object.keys((window as never as Record<string, object>)['titanio'] ?? {})
   )
   expect(keys).toContain('newTab')
   expect(keys).toContain('onState')

@@ -1,6 +1,6 @@
 {
   "extends": "@electron-toolkit/tsconfig/tsconfig.node.json",
-  "include": ["electron.vite.config.ts", "src/main/**/*", "src/preload/**/*", "src/shared/**/*", "packages/monperwright/src/**/*", "tests/**/*", "playwright.config.ts"],
+  "include": ["electron.vite.config.ts", "src/main/**/*", "src/preload/**/*", "src/shared/**/*", "packages/titaniowright/src/**/*", "tests/**/*", "playwright.config.ts"],
   "compilerOptions": {
     "composite": true,
     "types": ["electron-vite/node", "node"]

@@ -6,7 +6,7 @@ import { readJson, writeJson } from './jsonfile'
  * Picture-in-Picture propio.
  *
  * El de Chromium no existe en Electron (ver `preload/pipSource.ts`), así que la ventana la
- * ponemos nosotros — lo que además permite que tenga la cara de Monper: esquinas redondeadas,
+ * ponemos nosotros — lo que además permite que tenga la cara de Titanio: esquinas redondeadas,
  * el vídeo limpio en reposo y los controles y el sitio de origen solo al pasar por encima.
  *
  * Aquí solo se hace de intermediario: el vídeo NUNCA pasa por el main. Va directo de la
@@ -75,7 +75,7 @@ function crearVentana(): BrowserWindow {
     maximizable: false,
     fullscreenable: false,
     skipTaskbar: true,
-    // El sentido del PiP es seguir viéndolo mientras haces otra cosa, también fuera de Monper.
+    // El sentido del PiP es seguir viéndolo mientras haces otra cosa, también fuera de Titanio.
     alwaysOnTop: true,
     webPreferences: {
       preload: join(__dirname, '../preload/pipwin.js'),

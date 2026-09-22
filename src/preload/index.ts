@@ -1,5 +1,6 @@
+import './language'
 import { contextBridge, ipcRenderer } from 'electron'
-import type { ChatContext, BrowserState, ChatMessage, MonperApi, Suggestion } from '../shared/types'
+import type { ChatContext, BrowserState, ChatMessage, TitanioApi, Suggestion } from '../shared/types'
 
 function sub(channel: string, cb: (...a: unknown[]) => void): () => void {
   const handler = (_e: unknown, ...args: unknown[]): void => cb(...args)
@@ -7,9 +8,10 @@ function sub(channel: string, cb: (...a: unknown[]) => void): () => void {
   return () => { ipcRenderer.removeListener(channel, handler) }
 }
 
-const api: MonperApi = {
+const api: TitanioApi = {
   platform: process.platform,
   newTab: () => ipcRenderer.invoke('tabs:new'),
+  openTitanioTab: () => ipcRenderer.invoke('tabs:titanio'),
   closeTab: (id) => ipcRenderer.invoke('tabs:close', id),
   selectTab: (id) => ipcRenderer.invoke('tabs:select', id),
   reorderTabs: (ids: number[]) => ipcRenderer.send('tabs:reorder', ids),
@@ -30,6 +32,7 @@ const api: MonperApi = {
   onPermAsk: (cb: () => void) => sub('perm:ask', () => cb()),
   permAnchor: (anchor) => ipcRenderer.send('perm:anchor', anchor),
   openProfileMenu: (anchor) => ipcRenderer.send('profilemenu:open', anchor),
+  warmProfileMenu: () => ipcRenderer.send('profilemenu:warm'),
   peekShow: (anchor) => ipcRenderer.send('peek:show', anchor),
   peekMaybeHide: () => ipcRenderer.send('peek:maybeHide'),
   getProfile: () => ipcRenderer.invoke('profile:get') as Promise<import('../shared/types').Profile>,
@@ -71,9 +74,9 @@ const api: MonperApi = {
   },
   getChatContext: () => ipcRenderer.invoke('chat:context') as Promise<ChatContext>,
   onChatContext: (cb: (ctx: ChatContext) => void) => sub('chat:contextChanged', (c) => cb(c as ChatContext)),
-  setModel: (id: string) => ipcRenderer.send('chat:setModel', id),
+  setModel: (id: string, providerId?: string) => ipcRenderer.send('chat:setModel', id, providerId),
   setEffort: (e) => ipcRenderer.send('chat:setEffort', e),
-  chatSend: (messages: ChatMessage[]) => { ipcRenderer.invoke('chat:send', messages) },
+  chatSend: (messages: ChatMessage[]) => ipcRenderer.invoke('chat:send', messages),
   chatCancel: () => ipcRenderer.send('chat:cancel'),
   takeOver: () => ipcRenderer.send('agent:takeOver'),
   onChatToken: (cb: (text: string) => void) => sub('chat:token', (t) => cb(t as string)),
@@ -88,7 +91,7 @@ const api: MonperApi = {
   chatsNew: () => ipcRenderer.invoke('chats:new') as never,
   chatsOpen: (id: string) => ipcRenderer.invoke('chats:open', id) as never,
   chatsForNext: (id: string) => ipcRenderer.invoke('chats:forNext', id) as never,
-  chatsSave: (id: string, messages) => ipcRenderer.send('chats:save', id, messages),
+  chatsSave: (id: string, messages) => ipcRenderer.invoke('chats:save', id, messages),
   chatsRemove: (id: string) => ipcRenderer.send('chats:remove', id),
   openVault: (anchor) => ipcRenderer.send('vault:open', anchor),
   openExtensions: (anchor) => ipcRenderer.send('extensions:open', anchor),
@@ -109,4 +112,4 @@ const api: MonperApi = {
   onFindResult: (cb) => sub('find:result', (r) => cb(r as never))
 }
 
-contextBridge.exposeInMainWorld('monper', api)
+contextBridge.exposeInMainWorld('titanio', api)

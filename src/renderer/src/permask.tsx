@@ -1,3 +1,4 @@
+import { t as tr, useLocale } from '@renderer/lib/i18n'
 import { createRoot } from 'react-dom/client'
 import { useEffect, useState, type JSX } from 'react'
 import type { PermAskData, PermKey } from '@shared/types'
@@ -26,11 +27,17 @@ const ICON: Record<PermKey, typeof IconCamera> = {
  * pidiendo el micrófono o la ubicación antes de leer nada.
  */
 function PermAskWindow(): JSX.Element {
+  useLocale()
   const [data, setData] = useState<PermAskData | null>(null)
   useEffect(() => pa.onData(setData), [])
 
   if (!data) return <div className="p-3" />
   const Icon = ICON[data.keys[0]] ?? IconCamera
+  const action = data.keys.includes('camera') && data.keys.includes('microphone')
+    ? tr('usar tu cámara y micrófono')
+    : ({ camera: tr('usar tu cámara'), microphone: tr('usar tu micrófono'),
+        geolocation: tr('usar tu ubicación'), notifications: tr('mostrar notificaciones'),
+        clipboard: tr('leer tu portapapeles') })[data.keys[0]]
 
   return (
     <PopoverPanel onHeight={pa.reportHeight} measure={data} padded={false}>
@@ -40,11 +47,10 @@ function PermAskWindow(): JSX.Element {
         </span>
         <div className="min-w-0">
           <div className="text-[14px] text-text leading-snug">
-            <span className="font-medium">{data.domain}</span> quiere {data.label}
+            {tr('{0} solicita permiso para {1}', data.domain, action)}
           </div>
           <div className="text-[12.5px] text-text-faint mt-1 leading-relaxed">
-            Podrás cambiarlo desde el nombre del sitio, aquí mismo.
-          </div>
+            {tr("Podrás cambiarlo desde el nombre del sitio, aquí mismo.")} </div>
         </div>
       </div>
 
@@ -55,14 +61,12 @@ function PermAskWindow(): JSX.Element {
           onClick={() => pa.answer(false)}
           className="flex-1 h-8 rounded-lg text-[13px] text-text-dim bg-white/[0.06] hover:bg-white/[0.1] hover:text-text transition-colors"
         >
-          Bloquear
-        </button>
+          {tr("Bloquear")} </button>
         <button
           onClick={() => pa.answer(true)}
           className="flex-1 h-8 rounded-lg text-[13px] font-medium text-text bg-white/[0.16] hover:bg-white/[0.22] transition-colors"
         >
-          Permitir
-        </button>
+          {tr("Permitir")} </button>
       </div>
     </PopoverPanel>
   )

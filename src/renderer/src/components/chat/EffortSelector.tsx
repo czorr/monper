@@ -1,3 +1,4 @@
+import { t as tr, useLocale } from '@renderer/lib/i18n'
 import { useState, type JSX } from 'react'
 import { EFFORTS, type Effort } from '@shared/types'
 import IconChevronDown from '~icons/tabler/chevron-down'
@@ -10,6 +11,7 @@ interface Props {
 
 /** Selector de esfuerzo de razonamiento (solo Anthropic). */
 export default function EffortSelector({ effort, onPick }: Props): JSX.Element {
+  useLocale()
   const [open, setOpen] = useState(false)
   const current = EFFORTS.find((e) => e.id === effort)?.name ?? effort
 
@@ -18,7 +20,7 @@ export default function EffortSelector({ effort, onPick }: Props): JSX.Element {
       <button
         onClick={() => setOpen((v) => !v)}
         className="flex items-center gap-1 h-7 px-2.5 rounded-lg text-[12.5px] text-text-dim hover:text-text hover:bg-white/[0.06] transition-colors"
-        title="Esfuerzo de razonamiento"
+        title={tr("Esfuerzo de razonamiento")}
       >
         {current}
         <IconChevronDown className="w-3.5 h-3.5 opacity-70" />

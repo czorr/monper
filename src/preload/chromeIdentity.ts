@@ -74,9 +74,9 @@ export function setupChromeIdentity(): void {
             })
           }
         } catch (e) {
-          // Callarlo dejaría a Monper anunciándose como Chromium sin que nadie se entere:
+          // Callarlo dejaría a Titanio anunciándose como Chromium sin que nadie se entere:
           // el login de Google fallaría y el motivo estaría escondido.
-          console.warn('[monper] no se pudo alinear navigator.userAgentData:', e)
+          console.warn('[titanio] no se pudo alinear navigator.userAgentData:', e)
         }
       }
 
@@ -91,7 +91,7 @@ export function setupChromeIdentity(): void {
         if (!('csi' in c)) c.csi = function () { return {} }
         if (!('loadTimes' in c)) c.loadTimes = function () { return {} }
       } catch (e) {
-        console.warn('[monper] no se pudo completar window.chrome:', e)
+        console.warn('[titanio] no se pudo completar window.chrome:', e)
       }
     },
     args: [

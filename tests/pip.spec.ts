@@ -114,7 +114,7 @@ test('Document PiP: Meet abre su panel de controles con esto', async () => {
 test('el PiP sobrevive al cambiar de pestaña, y el vídeo sigue corriendo', async () => {
   /**
    * El caso real del usuario: estás viendo un vídeo, te cambias de pestaña y esperas seguir
-   * viéndolo en la ventanita. Es donde Monper SÍ puede tener la culpa: al cambiar de pestaña
+   * viéndolo en la ventanita. Es donde Titanio SÍ puede tener la culpa: al cambiar de pestaña
    * ocultamos el `WebContentsView` de la anterior (regla de "solo la activa se dibuja"), y una
    * vista oculta puede perder el PiP o suspender el vídeo.
    */
@@ -143,7 +143,7 @@ test('el PiP sobrevive al cambiar de pestaña, y el vídeo sigue corriendo', asy
 /**
  * El menú contextual: es lo que de verdad le faltaba al usuario.
  *
- * El motor soporta PiP (los tests de arriba lo prueban) pero no había forma de PEDIRLO: Monper
+ * El motor soporta PiP (los tests de arriba lo prueban) pero no había forma de PEDIRLO: Titanio
  * reemplaza el menú nativo de Chromium por uno propio, y el nativo trae "Picture in picture" de
  * fábrica. Al construir el nuestro se cubrió el caso de la imagen y el del vídeo se quedó fuera.
  *

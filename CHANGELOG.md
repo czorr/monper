@@ -20,7 +20,7 @@ recoge todo lo que entró desde entonces.
 - **Perfiles e incógnito**, cada uno con su partición de sesión.
 - **Gestor de historial** y **gestor de marcadores**, con carpetas y arrastre.
 - **Importar** marcadores e historial desde otros navegadores.
-- **Navegador por defecto**: Monper se declara para `http`/`https` y puede pedirlo.
+- **Navegador por defecto**: Titanio se declara para `http`/`https` y puede pedirlo.
 - **Descargas** con su popover propio.
 - Imprimir, corrector ortográfico, compartir pantalla en videollamadas.
 

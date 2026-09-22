@@ -87,7 +87,7 @@ test('pintado del chrome (aislado del arranque de Electron)', async () => {
 test('arranque de la app EMPAQUETADA (el que ve el usuario)', async () => {
   // El de desarrollo no es comparable: carga desde el dev server y sin asar. Este test se
   // salta si no hay build empaquetada, para no romper el CI.
-  const exe = join(process.cwd(), 'release/mac-arm64/Monper.app/Contents/MacOS/Monper')
+  const exe = join(process.cwd(), 'release/mac-arm64/Titanio.app/Contents/MacOS/Titanio')
   test.skip(!existsSync(exe), 'no hay build empaquetada (pnpm dist:dir --mac --arm64)')
 
   const arranques: number[] = []

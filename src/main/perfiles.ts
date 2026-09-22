@@ -1,7 +1,10 @@
+import { t as tr } from '../shared/i18n'
 import { join } from 'path'
 import { existsSync, mkdirSync, readFileSync } from 'fs'
 import { writeJson } from './jsonfile'
 import { PARTICION_NORMAL } from './particiones'
+import { z } from 'zod'
+import { defaultProfilePreferences, PROFILE_ICONS, type ProfilePreferences, type BrowserProfile, type ProfileSettings } from '../shared/profiles'
 
 /**
  * Perfiles: varias identidades de navegación en la misma app.
@@ -14,8 +17,8 @@ import { PARTICION_NORMAL } from './particiones'
  * suya, así que no se pierde nada.
  *
  * Alcance, también decidido: por perfil van cookies/sesión web, historial, marcadores,
- * favicons, permisos y las pestañas abiertas. Compartidos siguen el vault (una sola caja fuerte
- * del Mac), los ajustes de la app, los chats del agente y el consumo.
+ * favicons, permisos, pestañas, apariencia y preferencias del agente. Compartidos siguen el
+ * vault (una sola caja fuerte del Mac), las conexiones de IA, los chats y el consumo.
  */
 
 /** El perfil de siempre. Sus ficheros se quedan en la raíz de `userData`: cero migración. */
@@ -25,6 +28,7 @@ export interface Perfil {
   id: string
   nombre: string
   avatar: string | null
+  preferences?: ProfilePreferences
 }
 
 interface Datos {
@@ -34,7 +38,7 @@ interface Datos {
 
 const POR_DEFECTO: Datos = {
   activo: PERFIL_POR_DEFECTO,
-  perfiles: [{ id: PERFIL_POR_DEFECTO, nombre: 'Tú', avatar: null }]
+  perfiles: [{ id: PERFIL_POR_DEFECTO, get nombre() { return tr("Tú") }, avatar: null }]
 }
 
 let datos: Datos = POR_DEFECTO
@@ -51,8 +55,49 @@ function ficheroLista(): string {
   return join(base, 'perfiles.json')
 }
 
-function guardar(): void {
-  writeJson(ficheroLista(), datos, 'la lista de perfiles', false)
+function guardar(next = datos): void {
+  const result = writeJson(ficheroLista(), next, 'la lista de perfiles', false)
+  if (!result.ok) throw new Error('No se pudieron guardar los perfiles.')
+  datos = next
+}
+
+const color = z.string().regex(/^#[0-9a-f]{6}$/i)
+const preferencesSchema = z.object({
+  color, icon: z.enum(PROFILE_ICONS), tint: color.nullable(),
+  homePage: z.string().refine((value) => {
+    if (!value) return true
+    try { const url = new URL(value); return ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password } catch { return false }
+  }),
+  newTab: z.enum(['titanio', 'home']), startup: z.enum(['restore', 'home']),
+  searchEngine: z.enum(['google', 'duckduckgo', 'bing', 'brave']),
+  agent: z.object({
+    defaultModel: z.object({ providerId: z.string().min(1), id: z.string().min(1) }).nullable(),
+    instructions: z.string().max(20000), browserTools: z.boolean(), skills: z.boolean(), mcp: z.boolean()
+  })
+})
+
+export function preferencesFor(id = datos.activo): ProfilePreferences {
+  const raw = datos.perfiles.find((p) => p.id === id)?.preferences
+  const defaults = defaultProfilePreferences()
+  const parsed = preferencesSchema.safeParse({ ...defaults, ...raw, agent: { ...defaults.agent, ...raw?.agent } })
+  return parsed.success ? parsed.data : defaults
+}
+
+export function profileSettings(): ProfileSettings {
+  return { activeId: datos.activo, profiles: datos.perfiles.map((p) => ({ ...p, preferences: preferencesFor(p.id) })) }
+}
+
+export function updateBrowserProfile(input: BrowserProfile): ProfileSettings {
+  const existing = datos.perfiles.find((p) => p.id === input.id)
+  if (!existing) throw new Error('El perfil ya no existe.')
+  const nombre = z.string().trim().min(1).max(60).safeParse(input.nombre)
+  const prefs = preferencesSchema.safeParse(input.preferences)
+  if (!nombre.success || !prefs.success) throw new Error('Revisa el nombre, la URL de inicio y las preferencias del perfil.')
+  if ((prefs.data.newTab === 'home' || prefs.data.startup === 'home') && !prefs.data.homePage) throw new Error('Introduce una página de inicio para esta opción.')
+  if (input.avatar !== null && (typeof input.avatar !== 'string' || !/^data:image\/(png|jpeg|webp);base64,/.test(input.avatar) || input.avatar.length > 2_000_000)) throw new Error('El avatar debe ser una imagen PNG, JPEG o WebP de menos de 2 MB.')
+  const next = { ...existing, nombre: nombre.data, avatar: input.avatar, preferences: prefs.data }
+  guardar({ ...datos, perfiles: datos.perfiles.map((p) => p.id === input.id ? next : p) })
+  return profileSettings()
 }
 
 /**
@@ -81,7 +126,7 @@ export function rutaDePerfil(fichero: string): string {
 
 /** Partición de Chromium del perfil activo. Sin perfiles, es la de siempre. */
 export function particionDelPerfil(): string {
-  return datos.activo === PERFIL_POR_DEFECTO ? PARTICION_NORMAL : `persist:monper-${datos.activo}`
+  return datos.activo === PERFIL_POR_DEFECTO ? PARTICION_NORMAL : `persist:titanio-${datos.activo}`
 }
 
 export function initPerfiles(baseDir: string): void {
@@ -94,7 +139,10 @@ export function initPerfiles(baseDir: string): void {
       if (lista.length) {
         // El activo tiene que existir: un id colgado dejaría la app leyendo una carpeta fantasma.
         const activo = lista.some((p) => p.id === d.activo) ? d.activo! : lista[0].id
-        datos = { activo, perfiles: lista }
+        const needsMigration = lista.some((p) => !p.preferences)
+        datos = { activo, perfiles: lista.map((p) => ({ ...p, preferences: p.preferences ?? legacyPreferences() })) }
+        // Un fallo de escritura no convierte una lista válida en un archivo ilegible.
+        if (needsMigration) writeJson(ficheroLista(), datos, 'la migración de perfiles', false)
         return
       }
     } catch (e) {
@@ -104,8 +152,17 @@ export function initPerfiles(baseDir: string): void {
   }
   // Primer arranque con perfiles: se hereda el nombre y el avatar que ya tenía el usuario, para
   // que la novedad no le borre de la cara lo que había puesto.
-  datos = { ...POR_DEFECTO, perfiles: [{ ...POR_DEFECTO.perfiles[0], ...leerPerfilAntiguo() }] }
-  guardar()
+  datos = { ...POR_DEFECTO, perfiles: [{ ...POR_DEFECTO.perfiles[0], ...leerPerfilAntiguo(), preferences: legacyPreferences() }] }
+  writeJson(ficheroLista(), datos, 'la lista inicial de perfiles', false)
+}
+
+function legacyPreferences(): ProfilePreferences {
+  const prefs = defaultProfilePreferences()
+  try {
+    const panels = JSON.parse(readFileSync(join(base, 'panels.json'), 'utf8'))
+    if (typeof panels.tint === 'string' && /^#[0-9a-f]{6}$/i.test(panels.tint)) prefs.tint = panels.tint
+  } catch { /* Primera instalación o apariencia antigua sin personalizar. */ }
+  return prefs
 }
 
 /** El viejo `profile.json` (nombre + avatar, sin perfiles). Se lee una vez y se absorbe. */
@@ -117,7 +174,7 @@ function leerPerfilAntiguo(): Partial<Perfil> {
 }
 
 export function listaPerfiles(): Perfil[] {
-  return datos.perfiles.map((p) => ({ ...p }))
+  return datos.perfiles.map((p) => ({ ...p, preferences: preferencesFor(p.id) }))
 }
 
 export function perfilActivoId(): string {
@@ -130,19 +187,19 @@ export function perfilActivo(): Perfil {
 
 /** Ids que ya existen. Se genera uno legible para que la carpeta se pueda mirar a ojo. */
 function idLibre(nombre: string): string {
-  const base = nombre.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+  const slug = nombre.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
     .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 24) || 'perfil'
-  if (base !== PERFIL_POR_DEFECTO && !datos.perfiles.some((p) => p.id === base)) return base
+  const occupied = (id: string): boolean => datos.perfiles.some((p) => p.id === id) || existsSync(join(base, 'perfiles', id))
+  if (slug !== PERFIL_POR_DEFECTO && !occupied(slug)) return slug
   let n = 2
-  while (datos.perfiles.some((p) => p.id === `${base}-${n}`)) n++
-  return `${base}-${n}`
+  while (occupied(`${slug}-${n}`)) n++
+  return `${slug}-${n}`
 }
 
 export function crearPerfil(nombre: string): Perfil {
-  const n = String(nombre || '').trim().slice(0, 60) || 'Perfil'
-  const p: Perfil = { id: idLibre(n), nombre: n, avatar: null }
-  datos = { ...datos, perfiles: [...datos.perfiles, p] }
-  guardar()
+  const n = String(nombre || '').trim().slice(0, 60) || tr("Perfil")
+  const p: Perfil = { id: idLibre(n), nombre: n, avatar: null, preferences: defaultProfilePreferences() }
+  guardar({ ...datos, perfiles: [...datos.perfiles, p] })
   return p
 }
 
@@ -151,8 +208,7 @@ export function renombrarPerfil(id: string, nombre: string): Perfil | null {
   if (!n) return null
   const p = datos.perfiles.find((x) => x.id === id)
   if (!p) return null
-  datos = { ...datos, perfiles: datos.perfiles.map((x) => (x.id === id ? { ...x, nombre: n } : x)) }
-  guardar()
+  guardar({ ...datos, perfiles: datos.perfiles.map((x) => (x.id === id ? { ...x, nombre: n } : x)) })
   return datos.perfiles.find((x) => x.id === id)!
 }
 
@@ -162,8 +218,7 @@ export function setAvatarPerfil(id: string, avatar: string | null): Perfil | nul
   const a = typeof avatar === 'string' && avatar.startsWith('data:image/') ? avatar : null
   const p = datos.perfiles.find((x) => x.id === id)
   if (!p) return null
-  datos = { ...datos, perfiles: datos.perfiles.map((x) => (x.id === id ? { ...x, avatar: a } : x)) }
-  guardar()
+  guardar({ ...datos, perfiles: datos.perfiles.map((x) => (x.id === id ? { ...x, avatar: a } : x)) })
   return datos.perfiles.find((x) => x.id === id)!
 }
 
@@ -177,8 +232,7 @@ export function setAvatarPerfil(id: string, avatar: string | null): Perfil | nul
 export function activarPerfil(id: string): boolean {
   if (!datos.perfiles.some((p) => p.id === id)) return false
   if (datos.activo === id) return true
-  datos = { ...datos, activo: id }
-  guardar()
+  guardar({ ...datos, activo: id })
   return true
 }
 
@@ -195,7 +249,6 @@ export function borrarPerfil(id: string): boolean {
   if (!datos.perfiles.some((p) => p.id === id)) return false
   const perfiles = datos.perfiles.filter((p) => p.id !== id)
   const activo = datos.activo === id ? PERFIL_POR_DEFECTO : datos.activo
-  datos = { activo, perfiles }
-  guardar()
+  guardar({ activo, perfiles })
   return true
 }

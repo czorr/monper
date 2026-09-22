@@ -66,7 +66,7 @@ test('el corrector tiene un diccionario con el que trabajar', async () => {
   // En macOS lo resuelve el corrector del SISTEMA y la lista de Electron viene vacía: eso no
   // es un fallo. En el resto de plataformas una lista vacía sí significa que no corrige nada.
   const r = await h.app.evaluate(({ session }) => {
-    const ses = session.fromPartition('persist:monper')
+    const ses = session.fromPartition('persist:titanio')
     return { plataforma: process.platform, idiomas: ses.availableSpellCheckerLanguages.length }
   })
   if (r.plataforma === 'darwin') expect(r.plataforma).toBe('darwin')

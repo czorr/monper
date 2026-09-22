@@ -1,3 +1,4 @@
+import { t as tr, useLocale } from '@renderer/lib/i18n'
 import { createRoot } from 'react-dom/client'
 import { useEffect, useRef, useState, type JSX } from 'react'
 import type { PipOferta } from '@shared/types'
@@ -18,6 +19,7 @@ const pip = window.pipwin
  * sacado a flotar.
  */
 function PipWindow(): JSX.Element {
+  useLocale()
   const videoRef = useRef<HTMLVideoElement>(null)
   const [hover, setHover] = useState(false)
   const [pausado, setPausado] = useState(false)
@@ -50,7 +52,7 @@ function PipWindow(): JSX.Element {
       } catch (e) {
         // Sin esto la ventana se quedaría negra para siempre y nadie sabría por qué.
         console.error('[pip] no se pudo establecer la conexión:', e)
-        setError('No se pudo recibir el vídeo')
+        setError(tr("No se pudo recibir el vídeo"))
       }
     })
   }, [])
@@ -93,13 +95,13 @@ function PipWindow(): JSX.Element {
           className="absolute bottom-0 left-0 right-0 h-11 px-2 flex items-center justify-center gap-1.5 bg-gradient-to-t from-black/70 to-transparent"
           style={{ ['WebkitAppRegion' as never]: 'no-drag' }}
         >
-          <button onClick={alternar} title={pausado ? 'Reproducir' : 'Pausa'} className={BTN}>
+          <button onClick={alternar} title={pausado ? tr("Reproducir") : tr("Pausa")} className={BTN}>
             {pausado ? <IconPlay /> : <IconPause />}
           </button>
-          <button onClick={() => pip.volver()} title="Volver a la pestaña" className={BTN}>
+          <button onClick={() => pip.volver()} title={tr("Volver a la pestaña")} className={BTN}>
             <IconBack />
           </button>
-          <button onClick={() => pip.comando('cerrar')} title="Cerrar" className={BTN}>
+          <button onClick={() => pip.comando('cerrar')} title={tr("Cerrar")} className={BTN}>
             <IconX />
           </button>
         </div>

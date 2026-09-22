@@ -1,4 +1,4 @@
-import type { Page } from '../../../../packages/monperwright/src'
+import type { Page } from '../../../../packages/titaniowright/src'
 
 // Descubre las cuentas de Google logueadas vía el endpoint ListAccounts (cookie-only).
 export function makeGoogleAccounts(page: Page) {

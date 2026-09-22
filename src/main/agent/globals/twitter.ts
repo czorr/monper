@@ -1,4 +1,4 @@
-import type { Page } from '../../../../packages/monperwright/src'
+import type { Page } from '../../../../packages/titaniowright/src'
 
 const TWEETS_PARSER = `(lim) => Array.from(document.querySelectorAll('article')).map((a) => {
   const t = a.querySelector('[data-testid=tweetText]');

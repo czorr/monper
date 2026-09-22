@@ -1,4 +1,4 @@
-# Distribución de Monper
+# Distribución de Titanio
 
 Cómo empaquetar, firmar y publicar. Configuración en [`electron-builder.yml`](../electron-builder.yml).
 
@@ -48,7 +48,7 @@ CSC_IDENTITY_AUTO_DISCOVERY=false pnpm dist:dir --mac --arm64
    ```
 
 3. **Publicar la release:** `GH_TOKEN=… pnpm dist --publish always`
-   El `publish` del `.yml` apunta a `github.com/czorr/monper`. electron-updater lee
+   El `publish` del `.yml` apunta a `github.com/czorr/titanio`. electron-updater lee
    ese mismo origen, así que en cuanto haya una release con el `latest-mac.yml`
    las actualizaciones empiezan a funcionar.
 
@@ -78,7 +78,7 @@ Dos trampas que ya nos costaron una vuelta, por si se toca esto:
   cuanto acaba la descarga; bytes al azar fallan ahí y parece que se rompió la descarga.
 
 Para probar con un ZIP real: `pnpm dist:mac` y luego
-`node scripts/fake-update-server.mjs --zip release/Monper-0.2.0-arm64-mac.zip --version 0.3.0`.
+`node scripts/fake-update-server.mjs --zip release/Titanio-0.2.0-arm64-mac.zip --version 0.3.0`.
 
 **Qué NO prueba:** la instalación. `quitAndInstall` necesita app **firmada** en macOS y
 fallará sin ella. Todo lo demás sí queda verificado.
@@ -93,7 +93,7 @@ Y para ver solo la UI, sin servidor: `MONPER_FAKE_UPDATE=1 pnpm dev`.
   está lista; se instala al cerrar (o al hacer click en la notificación). Si no hay red,
   ni releases, ni firma, no molesta.
 - **Re-comprueba cada 6 h** para sesiones largas.
-- **Manual**: menú *Monper → Buscar actualizaciones…*, que sí da feedback siempre
+- **Manual**: menú *Titanio → Buscar actualizaciones…*, que sí da feedback siempre
   (incluso "estás al día"), y en dev avisa de que solo funciona empaquetado.
 - `electron-updater` se importa de forma **dinámica y solo si `app.isPackaged`**: en
   desarrollo no se carga.
@@ -110,7 +110,7 @@ Y para ver solo la UI, sin servidor: `MONPER_FAKE_UPDATE=1 pnpm dev`.
 - Aviso conocido de electron-builder: `cannot find path for dependency @ai-sdk/provider-v5/v6/v7`.
   Son **aliases de pnpm** que `@mastra/core` declara pero **no usa en runtime**
   (solo aparecen en source maps). Verificado: inocuo.
-- `monperwright` no se empaqueta aparte: vite lo inlinea en el bundle del main.
+- `titaniowright` no se empaqueta aparte: vite lo inlinea en el bundle del main.
 
 ## Versionado
 

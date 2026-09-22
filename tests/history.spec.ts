@@ -35,33 +35,33 @@ test('registra lo visitado y la página lo muestra', async () => {
     await api(h.win, 'go', site.url + r)
     await waitForState(h.win, (s) => s.tabs.find((t) => t.id === s.activeId)?.url.endsWith(r) === true)
   }
-  const r = await enHistorial<{ entries: { url: string }[]; total: number }>('window.monperTab.browseHistory("", 0, 100)')
+  const r = await enHistorial<{ entries: { url: string }[]; total: number }>('window.titanioTab.browseHistory("", 0, 100)')
   expect(r.entries.some((e) => e.url.endsWith('/uno'))).toBe(true)
   expect(r.entries.some((e) => e.url.endsWith('/dos'))).toBe(true)
 })
 
 test('busca por título y por URL', async () => {
-  const porTitulo = await enHistorial<{ total: number }>('window.monperTab.browseHistory("Página uno", 0, 100)')
+  const porTitulo = await enHistorial<{ total: number }>('window.titanioTab.browseHistory("Página uno", 0, 100)')
   expect(porTitulo.total, 'debe encontrar por el título de la página').toBeGreaterThan(0)
-  const porUrl = await enHistorial<{ total: number }>('window.monperTab.browseHistory("/dos", 0, 100)')
+  const porUrl = await enHistorial<{ total: number }>('window.titanioTab.browseHistory("/dos", 0, 100)')
   expect(porUrl.total, 'y también por la URL').toBeGreaterThan(0)
-  const nada = await enHistorial<{ total: number }>('window.monperTab.browseHistory("zzzz-no-existe", 0, 100)')
+  const nada = await enHistorial<{ total: number }>('window.titanioTab.browseHistory("zzzz-no-existe", 0, 100)')
   expect(nada.total).toBe(0)
 })
 
 test('borrar una entrada la quita de verdad', async () => {
-  const antes = await enHistorial<{ total: number }>('window.monperTab.browseHistory("/uno", 0, 100)')
+  const antes = await enHistorial<{ total: number }>('window.titanioTab.browseHistory("/uno", 0, 100)')
   expect(antes.total).toBeGreaterThan(0)
-  const url = (await enHistorial<{ entries: { url: string }[] }>('window.monperTab.browseHistory("/uno", 0, 100)')).entries[0].url
-  await enHistorial(`window.monperTab.removeHistoryEntry(${JSON.stringify(url)})`)
-  const despues = await enHistorial<{ entries: { url: string }[] }>('window.monperTab.browseHistory("/uno", 0, 100)')
+  const url = (await enHistorial<{ entries: { url: string }[] }>('window.titanioTab.browseHistory("/uno", 0, 100)')).entries[0].url
+  await enHistorial(`window.titanioTab.removeHistoryEntry(${JSON.stringify(url)})`)
+  const despues = await enHistorial<{ entries: { url: string }[] }>('window.titanioTab.browseHistory("/uno", 0, 100)')
   expect(despues.entries.some((e) => e.url === url), 'la entrada borrada no debe volver').toBe(false)
 })
 
 test('una web NO puede leer ni borrar el historial', async () => {
   /**
    * La invariante que más importa de esta pantalla: el historial es el registro de todo lo
-   * que el usuario ha visitado. `monperTab` es el preload de CONTENIDO y existe en cualquier
+   * que el usuario ha visitado. `titanioTab` es el preload de CONTENIDO y existe en cualquier
    * web, así que sin `isInternalSender` cualquier página podría leerlo entero.
    */
   await api(h.win, 'newTab')
@@ -75,12 +75,12 @@ test('una web NO puede leer ni borrar el historial', async () => {
       return wc.executeJavaScript(code)
     }, js)
 
-  const leido = (await enWeb('window.monperTab.browseHistory("", 0, 100)')) as { entries: unknown[]; total: number }
+  const leido = (await enWeb('window.titanioTab.browseHistory("", 0, 100)')) as { entries: unknown[]; total: number }
   expect(leido.entries, 'una web no debe ver ni una entrada').toEqual([])
   expect(leido.total).toBe(0)
-  expect(await enWeb('window.monperTab.clearHistory()'), 'ni poder borrarlo').toBe(0)
+  expect(await enWeb('window.titanioTab.clearHistory()'), 'ni poder borrarlo').toBe(0)
 
   // Y no lo borró: se comprueba contra el historial real, no contra lo que devolvió.
-  const sigue = await enHistorial<{ total: number }>('window.monperTab.browseHistory("", 0, 100)')
+  const sigue = await enHistorial<{ total: number }>('window.titanioTab.browseHistory("", 0, 100)')
   expect(sigue.total, 'el historial tiene que seguir ahí').toBeGreaterThan(0)
 })

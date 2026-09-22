@@ -1,5 +1,7 @@
+import { t as tr, useLocale } from '@renderer/lib/i18n'
 import { useCallback, useEffect, useMemo, useState, type JSX } from 'react'
 import type { VaultItemMeta, VaultItemType } from '@shared/vault'
+import { normalizeCredentialOrigin } from '@shared/vault'
 import IconSearch from '~icons/tabler/search'
 import IconCopy from '~icons/tabler/copy'
 import IconEye from '~icons/tabler/eye'
@@ -8,27 +10,27 @@ import IconCheck from '~icons/tabler/check'
 import IconPencil from '~icons/tabler/pencil'
 import IconTrash from '~icons/tabler/trash'
 import IconWorld from '~icons/tabler/world'
-import IconSparkles from '~icons/tabler/sparkles'
+import IconKey from '~icons/tabler/key'
 import IconPlug from '~icons/tabler/plug'
 import IconLock from '~icons/tabler/lock'
 import IconShieldLock from '~icons/tabler/shield-lock'
 import IconAlert from '~icons/tabler/alert-triangle'
 import IconPlus from '~icons/tabler/plus'
-import { Card, Group } from './ui'
+import { Card, Group, SettingsHeader, Button } from './ui'
 
-const { monperTab } = window
+const { titanioTab } = window
 
 const GRUPOS: { type: VaultItemType; title: string; vacio: string; Icon: typeof IconWorld }[] = [
-  { type: 'web-credential', title: 'Sitios web', vacio: 'Cuando inicies sesión en un sitio, Monper te ofrecerá guardarlo.', Icon: IconWorld },
-  { type: 'ai-key', title: 'API keys de IA', vacio: 'Se guardan solas al conectar un proveedor en la sección AI.', Icon: IconSparkles },
-  { type: 'service-token', title: 'Tokens de servicio', vacio: 'Los usan las herramientas del agente y los servidores MCP.', Icon: IconPlug },
-  { type: 'secret', title: 'Otros secretos', vacio: 'Cualquier valor que quieras guardar cifrado.', Icon: IconLock }
+  { type: 'web-credential', get title() { return tr("Sitios web") }, get vacio() { return tr("Cuando inicies sesión en un sitio, Titanio te ofrecerá guardarlo.") }, Icon: IconWorld },
+  { type: 'ai-key', get title() { return tr("API keys de IA") }, get vacio() { return tr("Se guardan solas al conectar un proveedor en la sección AI.") }, Icon: IconKey },
+  { type: 'service-token', get title() { return tr("Tokens de servicio") }, get vacio() { return tr("No hay tokens guardados.") }, Icon: IconPlug },
+  { type: 'secret', get title() { return tr("Otros secretos") }, get vacio() { return tr("No hay otros secretos guardados.") }, Icon: IconLock }
 ]
 
 /** Lo que identifica al ítem debajo de su nombre. Cada tipo lo tiene en un sitio distinto. */
 function subtitulo(i: VaultItemMeta): string {
   if (i.type === 'web-credential') return i.data.username || i.data.origin || ''
-  if (i.type === 'ai-key') return i.data.kind === 'openai' ? 'OpenAI' : i.data.kind === 'anthropic' ? 'Anthropic' : 'Proveedor'
+  if (i.type === 'ai-key') return i.data.kind === 'openai' ? 'OpenAI' : i.data.kind === 'anthropic' ? 'Anthropic' : tr("Proveedor")
   if (i.type === 'service-token') return i.data.service || ''
   return i.data.name || ''
 }
@@ -44,6 +46,7 @@ const VER_TTL = 15_000
  * exactamente lo contrario de lo que promete este panel.
  */
 function IconoItem({ favicon }: { favicon?: string }): JSX.Element {
+  useLocale()
   const [roto, setRoto] = useState(false)
   return (
     <span className="w-8 h-8 rounded-lg grid place-items-center bg-white/[0.05] text-text-dim shrink-0 overflow-hidden">
@@ -55,16 +58,32 @@ function IconoItem({ favicon }: { favicon?: string }): JSX.Element {
 }
 
 function Fila({ item, favicon, onCambio }: { item: VaultItemMeta; favicon?: string; onCambio: (l: VaultItemMeta[]) => void }): JSX.Element {
+  useLocale()
   const [copiado, setCopiado] = useState(false)
   const [visible, setVisible] = useState<string | null>(null)
   const [editando, setEditando] = useState(false)
   const [label, setLabel] = useState(item.label)
   const [usuario, setUsuario] = useState(item.data.username ?? '')
+  const [sitio, setSitio] = useState(item.data.origin ?? item.data.url ?? '')
+  const [servicio, setServicio] = useState(item.data.service ?? '')
+  const [cuenta, setCuenta] = useState(item.data.account ?? '')
+  const [nombreSecreto, setNombreSecreto] = useState(item.data.name ?? '')
+  const [nuevoSecreto, setNuevoSecreto] = useState('')
+  const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState('')
 
+  const editar = (): void => {
+    setLabel(item.label); setUsuario(item.data.username ?? '')
+    setSitio(item.data.origin ?? item.data.url ?? '')
+    setServicio(item.data.service ?? ''); setCuenta(item.data.account ?? '')
+    setNombreSecreto(item.data.name ?? '')
+    setNuevoSecreto(''); setVisible(null); setError(''); setEditando(true)
+  }
+  const cancelar = (): void => { setNuevoSecreto(''); setError(''); setEditando(false) }
+
   const copiar = async (): Promise<void> => {
-    const ok = await monperTab.vaultCopy(item.id)
-    if (!ok) { setError('No se pudo leer el secreto. ¿Se guardó con otro usuario del sistema?'); return }
+    const ok = await titanioTab.vaultCopy(item.id)
+    if (!ok) { setError(tr("No se pudo leer el secreto. ¿Se guardó con otro usuario del sistema?")); return }
     setError('')
     setCopiado(true)
     setTimeout(() => setCopiado(false), 1800)
@@ -76,8 +95,8 @@ function Fila({ item, favicon, onCambio }: { item: VaultItemMeta; favicon?: stri
    */
   const alternarVer = async (): Promise<void> => {
     if (visible !== null) { setVisible(null); return }
-    const v = await monperTab.vaultReveal(item.id)
-    if (v === null) { setError('No se pudo leer el secreto.'); return }
+    const v = await titanioTab.vaultReveal(item.id)
+    if (v === null) { setError(tr("No se pudo leer el secreto.")); return }
     setError('')
     setVisible(v)
     setTimeout(() => setVisible(null), VER_TTL)
@@ -85,36 +104,75 @@ function Fila({ item, favicon, onCambio }: { item: VaultItemMeta; favicon?: stri
 
   const guardar = async (): Promise<void> => {
     const l = label.trim()
-    // Sin nombre la fila queda en blanco y no hay forma de volver a encontrarla.
-    if (!l) { setLabel(item.label); setEditando(false); return }
-    const patch: { label: string; data?: Record<string, string> } = { label: l }
-    if (item.type === 'web-credential') patch.data = { username: usuario.trim() }
-    onCambio(await monperTab.vaultUpdate(item.id, patch))
-    setEditando(false)
+    if (guardando) return
+    if (!l) { setError(tr("Introduce un nombre.")); return }
+    const patch: { label: string; data?: Record<string, string>; secret?: string } = { label: l }
+    if (item.type === 'web-credential') {
+      const origin = normalizeCredentialOrigin(sitio)
+      if (!origin) { setError(tr("Escribe un sitio HTTP o HTTPS válido.")); return }
+      patch.data = { origin, username: usuario.trim() }
+    } else if (item.type === 'service-token') {
+      if (!servicio.trim()) { setError(tr("Indica el servicio del token.")); return }
+      patch.data = { service: servicio.trim(), account: cuenta.trim() }
+    } else if (item.type === 'secret') {
+      patch.data = { name: nombreSecreto.trim() || l }
+    }
+    if (nuevoSecreto) patch.secret = nuevoSecreto
+    setError(''); setGuardando(true)
+    try {
+      onCambio(await titanioTab.vaultUpdate(item.id, patch))
+      setNuevoSecreto(''); setVisible(null); setEditando(false)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : tr("No se pudieron guardar los cambios."))
+    } finally { setGuardando(false) }
   }
 
   const borrar = async (): Promise<void> => {
-    onCambio(await monperTab.vaultRemove(item.id))
+    onCambio(await titanioTab.vaultRemove(item.id))
   }
 
   const campo = 'h-8 px-2.5 rounded-lg bg-white/[0.05] border border-white/[0.10] text-[13px] text-text outline-none focus:border-white/30 select-text'
 
   if (editando) {
     return (
-      <div className="px-4 py-3 flex flex-col gap-2 bg-white/[0.03]">
-        <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Nombre" autoFocus className={campo}
-          onKeyDown={(e) => { if (e.key === 'Enter') void guardar(); if (e.key === 'Escape') setEditando(false) }} />
+      <form className="px-4 py-3 flex flex-col gap-2 bg-white/[0.03]"
+        onSubmit={(e) => { e.preventDefault(); void guardar() }}
+        onKeyDown={(e) => { if (e.key === 'Escape' && !guardando) { e.preventDefault(); cancelar() } }}>
+        <fieldset disabled={guardando} className="flex flex-col gap-2 min-w-0 border-0 p-0">
+        <label className="flex flex-col gap-1 text-xs text-text-dim">{tr("Nombre")} <input value={label} onChange={(e) => setLabel(e.target.value)} autoFocus className={campo} />
+        </label>
         {item.type === 'web-credential' && (
-          <input value={usuario} onChange={(e) => setUsuario(e.target.value)} placeholder="Usuario" className={campo}
-            onKeyDown={(e) => { if (e.key === 'Enter') void guardar(); if (e.key === 'Escape') setEditando(false) }} />
+          <>
+            <label className="flex flex-col gap-1 text-xs text-text-dim">{tr("Sitio")} <input value={sitio} onChange={(e) => setSitio(e.target.value)} placeholder="https://example.com" className={campo} />
+            </label>
+            <label className="flex flex-col gap-1 text-xs text-text-dim">{tr("Usuario o correo")} <input value={usuario} onChange={(e) => setUsuario(e.target.value)} className={campo} />
+            </label>
+          </>
         )}
+        {item.type === 'service-token' && (
+          <>
+            <label className="flex flex-col gap-1 text-xs text-text-dim">{tr("Servicio")} <input value={servicio} onChange={(e) => setServicio(e.target.value)} className={campo} />
+            </label>
+            <label className="flex flex-col gap-1 text-xs text-text-dim">{tr("Cuenta (opcional)")} <input value={cuenta} onChange={(e) => setCuenta(e.target.value)} className={campo} />
+            </label>
+          </>
+        )}
+        {item.type === 'secret' && (
+          <label className="flex flex-col gap-1 text-xs text-text-dim">{tr("Identificador")} <input value={nombreSecreto} onChange={(e) => setNombreSecreto(e.target.value)} className={campo} />
+          </label>
+        )}
+        <label className="flex flex-col gap-1 text-xs text-text-dim">
+          {item.type === 'web-credential' ? tr("Nueva contraseña") : tr("Nuevo valor secreto")}
+          <input type="password" autoComplete="new-password" value={nuevoSecreto} onChange={(e) => setNuevoSecreto(e.target.value)} placeholder={tr("Dejar vacío para conservar el actual")} className={campo} />
+        </label>
+        <p className="text-xs text-text-faint">{tr("Actualiza el valor guardado en Titanio; no cambia la contraseña ni el token en el servicio.")}</p>
+        {error && <p role="alert" className="text-xs text-amber-400">{error}</p>}
         <div className="flex items-center gap-2">
-          <button onClick={() => void guardar()} className="h-8 px-3 rounded-lg bg-white/90 text-black text-[12.5px] font-medium hover:bg-white transition-colors">Guardar</button>
-          <button onClick={() => setEditando(false)} className="h-8 px-3 rounded-lg text-[12.5px] text-text-dim hover:text-text transition-colors">Cancelar</button>
-          {/* La contraseña no se edita aquí: cambiarla es cosa del sitio, y Monper la vuelve
-              a capturar al siguiente login. Un campo aquí solo desincronizaría las dos. */}
+          <Button variant="primary" size="sm" type="submit">{guardando ? tr("Guardando…") : tr("Guardar")}</Button>
+          <Button variant="ghost" size="sm" onClick={cancelar}>{tr("Cancelar")}</Button>
         </div>
-      </div>
+        </fieldset>
+      </form>
     )
   }
 
@@ -146,29 +204,25 @@ function Fila({ item, favicon, onCambio }: { item: VaultItemMeta; favicon?: stri
         // Con la contraseña a la vista los botones NO se esconden: si desaparecieran al apartar
         // el ratón, no habría forma de volver a taparla salvo esperar los 15 s.
         (visible !== null || copiado ? 'opacity-100' : 'opacity-0 group-hover/v:opacity-100')}>
-        <button
+        <Button variant="ghost" size="icon"
           onClick={() => void alternarVer()}
-          title={visible !== null ? 'Ocultar' : 'Ver la contraseña (se tapa sola en 15 s)'}
-          className="w-8 h-8 grid place-items-center rounded-lg text-text-faint hover:text-text hover:bg-white/[0.08] transition-colors [&>svg]:w-4 [&>svg]:h-4"
+          title={visible !== null ? tr("Ocultar") : tr("Ver la contraseña (se tapa sola en 15 s)")}
         >
           {visible !== null ? <IconEyeOff /> : <IconEye />}
-        </button>
-        <button
+        </Button>
+        <Button variant={copiado ? 'custom' : 'ghost'} size="icon"
           onClick={() => void copiar()}
-          title="Copiar al portapapeles (se borra solo en 30 s)"
-          className={'w-8 h-8 grid place-items-center rounded-lg transition-colors [&>svg]:w-4 [&>svg]:h-4 ' +
-            (copiado ? 'text-emerald-400' : 'text-text-faint hover:text-text hover:bg-white/[0.08]')}
+          title={tr("Copiar al portapapeles (se borra solo en 30 s)")}
+          className={copiado ? 'text-emerald-400' : ''}
         >
           {copiado ? <IconCheck /> : <IconCopy />}
-        </button>
-        <button onClick={() => setEditando(true)} title="Editar"
-          className="w-8 h-8 grid place-items-center rounded-lg text-text-faint hover:text-text hover:bg-white/[0.08] transition-colors [&>svg]:w-4 [&>svg]:h-4">
+        </Button>
+        <Button variant="ghost" size="icon" onClick={editar} title={tr("Editar")}>
           <IconPencil />
-        </button>
-        <button onClick={() => void borrar()} title="Borrar"
-          className="w-8 h-8 grid place-items-center rounded-lg text-text-faint hover:text-red-400 hover:bg-red-500/15 transition-colors [&>svg]:w-4 [&>svg]:h-4">
+        </Button>
+        <Button variant="danger-ghost" size="icon" onClick={() => void borrar()} title={tr("Borrar")}>
           <IconTrash />
-        </button>
+        </Button>
       </div>
     </div>
   )
@@ -183,6 +237,7 @@ function Fila({ item, favicon, onCambio }: { item: VaultItemMeta; favicon?: stri
  * Sin esto, el vault solo se llenaba por accidente.
  */
 function Alta({ onHecho, onCancelar }: { onHecho: (l: VaultItemMeta[]) => void; onCancelar: () => void }): JSX.Element {
+  useLocale()
   const [type, setType] = useState<VaultItemType>('web-credential')
   const [label, setLabel] = useState('')
   const [sitio, setSitio] = useState('')
@@ -192,43 +247,32 @@ function Alta({ onHecho, onCancelar }: { onHecho: (l: VaultItemMeta[]) => void; 
 
   const campo = 'w-full h-9 px-3 rounded-lg bg-white/[0.05] border border-white/[0.10] text-[13.5px] text-text outline-none focus:border-white/30 select-text'
 
-  /**
-   * El autorrelleno busca por ORIGEN exacto (`findCredential`), así que "github.com" a secas
-   * no encontraría nada nunca. Se normaliza aquí y no al rellenar: guardar algo que jamás va a
-   * coincidir es un fallo silencioso, justo lo que no queremos en el vault.
-   */
-  const normalizarOrigen = (v: string): string | null => {
-    const t = v.trim()
-    if (!t) return null
-    try { return new URL(/^https?:\/\//i.test(t) ? t : `https://${t}`).origin } catch { return null }
-  }
-
   const guardar = async (): Promise<void> => {
-    if (!secreto) { setError('Falta la contraseña.'); return }
+    if (!secreto) { setError(type === 'web-credential' ? tr("Introduce la contraseña.") : tr("Introduce el valor que quieres guardar.")); return }
     const data: Record<string, string> = {}
     let nombre = label.trim()
 
     if (type === 'web-credential') {
-      const origin = normalizarOrigen(sitio)
-      if (!origin) { setError('Ese sitio no se entiende. Escribe algo como github.com'); return }
+      const origin = normalizeCredentialOrigin(sitio)
+      if (!origin) { setError(tr("Introduce un sitio válido, por ejemplo, github.com.")); return }
       data.origin = origin
       data.username = usuario.trim()
       // El nombre por defecto es el dominio: obligar a escribirlo cuando ya lo has puesto en
       // el sitio es pedir dos veces lo mismo.
       if (!nombre) nombre = origin.replace(/^https?:\/\//, '')
     } else if (type === 'secret') {
-      data.name = nombre || 'Secreto'
+      data.name = nombre || tr("Secreto")
     } else if (type === 'service-token') {
-      data.service = nombre || 'Servicio'
+      data.service = nombre || tr("Servicio")
     }
-    if (!nombre) { setError('Ponle un nombre para poder encontrarlo.'); return }
+    if (!nombre) { setError(tr("Introduce un nombre.")); return }
 
     try {
-      onHecho(await monperTab.vaultAdd(type, nombre, data, secreto))
+      onHecho(await titanioTab.vaultAdd(type, nombre, data, secreto))
       onCancelar()
     } catch (e) {
       console.error('[vault] no se pudo guardar:', e)
-      setError('No se pudo guardar. Puede que el llavero del sistema no esté disponible.')
+      setError(e instanceof Error ? e.message : tr("No se pudo guardar. Puede que el llavero del sistema no esté disponible."))
     }
   }
 
@@ -237,28 +281,28 @@ function Alta({ onHecho, onCancelar }: { onHecho: (l: VaultItemMeta[]) => void; 
       <div className="flex items-center gap-2">
         {/* Solo los tipos que tiene sentido crear a mano: las API keys se guardan solas al
             conectar un proveedor, y duplicarlas aquí dejaría dos fuentes de verdad. */}
-        {([['web-credential', 'Sitio web'], ['service-token', 'Token'], ['secret', 'Secreto']] as const).map(([t, l]) => (
-          <button
+        {([['web-credential', tr("Sitio web")], ['service-token', tr("Token")], ['secret', tr("Secreto")]] as const).map(([t, l]) => (
+          <Button
             key={t}
             onClick={() => setType(t)}
             className={'h-7 px-3 rounded-lg text-[12.5px] transition-colors ' +
               (type === t ? 'bg-white/[0.14] text-text' : 'text-text-dim hover:text-text')}
           >
             {l}
-          </button>
+          </Button>
         ))}
       </div>
 
       {type === 'web-credential' && (
         <>
           <input value={sitio} onChange={(e) => setSitio(e.target.value)} placeholder="github.com" autoFocus className={campo} />
-          <input value={usuario} onChange={(e) => setUsuario(e.target.value)} placeholder="Usuario o correo" className={campo} />
+          <input value={usuario} onChange={(e) => setUsuario(e.target.value)} placeholder={tr("Usuario o correo")} className={campo} />
         </>
       )}
       <input
         value={label}
         onChange={(e) => setLabel(e.target.value)}
-        placeholder={type === 'web-credential' ? 'Nombre (opcional)' : 'Nombre'}
+        placeholder={type === 'web-credential' ? tr("Nombre (opcional)") : tr("Nombre")}
         autoFocus={type !== 'web-credential'}
         className={campo}
       />
@@ -267,7 +311,7 @@ function Alta({ onHecho, onCancelar }: { onHecho: (l: VaultItemMeta[]) => void; 
         type="password"
         value={secreto}
         onChange={(e) => setSecreto(e.target.value)}
-        placeholder={type === 'web-credential' ? 'Contraseña' : 'Valor'}
+        placeholder={type === 'web-credential' ? tr("Contraseña") : tr("Valor")}
         className={campo}
         onKeyDown={(e) => { if (e.key === 'Enter') void guardar() }}
       />
@@ -275,8 +319,8 @@ function Alta({ onHecho, onCancelar }: { onHecho: (l: VaultItemMeta[]) => void; 
       {error && <div className="text-[12.5px] text-amber-400">{error}</div>}
 
       <div className="flex items-center gap-2">
-        <button onClick={() => void guardar()} className="h-8 px-3 rounded-lg bg-white/90 text-black text-[12.5px] font-medium hover:bg-white transition-colors">Guardar</button>
-        <button onClick={onCancelar} className="h-8 px-3 rounded-lg text-[12.5px] text-text-dim hover:text-text transition-colors">Cancelar</button>
+        <Button variant="primary" size="sm" onClick={() => void guardar()}>{tr("Guardar")}</Button>
+        <Button variant="ghost" size="sm" onClick={onCancelar}>{tr("Cancelar")}</Button>
       </div>
     </div>
   )
@@ -289,12 +333,11 @@ function Alta({ onHecho, onCancelar }: { onHecho: (l: VaultItemMeta[]) => void; 
  * rellenar rápido — no para ver qué tienes guardado, renombrarlo ni limpiarlo. Peor aún: el
  * importador ya traía las contraseñas de Chrome y desaparecían en un cajón sin puerta.
  *
- * **No hay botón de "ver contraseña", y no es un olvido.** El principio del vault es que el
- * secreto no cruza el IPC ni entra en un renderer (ver docs/vault-architecture.md). Copiar lo
- * respeta: el main descifra y escribe directo en el portapapeles, y aquí solo se sabe si salió
- * bien. Además así el secreto tampoco acaba en un DOM que otra cosa pueda leer.
+ * Revelar es una acción explícita; al editar se pide solo el reemplazo y nunca se carga
+ * el secreto existente dentro del formulario.
  */
 export default function PasswordSection(): JSX.Element {
+  useLocale()
   const [items, setItems] = useState<VaultItemMeta[]>([])
   const [favicons, setFavicons] = useState<Record<string, string>>({})
   const [q, setQ] = useState('')
@@ -304,13 +347,13 @@ export default function PasswordSection(): JSX.Element {
 
   const leer = useCallback(async (): Promise<void> => {
     try {
-      setItems(await monperTab.vaultList())
-      setFavicons(await monperTab.vaultFavicons())
-      setDisponible(await monperTab.vaultAvailable())
+      setItems(await titanioTab.vaultList())
+      setFavicons(await titanioTab.vaultFavicons())
+      setDisponible(await titanioTab.vaultAvailable())
       setError('')
     } catch (e) {
       console.error('[vault] no se pudo leer:', e)
-      setError('No se pudo leer el vault. Reinicia Monper: los cambios en el preload necesitan reiniciar la app, no solo recargar.')
+      setError(tr("No se pudo cargar el vault. Reinicia Titanio e inténtalo de nuevo."))
     }
   }, [])
   // Se escucha además de leer: se puede guardar una credencial desde otra pestaña mientras
@@ -318,7 +361,7 @@ export default function PasswordSection(): JSX.Element {
   // `onVaultChanged(setItems)` refrescaba SOLO la lista: los iconos se leían una vez al montar
   // y no volvían a mirarse nunca. Los de sitios nunca visitados se resuelven en segundo plano y
   // llegan después, así que se quedaban invisibles para siempre. Se recarga todo.
-  useEffect(() => { void leer(); return monperTab.onVaultChanged(() => { void leer() }) }, [leer])
+  useEffect(() => { void leer(); return titanioTab.onVaultChanged(() => { void leer() }) }, [leer])
 
   const filtrados = useMemo(() => {
     const t = q.trim().toLowerCase()
@@ -329,24 +372,18 @@ export default function PasswordSection(): JSX.Element {
 
   return (
     <div>
-      <div className="flex items-center justify-between gap-4 mb-5">
-        <div>
-          <h1 className="text-[22px] font-semibold tracking-tight">Password</h1>
-          <p className="text-[13px] text-text-dim mt-1">
-            Todo va cifrado con el llavero del sistema. El agente puede rellenar tus datos sin llegar a verlos.
-          </p>
-        </div>
-        <div className="flex items-center gap-3 shrink-0">
-          <button
+      <SettingsHeader
+        title={tr("Password")}
+        description={tr("Contraseñas, claves y tokens guardados con el cifrado del sistema.")}
+        actions={<>
+          <Button variant="secondary" size="sm"
             onClick={() => setAnadiendo((v) => !v)}
             disabled={!disponible}
-            className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] disabled:opacity-40 disabled:hover:bg-white/[0.06] text-[12.5px] text-text transition-colors [&>svg]:w-4 [&>svg]:h-4 [&>svg]:text-text-dim"
           >
-            <IconPlus /> Añadir
-          </button>
+            <IconPlus /> {tr("Añadir")} </Button>
           <span className="text-[13px] text-text-faint tabular-nums">{items.length}</span>
-        </div>
-      </div>
+        </>}
+      />
 
       {anadiendo && <Alta onHecho={setItems} onCancelar={() => setAnadiendo(false)} />}
 
@@ -354,9 +391,7 @@ export default function PasswordSection(): JSX.Element {
         <div className="mb-5 rounded-xl border border-amber-400/25 bg-amber-400/[0.06] px-3.5 py-3 flex items-start gap-2.5">
           <IconAlert className="w-[17px] h-[17px] text-amber-400 shrink-0 mt-px" />
           <div className="text-[13px] text-text-dim">
-            El llavero del sistema no está disponible, así que <span className="text-text">no se puede guardar nada</span>.
-            Monper prefiere no guardar a guardar en claro.
-          </div>
+            {tr("El llavero del sistema no está disponible. No se pueden guardar secretos.")} </div>
         </div>
       )}
 
@@ -367,7 +402,7 @@ export default function PasswordSection(): JSX.Element {
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Buscar por nombre, usuario o sitio"
+          placeholder={tr("Buscar por nombre, usuario o sitio")}
           className="w-full h-10 pl-9 pr-3 rounded-xl bg-white/[0.04] border border-white/[0.08] text-[13.5px] text-text outline-none focus:border-white/25 placeholder:text-text-faint transition-colors select-text"
         />
       </div>
@@ -392,7 +427,7 @@ export default function PasswordSection(): JSX.Element {
       })}
 
       <p className="text-[12.5px] text-text-faint leading-relaxed">
-        ¿Vienes de otro navegador? Trae tus contraseñas desde <span className="text-text-dim">General → Importar</span>.
+        {tr("Importa contraseñas de otro navegador desde")} <span className="text-text-dim">{tr("General → Importar")}</span>.
       </p>
     </div>
   )

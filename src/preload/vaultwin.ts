@@ -1,3 +1,4 @@
+import './language'
 import { contextBridge, ipcRenderer } from 'electron'
 import type { VaultWinApi } from '../shared/types'
 import type { VaultItemMeta } from '../shared/vault'

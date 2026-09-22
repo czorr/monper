@@ -54,10 +54,10 @@ const TAMANOS = {
 
 export default function SkillIcon({ skill, size = 'sm' }: { skill: SkillMeta; size?: keyof typeof TAMANOS }): JSX.Element {
   // Un favicon puede dar 404 o venir roto; sin esto quedaría un hueco en vez de un icono.
-  const [roto, setRoto] = useState(false)
+  const [fallido, setFallido] = useState<string | null>(null)
   const t = TAMANOS[size]
   const Glifo = (skill.icon && GLIFOS[skill.icon]) || IconBolt
-  const usaFavicon = !!skill.favicon && !roto
+  const usaFavicon = !!skill.favicon && skill.favicon !== fallido
 
   return (
     <span
@@ -68,7 +68,7 @@ export default function SkillIcon({ skill, size = 'sm' }: { skill: SkillMeta; si
       }
     >
       {usaFavicon
-        ? <img src={skill.favicon!} alt="" className={`${t.dentro} object-contain`} onError={() => setRoto(true)} />
+        ? <img key={skill.favicon} src={skill.favicon!} alt="" className={`${t.dentro} object-contain`} onError={() => setFallido(skill.favicon)} />
         : <Glifo className={t.dentro} />}
     </span>
   )

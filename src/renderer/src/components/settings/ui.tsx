@@ -1,4 +1,33 @@
 import type { JSX, ReactNode } from 'react'
+import Button from '@renderer/components/ui/Button'
+export { Button }
+
+interface SettingsHeaderProps {
+  title: string
+  description?: ReactNode
+  icon?: ReactNode
+  actions?: ReactNode
+}
+
+export function SettingsHeader({ title, description, icon, actions }: SettingsHeaderProps): JSX.Element {
+  return (
+    <header className="mb-9">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+        <div className="flex flex-1 items-center gap-3 min-w-0">
+          {icon && <span className="shrink-0">{icon}</span>}
+          <h1 className="text-[30px] leading-9 font-semibold tracking-tight break-words min-w-0">{title}</h1>
+        </div>
+        {actions && <div className="flex items-center gap-3 shrink-0">{actions}</div>}
+      </div>
+      {description && <p className="mt-3 text-[13.5px] leading-relaxed text-text-dim">{description}</p>}
+    </header>
+  )
+}
+
+/** El mismo margen de entrada, también en las secciones con navegación propia. */
+export function SettingsContent({ children, wide = false }: { children: ReactNode; wide?: boolean }): JSX.Element {
+  return <div className={`${wide ? 'max-w-[800px]' : 'max-w-[680px]'} mx-auto px-8 py-12`}>{children}</div>
+}
 
 export function Card({ children }: { children: ReactNode }): JSX.Element {
   return (
@@ -55,7 +84,7 @@ export function Toggle({
   disabled?: boolean
 }): JSX.Element {
   return (
-    <button
+    <Button shape="pill"
       role="switch"
       aria-checked={on}
       disabled={disabled}
@@ -71,17 +100,16 @@ export function Toggle({
           (on ? 'left-[19px]' : 'left-[3px]')
         }
       />
-    </button>
+    </Button>
   )
 }
 
 export function Pill({ children, onClick }: { children: ReactNode; onClick?: () => void }): JSX.Element {
   return (
-    <button
+    <Button variant="secondary" size="sm"
       onClick={onClick}
-      className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] text-[13px] text-text-dim transition-colors"
     >
       {children}
-    </button>
+    </Button>
   )
 }

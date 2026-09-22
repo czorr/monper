@@ -1,3 +1,4 @@
+import { t as tr, useLocale } from '@renderer/lib/i18n'
 import { createRoot } from 'react-dom/client'
 import { useEffect, useRef, useState, type JSX } from 'react'
 import type { DatosMenuPerfil, SubmenuSection } from '@shared/types'
@@ -6,7 +7,8 @@ import { PopoverPanel, PopoverRow, PopoverLabel, PopoverDivider } from '@rendere
 import IconChevronRight from '~icons/tabler/chevron-right'
 import IconCheck from '~icons/tabler/check'
 import IconX from '~icons/tabler/x'
-import IconUserPlus from '~icons/tabler/user-plus'
+import IconUserCircle from '~icons/tabler/user-circle'
+import IconDots from '~icons/tabler/dots'
 import IconBookmark from '~icons/tabler/bookmark'
 import IconDownload from '~icons/tabler/download'
 import IconPuzzle from '~icons/tabler/puzzle'
@@ -29,6 +31,7 @@ const Chevron = (): JSX.Element => <IconChevronRight />
  * peek del sidebar.
  */
 function RowConSubmenu({ section, icon, label }: { section: SubmenuSection; icon: JSX.Element; label: string }): JSX.Element {
+  useLocale()
   const ref = useRef<HTMLDivElement>(null)
   return (
     <div
@@ -56,6 +59,7 @@ function iniciales(n: string): string {
 }
 
 function ProfileMenuWindow(): JSX.Element {
+  useLocale()
   const [datos, setDatos] = useState<DatosMenuPerfil>(VACIO)
   const [creando, setCreando] = useState(false)
   const [nombre, setNombre] = useState('')
@@ -71,24 +75,30 @@ function ProfileMenuWindow(): JSX.Element {
 
   // Pasar por cualquier fila SIN submenú lo cierra: es lo que se espera de un menú.
   return (
-    <PopoverPanel onHeight={pm.reportHeight} measure={[datos, creando]}>
+    <PopoverPanel onHeight={pm.reportHeight} measure={[datos, creando]} className="profile-menu" animation="none">
       <div onMouseEnter={() => pm.submenuMaybeClose()}>
-        <PopoverLabel>Profiles</PopoverLabel>
+        <PopoverLabel>{tr("Profiles")}</PopoverLabel>
 
         {datos.perfiles.map((p) => (
           <div key={p.id} className="group relative">
             <PopoverRow
-              icon={<Avatar initials={iniciales(p.nombre)} src={p.avatar} size="sm" />}
+              icon={<span className="profile-menu-avatar"><Avatar initials={iniciales(p.nombre)} src={p.avatar} color={p.preferences?.color} icon={p.preferences?.icon} size="sm" /></span>}
               label={p.nombre}
-              active={p.activo}
               onClick={() => { if (!p.activo) pm.cambiarPerfil(p.id) }}
-              meta={p.activo ? <IconCheck className="w-3.5 h-3.5" /> : undefined}
+              meta={p.activo ? <span className="pr-6"><IconCheck className="w-4 h-4" /></span> : undefined}
             />
+            {p.activo && (
+              <button type="button" title={tr("Configurar perfil")} aria-label={tr("Configurar perfil")}
+                onClick={() => act('profiles')}
+                className="absolute right-1 top-1/2 -translate-y-1/2 grid place-items-center w-6 h-7 rounded-md text-[#a1a1a6] hover:text-[#d9d9dd] hover:bg-white/[0.08]">
+                <IconDots className="w-4 h-4" />
+              </button>
+            )}
             {/* Quitar solo los que NO son el activo: quitarte el suelo de debajo mientras estás
                 de pie encima obligaría a reiniciar a otro perfil sin haberlo pedido. */}
             {!p.activo && (
               <button
-                title="Quitar perfil"
+                title={tr("Quitar perfil")}
                 onClick={(e) => { e.stopPropagation(); pm.borrarPerfil(p.id) }}
                 className="absolute right-2 top-1/2 -translate-y-1/2 hidden group-hover:grid place-items-center w-6 h-6 rounded-md text-text-faint hover:text-text hover:bg-white/[0.10]"
               >
@@ -109,28 +119,28 @@ function ProfileMenuWindow(): JSX.Element {
                 if (e.key === 'Escape') { setCreando(false); setNombre('') }
               }}
               onBlur={() => { if (!nombre.trim()) setCreando(false) }}
-              placeholder="Nombre del perfil"
+              placeholder={tr("Nombre del perfil")}
               className="w-full h-8 px-2.5 rounded-lg bg-white/[0.06] outline-none text-[13.5px] text-text placeholder:text-text-faint"
             />
           </div>
         ) : (
-          <PopoverRow icon={<IconUserPlus />} label="New profile" onClick={() => setCreando(true)} />
+          <PopoverRow icon={<IconUserCircle />} label={tr("New profile")} onClick={() => setCreando(true)} />
         )}
       </div>
 
       <PopoverDivider />
-      <RowConSubmenu section="bookmarks" icon={<IconBookmark />} label="Bookmarks" />
-      <RowConSubmenu section="downloads" icon={<IconDownload />} label="Downloads" />
-      <RowConSubmenu section="extensions" icon={<IconPuzzle />} label="Extensions" />
-      <RowConSubmenu section="history" icon={<IconHistory />} label="History" />
-      <RowConSubmenu section="developers" icon={<IconCode />} label="Developers" />
+      <RowConSubmenu section="bookmarks" icon={<IconBookmark />} label={tr("Bookmarks")} />
+      <RowConSubmenu section="downloads" icon={<IconDownload />} label={tr("Downloads")} />
+      <RowConSubmenu section="extensions" icon={<IconPuzzle />} label={tr("Extensions")} />
+      <RowConSubmenu section="history" icon={<IconHistory />} label={tr("History")} />
+      <RowConSubmenu section="developers" icon={<IconCode />} label={tr("Developers")} />
       <div onMouseEnter={() => pm.submenuMaybeClose()}>
-          <PopoverRow icon={<IconSettings />} label="Settings" meta="⌘," onClick={() => act('settings')} />
+          <PopoverRow icon={<IconSettings />} label={tr("Settings")} meta="⌘," onClick={() => act('settings')} />
       </div>
 
       <PopoverDivider />
-      <PopoverRow icon={<IconPlus />} label="New Tab" meta="⌘T" onClick={() => act('new-tab')} />
-      <PopoverRow icon={<IconSpy />} label="Incognito Window" meta="⇧⌘N" onClick={() => act('incognito')} />
+      <PopoverRow icon={<IconPlus />} label={tr("New Tab")} meta="⌘T" onClick={() => act('new-tab')} />
+      <PopoverRow icon={<IconSpy />} label={tr("Incognito Window")} meta="⇧⌘N" onClick={() => act('incognito')} />
     </PopoverPanel>
   )
 }

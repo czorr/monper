@@ -1,6 +1,6 @@
 import type { Components } from 'react-markdown'
 
-const { monperTab } = window
+const { titanioTab } = window
 
 /**
  * Cómo se pinta el markdown en Settings.
@@ -18,7 +18,7 @@ export const MD_COMPONENTS: Components = {
   ol: ({ children }) => <ol className="my-3 pl-5 list-decimal marker:text-text-faint space-y-1.5 text-[13.5px] text-text-dim">{children}</ol>,
   li: ({ children }) => <li className="leading-relaxed">{children}</li>,
   strong: ({ children }) => <strong className="font-semibold text-text">{children}</strong>,
-  a: ({ children, href }) => <a onClick={(e) => { e.preventDefault(); if (href) monperTab.navigate(href) }} className="text-sky-400 hover:underline cursor-pointer">{children}</a>,
+  a: ({ children, href }) => <a onClick={(e) => { e.preventDefault(); if (href) titanioTab.navigate(href) }} className="text-sky-400 hover:underline cursor-pointer">{children}</a>,
   code: ({ className, children }) => {
     if (!className) return <code className="px-1.5 py-0.5 rounded-[5px] bg-white/[0.07] text-[12.5px] font-mono text-text">{children}</code>
     return <code className="block text-[12.5px] font-mono leading-relaxed text-text">{children}</code>

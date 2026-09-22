@@ -1,11 +1,11 @@
 import { WebContentsView, type BrowserWindow, type WebContents } from 'electron'
-import { pageFromWebContents } from '../../../packages/monperwright/src/electron'
-import type { Page } from '../../../packages/monperwright/src'
+import { pageFromWebContents } from '../../../packages/titaniowright/src/electron'
+import type { Page } from '../../../packages/titaniowright/src'
 import { execInRepl } from './repl'
 
 /**
  * Página "headless": una vista invisible con la sesión del usuario (cookies incluidas)
- * sobre la que corre el mismo `page` de monperwright y el mismo REPL que usa el agente.
+ * sobre la que corre el mismo `page` de titaniowright y el mismo REPL que usa el agente.
  * La usan las rutinas para vigilar sitios en segundo plano.
  */
 export async function withHeadlessPage<T>(
@@ -17,7 +17,7 @@ export async function withHeadlessPage<T>(
   const view = new WebContentsView({
     // La partición del perfil activo, no la de siempre: una rutina o un vigía del perfil
     // "Trabajo" tiene que ver la web logueada de Trabajo.
-    webPreferences: { partition: opts.partition ?? 'persist:monper', contextIsolation: true, sandbox: true }
+    webPreferences: { partition: opts.partition ?? 'persist:titanio', contextIsolation: true, sandbox: true }
   })
   const wc = view.webContents
   // Invisible pero con tamaño estable: el DOM y el JS corren igual, solo no se pinta.

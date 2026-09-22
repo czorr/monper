@@ -13,7 +13,7 @@ const SNAPSHOT_JS = `(() => {
     const visible = r.width > 2 && r.height > 2 && r.bottom > 0 && r.right > 0 &&
       r.top < innerHeight && r.left < innerWidth && cs.visibility !== 'hidden' && cs.display !== 'none';
     if (!visible) continue;
-    el.setAttribute('data-monper-ref', String(ref));
+    el.setAttribute('data-titanio-ref', String(ref));
     const label = (el.getAttribute('aria-label') || el.getAttribute('placeholder') || el.value ||
       el.innerText || el.getAttribute('title') || '').trim().replace(/\\s+/g,' ').slice(0, 90);
     out.push({ ref, tag: el.tagName.toLowerCase(), type: el.getAttribute('type') || '', label });
@@ -40,7 +40,7 @@ export async function snapshot(wc: WebContents): Promise<string> {
 
 async function centerOf(wc: WebContents, ref: number): Promise<{ x: number; y: number } | null> {
   return wc.executeJavaScript(`(() => {
-    const el = document.querySelector('[data-monper-ref="${ref}"]');
+    const el = document.querySelector('[data-titanio-ref="${ref}"]');
     if (!el) return null;
     el.scrollIntoView({ block: 'center', inline: 'center' });
     const r = el.getBoundingClientRect();
@@ -64,7 +64,7 @@ export async function type(wc: WebContents, ref: number, text: string, submit?: 
   if (!c) return `ERROR: no existe el ref=${ref}.`
   // Enfoca y limpia el campo, sea <input>/<textarea> (value) o un contenteditable (textContent).
   await wc.executeJavaScript(`(() => {
-    const el = document.querySelector('[data-monper-ref="${ref}"]');
+    const el = document.querySelector('[data-titanio-ref="${ref}"]');
     if (!el) return;
     el.focus();
     if ('value' in el) { el.value = ''; el.dispatchEvent(new Event('input', { bubbles: true })); }
@@ -144,7 +144,7 @@ export async function hover(wc: WebContents, ref: number): Promise<string> {
   const c = await centerOf(wc, ref)
   if (!c) return `ERROR: no existe el ref=${ref}. Haz read_page de nuevo.`
   await wc.executeJavaScript(`(() => {
-    const el = document.querySelector('[data-monper-ref="${ref}"]');
+    const el = document.querySelector('[data-titanio-ref="${ref}"]');
     if (el) el.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
   })()`, true)
   wc.sendInputEvent({ type: 'mouseMove', x: c.x, y: c.y })
@@ -155,7 +155,7 @@ export async function hover(wc: WebContents, ref: number): Promise<string> {
 /** Elige una opción de un <select> por valor o por texto visible. */
 export async function selectOption(wc: WebContents, ref: number, value: string): Promise<string> {
   const res = (await wc.executeJavaScript(`(() => {
-    const el = document.querySelector('[data-monper-ref="${ref}"]');
+    const el = document.querySelector('[data-titanio-ref="${ref}"]');
     if (!el || el.tagName !== 'SELECT') return 'noselect';
     const v = ${JSON.stringify(value)};
     for (const o of Array.from(el.options)) {

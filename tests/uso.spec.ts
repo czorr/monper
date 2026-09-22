@@ -30,7 +30,7 @@ async function enSettings<T>(metodo: string, ...args: unknown[]): Promise<T> {
   return h.app.evaluate(async ({ webContents }, { metodo, args }) => {
     const wc = webContents.getAllWebContents().find((w) => w.getURL().includes('settings.html'))
     if (!wc) throw new Error('Settings no está abierto')
-    return (await wc.executeJavaScript(`window.monperTab.${metodo}(${args.map((a) => JSON.stringify(a)).join(',')})`)) as T
+    return (await wc.executeJavaScript(`window.titanioTab.${metodo}(${args.map((a) => JSON.stringify(a)).join(',')})`)) as T
   }, { metodo, args }) as Promise<T>
 }
 
@@ -80,7 +80,7 @@ test('borrar el consumo lo deja a cero, no rompe el resumen', async () => {
 test('el chrome no puede leer ni tocar el consumo', async () => {
   // Es historial de uso del usuario: misma regla que marcadores o vault.
   const tipo = await h.win.evaluate(() => {
-    const m = (window as never as Record<string, Record<string, unknown>>)['monper']
+    const m = (window as never as Record<string, Record<string, unknown>>)['titanio']
     return typeof m?.['usageSummary']
   })
   expect(tipo).toBe('undefined')

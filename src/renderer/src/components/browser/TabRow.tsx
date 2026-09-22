@@ -1,9 +1,11 @@
+import { t as tr, useLocale } from '@renderer/lib/i18n'
 import { useState, type JSX } from 'react'
 import type { TabInfo } from '@shared/types'
 import { domainOf } from '@renderer/lib/dom'
 import { CloseIcon } from '@renderer/lib/icons'
 import IconVolumeOff from '~icons/tabler/volume-off'
-import monperLogo from '@renderer/assets/monper.png'
+import IconWorld from '~icons/tabler/world'
+import titanioLogo from '@renderer/assets/iso-white.svg'
 
 interface Props {
   tab: TabInfo
@@ -13,7 +15,7 @@ interface Props {
 }
 
 const rowBase =
-  'group/tab flex items-center gap-2.5 w-full py-1 px-2 rounded-xl text-left text-[14.5px] min-h-[29px] transition-transform duration-150'
+  'group/tab flex items-center gap-2.5 w-full py-1 px-2 rounded-xl [corner-shape:superellipse(1.5)] text-left text-[14.5px] min-h-[29px] cursor-pointer transition-transform duration-150'
 
 /**
  * Efecto de pulsación de la fila. Va por estado y no por `active:` de CSS a propósito.
@@ -26,7 +28,9 @@ const rowBase =
 const PRESSED = 'scale-[0.98] translate-y-[1px]'
 
 export default function TabRow({ tab, active, onSelect, onClose }: Props): JSX.Element {
+  useLocale()
   const [pressed, setPressed] = useState(false)
+  const [failedFavicon, setFailedFavicon] = useState<string | null>(null)
   const state = active
     ? 'bg-white/[0.07] border border-white/[0.07] text-text backdrop-blur-sm'
     // `border-transparent` para que la fila activa no mida 2px más y la lista no salte.
@@ -40,31 +44,33 @@ export default function TabRow({ tab, active, onSelect, onClose }: Props): JSX.E
       onPointerLeave={() => setPressed(false)}
       onClick={() => onSelect(tab.id)}
       onAuxClick={(e) => e.button === 1 && onClose(tab.id)}
-      onContextMenu={(e) => { e.preventDefault(); window.monper.tabContextMenu(tab.id) }}
+      onContextMenu={(e) => { e.preventDefault(); window.titanio.tabContextMenu(tab.id) }}
     >
       {tab.internal || !tab.url ? (
         // Nuestras páginas llevan siempre el iso, nunca un favicon por defecto.
-        <img src={monperLogo} alt="" className="w-[17px] h-[17px] shrink-0 object-contain opacity-80" />
+        <img src={titanioLogo} alt="" className="w-[17px] h-[17px] p-[2px] shrink-0 object-contain opacity-80" />
       ) : tab.loading ? (
         <div className="w-[13px] h-[13px] m-0.5 shrink-0 rounded-full border-[1.5px] border-text-faint border-t-text animate-spin" />
-      ) : tab.favicon ? (
+      ) : tab.favicon && tab.favicon !== failedFavicon ? (
         <img
+          key={tab.favicon}
           className="w-[17px] h-[17px] shrink-0 rounded object-contain"
           src={tab.favicon}
-          onError={(e) => (e.currentTarget.style.visibility = 'hidden')}
+          alt=""
+          onError={() => setFailedFavicon(tab.favicon)}
         />
       ) : (
-        <span className="w-[17px] h-[17px] shrink-0 rounded bg-bg-elev" />
+        <IconWorld className="w-[17px] h-[17px] shrink-0 text-text-faint" />
       )}
 
       <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[15px] tracking-[-0.08px]">
-        {tab.title || domainOf(tab.url) || 'New tab'}
+        {tab.title || domainOf(tab.url) || tr("New tab")}
       </span>
 
       {tab.muted && (
         <button
-          title="Reactivar sonido"
-          onClick={(e) => { e.stopPropagation(); window.monper.toggleMute(tab.id) }}
+          title={tr("Reactivar sonido")}
+          onClick={(e) => { e.stopPropagation(); window.titanio.toggleMute(tab.id) }}
           className="shrink-0 w-[18px] h-[18px] grid place-items-center rounded-md text-text-faint hover:text-text hover:bg-white/15 [&>svg]:w-[14px] [&>svg]:h-[14px]"
         >
           <IconVolumeOff />
@@ -80,7 +86,7 @@ export default function TabRow({ tab, active, onSelect, onClose }: Props): JSX.E
         )}
         <button
           className="absolute inset-0 grid place-items-center rounded-md text-text-faint opacity-0 group-hover/tab:opacity-100 hover:text-text hover:bg-white/15 [&>svg]:w-[13px] [&>svg]:h-[13px]"
-          title="Cerrar"
+          title={tr("Cerrar")}
           onClick={(e) => { e.stopPropagation(); onClose(tab.id) }}
         >
           <CloseIcon />

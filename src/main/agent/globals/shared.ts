@@ -15,8 +15,8 @@ export function stripHtml(html: string): string {
 /** Objeto cuyos métodos lanzan un error guía: el agente debe operar el servicio con `page`. */
 export function serviceStub(name: string, label: string, url: string): unknown {
   const hint = url
-    ? `${name} no está portado a Monper todavía. Opera ${label} navegando la web: await page.goto('${url}') y luego page.click/type/evaluate/snapshotText.`
-    : `${name} no está disponible en Monper. Pide al usuario que lo haga manualmente si involucra credenciales.`
+    ? `${name} no está portado a Titanio todavía. Opera ${label} navegando la web: await page.goto('${url}') y luego page.click/type/evaluate/snapshotText.`
+    : `${name} no está disponible en Titanio. Pide al usuario que lo haga manualmente si involucra credenciales.`
   return new Proxy(
     {},
     {

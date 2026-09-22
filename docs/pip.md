@@ -1,11 +1,11 @@
 # Picture-in-Picture
 
-El PiP de Monper es **nuestro**, de arriba abajo. No porque quisiéramos reinventarlo: es que el
+El PiP de Titanio es **nuestro**, de arriba abajo. No porque quisiéramos reinventarlo: es que el
 de Chromium no existe aquí.
 
 ## Lo medido: el PiP nativo está roto en Electron
 
-En las condiciones exactas de una pestaña de Monper (`WebContentsView`, `sandbox`, nuestro
+En las condiciones exactas de una pestaña de Titanio (`WebContentsView`, `sandbox`, nuestro
 preload):
 
 | | `video.requestPictureInPicture()` | `documentPictureInPicture` |
@@ -52,7 +52,7 @@ pestaña (video)  --captureStream--> RTCPeerConnection --WebRTC local--> ventana
   lo llama (vía `contextBridge.executeInMainWorld`).
 - El **WebRTC** va en el mundo AISLADO, el único con `ipcRenderer`. Puede hacerlo porque **el
   DOM sí es común** a los dos mundos: lo aislado es el JS, no los nodos.
-- Se comunican con un atributo en el elemento (`data-monper-pip`) más un evento: es lo que
+- Se comunican con un atributo en el elemento (`data-titanio-pip`) más un evento: es lo que
   cruza sin problemas.
 
 El parche devuelve un objeto con forma de `PictureInPictureWindow` para que un sitio que lea

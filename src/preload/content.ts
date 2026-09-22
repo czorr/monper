@@ -1,5 +1,6 @@
+import './language'
 import { contextBridge, ipcRenderer } from 'electron'
-import type { WidgetInfo, Bookmark, DownloadEntry, MonperTabApi, Suggestion } from '../shared/types'
+import type { Bookmark, DownloadEntry, TitanioTabApi, Suggestion } from '../shared/types'
 import { setupSelectionUI } from './selectionUI'
 import { setupPasswordCapture } from './passwordCapture'
 import { setupTopColor } from './topColor'
@@ -7,7 +8,7 @@ import { setupStoreInstall } from './storeInstall'
 import { setupChromeIdentity } from './chromeIdentity'
 import { setupPipSource } from './pipSource'
 
-const api: MonperTabApi = {
+const api: TitanioTabApi = {
   navigate: (url) => ipcRenderer.send('tab:navigate', url),
   listDownloads: () => ipcRenderer.invoke('downloads:list'),
   onDownloads: (cb: (list: DownloadEntry[]) => void) => {
@@ -30,6 +31,11 @@ const api: MonperTabApi = {
   clearBrowsingData: () => ipcRenderer.invoke('ui:clearData'),
   listProviders: () => ipcRenderer.invoke('providers:list'),
   addProvider: (input, apiKey) => ipcRenderer.invoke('providers:add', input, apiKey),
+  providerSettings: () => ipcRenderer.invoke('providers:settings'),
+  saveProvider: (input, apiKey, revision) => ipcRenderer.invoke('providers:save', input, apiKey, revision),
+  deleteProvider: (id, revision) => ipcRenderer.invoke('providers:delete', id, revision),
+  openProviderConfig: () => ipcRenderer.invoke('providers:openConfig'),
+  discoverProvider: (id) => ipcRenderer.invoke('providers:discover', id),
   removeProvider: (id) => ipcRenderer.invoke('providers:remove', id),
   setActiveProvider: (id) => ipcRenderer.invoke('providers:setActive', id),
   refreshModels: () => ipcRenderer.invoke('providers:models'),
@@ -64,28 +70,30 @@ const api: MonperTabApi = {
   openChat: () => ipcRenderer.send('ui:openChat'),
   skillsList: (resolve) => ipcRenderer.invoke('skills:list', resolve),
   skillsGet: (id) => ipcRenderer.invoke('skills:get', id),
+  skillsSave: (id, source, expectedSource) => ipcRenderer.invoke('skills:save', id, source, expectedSource),
+  skillsOpenFolder: (id) => ipcRenderer.invoke('skills:openItemFolder', id),
   skillsToggle: (id, enabled) => ipcRenderer.invoke('skills:toggle', id, enabled),
   openSkillsFolder: () => ipcRenderer.send('skills:openFolder'),
   getProfile: () => ipcRenderer.invoke('profile:get'),
   setProfile: (name) => ipcRenderer.invoke('profile:set', name),
   setAvatar: (dataUrl) => ipcRenderer.invoke('profile:setAvatar', dataUrl),
+  profilesSettings: () => ipcRenderer.invoke('profiles:settings'),
+  profileModels: () => ipcRenderer.invoke('chat:context').then((context) => context.models),
+  saveBrowserProfile: (profile) => ipcRenderer.invoke('profiles:save', profile),
+  createBrowserProfile: (name) => ipcRenderer.invoke('profiles:create', name),
+  deleteBrowserProfile: (id) => ipcRenderer.invoke('profiles:delete', id),
+  switchBrowserProfile: (id) => ipcRenderer.invoke('profiles:switch', id),
   getAppearance: () => ipcRenderer.invoke('ui:appearance'),
+  setTint: (color) => ipcRenderer.invoke('ui:setTint', color),
+  onAppearance: (cb) => {
+    const handler = (_e: unknown, data: import('../shared/types').AppearanceData): void => cb(data)
+    ipcRenderer.on('ui:appearanceChanged', handler)
+    return () => { ipcRenderer.removeListener('ui:appearanceChanged', handler) }
+  },
   updateBookmark: (id, cambios) => ipcRenderer.invoke('bookmarks:update', id, cambios),
   newBookmarkFolder: (title) => ipcRenderer.invoke('bookmarks:newFolder', title),
   moveBookmark: (id, parentId) => ipcRenderer.send('bookmarks:move', id, parentId),
   browseHistory: (query, offset, limit) => ipcRenderer.invoke('history:browse', query, offset, limit),
-  widgetsList: () => ipcRenderer.invoke('widgets:list'),
-  widgetsRefresh: () => ipcRenderer.send('widgets:refresh'),
-  widgetsRemove: (id) => ipcRenderer.send('widgets:remove', id),
-  widgetsSeen: (id) => ipcRenderer.send('widgets:seen', id),
-  widgetsCreate: (url, title, favicon) => ipcRenderer.send('widgets:create', url, title, favicon),
-  widgetsRetry: (id) => ipcRenderer.send('widgets:retry', id),
-  widgetsAsk: (peticion) => ipcRenderer.send('widgets:ask', peticion),
-  onWidgets: (cb) => {
-    const h = (_e: unknown, lista: WidgetInfo[]): void => cb(lista)
-    ipcRenderer.on('widgets:changed', h)
-    return () => { ipcRenderer.removeListener('widgets:changed', h) }
-  },
   memoryList: () => ipcRenderer.invoke('memory:list'),
   memoryRead: (path) => ipcRenderer.invoke('memory:read', path),
   memoryWrite: (path, contenido) => ipcRenderer.invoke('memory:write', path, contenido),
@@ -139,7 +147,7 @@ const api: MonperTabApi = {
   removeQuickAction: (id) => ipcRenderer.invoke('quickactions:remove', id)
 }
 
-contextBridge.exposeInMainWorld('monperTab', api)
+contextBridge.exposeInMainWorld('titanioTab', api)
 
 // Avisa al chrome cuando se interactúa con la página, para cerrar overlays (menú de perfil).
 window.addEventListener('pointerdown', () => ipcRenderer.send('tab:pointerdown'), true)
@@ -147,7 +155,7 @@ window.addEventListener('pointerdown', () => ipcRenderer.send('tab:pointerdown')
 // Cada módulo se aísla: si uno falla en algún sitio raro, los demás siguen vivos.
 // (Antes, un throw en el primero dejaba sin ejecutar todos los siguientes.)
 function safeSetup(name: string, fn: () => void): void {
-  try { fn() } catch (e) { console.warn(`[monper] fallo al iniciar ${name}:`, e) }
+  try { fn() } catch (e) { console.warn(`[titanio] fallo al iniciar ${name}:`, e) }
 }
 
 // El primero: si la página lee la identidad antes de que la alineemos, ya la vio mal.
@@ -156,4 +164,4 @@ safeSetup('pip', setupPipSource)                // picture-in-picture propio (ve
 safeSetup('selection', setupSelectionUI)      // acciones rápidas sobre texto seleccionado
 safeSetup('passwordCapture', setupPasswordCapture) // ofrecer guardar credenciales
 safeSetup('topColor', setupTopColor)          // color bajo el topbar al hacer scroll
-safeSetup('storeInstall', setupStoreInstall)  // botón "Install to Monper" en la Store
+safeSetup('storeInstall', setupStoreInstall)  // botón "Install to Titanio" en la Store

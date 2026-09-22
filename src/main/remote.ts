@@ -6,7 +6,7 @@ import { readJson, writeJson } from './jsonfile'
 
 /**
  * Control remoto del navegador: deja que un proceso externo (Claude Code, un script, otro
- * agente) conduzca Monper.
+ * agente) conduzca Titanio.
  *
  * **Está apagado por defecto y tiene que encenderse a mano.** Encenderlo es una decisión con
  * consecuencias reales, así que se toman las precauciones que sí dependen de nosotros:
@@ -23,7 +23,7 @@ import { readJson, writeJson } from './jsonfile'
  *
  * No usa CDP a propósito: `--remote-debugging-port` solo puede fijarse al arrancar (no se
  * podría encender ni apagar en caliente) y da acceso total al navegador, incluidas cookies de
- * sesión. Esto expone un verbo por operación, que es justo lo que necesita `monperwright`.
+ * sesión. Esto expone un verbo por operación, que es justo lo que necesita `titaniowright`.
  */
 
 const PORT = 9223
@@ -99,7 +99,7 @@ function stop(): void {
 }
 
 /**
- * Clientes ya autorizados, **solo en memoria**: al cerrar Monper se olvidan, igual que
+ * Clientes ya autorizados, **solo en memoria**: al cerrar Titanio se olvidan, igual que
  * `enabled`. Un permiso concedido hace tres semanas no es un permiso.
  *
  * El Map guarda la promesa, no el booleano: si llegan cinco peticiones a la vez del mismo
@@ -146,7 +146,7 @@ function start(): void {
     // Quién dice ser el que llama. Se pregunta UNA vez por cliente y por sesión: ver
     // `confirmClient`. El nombre lo declara el propio cliente y por tanto no es una garantía
     // —el token es la credencial—, pero sí hace visible que algo empezó a conducir.
-    const cliente = String(req.headers['x-monper-client'] || 'un proceso sin identificar')
+    const cliente = String(req.headers['x-titanio-client'] || 'un proceso sin identificar')
     if (!(await autorizado(cliente))) { json(res, 403, { error: 'el usuario no autorizó a este cliente' }); return }
 
     const chunks: Buffer[] = []
@@ -178,7 +178,7 @@ function start(): void {
   server.listen(PORT, '127.0.0.1', () => console.log(`[remote] escuchando en 127.0.0.1:${PORT}`))
 }
 
-/** Los verbos: los mismos que necesita el Transport de monperwright, ni uno más. */
+/** Los verbos: los mismos que necesita el Transport de titaniowright, ni uno más. */
 async function run(cmd: { action?: string; [k: string]: unknown }): Promise<unknown> {
   if (!deps) throw new Error('el control remoto no está inicializado')
   const n = (v: unknown): number => Number(v ?? 0)

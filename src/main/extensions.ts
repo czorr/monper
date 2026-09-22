@@ -1,3 +1,4 @@
+import { t as tr } from '../shared/i18n'
 import { join, basename } from 'path'
 import { readFileSync, existsSync, rmSync } from 'fs'
 import { readJson, writeJson } from './jsonfile'
@@ -92,9 +93,9 @@ export function listExtensions(): ExtensionInfo[] {
 
 /** Instala (y activa) una extensión desempaquetada desde una carpeta. */
 export async function addExtension(path: string): Promise<{ ok: boolean; error?: string }> {
-  if (!ses) return { ok: false, error: 'Sesión no lista.' }
-  if (!readManifest(path)) return { ok: false, error: 'Esa carpeta no tiene un manifest.json válido.' }
-  if (items.some((e) => e.path === path)) return { ok: false, error: 'Esa extensión ya está instalada.' }
+  if (!ses) return { ok: false, error: tr("Sesión no lista.") }
+  if (!readManifest(path)) return { ok: false, error: tr("Esa carpeta no tiene un manifest.json válido.") }
+  if (items.some((e) => e.path === path)) return { ok: false, error: tr("Esa extensión ya está instalada.") }
   try {
     const ext = await ses.extensions.loadExtension(path, { allowFileAccess: true })
     items.push({ path, enabled: true })
@@ -171,7 +172,7 @@ export function extensionUi(path: string): { id: string; popup: string | null; o
 /** Instala desde la Chrome Web Store a partir de una URL o un id. */
 export async function installFromStore(urlOrId: string): Promise<{ ok: boolean; error?: string; name?: string }> {
   const id = extensionIdFrom(urlOrId)
-  if (!id) return { ok: false, error: 'No reconocí la extensión en esa página.' }
+  if (!id) return { ok: false, error: tr("No reconocí la extensión en esa página.") }
   const dest = join(storeDir(), id)
   try {
     await installCrx(id, dest, process.versions.chrome)

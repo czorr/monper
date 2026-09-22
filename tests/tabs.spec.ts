@@ -5,7 +5,7 @@ let h: Harness
 let site: { url: string; close: () => Promise<void> }
 
 test.beforeAll(async () => {
-  site = await serve({ '/': html('Hola Monper'), '/otra': html('Otra página') })
+  site = await serve({ '/': html('Hola Titanio'), '/otra': html('Otra página') })
   h = await launch()
 })
 test.afterAll(async () => { await h?.close(); await site?.close() })
@@ -21,9 +21,9 @@ test('navega y refleja el título de la página en el estado', async () => {
   await api(h.win, 'newTab')
   await api(h.win, 'go', site.url + '/')
   const s = await waitForState(h.win, (s) =>
-    s.tabs.some((t) => t.title === 'Hola Monper')
+    s.tabs.some((t) => t.title === 'Hola Titanio')
   )
-  expect(s.tabs.find((t) => t.id === s.activeId)?.title).toBe('Hola Monper')
+  expect(s.tabs.find((t) => t.id === s.activeId)?.title).toBe('Hola Titanio')
 })
 
 test('cambia de pestaña con selectTab', async () => {
@@ -75,7 +75,7 @@ test('silencia y desilencia una pestaña', async () => {
 
 test('una URL que no resuelve muestra la página de error, no una pantalla en blanco', async () => {
   await api(h.win, 'newTab')
-  await api(h.win, 'go', 'https://dominio-que-no-existe.monper-test')
+  await api(h.win, 'go', 'https://dominio-que-no-existe.titanio-test')
   // La URL de la pestaña conserva lo que pidió el usuario (para que la omnibox lo muestre),
   // así que la señal de que se pintó la página de error es el título.
   const s = await waitForState(
@@ -92,7 +92,7 @@ test('el efecto de pulsación no impide cerrar una pestaña', async () => {
   // puntero y el click no llegaba a dispararse: parecía que cerrar no funcionaba.
   await api(h.win, 'newTab')
   await api(h.win, 'go', site.url + '/')
-  await waitForState(h.win, (s) => s.tabs.some((t) => t.title === 'Hola Monper'))
+  await waitForState(h.win, (s) => s.tabs.some((t) => t.title === 'Hola Titanio'))
   const antes = (await waitForState(h.win, () => true)).tabs.length
 
   const fila = h.win.locator('.group\\/tab').first()
@@ -128,7 +128,7 @@ test('quitar el marcador devuelve la pestaña a Tabs, no la deja invisible', asy
    */
   const id = await api<number>(h.win, 'newTab')
   await api(h.win, 'go', site.url + '/')
-  await waitForState(h.win, (s) => s.tabs.find((t) => t.id === id)?.title === 'Hola Monper')
+  await waitForState(h.win, (s) => s.tabs.find((t) => t.id === id)?.title === 'Hola Titanio')
   await api(h.win, 'toggleBookmark')
   const s1 = await waitForState(h.win, (st) => !!st.tabs.find((t) => t.id === id)?.bookmarkId)
   const bmId = s1.tabs.find((t) => t.id === id)!.bookmarkId!
@@ -140,7 +140,7 @@ test('quitar el marcador devuelve la pestaña a Tabs, no la deja invisible', asy
   await h.app.evaluate(async ({ webContents }, b) => {
     const wc = webContents.getAllWebContents().find((w) => w.getURL().includes('settings'))
     if (!wc) throw new Error('no hay página interna desde la que borrar')
-    return wc.executeJavaScript(`window.monperTab.removeBookmark(${JSON.stringify(b)})`)
+    return wc.executeJavaScript(`window.titanioTab.removeBookmark(${JSON.stringify(b)})`)
   }, bmId)
 
   const s2 = await waitForState(h.win, (st) => !st.tabs.find((t) => t.id === id)?.bookmarkId)

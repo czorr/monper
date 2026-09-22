@@ -1,3 +1,4 @@
+import { t as tr } from '../shared/i18n'
 import { join, dirname } from 'path'
 import { mkdirSync, writeFileSync, rmSync } from 'fs'
 import { inflateRawSync } from 'zlib'
@@ -33,13 +34,13 @@ function download(url: string, timeoutMs = 90_000): Promise<Buffer> {
     }
     const timer = setTimeout(() => {
       try { req.abort() } catch { /* la petición ya terminó */ }
-      done(() => reject(new Error(`La descarga se quedó estancada (${Math.round(bytes / 1024)} KB en ${timeoutMs / 1000}s)`)))
+      done(() => reject(new Error(tr("La descarga se quedó estancada ({0} KB en {1}s)", Math.round(bytes / 1024), timeoutMs / 1000))))
     }, timeoutMs)
 
     req.on('response', (res) => {
       console.log('[ext] respuesta HTTP', res.statusCode, '· tamaño:', res.headers['content-length'] ?? '?')
       if (res.statusCode >= 400) {
-        done(() => reject(new Error(`HTTP ${res.statusCode} al descargar la extensión`)))
+        done(() => reject(new Error(tr("HTTP {0} al descargar la extensión", res.statusCode))))
         return
       }
       res.on('data', (c) => { bytes += c.length; chunks.push(Buffer.from(c)) })
@@ -51,7 +52,7 @@ function download(url: string, timeoutMs = 90_000): Promise<Buffer> {
       req.followRedirect() // con listener de 'redirect' hay que continuar a mano
     })
     req.on('error', (e) => done(() => reject(e)))
-    req.on('abort', () => done(() => reject(new Error('descarga abortada'))))
+    req.on('abort', () => done(() => reject(new Error(tr('descarga abortada')))))
     req.end()
   })
 }
@@ -72,7 +73,7 @@ function unzip(zip: Buffer, dest: string): void {
   for (let i = zip.length - 22; i >= 0 && i > zip.length - 66000; i--) {
     if (zip.readUInt32LE(i) === 0x06054b50) { eocd = i; break }
   }
-  if (eocd < 0) throw new Error('El archivo de la extensión no es un ZIP válido.')
+  if (eocd < 0) throw new Error(tr("El archivo de la extensión no es un ZIP válido."))
   const count = zip.readUInt16LE(eocd + 10)
   let p = zip.readUInt32LE(eocd + 16) // offset del directorio central
   console.log('[ext] descomprimiendo', count, 'entradas…')
@@ -114,7 +115,7 @@ export async function installCrx(extensionId: string, dest: string, chromeVersio
     `?response=redirect&acceptformat=crx2,crx3&prodversion=${encodeURIComponent(chromeVersion)}` +
     `&x=${encodeURIComponent(`id=${extensionId}&uc`)}`
   const crx = await download(url)
-  if (crx.length < 100) throw new Error('La descarga vino vacía (¿id incorrecto?).')
+  if (crx.length < 100) throw new Error(tr("La descarga vino vacía (¿id incorrecto?)."))
   rmSync(dest, { recursive: true, force: true })
   mkdirSync(dest, { recursive: true })
   try {

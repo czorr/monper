@@ -33,6 +33,12 @@ export function hostOf(url: string): string {
 export function initFavicons(): void {
   file = rutaDePerfil('favicons.json')
   byHost = readJson<Record<string, string>>(file, {}, 'los favicons')
+  // Una versión anterior copiaba el icono del proveedor de login al slot fijo de Titanio.
+  const titanio = byHost['app.titanio.ai']
+  if (titanio && Object.entries(byHost).some(([host, icon]) =>
+    (host === 'google.com' || host.endsWith('.google.com')) && icon === titanio)) {
+    delete byHost['app.titanio.ai']
+  }
 }
 
 /** Se llama en cada `page-favicon-updated`: muy seguido, así que la escritura va agrupada. */
@@ -67,6 +73,49 @@ const intentados = new Set<string>()
  * un favicon no debería pesar esto, y `favicons.json` se lee entero en cada arranque.
  */
 const MAX_ICONO = 96 * 1024
+
+const imagenesPorSesion = new WeakMap<Electron.Session, Map<string, Promise<string | null>>>()
+
+/** Conserva los bytes del icono visitado usando la misma sesión que la página. */
+export async function cacheVisitedFavicon(icon: string, ses: Electron.Session): Promise<string | null> {
+  if (icon.startsWith('data:image/')) return icon
+  if (!/^https?:\/\//i.test(icon)) return null
+  // La URL del icono, no solo el host, identifica la imagen: una caché antigua puede
+  // contener el favicon de una redirección. La primera visita de la sesión lo revalida.
+  let imagenes = imagenesPorSesion.get(ses)
+  if (!imagenes) { imagenes = new Map(); imagenesPorSesion.set(ses, imagenes) }
+  const pending = imagenes.get(icon)
+  if (pending) return pending
+  const request = (async (): Promise<string | null> => {
+    const ctrl = new AbortController()
+    const timer = setTimeout(() => ctrl.abort(), 4000)
+    try {
+      const response = await ses.fetch(icon, { signal: ctrl.signal })
+      const tipo = response.headers.get('content-type')?.split(';')[0] ?? ''
+      if (!response.ok || !tipo.startsWith('image/') || !response.body) return null
+      const reader = response.body.getReader()
+      const chunks: Uint8Array[] = []
+      let size = 0
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        size += value.length
+        if (size > MAX_ICONO) { await reader.cancel(); return null }
+        chunks.push(value)
+      }
+      return size ? `data:${tipo};base64,${Buffer.concat(chunks).toString('base64')}` : null
+    } catch {
+      // La pestaña conserva la URL original y la UI muestra su fallback si tampoco carga.
+      return null
+    } finally { clearTimeout(timer) }
+  })()
+  imagenes.set(icon, request)
+  const data = await request
+  if (!data) imagenes.delete(icon)
+  // Conserva las descargas correctas durante la sesión, con un límite de memoria.
+  while (imagenes.size > 256) imagenes.delete(imagenes.keys().next().value!)
+  return data
+}
 
 /**
  * Descarga el icono y lo convierte en `data:`.

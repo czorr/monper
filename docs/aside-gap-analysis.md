@@ -1,4 +1,4 @@
-# Monper vs. Aside — Análisis de brechas
+# Titanio vs. Aside — Análisis de brechas
 
 Comparativa entre nuestra arquitectura actual y la que describe Aside en
 *"How we built the SOTA browser agent that outperforms Fable"*, con foco en lo
@@ -10,7 +10,7 @@ Fuente: https://aside.com/blog/how-we-built-the-sota-browser-agent-that-outperfo
 
 ## 1. Diferencia de filosofía (la más importante)
 
-| | **Aside** | **Monper (hoy)** |
+| | **Aside** | **Titanio (hoy)** |
 |---|---|---|
 | Paradigma | **Coding agent**: el modelo *escribe código* (Playwright JS) en un **REPL** | **Tool-calling clásico**: el modelo llama tools discretas (`click(ref)`, `type`, …) |
 | Interfaz principal | Un REPL de JavaScript ejecutando Playwright | ~20 tools Zod en Mastra (`buildTools` en [mastra.ts](../src/main/agent/mastra.ts)) |
@@ -25,7 +25,7 @@ Fuente: https://aside.com/blog/how-we-built-the-sota-browser-agent-that-outperfo
 
 ## 2. Tabla de capacidades
 
-| Capacidad | Aside | Monper | Nota |
+| Capacidad | Aside | Titanio | Nota |
 |---|:---:|:---:|---|
 | REPL / ejecución de código | ✅ | ❌ | **Brecha #1** — el usuario la señaló |
 | `bash` / sandbox | ✅ | ❌ | Entorno de ejecución aislado |
@@ -59,7 +59,7 @@ persistente; el estado (variables, handles) sobrevive entre pasos.
 
 **Qué tenemos:** tools atómicas. Cada capacidad nueva exige código nuestro.
 
-**Cómo cerrarlo en Monper:**
+**Cómo cerrarlo en Titanio:**
 - Añadir una tool `run_js({ code })` que ejecute en la pestaña activa vía
   `wc.executeJavaScript(code, true)` y devuelva el valor serializado (ya usamos
   ese mecanismo en [page.ts](../src/main/agent/page.ts) para todo).
@@ -68,7 +68,7 @@ persistente; el estado (variables, handles) sobrevive entre pasos.
   `page.waitFor`, `page.fetch`) — nuestra propia mini-"Asidewright" sobre
   `executeJavaScript`/`sendInputEvent`. No necesitamos Playwright real; basta un
   API con la *misma forma* para aprovechar el conocimiento del modelo.
-- Persistir variables entre llamadas guardando un scope (p. ej. `globalThis.__monper`)
+- Persistir variables entre llamadas guardando un scope (p. ej. `globalThis.__titanio`)
   en la página, o manteniendo un string de "preámbulo" acumulado.
 - Riesgo/seguridad: es ejecución arbitraria en la página del usuario. Mantener
   el gate de acciones sensibles del system prompt y considerar allow-list.
@@ -158,12 +158,12 @@ sin volar a ciegas.
 
 ## 4. Ruta priorizada — estado
 
-1. ✅ **REPL `run_js` + librería `monperwright`** (paquete publicable en `packages/monperwright`, API tipo Playwright sobre transport intercambiable; adaptador Electron). Tool `run_js` con `page`/`state`/`log`.
-2. ✅ **Snapshot de accesibilidad podado** con role/name/estado/refs (`page.snapshot()` en monperwright).
+1. ✅ **REPL `run_js` + librería `titaniowright`** (paquete publicable en `packages/titaniowright`, API tipo Playwright sobre transport intercambiable; adaptador Electron). Tool `run_js` con `page`/`state`/`log`.
+2. ✅ **Snapshot de accesibilidad podado** con role/name/estado/refs (`page.snapshot()` en titaniowright).
 3. ✅ **Captura de red + replay** (`page.resourceRequests`, `installNetworkCapture`/`capturedRequests`, `page.fetch` desde el contexto de la página → API interna con cookies del sitio).
 4. ✅ **Compaction** de historial (`compactHistory` en `runMastra`).
 5. ✅ **Señales asíncronas → steering** (popups/descargas → `[EVENTOS DEL NAVEGADOR]` adjunto a las observaciones).
-6. 🟡 **Agent tabs** — hecho: sección "Agent tabs" en el sidebar (tabs propias del agente), leyenda inferior "Monper is controlling this tab" + botón **Take over** (aborta el agente) mientras controla la pestaña activa (franja reservada en la vista nativa). Pendiente: render **offscreen 1440×900** de verdad para que no roben foco al usuario.
+6. 🟡 **Agent tabs** — hecho: sección "Agent tabs" en el sidebar (tabs propias del agente), leyenda inferior "Titanio is controlling this tab" + botón **Take over** (aborta el agente) mientras controla la pestaña activa (franja reservada en la vista nativa). Pendiente: render **offscreen 1440×900** de verdad para que no roben foco al usuario.
 7. ⬜ **Harness de eval** para medir todo lo anterior. — pendiente
 8. ⬜ **Recorte del system prompt** una vez el REPL absorba las tools. — pendiente
 

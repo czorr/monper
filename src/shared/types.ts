@@ -1,6 +1,8 @@
 import type { VaultItemMeta, VaultItemType } from './vault'
+import { t } from './i18n'
 
 export interface TabInfo {
+  pinnedTitanio?: boolean
   id: number
   url: string
   title: string
@@ -12,7 +14,7 @@ export interface TabInfo {
   muted: boolean
   /** true mientras la pestaña reproduce audio */
   audible: boolean
-  /** true si la pestaña es del agente (creada/controlada por Monper) */
+  /** true si la pestaña es del agente (creada/controlada por Titanio) */
   agent: boolean
   /** id del bookmark al que está ligada esta pestaña (se muestra en su slot de bookmarks) */
   bookmarkId: string | null
@@ -60,6 +62,8 @@ export interface Bookmark {
 
 /** Perfil del usuario (editable en Settings → Account) */
 export interface Profile {
+  color?: string
+  icon?: import('./profiles').ProfileIcon
   name: string
   initials: string
   /** Foto de avatar como data URL, o null */
@@ -149,6 +153,25 @@ export interface ResumenUso {
 export interface ProviderInfo extends AIProvider {
   hasKey: boolean
   active: boolean
+  models?: ModelOption[]
+  keySource?: 'vault' | 'env' | 'none'
+  envVar?: string
+}
+
+export interface ProviderInput {
+  id?: string
+  label: string
+  kind: ProviderKind
+  baseUrl?: string
+  models?: ModelOption[]
+  envVar?: string
+}
+
+export interface ProviderSettings {
+  providers: ProviderInfo[]
+  path: string
+  revision: string
+  error?: string
 }
 
 export interface ModelOption {
@@ -160,6 +183,7 @@ export interface ModelOption {
    */
   providerId?: string
   providerKind?: ProviderKind
+  provider?: AIProvider
 }
 
 /**
@@ -190,14 +214,14 @@ export const MODELS: Record<ProviderKind, ModelOption[]> = {
 
 export type Effort = 'low' | 'medium' | 'high'
 export const EFFORTS: { id: Effort; name: string }[] = [
-  { id: 'low', name: 'Low' },
-  { id: 'medium', name: 'Medium' },
-  { id: 'high', name: 'High' }
+  { id: 'low', get name() { return t('Low') } },
+  { id: 'medium', get name() { return t('Medium') } },
+  { id: 'high', get name() { return t('High') } }
 ]
 
 /** Contexto del chat que ve el composer: proveedor activo, modelos, modelo y effort */
 export interface ChatContext {
-  provider: { id: string; label: string; kind: ProviderKind } | null
+  provider: AIProvider | null
   /** TODOS los modelos de TODOS los proveedores conectados, no solo los del activo. */
   models: ModelOption[]
   model: string
@@ -252,6 +276,13 @@ export interface StoredChatMsg {
 export type StoredPart =
   | { type: 'text'; text: string; error?: boolean }
   | { type: 'step'; step: Omit<ChatStep, 'image'>; hadImage?: boolean }
+  | { type: 'fail'; fail: ChatFallo }
+
+/** Historial enviado por el panel, antes de retirar las imágenes para persistirlo. */
+export interface IncomingChatMsg extends Omit<StoredChatMsg, 'attachments' | 'parts'> {
+  attachments?: ChatAttachment[]
+  parts?: (Exclude<StoredPart, { type: 'step' }> | { type: 'step'; step: ChatStep })[]
+}
 
 /** Tipo de acción de un paso, para elegir su icono en el chat */
 export type StepKind =
@@ -261,7 +292,7 @@ export type StepKind =
 
 /** Un paso del agente (acción con herramienta) mostrado en el chat */
 export interface ChatStep {
-  state: string // orb state: working | searching | listening | composing | solving | shaping
+  state: string // working | searching | listening | composing | solving | shaping
   label: string
   /** Acción que representa el paso (define el icono cuando está completado) */
   kind?: StepKind
@@ -294,6 +325,8 @@ export interface Suggestion {
 }
 
 export interface BrowserState {
+  tint?: string | null
+  titanioFavicon?: string | null
   activeId: number | null
   tabs: TabInfo[]
   active: ActiveInfo | null
@@ -305,6 +338,7 @@ export interface BrowserState {
 
 // ---- Skills del agente ----
 export interface SkillMeta {
+  customized?: boolean
   id: string
   name: string
   description: string
@@ -334,6 +368,8 @@ export interface SkillMeta {
   available: boolean
 }
 export interface SkillDetail extends SkillMeta {
+  /** SKILL.md completo, incluido el frontmatter, para el editor. */
+  source?: string
   /** Cuerpo Markdown del SKILL.md (instrucciones para el agente) */
   body: string
 }
@@ -347,25 +383,6 @@ export interface NodoMemoriaInfo {
   bytes: number
   at: number
   hijos?: NodoMemoriaInfo[]
-}
-
-/** Un widget del new tab, listo para pintar. Ver src/main/widgets.ts. */
-export interface WidgetInfo {
-  id: string
-  peticion?: string
-  url: string
-  title: string
-  favicon: string | null
-  datos:
-    | { tipo: 'metrica'; valor: string; etiqueta?: string; delta?: { texto: string; signo: 'sube' | 'baja' | 'neutro' }; serie?: number[]; forma?: 'linea' | 'barras' }
-    | { tipo: 'progreso'; porcentaje: number; valor?: string; etiqueta?: string }
-    | { tipo: 'lista'; items: { texto: string; meta?: string; url?: string }[] }
-    | null
-  updatedAt: number
-  changed: boolean
-  fallos: number
-  creando?: boolean
-  error?: string
 }
 
 export interface HistoryEntryInfo {
@@ -447,7 +464,7 @@ export interface SubmenuWinApi {
 /** Lo que ve el menú de perfil: el perfil activo, ya renderizable, y la lista para elegir. */
 export interface DatosMenuPerfil {
   perfil: Profile
-  perfiles: { id: string; nombre: string; avatar: string | null; activo: boolean }[]
+  perfiles: { id: string; nombre: string; avatar: string | null; activo: boolean; preferences?: import('./profiles').ProfilePreferences }[]
 }
 
 export interface ProfileMenuWinApi {
@@ -556,9 +573,10 @@ export type MenuActionName =
   | 'extensions' | 'history' | 'developers' | 'settings'
   | 'new-tab' | 'incognito'
 
-export interface MonperApi {
+export interface TitanioApi {
   platform: NodeJS.Platform
   newTab: () => void
+  openTitanioTab: () => void
   closeTab: (id: number) => void
   selectTab: (id: number) => void
   reorderTabs: (ids: number[]) => void
@@ -588,6 +606,7 @@ export interface MonperApi {
   permAnchor: (anchor: MenuAnchor) => void
   /** Abre el menú de perfil (ventana nativa), anclado al account pill */
   openProfileMenu: (anchor: MenuAnchor) => void
+  warmProfileMenu: () => void
   // ---- Peek del sidebar (hover del botón expandir con sidebar colapsado) ----
   peekShow: (anchor: MenuAnchor) => void
   peekMaybeHide: () => void
@@ -635,9 +654,9 @@ export interface MonperApi {
   getChatContext: () => Promise<ChatContext>
   /** Se dispara cuando cambian proveedores (para refrescar el composer) */
   onChatContext: (cb: (ctx: ChatContext) => void) => () => void
-  setModel: (modelId: string) => void
+  setModel: (modelId: string, providerId?: string) => void
   setEffort: (effort: Effort) => void
-  chatSend: (messages: ChatMessage[]) => void
+  chatSend: (messages: ChatMessage[]) => Promise<void>
   chatCancel: () => void
   takeOver: () => void
   onChatToken: (cb: (text: string) => void) => () => void
@@ -659,7 +678,7 @@ export interface MonperApi {
   /** Antes de enviar: puede devolver otra id si la actual expiró por inactividad. */
   chatsForNext: (id: string) => Promise<{ id: string; fresh: boolean }>
   /** Persiste la conversación completa (el panel es la fuente de verdad en vivo). */
-  chatsSave: (id: string, messages: unknown[]) => void
+  chatsSave: (id: string, messages: IncomingChatMsg[]) => Promise<void>
   chatsRemove: (id: string) => void
   // ---- Vault (ventana nativa flotante) ----
   openVault: (anchor: MenuAnchor) => void
@@ -730,13 +749,13 @@ export interface QuickAction {
 
 /** Iconos de tabler soportados para las acciones rápidas (deben existir en el mapa inyectado). */
 export const QUICK_ICONS = [
-  'list', 'language', 'sparkles', 'wand', 'message', 'pencil',
+  'list', 'language', 'wand', 'message', 'pencil',
   'bulb', 'world', 'quote', 'code', 'mail', 'search'
 ] as const
 
 /**
  * API extra de la ventana del "peek" del sidebar. Además de esto, la ventana expone
- * `window.monper` completo (mismo preload que el chrome) para poder reusar <Sidebar/>.
+ * `window.titanio` completo (mismo preload que el chrome) para poder reusar <Sidebar/>.
  */
 export interface PeekWinApi {
   /** El main avisa antes de esconder la ventana, para poder animar la salida. */
@@ -762,7 +781,7 @@ export interface Routine {
   request: string
   intervalMinutes: number
   /**
-   * Snippet del REPL generado UNA vez por el modelo (con `page` de monperwright).
+   * Snippet del REPL generado UNA vez por el modelo (con `page` de titaniowright).
    * Puede esperar contenido diferido o leer la API interna del sitio, no solo el DOM.
    */
   extractor: string
@@ -790,7 +809,7 @@ export interface UpdateState {
 
 /** Estado "sin novedades", para inicializar en el main y en los renderers sin duplicar. */
 /**
- * Páginas propias de Monper (no son sitios web). El main las sirve como `file://` en
+ * Páginas propias de Titanio (no son sitios web). El main las sirve como `file://` en
  * producción y como `http://localhost:PORT` en desarrollo, así que se reconocen por el
  * nombre del fichero y no por el origen.
  *
@@ -814,6 +833,7 @@ export const NO_UPDATE: UpdateState = {
 /** Ajustes de apariencia: nivel de transparencia del chrome. */
 export interface AppearanceData {
   vibrancy: string
+  tint: string | null
   options: { id: string; label: string; desc: string }[]
 }
 
@@ -901,7 +921,7 @@ export interface VaultWinApi {
 }
 
 /** API expuesta a las páginas internas de contenido (new-tab page) */
-export interface MonperTabApi {
+export interface TitanioTabApi {
   navigate: (url: string) => void
   // ---- Descargas (página interna de downloads) ----
   listDownloads: () => Promise<DownloadEntry[]>
@@ -912,6 +932,8 @@ export interface MonperTabApi {
   clearDownloads: () => void
   // ---- Apariencia (Settings) ----
   getAppearance: () => Promise<AppearanceData>
+  onAppearance: (cb: (data: AppearanceData) => void) => () => void
+  setTint: (color: string | null) => Promise<string | null>
   setVibrancy: (id: string) => void
   // ---- Permisos de sitios (Settings → Permissions) ----
   /**
@@ -930,16 +952,6 @@ export interface MonperTabApi {
   moveBookmark: (id: string, parentId: string | null) => void
   // ---- Historial ----
   browseHistory: (query: string, offset: number, limit: number) => Promise<{ entries: HistoryEntryInfo[]; total: number }>
-  // ---- Widgets del new tab ----
-  widgetsList: () => Promise<WidgetInfo[]>
-  widgetsRefresh: () => void
-  widgetsRemove: (id: string) => void
-  widgetsSeen: (id: string) => void
-  widgetsCreate: (url: string, title: string, favicon: string | null) => void
-  widgetsRetry: (id: string) => void
-  /** Pide un widget en lenguaje natural: el agente elige la fuente y escribe el extractor. */
-  widgetsAsk: (peticion: string) => void
-  onWidgets: (cb: (lista: WidgetInfo[]) => void) => () => void
   // ---- Memoria del agente (ficheros markdown que escribe él) ----
   memoryList: () => Promise<NodoMemoriaInfo[]>
   memoryRead: (path: string) => Promise<string | null>
@@ -994,6 +1006,11 @@ export interface MonperTabApi {
   // ---- Gestión de proveedores de IA (para la página de Settings) ----
   listProviders: () => Promise<ProviderInfo[]>
   addProvider: (input: { label: string; kind: ProviderKind; baseUrl?: string }, apiKey: string) => Promise<ProviderInfo[]>
+  providerSettings: () => Promise<ProviderSettings>
+  saveProvider: (input: ProviderInput, apiKey: string, revision: string) => Promise<ProviderSettings>
+  deleteProvider: (id: string, revision: string) => Promise<ProviderSettings>
+  openProviderConfig: () => Promise<void>
+  discoverProvider: (id: string) => Promise<ModelOption[]>
   removeProvider: (id: string) => Promise<ProviderInfo[]>
   setActiveProvider: (id: string) => Promise<ProviderInfo[]>
   /** Relee el catálogo de modelos del proveedor activo (se lo pregunta a su API). */
@@ -1047,18 +1064,26 @@ export interface MonperTabApi {
   /** `resolve: true` busca los favicons que falten antes de contestar (puede tardar). */
   skillsList: (resolve?: boolean) => Promise<SkillMeta[]>
   skillsGet: (id: string) => Promise<SkillDetail | null>
+  skillsSave: (id: string, source: string, expectedSource: string) => Promise<SkillDetail>
+  skillsOpenFolder: (id: string) => Promise<void>
   skillsToggle: (id: string, enabled: boolean) => Promise<SkillMeta[]>
   openSkillsFolder: () => void
   // ---- Perfil (gestión desde Settings → Account) ----
   getProfile: () => Promise<Profile>
   setProfile: (name: string) => Promise<Profile>
   setAvatar: (dataUrl: string | null) => Promise<Profile>
+  profilesSettings: () => Promise<import('./profiles').ProfileSettings>
+  profileModels: () => Promise<ModelOption[]>
+  saveBrowserProfile: (profile: import('./profiles').BrowserProfile) => Promise<import('./profiles').ProfileSettings>
+  createBrowserProfile: (name: string) => Promise<import('./profiles').ProfileSettings & { createdId: string }>
+  deleteBrowserProfile: (id: string) => Promise<import('./profiles').ProfileSettings>
+  switchBrowserProfile: (id: string) => Promise<void>
 }
 
 declare global {
   interface Window {
-    monper: MonperApi
-    monperTab: MonperTabApi
+    titanio: TitanioApi
+    titanioTab: TitanioTabApi
     vaultwin: VaultWinApi
     omniwin: OmniWinApi
     siteinfo: SiteInfoWinApi

@@ -57,7 +57,7 @@ haberse escrito igual.
 
 ## Es del perfil
 
-`rutaDePerfil('memory')`: lo que Monper sabe de ti en "Trabajo" no es lo de "Personal". Ver
+`rutaDePerfil('memory')`: lo que Titanio sabe de ti en "Trabajo" no es lo de "Personal". Ver
 [incognito-y-perfiles.md](incognito-y-perfiles.md).
 
 ## Pendiente

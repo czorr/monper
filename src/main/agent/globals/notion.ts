@@ -1,4 +1,4 @@
-import type { Page } from '../../../../packages/monperwright/src'
+import type { Page } from '../../../../packages/titaniowright/src'
 
 // Cliente MÍNIMO read-only sobre la API interna de Notion (/api/v3), best-effort.
 // Requiere sesión iniciada; navegamos el tab a notion.so para que el fetch sea same-origin

@@ -106,9 +106,9 @@ export default function UrlBar({ active, editRequest, onGo }: Props): JSX.Elemen
               const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
               titanio.openSiteInfo({ x: r.left, y: r.top, width: r.width, height: r.height })
             }}
-            className="flex items-center gap-1.5 shrink-0 h-[30px] pl-2 pr-3 rounded-full text-[13px] font-medium text-text bg-bg-elev hover:bg-bg-hover transition-colors whitespace-nowrap tracking-[-0.08px]"
+            className={`flex items-center justify-center gap-1.5 shrink-0 h-[30px] ${interna ? 'px-3' : 'pl-2 pr-3'} rounded-full text-[13px] font-medium text-text bg-bg-elev hover:bg-bg-hover transition-colors whitespace-nowrap tracking-[-0.08px]`}
           >
-            {interna ? <TitanioLogo height={13} /> : <span className="pl-1">{domain}</span>}
+            {interna ? <TitanioLogo height={12} /> : <span className="pl-1">{domain}</span>}
           </button>
           {/* Título → abre el input */}
           <button

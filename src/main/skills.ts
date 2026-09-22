@@ -1,5 +1,6 @@
-import { join } from 'path'
-import { readFileSync, existsSync, mkdirSync, readdirSync, statSync } from 'fs'
+import { join, dirname, basename, relative, isAbsolute } from 'path'
+import { readFileSync, existsSync, mkdirSync, readdirSync, statSync, writeFileSync, renameSync, unlinkSync, realpathSync } from 'fs'
+import { randomUUID } from 'crypto'
 import { readJson, writeJson } from './jsonfile'
 import { app } from 'electron'
 import { faviconFor, resolveFavicon } from './favicons'
@@ -52,7 +53,10 @@ function parseFrontmatter(md: string): { data: Record<string, unknown>; body: st
 interface Loaded extends SkillDetail { file: string }
 
 function readSkill(dir: string, id: string, builtin: boolean): Loaded | null {
-  const file = join(dir, id, 'SKILL.md')
+  const original = join(dir, id, 'SKILL.md')
+  const local = join(userDir(), id, 'SKILL.md')
+  const customized = builtin && existsSync(original) && existsSync(local)
+  const file = customized ? local : original
   if (!existsSync(file)) return null
   let raw = ''
   try { raw = readFileSync(file, 'utf-8') } catch { return null }
@@ -61,7 +65,7 @@ function readSkill(dir: string, id: string, builtin: boolean): Loaded | null {
   let updated = ''
   try { updated = statSync(file).mtime.toISOString().slice(0, 10) } catch { /* sin fecha: se queda vacía */ }
   return {
-    id, builtin, file,
+    id, builtin, file, customized,
     name: (data.name as string) || id,
     description: (data.description as string) || '',
     keywords: Array.isArray(kw) ? (kw as string[]) : typeof kw === 'string' && kw ? [kw] : [],
@@ -97,6 +101,7 @@ function toMeta(s: Loaded): SkillMeta {
   return {
     id: s.id, name: s.name, description: s.description, keywords: s.keywords,
     enabled: s.enabled, builtin: s.builtin, author: s.author, updated: s.updated,
+    customized: s.customized,
     host: s.host, icon: s.icon, favicon: s.host ? faviconFor(`https://${s.host}`) : null,
     requires: s.requires, available: cubierta(s.requires)
   }
@@ -115,8 +120,50 @@ export async function resolveSkillFavicons(): Promise<void> {
 export function getSkill(id: string): SkillDetail | null {
   const s = allLoaded().find((x) => x.id === id)
   if (!s) return null
-  const { file: _f, ...detail } = s
-  return detail
+  return { ...toMeta(s), body: s.body, source: readFileSync(s.file, 'utf-8') }
+}
+
+export function skillFolder(id: string): string {
+  const skill = allLoaded().find((s) => s.id === id)
+  if (!skill) throw new Error('La skill ya no existe.')
+  return dirname(skill.file)
+}
+
+/** Las ediciones se guardan fuera de la aplicación para sobrevivir a sus actualizaciones. */
+export function saveSkill(id: string, source: string, expectedSource: string): SkillDetail {
+  if (typeof id !== 'string' || !id || id === '.' || id === '..' || basename(id) !== id || /[\\\0]/.test(id)) {
+    throw new Error('Identificador de skill no válido.')
+  }
+  if (typeof source !== 'string' || !source.trim() || Buffer.byteLength(source, 'utf8') > 1024 * 1024) {
+    throw new Error('La skill debe tener contenido y ocupar menos de 1 MB.')
+  }
+  if (/^---(?:\r?\n|$)/.test(source) && !/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/.test(source)) {
+    throw new Error('Cierra los metadatos iniciales con una línea de tres guiones (---).')
+  }
+  const parsed = parseFrontmatter(source)
+  for (const field of ['name', 'description', 'author', 'host', 'icon', 'requires']) {
+    if (parsed.data[field] !== undefined && typeof parsed.data[field] !== 'string') {
+      throw new Error(`El campo ${field} debe ser texto.`)
+    }
+  }
+  const current = getSkill(id)
+  if (!current) throw new Error('La skill ya no existe.')
+  if (typeof expectedSource !== 'string' || current.source !== expectedSource) {
+    throw new Error('La skill cambió desde que la abriste. Recarga el contenido antes de guardar.')
+  }
+  const directory = join(userDir(), id)
+  mkdirSync(directory, { recursive: true })
+  const inside = relative(realpathSync(userDir()), realpathSync(directory))
+  if (inside.startsWith('..') || isAbsolute(inside)) throw new Error('La carpeta de la skill debe estar dentro de tus skills locales.')
+  const file = join(directory, 'SKILL.md')
+  const temporary = join(directory, `.SKILL-${randomUUID()}.tmp`)
+  try {
+    writeFileSync(temporary, source, { encoding: 'utf8', flag: 'wx', mode: 0o600 })
+    renameSync(temporary, file)
+  } finally {
+    if (existsSync(temporary)) unlinkSync(temporary)
+  }
+  return getSkill(id)!
 }
 export function toggleSkill(id: string, on: boolean): SkillMeta[] {
   enabled[id] = !!on; saveEnabled()

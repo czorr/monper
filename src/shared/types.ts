@@ -308,6 +308,7 @@ export interface BrowserState {
 
 // ---- Skills del agente ----
 export interface SkillMeta {
+  customized?: boolean
   id: string
   name: string
   description: string
@@ -337,6 +338,8 @@ export interface SkillMeta {
   available: boolean
 }
 export interface SkillDetail extends SkillMeta {
+  /** SKILL.md completo, incluido el frontmatter, para el editor. */
+  source?: string
   /** Cuerpo Markdown del SKILL.md (instrucciones para el agente) */
   body: string
 }
@@ -1026,6 +1029,8 @@ export interface TitanioTabApi {
   /** `resolve: true` busca los favicons que falten antes de contestar (puede tardar). */
   skillsList: (resolve?: boolean) => Promise<SkillMeta[]>
   skillsGet: (id: string) => Promise<SkillDetail | null>
+  skillsSave: (id: string, source: string, expectedSource: string) => Promise<SkillDetail>
+  skillsOpenFolder: (id: string) => Promise<void>
   skillsToggle: (id: string, enabled: boolean) => Promise<SkillMeta[]>
   openSkillsFolder: () => void
   // ---- Perfil (gestión desde Settings → Account) ----

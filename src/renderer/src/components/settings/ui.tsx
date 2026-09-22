@@ -25,8 +25,8 @@ export function SettingsHeader({ title, description, icon, actions }: SettingsHe
 }
 
 /** El mismo margen de entrada, también en las secciones con navegación propia. */
-export function SettingsContent({ children }: { children: ReactNode }): JSX.Element {
-  return <div className="max-w-[680px] mx-auto px-8 py-12">{children}</div>
+export function SettingsContent({ children, wide = false }: { children: ReactNode; wide?: boolean }): JSX.Element {
+  return <div className={`${wide ? 'max-w-[800px]' : 'max-w-[680px]'} mx-auto px-8 py-12`}>{children}</div>
 }
 
 export function Card({ children }: { children: ReactNode }): JSX.Element {

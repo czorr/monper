@@ -25,7 +25,7 @@ import {
   initPermissions, attachPermissionHandlers, stateOf, setState, requestedKeys,
   allSites, clearOrigin, clearAllOrigins
 } from './permissions'
-import { initSkills, listSkills, getSkill, toggleSkill, enabledSkills, skillsDir, resolveSkillFavicons } from './skills'
+import { initSkills, listSkills, getSkill, saveSkill, skillFolder, toggleSkill, enabledSkills, skillsDir, resolveSkillFavicons } from './skills'
 import { initProfile, getProfile, setProfile, setAvatar } from './profile'
 import { PARTICION_NORMAL, particionDe } from './particiones'
 import { initMemoria, listarMemoria, leerMemoria, escribirMemoria, borrarMemoria, memoriaHabilitada, setMemoriaHabilitada, contextoDeMemoria, dirMemoria } from './memoria'
@@ -2483,6 +2483,17 @@ ipcMain.handle('skills:list', async (e, resolve?: boolean) => {
   return listSkills()
 })
 ipcMain.handle('skills:get', (e, id: string) => (isInternalSender(e.senderFrame?.url) ? getSkill(id) : null))
+ipcMain.handle('skills:save', (e, id: string, source: string, expectedSource: string) => {
+  if (!isInternalSender(e.senderFrame?.url)) throw new Error('No permitido.')
+  const detail = saveSkill(id, source, expectedSource)
+  notifyChatContext()
+  return detail
+})
+ipcMain.handle('skills:openItemFolder', async (e, id: string) => {
+  if (!isInternalSender(e.senderFrame?.url)) throw new Error('No permitido.')
+  const error = await shell.openPath(skillFolder(id))
+  if (error) throw new Error(error)
+})
 ipcMain.handle('skills:toggle', (e, id: string, on: boolean) => (isInternalSender(e.senderFrame?.url) ? toggleSkill(id, on) : listSkills()))
 ipcMain.on('skills:openFolder', (e) => { if (isInternalSender(e.senderFrame?.url)) shell.openPath(skillsDir()) })
 

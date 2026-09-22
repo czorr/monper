@@ -300,7 +300,7 @@ export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBo
         </div>
       )}
       <div className="shrink-0 flex items-center pt-2 [-webkit-app-region:drag]">
-        <AccountPill initials={profile.initials} name={profile.name} avatar={profile.avatar} onOpen={onOpenMenu} />
+        <AccountPill initials={profile.initials} name={profile.name} avatar={profile.avatar} color={profile.color} icon={profile.icon} onOpen={onOpenMenu} />
       </div>
     </aside>
   )

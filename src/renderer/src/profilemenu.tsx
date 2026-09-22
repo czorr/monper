@@ -82,14 +82,14 @@ function ProfileMenuWindow(): JSX.Element {
         {datos.perfiles.map((p) => (
           <div key={p.id} className="group relative">
             <PopoverRow
-              icon={<span className="profile-menu-avatar"><Avatar initials={iniciales(p.nombre)} src={p.avatar} size="sm" /></span>}
+              icon={<span className="profile-menu-avatar"><Avatar initials={iniciales(p.nombre)} src={p.avatar} color={p.preferences?.color} icon={p.preferences?.icon} size="sm" /></span>}
               label={p.nombre}
               onClick={() => { if (!p.activo) pm.cambiarPerfil(p.id) }}
               meta={p.activo ? <span className="pr-6"><IconCheck className="w-4 h-4" /></span> : undefined}
             />
             {p.activo && (
               <button type="button" title={tr("Configurar perfil")} aria-label={tr("Configurar perfil")}
-                onClick={() => act('settings')}
+                onClick={() => act('profiles')}
                 className="absolute right-1 top-1/2 -translate-y-1/2 grid place-items-center w-6 h-7 rounded-md text-[#a1a1a6] hover:text-[#d9d9dd] hover:bg-white/[0.08]">
                 <IconDots className="w-4 h-4" />
               </button>

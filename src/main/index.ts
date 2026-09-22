@@ -33,7 +33,9 @@ import { initSkills, listSkills, getSkill, saveSkill, skillFolder, toggleSkill, 
 import { initProfile, getProfile, setProfile, setAvatar } from './profile'
 import { PARTICION_NORMAL, particionDe } from './particiones'
 import { initMemoria, listarMemoria, leerMemoria, escribirMemoria, borrarMemoria, memoriaHabilitada, setMemoriaHabilitada, contextoDeMemoria, dirMemoria } from './memoria'
-import { rutaDePerfil, particionDelPerfil, listaPerfiles, perfilActivoId, crearPerfil, activarPerfil, borrarPerfil } from './perfiles'
+import { rutaDePerfil, particionDelPerfil, listaPerfiles, perfilActivoId, crearPerfil, activarPerfil, borrarPerfil, preferencesFor, profileSettings, updateBrowserProfile } from './perfiles'
+import { searchUrlFor, SEARCH_ENGINES, type BrowserProfile } from '../shared/profiles'
+import { applyDefaultProfileModel, todosLosModelos } from './ai/store'
 import { initDownloads, attachDownloads, listDownloads, activeDownloadCount, cancelDownload, openDownload, showDownload, clearDownloads } from './downloads'
 import { credentialsFor, fillFromVault } from './autofill'
 import { initExtensions, listExtensions, addExtension, setExtensionEnabled, removeExtension as removeExt, installFromStore, extensionUi } from './extensions'
@@ -964,7 +966,7 @@ function crearVentana(opts: { sinPestanaInicial?: boolean; incognito?: boolean }
     return `#${h(m[1])}${h(m[2])}${h(m[3])}`
   }
 
-  function createTab(url = newtabUrl(), activate = true, agent = false): number {
+  function createTab(url = (preferencesFor().newTab === 'home' && preferencesFor().homePage) || newtabUrl(), activate = true, agent = false): number {
     const id = nextId++
     /**
      * Una pestaña puede MUDARSE a otra ventana (arrastrarla fuera, "Abrir en ventana nueva").
@@ -1405,7 +1407,7 @@ function crearVentana(opts: { sinPestanaInicial?: boolean; incognito?: boolean }
       // creara la de bienvenida, la ventana abriría con dos y habría que cerrar una a la vista
       // del usuario.
       if (tabs.size === 0 && !opts.sinPestanaInicial) {
-        if (!restoreSession(ventanas.get(win!.id) ?? vAct())) createTab()
+        if (!restoreSession(ventanas.get(win!.id) ?? vAct())) createTab(preferencesFor().startup === 'home' ? preferencesFor().homePage || newtabUrl() : undefined)
       } else pushState()
       // Pre-carga las ventanas nativas de popups (site-info, menú de perfil) para que
       // abran instantáneo — crearlas en el primer click era lento (2-3 clicks).
@@ -1650,7 +1652,7 @@ async function showPageContextMenu(wc: Electron.WebContents, p: Electron.Context
     const sel = p.selectionText.trim().slice(0, 40)
     items.push(
       { role: 'copy', label: tr('Copiar') },
-      { label: tr("Buscar \"{0}\" en Google", sel), click: () => vAct().createTab('https://www.google.com/search?q=' + encodeURIComponent(p.selectionText)) },
+      { label: tr('Buscar "{0}" en {1}', sel, SEARCH_ENGINES[preferencesFor().searchEngine]), click: () => vAct().createTab(searchUrlFor(p.selectionText, preferencesFor().searchEngine)) },
       { type: 'separator' }
     )
   }
@@ -1667,7 +1669,8 @@ async function showPageContextMenu(wc: Electron.WebContents, p: Electron.Context
 
 // ---- Restauración de sesión: persistir las pestañas abiertas y reabrirlas al arrancar ----
 // Por perfil: las pestañas abiertas son suyas, igual que su historial.
-function sessionFile(): string { return rutaDePerfil('session.json') }
+let loadedSessionFile = ''
+function sessionFile(): string { return loadedSessionFile ||= rutaDePerfil('session.json') }
 let saveSessionTimer: NodeJS.Timeout | null = null
 
 interface SesionVentana { urls: string[]; activeIndex: number; titanioIndex?: number }
@@ -1719,6 +1722,7 @@ function leerSesion(): SesionVentana[] {
   return Array.isArray(d?.ventanas) ? d.ventanas.filter((g) => Array.isArray(g?.urls) && g.urls.length > 0) : []
 }
 function restoreSession(v: Ventana): boolean {
+  if (preferencesFor().startup === 'home') return false
   // Ni se restaura EN una ventana de incógnito: abriría ahí las pestañas de la sesión normal.
   if (v.incognito) return false
   if (colaSesion === null) {
@@ -1747,7 +1751,7 @@ function normalizeUrl(raw: string): string | null {
   // Si el sistema se hace cargo, no hay nada que navegar.
   if (abrirConElSistema(url)) return null
   if (/^[\w-]+(\.[\w-]+)+(\/.*)?$/.test(url) || url === 'localhost' || url.startsWith('localhost:')) return 'https://' + url
-  return 'https://www.google.com/search?q=' + encodeURIComponent(url)
+  return searchUrlFor(url, preferencesFor().searchEngine)
 }
 
 // WebContents de la pestaña activa (para acciones de navegación del menú).
@@ -1903,7 +1907,7 @@ ipcMain.handle('nav:back', (ev) => { const t = vDe(ev).tabActiva(); if (t?.view.
 ipcMain.handle('nav:forward', (ev) => { const t = vDe(ev).tabActiva(); if (t?.view.webContents.navigationHistory.canGoForward()) t.view.webContents.navigationHistory.goForward() })
 ipcMain.handle('nav:reload', (ev) => { const t = vDe(ev).tabActiva(); t?.view.webContents.reload() })
 // ---- Anchos de los paneles (redimensionables, persistidos) ----
-function panelsFile(): string { return join(app.getPath('userData'), 'panels.json') }
+function panelsFile(): string { return rutaDePerfil('panels.json') }
 function loadPanels(): void {
   try {
     const d = JSON.parse(readFileSync(panelsFile(), 'utf-8')) as { sidebar?: number; chat?: number; vibrancy?: string; tint?: string }
@@ -1915,12 +1919,14 @@ function loadPanels(): void {
     if (v === 'none' || VIBRANCY_MATERIALS.includes(v as VibrancyMaterial)) vibrancyMaterial = v
     if (typeof d.tint === 'string' && /^#[0-9a-f]{6}$/i.test(d.tint)) appearanceTint = d.tint.toLowerCase()
   } catch { /* valores por defecto */ }
+  if (listaPerfiles().find((p) => p.id === perfilActivoId())?.preferences) appearanceTint = preferencesFor().tint
 }
 let savePanelsTimer: NodeJS.Timeout | null = null
 function savePanels(): void {
+  const file = panelsFile()
   if (savePanelsTimer) clearTimeout(savePanelsTimer)
   savePanelsTimer = setTimeout(() => {
-    writeJson(panelsFile(), { sidebar: sidebarWidth, chat: chatWidth, vibrancy: vibrancyMaterial, tint: appearanceTint }, 'la apariencia y el tamaño de los paneles', false)
+    writeJson(file, { sidebar: sidebarWidth, chat: chatWidth, vibrancy: vibrancyMaterial, tint: appearanceTint }, 'la apariencia y el tamaño de los paneles', false)
   }, 400)
 }
 ipcMain.handle('state:get', (ev) => vDe(ev).buildState())
@@ -2115,7 +2121,10 @@ ipcMain.handle('ui:appearance', () => appearanceData())
 ipcMain.handle('ui:setTint', (e, color: unknown) => {
   if (!isInternalSender(e.senderFrame?.url)) throw new Error(tr("No permitido."))
   if (color !== null && (typeof color !== 'string' || !/^#[0-9a-f]{6}$/i.test(color))) throw new Error(tr("Color no válido."))
-  appearanceTint = typeof color === 'string' ? color.toLowerCase() : null
+  const tint = typeof color === 'string' ? color.toLowerCase() : null
+  const current = profileSettings().profiles.find((p) => p.id === perfilActivoId())!
+  updateBrowserProfile({ ...current, preferences: { ...current.preferences, tint } })
+  appearanceTint = tint
   broadcastAppearance()
   savePanels()
   return appearanceTint
@@ -2995,6 +3004,44 @@ function datosMenuPerfil(): DatosMenuPerfil {
   }
 }
 
+ipcMain.handle('profiles:settings', (e) => {
+  if (!isInternalSender(e.senderFrame?.url)) throw new Error('Acceso denegado.')
+  return profileSettings()
+})
+ipcMain.handle('profiles:save', (e, input: BrowserProfile) => {
+  if (!isInternalSender(e.senderFrame?.url)) throw new Error('Acceso denegado.')
+  const before = profileSettings().profiles.find((p) => p.id === input.id)
+  const modelChanged = JSON.stringify(before?.preferences.agent.defaultModel) !== JSON.stringify(input.preferences?.agent.defaultModel)
+  const selected = input.preferences?.agent.defaultModel
+  if (modelChanged && selected && !todosLosModelos().some((m) => m.providerId === selected.providerId && m.id === selected.id)) throw new Error('El modelo elegido ya no está disponible. Revisa la conexión.')
+  const result = updateBrowserProfile(input)
+  if (input.id === perfilActivoId()) {
+    appearanceTint = preferencesFor().tint
+    if (modelChanged) applyDefaultProfileModel()
+    savePanels(); broadcastAppearance(); broadcastProfile(); notifyChatContext()
+  }
+  pmPopover.send('profilemenu:profile', datosMenuPerfil())
+  return result
+})
+ipcMain.handle('profiles:create', (e, name: string) => {
+  if (!isInternalSender(e.senderFrame?.url)) throw new Error('Acceso denegado.')
+  if (!name?.trim()) throw new Error('Escribe un nombre para el perfil.')
+  const created = crearPerfil(name)
+  pmPopover.send('profilemenu:profile', datosMenuPerfil())
+  return { ...profileSettings(), createdId: created.id }
+})
+ipcMain.handle('profiles:delete', (e, id: string) => {
+  if (!isInternalSender(e.senderFrame?.url)) throw new Error('Acceso denegado.')
+  if (id === perfilActivoId() || !borrarPerfil(id)) throw new Error('No se puede quitar el perfil activo ni el predeterminado.')
+  pmPopover.send('profilemenu:profile', datosMenuPerfil())
+  return profileSettings()
+})
+ipcMain.handle('profiles:switch', (e, id: string) => {
+  if (!isInternalSender(e.senderFrame?.url)) throw new Error('Acceso denegado.')
+  if (!listaPerfiles().some((p) => p.id === id)) throw new Error('El perfil ya no existe.')
+  cambiarDePerfil(id)
+})
+
 /**
  * Cambia de perfil REINICIANDO la app.
  *
@@ -3003,11 +3050,12 @@ function datosMenuPerfil(): DatosMenuPerfil {
  * de pestañas se guarda antes de salir y cada perfil restaura la suya, así que no se pierde nada.
  */
 function cambiarDePerfil(id: string): void {
+  if (id === perfilActivoId()) return
+  saveSessionNow()
   if (!activarPerfil(id)) {
     console.error('[perfiles] se pidió activar un perfil que no existe:', id)
     return
   }
-  saveSessionNow()
   app.relaunch()
   app.quit()
 }
@@ -3637,6 +3685,7 @@ ipcMain.on('profilemenu:action', (ev, name: string) => {
     case 'new-tab':
     case 'bookmarks': openBookmarksManager(); break
     case 'settings': openSettings(); break
+    case 'profiles': openSettings('profiles'); break
     case 'downloads': openDownloads(); break
     case 'developers': vDe(ev).toggleDevtools(); break
     case 'history': openHistory(); break
@@ -3757,7 +3806,7 @@ ipcMain.handle('providers:models', async (e) => {
   notifyChatContext()
   return lista
 })
-ipcMain.on('chat:setModel', (_e, id: string) => setModel(id))
+ipcMain.on('chat:setModel', (_e, id: string, providerId?: string) => { setModel(id, providerId); notifyChatContext() })
 ipcMain.on('chat:setEffort', (_e, e: 'low' | 'medium' | 'high') => setEffort(e))
 
 // ---- Chat en streaming (desde el ChatPanel del chrome) ----
@@ -3785,7 +3834,7 @@ function controllingActive(): boolean {
 function setAgentRunning(on: boolean): void {
   if (agentRunning === on) return
   agentRunning = on
-  controlledTabId = on ? vAct().activeId() : null // arranca controlando la pestaña activa
+  controlledTabId = on && preferencesFor().agent.browserTools ? vAct().activeId() : null
   vAct().layoutActive() // ajusta la franja inferior de la vista nativa
   vAct().pushState()
 }

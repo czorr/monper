@@ -77,6 +77,12 @@ const api: TitanioTabApi = {
   getProfile: () => ipcRenderer.invoke('profile:get'),
   setProfile: (name) => ipcRenderer.invoke('profile:set', name),
   setAvatar: (dataUrl) => ipcRenderer.invoke('profile:setAvatar', dataUrl),
+  profilesSettings: () => ipcRenderer.invoke('profiles:settings'),
+  profileModels: () => ipcRenderer.invoke('chat:context').then((context) => context.models),
+  saveBrowserProfile: (profile) => ipcRenderer.invoke('profiles:save', profile),
+  createBrowserProfile: (name) => ipcRenderer.invoke('profiles:create', name),
+  deleteBrowserProfile: (id) => ipcRenderer.invoke('profiles:delete', id),
+  switchBrowserProfile: (id) => ipcRenderer.invoke('profiles:switch', id),
   getAppearance: () => ipcRenderer.invoke('ui:appearance'),
   setTint: (color) => ipcRenderer.invoke('ui:setTint', color),
   onAppearance: (cb) => {

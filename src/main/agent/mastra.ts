@@ -7,6 +7,8 @@ import { z } from 'zod'
 import type { WebContents } from 'electron'
 import { faviconFor } from '../favicons'
 import { mcpTools, callMcpTool, type McpTool } from '../mcp/client'
+import { preferencesFor } from '../perfiles'
+import { profileInstructions, profileTools } from './profile'
 import type { AIProvider, ChatFallo, ChatMessage, ChatStep, ProviderKind, SkillDetail } from '../../shared/types'
 import * as page from './page'
 import { runRepl } from './repl'
@@ -450,7 +452,7 @@ function buildTools(ctrl: BrowserControl, settings: SettingsControl, skills: Ski
       id: 'open_settings',
       description: 'Abre la pantalla de ajustes de Titanio en una sección concreta. Úsalo para dirigir al usuario a algo que no puedes cambiar tú (claves de API, borrar datos, foto de perfil).',
       inputSchema: z.object({
-        section: z.enum(['general', 'account', 'ai', 'skills', 'memory', 'privacy', 'about']).optional()
+        section: z.enum(['general', 'profiles', 'ai', 'skills', 'memory', 'privacy', 'about']).optional()
       }),
       execute: async ({ section }) => safe(async () => {
         settings.openSettings(section)
@@ -507,12 +509,16 @@ export function buildOneShotAgent(provider: AIProvider, key: string, model: stri
 }
 
 export function buildAgent(provider: AIProvider, key: string, model: string, ctrl: BrowserControl, settings: SettingsControl, skills: SkillDetail[] = [], externas: McpTool[] = [], memoria?: MemoryControl): Agent {
+  const prefs = preferencesFor().agent
+  const selectedSkills = prefs.skills ? skills : []
+  const selectedMcp = prefs.mcp ? externas : []
+  const tools = buildTools(ctrl, settings, selectedSkills, selectedMcp, memoria)
   return new Agent({
     id: 'titanio-agent',
     name: 'Titanio',
-    instructions: wellFormed(SYSTEM + memorySection(memoria) + skillsSection(skills) + mcpSection(externas)), // las skills traen emojis
+    instructions: wellFormed(SYSTEM + memorySection(memoria) + skillsSection(selectedSkills) + mcpSection(selectedMcp) + profileInstructions(prefs)),
     model: buildModel(provider, key, model),
-    tools: buildTools(ctrl, settings, skills, externas, memoria)
+    tools: profileTools(tools, prefs)
   })
 }
 
@@ -598,10 +604,10 @@ export async function runMastra(opts: {
 }): Promise<UsoDelTurno> {
   // Las herramientas externas se piden AQUÍ, no al abrir Titanio: si nunca hablas con el
   // agente, no se lanza ni un proceso de servidor MCP.
-  const externas = await mcpTools().catch((e) => {
+  const externas = preferencesFor().agent.mcp ? await mcpTools().catch((e) => {
     console.error('[mcp] no se pudieron cargar las herramientas externas:', e instanceof Error ? e.message : e)
     return [] as McpTool[]
-  })
+  }) : []
   const agent = buildAgent(opts.provider, opts.key, opts.model, congelable(opts.control, opts.signal), opts.settings, opts.skills ?? [], externas, opts.memoria)
   // {role, content:string} es un ModelMessage válido; la unión de Mastra es demasiado estricta para inferirlo.
   // maxSteps: el default de Mastra es 5 (corta la tarea a mitad); subimos para dejar completar flujos largos.

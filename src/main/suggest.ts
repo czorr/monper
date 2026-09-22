@@ -5,6 +5,8 @@ import { urlVisible } from '../shared/url'
 import type { Suggestion } from '../shared/types'
 import * as history from './history'
 import { listBookmarks } from './bookmarks'
+import { preferencesFor } from './perfiles'
+import { searchUrlFor, SEARCH_ENGINES } from '../shared/profiles'
 
 // ¿El texto parece una URL/dominio (para ofrecer "ir a" en vez de solo buscar)?
 function looksLikeUrl(q: string): boolean {
@@ -22,7 +24,7 @@ function toUrl(q: string): string {
 }
 
 function searchUrl(q: string): string {
-  return 'https://www.google.com/search?q=' + encodeURIComponent(q.trim())
+  return searchUrlFor(q, preferencesFor().searchEngine)
 }
 
 /**
@@ -187,7 +189,9 @@ export async function suggest(query: string, signal?: AbortSignal): Promise<Sugg
   }
 
   // 4) Sugerencias de Google, respetando lo que cada una es.
-  const [gs, entidades] = await Promise.all([googleSuggest(q, signal), googleEntities(q, signal)])
+  const [gs, entidades] = preferencesFor().searchEngine === 'google'
+    ? await Promise.all([googleSuggest(q, signal), googleEntities(q, signal)])
+    : [[], new Map<string, GoogleSug>()]
   for (const base of gs.slice(0, 6)) {
     const s = base.type === 'QUERY' ? entidades.get(base.text.toLowerCase()) ?? base : base
     if (s.type === 'NAVIGATION') {
@@ -208,12 +212,12 @@ export async function suggest(query: string, signal?: AbortSignal): Promise<Sugg
       push({ kind: 'search', title: s.title || s.text, url: searchUrl(s.text), detail: s.annotation, favicon: s.image, round: !!s.image })
       continue
     }
-    push({ kind: 'search', title: s.text, url: searchUrl(s.text), detail: tr("Buscar en Google") })
+    push({ kind: 'search', title: s.text, url: searchUrl(s.text), detail: tr('Buscar en {0}', SEARCH_ENGINES[preferencesFor().searchEngine]) })
   }
 
   // 5) Fallback: si no parecía URL y no hubo nada arriba, ofrece buscar el texto tal cual.
   if (!looksLikeUrl(q) && !seen.has(searchUrl(q))) {
-    push({ kind: 'search', title: q, url: searchUrl(q), detail: tr("Buscar en Google") })
+    push({ kind: 'search', title: q, url: searchUrl(q), detail: tr('Buscar en {0}', SEARCH_ENGINES[preferencesFor().searchEngine]) })
   }
 
   return out.slice(0, 9)

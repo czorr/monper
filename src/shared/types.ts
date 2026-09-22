@@ -62,6 +62,8 @@ export interface Bookmark {
 
 /** Perfil del usuario (editable en Settings → Account) */
 export interface Profile {
+  color?: string
+  icon?: import('./profiles').ProfileIcon
   name: string
   initials: string
   /** Foto de avatar como data URL, o null */
@@ -462,7 +464,7 @@ export interface SubmenuWinApi {
 /** Lo que ve el menú de perfil: el perfil activo, ya renderizable, y la lista para elegir. */
 export interface DatosMenuPerfil {
   perfil: Profile
-  perfiles: { id: string; nombre: string; avatar: string | null; activo: boolean }[]
+  perfiles: { id: string; nombre: string; avatar: string | null; activo: boolean; preferences?: import('./profiles').ProfilePreferences }[]
 }
 
 export interface ProfileMenuWinApi {
@@ -652,7 +654,7 @@ export interface TitanioApi {
   getChatContext: () => Promise<ChatContext>
   /** Se dispara cuando cambian proveedores (para refrescar el composer) */
   onChatContext: (cb: (ctx: ChatContext) => void) => () => void
-  setModel: (modelId: string) => void
+  setModel: (modelId: string, providerId?: string) => void
   setEffort: (effort: Effort) => void
   chatSend: (messages: ChatMessage[]) => Promise<void>
   chatCancel: () => void
@@ -1070,6 +1072,12 @@ export interface TitanioTabApi {
   getProfile: () => Promise<Profile>
   setProfile: (name: string) => Promise<Profile>
   setAvatar: (dataUrl: string | null) => Promise<Profile>
+  profilesSettings: () => Promise<import('./profiles').ProfileSettings>
+  profileModels: () => Promise<ModelOption[]>
+  saveBrowserProfile: (profile: import('./profiles').BrowserProfile) => Promise<import('./profiles').ProfileSettings>
+  createBrowserProfile: (name: string) => Promise<import('./profiles').ProfileSettings & { createdId: string }>
+  deleteBrowserProfile: (id: string) => Promise<import('./profiles').ProfileSettings>
+  switchBrowserProfile: (id: string) => Promise<void>
 }
 
 declare global {

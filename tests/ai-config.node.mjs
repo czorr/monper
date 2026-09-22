@@ -9,7 +9,7 @@ import { build } from 'esbuild'
 // Pruebas del proceso main sin abrir Electron ni hacer llamadas a proveedores reales.
 const folder = mkdtempSync(join(tmpdir(), 'titanio-ai-config-'))
 const result = await build({
-  stdin: { contents: `export * from './src/main/ai/store'; export * from './src/main/ai/config'; export { initVault, add as addVault } from './src/main/vault/store'`, resolveDir: process.cwd() },
+  stdin: { contents: `export * from './src/main/ai/store'; export * from './src/main/ai/config'; export { initVault, add as addVault } from './src/main/vault/store'; export { initPerfiles } from './src/main/perfiles'`, resolveDir: process.cwd() },
   bundle: true, platform: 'node', format: 'cjs', write: false, external: ['jsonc-parser', 'zod'],
   plugins: [{ name: 'electron-test', setup(b) {
     b.onResolve({ filter: /^electron$/ }, () => ({ path: 'electron', namespace: 'test' }))
@@ -27,6 +27,7 @@ const ai = module.exports
 test('configuración bidireccional de proveedores', async (t) => {
   t.after(() => { unwatchFile(join(folder, 'titanio.jsonc')); rmSync(folder, { recursive: true, force: true }) })
   ai.initVault()
+  ai.initPerfiles(folder)
   const legacy = ai.addVault('ai-key', 'Existing', { kind: 'openai' }, 'private-test-key')
   ai.initAI()
   const file = ai.providerConfigPath()

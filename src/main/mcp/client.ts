@@ -1,5 +1,5 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'child_process'
-import { join } from 'path'
+import { rutaDePerfil } from '../perfiles'
 import { app } from 'electron'
 import { readJson, writeJson } from '../jsonfile'
 
@@ -89,7 +89,7 @@ const arrancando = new Map<string, Promise<Viva | null>>()
 export function configPath(): string { return file }
 
 export function initMcpClient(): void {
-  file = join(app.getPath('userData'), 'mcp-servers.json')
+  file = rutaDePerfil('mcp-servers.json')
   cfg = readJson<McpConfig>(file, { mcpServers: {} }, 'los servidores MCP')
   if (!cfg.mcpServers) cfg.mcpServers = {}
   // Se crea el fichero la primera vez para que el usuario tenga algo que abrir y editar.

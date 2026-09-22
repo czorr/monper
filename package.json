@@ -16,6 +16,7 @@
     "test:only": "playwright test",
     "test:ai-config": "node --test tests/ai-config.node.mjs",
     "test:chats": "node --test tests/chats.node.mjs",
+    "test:profiles": "node --test tests/profiles.node.mjs",
     "build:mcp": "tsc -p packages/titanio-mcp/tsconfig.json && chmod +x packages/titanio-mcp/dist/index.js"
   },
   "author": "",

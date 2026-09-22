@@ -10,6 +10,7 @@ import { parseConfig, editConfig, type ProviderDocument, type Connection } from 
 import { MODELS } from '../../shared/types'
 import { catalogoDe } from './catalogo'
 import * as vault from '../vault/store'
+import { rutaDePerfil, preferencesFor, perfilActivoId, PERFIL_POR_DEFECTO } from '../perfiles'
 
 // Chat settings (config, NO secretos) — separado del vault.
 interface ChatConfig { activeId: string | null; model: string | null; effort: Effort }
@@ -122,11 +123,12 @@ function migrateLegacy(): void {
 }
 
 export function initAI(onChange?: () => void): void {
-  cfgFile = join(app.getPath('userData'), 'chat.json')
+  cfg = { activeId: null, model: null, effort: 'medium' }
+  cfgFile = rutaDePerfil('chat.json')
   if (existsSync(cfgFile)) {
     try { cfg = { activeId: null, model: null, effort: 'medium', ...JSON.parse(readFileSync(cfgFile, 'utf-8')) } } catch { /* default */ }
   } else {
-    migrateLegacy() // primer arranque tras el vault
+    if (perfilActivoId() === PERFIL_POR_DEFECTO) migrateLegacy()
   }
   providerFile = join(app.getPath('userData'), 'titanio.jsonc')
   if (!existsSync(providerFile)) {
@@ -141,7 +143,16 @@ export function initAI(onChange?: () => void): void {
     if (!result.ok) console.error('[ai] no se pudo crear titanio.jsonc')
   }
   reloadConfig()
+  applyDefaultProfileModel()
   watchFile(providerFile, { interval: 750, persistent: false }, () => { reloadConfig(); onChange?.() })
+}
+
+export function applyDefaultProfileModel(): void {
+  const selected = preferencesFor().agent.defaultModel
+  if (!selected) return
+  cfg.activeId = selected.providerId
+  cfg.model = selected.id
+  persist()
 }
 
 function providers(): ProviderInfo[] {
@@ -264,8 +275,8 @@ export function setActive(id: string): void {
  * Elige un modelo, venga del proveedor que venga. Si es de otro, se cambia el activo también:
  * el usuario eligió un modelo, no una cuenta.
  */
-export function setModel(modelId: string): void {
-  const dueno = providers().find((p) => catalogoDeProveedor(p).some((m) => m.id === modelId))
+export function setModel(modelId: string, providerId?: string): void {
+  const dueno = providers().find((p) => (!providerId || p.id === providerId) && catalogoDeProveedor(p).some((m) => m.id === modelId))
   if (!dueno) return
   cfg.activeId = dueno.id
   cfg.model = modelId

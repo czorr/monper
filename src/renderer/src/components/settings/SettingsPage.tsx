@@ -3,14 +3,14 @@ import { useEffect, useRef, useState, type JSX } from 'react'
 import { NO_UPDATE, type AppearanceData, type Profile, type UpdateState } from '@shared/types'
 import { Avatar, Select } from '@renderer/components/ui'
 import IconCpu from '~icons/tabler/cpu'
-import IconCamera from '~icons/tabler/camera'
 import IconSettings from '~icons/tabler/settings'
 import IconShield from '~icons/tabler/shield-lock'
 import IconShieldCheck from '~icons/tabler/shield-check'
 import IconInfo from '~icons/tabler/info-circle'
-import IconUser from '~icons/tabler/user'
 import IconBolt from '~icons/tabler/bolt'
 import ProvidersSection from './ProvidersSection'
+import ProfilesSection from './ProfilesSection'
+import { SEARCH_ENGINES, type ProfilePreferences } from '@shared/profiles'
 import SkillsSection from './SkillsSection'
 import MemorySection from './MemorySection'
 import QuickActionsSection from './QuickActionsSection'
@@ -44,7 +44,7 @@ import { Card, Group, Row, Pill, Toggle, SettingsHeader, SettingsContent, Button
 const { titanioTab } = window
 
 type Cat =
-  | 'general' | 'account' | 'appearance' | 'billing' | 'privacy' | 'password' | 'ai' | 'developers'
+  | 'general' | 'profiles' | 'appearance' | 'billing' | 'privacy' | 'password' | 'ai' | 'developers'
   | 'adblock' | 'projects' | 'skills' | 'memory' | 'mcps' | 'permissions' | 'actions' | 'routines'
   | 'statistics' | 'archived' | 'notifications' | 'about'
 
@@ -57,7 +57,7 @@ const NAV: NavGroup[] = [
     get title() { return tr("Settings") },
     items: [
       { id: 'general', get label() { return tr("General") }, icon: <IconSettings /> },
-      { id: 'account', get label() { return tr("Account") }, icon: <IconUser /> },
+      { id: 'profiles', get label() { return tr("Profiles") }, icon: <IconUsers /> },
       { id: 'appearance', get label() { return tr("Appearance") }, icon: <IconPalette /> },
       { id: 'billing', get label() { return tr("Billing") }, icon: <IconCreditCard /> },
       { id: 'privacy', get label() { return tr("Privacy") }, icon: <IconShield /> },
@@ -93,7 +93,8 @@ const SOON: Partial<Record<Cat, { title: string }>> = {
 
 const ALL_CATS = NAV.flatMap((g) => g.items.map((i) => i.id))
 function initialCat(): Cat {
-  const h = window.location.hash.replace(/^#/, '') as Cat
+  const hash = window.location.hash.replace(/^#/, '')
+  const h = (hash === 'account' ? 'profiles' : hash) as Cat
   return ALL_CATS.includes(h) ? h : 'ai'
 }
 
@@ -170,8 +171,8 @@ export default function SettingsPage(): JSX.Element {
               {cat === 'actions' && <QuickActionsSection />}
               {cat === 'routines' && <RoutinesSection />}
               {cat === 'appearance' && <AppearancePage />}
-              {cat === 'account' && <AccountPage />}
-              {cat === 'general' && <GeneralPage />}
+              {cat === 'general' && <GeneralPage onEditProfile={() => setCat('profiles')} />}
+              {cat === 'profiles' && <ProfilesSection onNavigate={(section) => setCat(section)} />}
               {cat === 'privacy' && <PrivacyPage />}
               {cat === 'adblock' && <AdblockSection />}
               {cat === 'password' && <PasswordSection />}
@@ -199,106 +200,6 @@ function AIPage(): JSX.Element {
     <>
       <SettingsHeader title={tr("AI")} />
       <ProvidersSection />
-    </>
-  )
-}
-
-// Redimensiona una imagen a un cuadrado (cover) y devuelve un data URL JPEG.
-function fileToAvatar(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onerror = reject
-    reader.onload = () => {
-      const img = new Image()
-      img.onerror = reject
-      img.onload = () => {
-        const S = 160
-        const canvas = document.createElement('canvas')
-        canvas.width = S; canvas.height = S
-        const ctx = canvas.getContext('2d')
-        if (!ctx) { reject(new Error('no ctx')); return }
-        const scale = Math.max(S / img.width, S / img.height)
-        const w = img.width * scale, h = img.height * scale
-        ctx.drawImage(img, (S - w) / 2, (S - h) / 2, w, h)
-        resolve(canvas.toDataURL('image/jpeg', 0.85))
-      }
-      img.src = reader.result as string
-    }
-    reader.readAsDataURL(file)
-  })
-}
-
-function AccountPage(): JSX.Element {
-  useLocale()
-  const [profile, setProfile] = useState<Profile>({ name: '', initials: '?', avatar: null })
-  const [name, setName] = useState('')
-  const [saved, setSaved] = useState(false)
-  const [avatarError, setAvatarError] = useState<string | null>(null)
-  const fileRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => { titanioTab.getProfile().then((p) => { setProfile(p); setName(p.name) }) }, [])
-
-  const dirty = !!name.trim() && name.trim() !== profile.name
-  const save = async (): Promise<void> => {
-    const p = await titanioTab.setProfile(name.trim())
-    setProfile(p); setName(p.name); setSaved(true); setTimeout(() => setSaved(false), 1500)
-  }
-  const onPickAvatar = async (e: React.ChangeEvent<HTMLInputElement>): Promise<void> => {
-    const f = e.target.files?.[0]
-    e.target.value = ''
-    if (!f) return
-    setAvatarError(null)
-    // Si falla, el usuario eligió una foto y no pasó nada: hay que decirle por qué.
-    try {
-      setProfile(await titanioTab.setAvatar(await fileToAvatar(f)))
-    } catch (err) {
-      setAvatarError(err instanceof Error ? err.message : tr("No se pudo usar esa imagen."))
-    }
-  }
-  const removeAvatar = async (): Promise<void> => setProfile(await titanioTab.setAvatar(null))
-
-  return (
-    <>
-      <SettingsHeader title={tr("Account")} />
-
-      <div className="flex items-center gap-4 mb-8">
-        <Button shape="pill" title={tr("Cambiar foto")} className="relative group/av" onClick={() => fileRef.current?.click()}>
-          <Avatar initials={profile.initials} src={profile.avatar} size="lg" />
-          <div className="absolute inset-0 rounded-full grid place-items-center bg-black/50 opacity-0 group-hover/av:opacity-100 transition-opacity [&>svg]:w-5 [&>svg]:h-5 [&>svg]:text-white">
-            <IconCamera />
-          </div>
-        </Button>
-        <div>
-          <div className="text-[16px] font-medium">{profile.name || '—'}</div>
-          <div className="flex items-center gap-3 mt-1">
-            <Button variant="ghost" size="sm" onClick={() => fileRef.current?.click()}>{tr("Cambiar foto")}</Button>
-            {profile.avatar && <Button variant="danger-ghost" size="sm" onClick={removeAvatar}>{tr("Quitar")}</Button>}
-          </div>
-          {avatarError && <div className="mt-1 text-[12.5px] text-amber-400">{avatarError}</div>}
-        </div>
-        <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onPickAvatar} />
-      </div>
-
-      <Group title={tr("Nombre")}>
-        <Card>
-          <div className="p-4 flex flex-col gap-3">
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter' && dirty) save() }}
-              placeholder={tr("Tu nombre")}
-              className="w-full h-11 px-4 rounded-xl bg-white/[0.04] border border-white/[0.08] text-[14px] text-text outline-none focus:border-white/25 placeholder:text-text-faint transition-colors"
-            />
-            <Button variant="primary" size="md"
-              onClick={save}
-              disabled={!dirty && !saved}
-              className="self-start"
-            >
-              {saved ? tr("Guardado ✓") : tr("Guardar")}
-            </Button>
-          </div>
-        </Card>
-      </Group>
     </>
   )
 }
@@ -420,11 +321,13 @@ function AppearancePage(): JSX.Element {
   )
 }
 
-function GeneralPage(): JSX.Element {
+function GeneralPage({ onEditProfile }: { onEditProfile: () => void }): JSX.Element {
   useLocale()
   // El perfil sale del main, no del JSX: estuvo escrito a mano y mostraba el mismo nombre y
   // correo a cualquiera que abriera Settings.
   const [profile, setProfile] = useState<Profile>({ name: '', initials: '?', avatar: null })
+  const [profileError, setProfileError] = useState(false)
+  const [navigation, setNavigation] = useState<ProfilePreferences | null>(null)
   const [pred, setPred] = useState<{ isDefault: boolean; shouldOffer: boolean } | null>(null)
   const [errPred, setErrPred] = useState('')
   // null = todavía no se sabe; el interruptor va deshabilitado hasta tener el valor real.
@@ -432,7 +335,16 @@ function GeneralPage(): JSX.Element {
   useEffect(() => {
     titanioTab.getPipState().then((r) => setPip(r.enabled)).catch((e) => console.error('[pip] no se pudo leer el estado:', e))
   }, [])
-  useEffect(() => { titanioTab.getProfile().then(setProfile).catch(() => {}) }, [])
+  useEffect(() => {
+    titanioTab.getProfile().then(setProfile).catch((error) => {
+      console.error('[profile] no se pudo cargar el perfil:', error)
+      setProfileError(true)
+    })
+    titanioTab.profilesSettings().then((state) => setNavigation(state.profiles.find((p) => p.id === state.activeId)?.preferences || null)).catch((error) => {
+      console.error('[profiles] no se pudieron cargar las preferencias:', error)
+      setProfileError(true)
+    })
+  }, [])
   useEffect(() => {
     titanioTab.getDefaultBrowser()
       .then(setPred)
@@ -445,7 +357,15 @@ function GeneralPage(): JSX.Element {
       <LanguageSection />
       <Group title={tr("Perfil")}>
         <Card>
-          <Row icon={<IconUser />} label={profile.name || tr("Sin nombre")} desc={tr("Edita tu perfil en Account")} />
+          <Button onClick={onEditProfile} className="flex items-center gap-3.5 w-full p-4 text-left hover:bg-white/[0.04] focus-visible:outline-2 focus-visible:outline-text-dim">
+            <Avatar initials={profile.initials} src={profile.avatar} color={profile.color} icon={profile.icon} size="lg" />
+            <span className="flex-1 min-w-0">
+              <span className="block text-[15px] font-medium truncate">{profile.name || tr("Sin nombre")}</span>
+              <span className="block mt-1 text-[12.5px] text-text-dim">{profileError ? tr('No se pudo cargar el perfil.') : tr('Personaliza tu nombre y foto de perfil.')}</span>
+            </span>
+            <span className="text-[13px] text-text-dim shrink-0">{tr('Editar perfil')}</span>
+            <IconArrowUpRight className="w-4 h-4 text-text-faint shrink-0" />
+          </Button>
         </Card>
       </Group>
       <Group title={tr("Navegador predeterminado")}>
@@ -500,10 +420,10 @@ function GeneralPage(): JSX.Element {
       <Group title={tr("Navegación")}>
         <Card>
           <Row label={tr("Página de inicio")}>
-            <span className="text-[13px] text-text-faint">{tr("Nueva pestaña")}</span>
+            <Button className="min-h-10 max-w-[260px] truncate text-[13px] text-text-dim" onClick={onEditProfile}>{navigation?.homePage || tr("Nueva pestaña")}</Button>
           </Row>
           <Row label={tr("Buscador")}>
-            <span className="text-[13px] text-text-faint">Google</span>
+            <Button className="min-h-10 text-[13px] text-text-dim" onClick={onEditProfile}>{navigation ? SEARCH_ENGINES[navigation.searchEngine] : '…'}</Button>
           </Row>
         </Card>
       </Group>

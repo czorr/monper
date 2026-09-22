@@ -74,7 +74,7 @@ const api: TitanioApi = {
   },
   getChatContext: () => ipcRenderer.invoke('chat:context') as Promise<ChatContext>,
   onChatContext: (cb: (ctx: ChatContext) => void) => sub('chat:contextChanged', (c) => cb(c as ChatContext)),
-  setModel: (id: string) => ipcRenderer.send('chat:setModel', id),
+  setModel: (id: string, providerId?: string) => ipcRenderer.send('chat:setModel', id, providerId),
   setEffort: (e) => ipcRenderer.send('chat:setEffort', e),
   chatSend: (messages: ChatMessage[]) => ipcRenderer.invoke('chat:send', messages),
   chatCancel: () => ipcRenderer.send('chat:cancel'),

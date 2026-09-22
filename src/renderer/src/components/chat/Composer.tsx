@@ -16,7 +16,7 @@ interface Props {
   running: boolean
   onSend: (text: string, attachments: ChatAttachment[]) => void
   onCancel: () => void
-  onPickModel: (id: string) => void
+  onPickModel: (id: string, providerId?: string) => void
   onPickEffort: (e: Effort) => void
   onConnect: () => void
 }

@@ -8,7 +8,7 @@ import ProviderIcon from '@renderer/components/ui/ProviderIcon'
 
 interface Props {
   ctx: ChatContext
-  onPick: (id: string) => void
+  onPick: (id: string, providerId?: string) => void
   onConnect: () => void
 }
 
@@ -27,7 +27,7 @@ export default function ModelSelector({ ctx, onPick, onConnect }: Props): JSX.El
     )
   }
 
-  const actual = ctx.models.find((m) => m.id === ctx.model)
+  const actual = ctx.models.find((m) => m.id === ctx.model && (!m.providerId || m.providerId === ctx.provider?.id))
   const current = actual?.name ?? ctx.model
 
   return (
@@ -51,12 +51,12 @@ export default function ModelSelector({ ctx, onPick, onConnect }: Props): JSX.El
             {ctx.models.map((m) => (
               <button
                 key={`${m.providerId ?? ''}:${m.id}`}
-                onClick={() => { onPick(m.id); setOpen(false) }}
+                onClick={() => { onPick(m.id, m.providerId); setOpen(false) }}
                 className="flex items-center gap-2 w-full h-8 px-2 rounded-lg text-[13px] text-text text-left hover:bg-white/[0.08]"
               >
                 <ProviderIcon provider={m.provider ?? { id: m.providerId, kind: m.providerKind }} className="w-3.5 h-3.5 text-text-dim shrink-0" />
                 <span className="flex-1 truncate">{m.name}</span>
-                {m.id === ctx.model && <IconCheck className="w-4 h-4 text-text shrink-0" />}
+                {m.id === ctx.model && (!m.providerId || m.providerId === ctx.provider?.id) && <IconCheck className="w-4 h-4 text-text shrink-0" />}
               </button>
             ))}
           </div>

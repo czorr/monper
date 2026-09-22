@@ -88,7 +88,7 @@ export default function ChatPanel({ open, onClose, inject, resizing, tint }: Pro
   useEffect(() => { if (open) titanio.getChatContext().then(setCtx) }, [open])
   useEffect(() => titanio.onChatContext(setCtx), [])
 
-  const pickModel = (id: string): void => { titanio.setModel(id); setCtx((c) => ({ ...c, model: id })) }
+  const pickModel = (id: string, providerId?: string): void => { titanio.setModel(id, providerId) }
   const pickEffort = (e: Effort): void => { titanio.setEffort(e); setCtx((c) => ({ ...c, effort: e })) }
 
   const scrollToEnd = (): void => {

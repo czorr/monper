@@ -4,6 +4,7 @@ import { readFileSync, existsSync, mkdirSync, readdirSync, statSync, writeFileSy
 import { randomUUID } from 'crypto'
 import { readJson, writeJson } from './jsonfile'
 import { app } from 'electron'
+import { rutaDePerfil } from './perfiles'
 import { faviconFor, resolveFavicon } from './favicons'
 import { mcpCapabilities } from './mcp/client'
 import type { SkillMeta, SkillDetail } from '../shared/types'
@@ -15,7 +16,7 @@ function builtinDir(): string {
 function userDir(): string { return join(app.getPath('userData'), 'skills') }
 /** Carpeta local donde viven las skills (para abrirla en Finder). */
 export function skillsDir(): string { return builtinDir() }
-function enabledFile(): string { return join(app.getPath('userData'), 'skills-enabled.json') }
+function enabledFile(): string { return rutaDePerfil('skills-enabled.json') }
 
 let enabled: Record<string, boolean> = {}
 

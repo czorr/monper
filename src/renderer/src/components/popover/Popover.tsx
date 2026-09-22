@@ -111,22 +111,23 @@ export function PopoverRow({ children, icon, label, meta, onClick, active, disab
     <Tag
       {...(onClick && !disabled ? { onClick, type: 'button' as const } : {})}
       title={title}
+      data-popover-row=""
       className={`${ROW_BASE} ${state}`}
     >
       {icon}
       <span className="flex-1 min-w-0 truncate">{label ?? children}</span>
-      {meta && <span className="shrink-0 flex items-center gap-2 text-[12px] text-text-faint">{meta}</span>}
+      {meta && <span data-popover-meta="" className="shrink-0 flex items-center gap-2 text-[12px] text-text-faint">{meta}</span>}
     </Tag>
   )
 }
 
 /** Etiqueta de sección ("Profiles", "Instaladas"…). */
 export function PopoverLabel({ children }: { children: ReactNode }): JSX.Element {
-  return <div className="px-2.5 pt-2 pb-1 text-[11.5px] font-medium text-text-faint">{children}</div>
+  return <div data-popover-label="" className="px-2.5 pt-2 pb-1 text-[11.5px] font-medium text-text-faint">{children}</div>
 }
 
 export function PopoverDivider(): JSX.Element {
-  return <div className="h-px bg-white/[0.07] mx-1.5 my-1" />
+  return <div data-popover-divider="" className="h-px bg-white/[0.07] mx-1.5 my-1" />
 }
 
 /** Lista con scroll interno para popovers con muchos items. */

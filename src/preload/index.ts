@@ -30,6 +30,7 @@ const api: TitanioApi = {
   onPermAsk: (cb: () => void) => sub('perm:ask', () => cb()),
   permAnchor: (anchor) => ipcRenderer.send('perm:anchor', anchor),
   openProfileMenu: (anchor) => ipcRenderer.send('profilemenu:open', anchor),
+  warmProfileMenu: () => ipcRenderer.send('profilemenu:warm'),
   peekShow: (anchor) => ipcRenderer.send('peek:show', anchor),
   peekMaybeHide: () => ipcRenderer.send('peek:maybeHide'),
   getProfile: () => ipcRenderer.invoke('profile:get') as Promise<import('../shared/types').Profile>,

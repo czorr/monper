@@ -4,6 +4,7 @@ import type { Page } from '../../../../packages/titaniowright/src'
 import type { VaultItemMeta } from '../../../shared/vault'
 import * as vault from '../../vault/store'
 import { injectFill } from '../../autofill'
+import { sameCredentialSite } from '../../../shared/vault'
 
 // ---- La joya: rellenar credenciales SIN que el agente vea la contraseña ----
 // El REPL (agente) solo llama passwordManager.fill(...). Esta función corre en el MAIN:
@@ -21,10 +22,10 @@ export function makePasswordManager(page: Page, wc: WebContents) {
 
   const resolve = async (arg: unknown): Promise<VaultItemMeta | undefined> => {
     if (typeof arg === 'string') return vault.get(arg)
-    const a = (arg ?? {}) as { id?: string; origin?: string }
+    const a = (arg ?? {}) as { id?: string; origin?: string; username?: string }
     if (a.id) return vault.get(a.id)
     const origin = a.origin || originOf(await page.url())
-    return vault.findCredential(origin) || creds().find((i) => hostOf(i.data.origin || '') === hostOf(origin))
+    return vault.findCredential(origin, a.username)
   }
 
   // Gate de aprobación del usuario (el "password manager" pide permiso, no el agente).
@@ -44,15 +45,19 @@ export function makePasswordManager(page: Page, wc: WebContents) {
 
   const findForOrigin = async (origin?: string) => {
     const o = origin || originOf(await page.url())
-    return creds().filter((i) => hostOf(i.data.origin || '') === hostOf(o)).map(meta)
+    return vault.credentialsForSite(o).map(meta)
   }
 
   const fill = async (arg?: unknown) => {
     const item = await resolve(arg)
-    if (!item) return { ok: false, error: 'No hay credencial guardada para este sitio. Pídele al usuario que la agregue en el Vault.' }
+    if (!item) return { ok: false, error: 'No hay una cuenta única para rellenar. Consulta findForOrigin y elige el id o usuario; si no hay cuentas, pide al usuario que añada una.' }
+    if (item.type !== 'web-credential' || !sameCredentialSite(item.data.origin || '', wc.getURL())) {
+      return { ok: false, error: 'La credencial no corresponde al sitio actual.' }
+    }
     const secret = vault.getSecret(item.id)
     if (secret == null) return { ok: false, error: 'No se pudo leer el secreto del vault (¿cifrado no disponible?).' }
     if (!approve(item.data.origin || (await page.url()))) return { ok: false, cancelled: true }
+    if (!sameCredentialSite(item.data.origin || '', wc.getURL())) return { ok: false, error: 'La página cambió antes de rellenar.' }
     const filled = await injectFill(wc, item.data.username || '', secret)
     // Nota: el secreto NO se devuelve ni se loguea. Solo qué campos se rellenaron.
     return { ok: filled.length > 0, filled }

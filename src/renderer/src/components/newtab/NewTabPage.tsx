@@ -3,7 +3,6 @@ import type { Suggestion } from '@shared/types'
 import { useAutocomplete, useInlineCompletion, SuggestionList } from '@renderer/components/omnibox'
 import { GlassLogo } from '@renderer/components/ui/GlassLogo'
 import DefaultBrowserBanner from './DefaultBrowserBanner'
-import Widgets from './Widgets'
 
 const { titanioTab } = window
 
@@ -65,7 +64,7 @@ export default function NewTabPage(): JSX.Element {
       <DefaultBrowserBanner />
 
       {/* Search box */}
-      <div className="relative w-full max-w-[760px] mb-20">
+      <div className="relative w-full max-w-[760px]">
         <div className="flex items-center gap-3 h-[56px] px-4 rounded-[20px] bg-white/[0.05] border border-white/5 focus-within:border-white/10 shadow-xl shadow-black/20 transition-colors">
           <input
             autoFocus
@@ -98,8 +97,6 @@ export default function NewTabPage(): JSX.Element {
           </div>
         )}
       </div>
-
-      <Widgets />
     </div>
   )
 }

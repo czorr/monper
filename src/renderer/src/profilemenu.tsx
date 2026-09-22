@@ -6,7 +6,8 @@ import { PopoverPanel, PopoverRow, PopoverLabel, PopoverDivider } from '@rendere
 import IconChevronRight from '~icons/tabler/chevron-right'
 import IconCheck from '~icons/tabler/check'
 import IconX from '~icons/tabler/x'
-import IconUserPlus from '~icons/tabler/user-plus'
+import IconUserCircle from '~icons/tabler/user-circle'
+import IconDots from '~icons/tabler/dots'
 import IconBookmark from '~icons/tabler/bookmark'
 import IconDownload from '~icons/tabler/download'
 import IconPuzzle from '~icons/tabler/puzzle'
@@ -71,19 +72,25 @@ function ProfileMenuWindow(): JSX.Element {
 
   // Pasar por cualquier fila SIN submenú lo cierra: es lo que se espera de un menú.
   return (
-    <PopoverPanel onHeight={pm.reportHeight} measure={[datos, creando]}>
+    <PopoverPanel onHeight={pm.reportHeight} measure={[datos, creando]} className="profile-menu" animation="none">
       <div onMouseEnter={() => pm.submenuMaybeClose()}>
         <PopoverLabel>Profiles</PopoverLabel>
 
         {datos.perfiles.map((p) => (
           <div key={p.id} className="group relative">
             <PopoverRow
-              icon={<Avatar initials={iniciales(p.nombre)} src={p.avatar} size="sm" />}
+              icon={<span className="profile-menu-avatar"><Avatar initials={iniciales(p.nombre)} src={p.avatar} size="sm" /></span>}
               label={p.nombre}
-              active={p.activo}
               onClick={() => { if (!p.activo) pm.cambiarPerfil(p.id) }}
-              meta={p.activo ? <IconCheck className="w-3.5 h-3.5" /> : undefined}
+              meta={p.activo ? <span className="pr-6"><IconCheck className="w-4 h-4" /></span> : undefined}
             />
+            {p.activo && (
+              <button type="button" title="Configurar perfil" aria-label="Configurar perfil"
+                onClick={() => act('settings')}
+                className="absolute right-1 top-1/2 -translate-y-1/2 grid place-items-center w-6 h-7 rounded-md text-[#a1a1a6] hover:text-[#d9d9dd] hover:bg-white/[0.08]">
+                <IconDots className="w-4 h-4" />
+              </button>
+            )}
             {/* Quitar solo los que NO son el activo: quitarte el suelo de debajo mientras estás
                 de pie encima obligaría a reiniciar a otro perfil sin haberlo pedido. */}
             {!p.activo && (
@@ -114,7 +121,7 @@ function ProfileMenuWindow(): JSX.Element {
             />
           </div>
         ) : (
-          <PopoverRow icon={<IconUserPlus />} label="New profile" onClick={() => setCreando(true)} />
+          <PopoverRow icon={<IconUserCircle />} label="New profile" onClick={() => setCreando(true)} />
         )}
       </div>
 

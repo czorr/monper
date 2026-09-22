@@ -349,25 +349,6 @@ export interface NodoMemoriaInfo {
   hijos?: NodoMemoriaInfo[]
 }
 
-/** Un widget del new tab, listo para pintar. Ver src/main/widgets.ts. */
-export interface WidgetInfo {
-  id: string
-  peticion?: string
-  url: string
-  title: string
-  favicon: string | null
-  datos:
-    | { tipo: 'metrica'; valor: string; etiqueta?: string; delta?: { texto: string; signo: 'sube' | 'baja' | 'neutro' }; serie?: number[]; forma?: 'linea' | 'barras' }
-    | { tipo: 'progreso'; porcentaje: number; valor?: string; etiqueta?: string }
-    | { tipo: 'lista'; items: { texto: string; meta?: string; url?: string }[] }
-    | null
-  updatedAt: number
-  changed: boolean
-  fallos: number
-  creando?: boolean
-  error?: string
-}
-
 export interface HistoryEntryInfo {
   url: string
   title: string
@@ -588,6 +569,7 @@ export interface TitanioApi {
   permAnchor: (anchor: MenuAnchor) => void
   /** Abre el menú de perfil (ventana nativa), anclado al account pill */
   openProfileMenu: (anchor: MenuAnchor) => void
+  warmProfileMenu: () => void
   // ---- Peek del sidebar (hover del botón expandir con sidebar colapsado) ----
   peekShow: (anchor: MenuAnchor) => void
   peekMaybeHide: () => void
@@ -930,16 +912,6 @@ export interface TitanioTabApi {
   moveBookmark: (id: string, parentId: string | null) => void
   // ---- Historial ----
   browseHistory: (query: string, offset: number, limit: number) => Promise<{ entries: HistoryEntryInfo[]; total: number }>
-  // ---- Widgets del new tab ----
-  widgetsList: () => Promise<WidgetInfo[]>
-  widgetsRefresh: () => void
-  widgetsRemove: (id: string) => void
-  widgetsSeen: (id: string) => void
-  widgetsCreate: (url: string, title: string, favicon: string | null) => void
-  widgetsRetry: (id: string) => void
-  /** Pide un widget en lenguaje natural: el agente elige la fuente y escribe el extractor. */
-  widgetsAsk: (peticion: string) => void
-  onWidgets: (cb: (lista: WidgetInfo[]) => void) => () => void
   // ---- Memoria del agente (ficheros markdown que escribe él) ----
   memoryList: () => Promise<NodoMemoriaInfo[]>
   memoryRead: (path: string) => Promise<string | null>

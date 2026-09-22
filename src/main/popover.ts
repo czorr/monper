@@ -38,6 +38,8 @@ export interface PopoverOptions {
   widthFromAnchor?: boolean
   /** Desplazamiento vertical respecto al borde inferior del anchor. */
   offsetY?: number
+  /** El menú del pie del sidebar se despliega hacia arriba. */
+  side?: 'top' | 'bottom'
   /**
    * Datos que el popover necesita al abrirse.
    *
@@ -99,13 +101,16 @@ export function createPopover(getParent: () => BW | null, opts: PopoverOptions, 
           : cb.x + anchor.x - PAD
     // No dejar que se salga de la ventana padre.
     const x = Math.round(Math.min(Math.max(rawX, cb.x), cb.x + cb.width - outerW))
-    const y = Math.round(cb.y + anchor.y + anchor.height + (opts.offsetY ?? -4))
+    const y = Math.round(opts.side === 'top'
+      ? Math.max(cb.y, cb.y + anchor.y - height + PAD + (opts.offsetY ?? -4))
+      : cb.y + anchor.y + anchor.height + (opts.offsetY ?? -4))
     const h = opts.fullHeight ? Math.max(1, cb.y + cb.height - y) : Math.max(1, Math.round(height))
     win.setBounds({ x, y, width: outerW, height: h })
   }
 
   const ensure = (): BW => {
     if (win && !win.isDestroyed()) return win
+    pintado = false
     const parent = getParent()
     win = new BrowserWindow({
       parent: parent ?? undefined,

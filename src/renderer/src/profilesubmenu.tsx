@@ -83,7 +83,7 @@ function SubmenuWindow(): JSX.Element {
   }
 
   return (
-    <PopoverPanel onHeight={sm.reportHeight} measure={data}>
+    <PopoverPanel onHeight={sm.reportHeight} measure={data} className="profile-menu" animation="none">
       {principales.map(fila)}
       {!!principales.length && !!resto.length && <PopoverDivider />}
       {data.listLabel && !!resto.length && <PopoverLabel>{data.listLabel}</PopoverLabel>}

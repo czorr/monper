@@ -204,13 +204,6 @@ export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBo
         </div>
       )}
 
-      <div className="flex items-center justify-between gap-1 pr-1 [-webkit-app-region:drag]">
-        <AccountPill initials={profile.initials} name={profile.name} avatar={profile.avatar} onOpen={onOpenMenu} />
-        <IconButton title="Nueva pestaña (⌘T)" onClick={onNewTab}>
-          <PlusIcon />
-        </IconButton>
-      </div>
-
       {bookmarks.length > 0 && (
         <div
           className="shrink-0"
@@ -297,6 +290,9 @@ export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBo
           </div>
         </div>
       )}
+      <div className="shrink-0 flex items-center pt-2 [-webkit-app-region:drag]">
+        <AccountPill initials={profile.initials} name={profile.name} avatar={profile.avatar} onOpen={onOpenMenu} />
+      </div>
     </aside>
   )
 }

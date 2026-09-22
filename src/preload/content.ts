@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { WidgetInfo, Bookmark, DownloadEntry, TitanioTabApi, Suggestion } from '../shared/types'
+import type { Bookmark, DownloadEntry, TitanioTabApi, Suggestion } from '../shared/types'
 import { setupSelectionUI } from './selectionUI'
 import { setupPasswordCapture } from './passwordCapture'
 import { setupTopColor } from './topColor'
@@ -74,18 +74,6 @@ const api: TitanioTabApi = {
   newBookmarkFolder: (title) => ipcRenderer.invoke('bookmarks:newFolder', title),
   moveBookmark: (id, parentId) => ipcRenderer.send('bookmarks:move', id, parentId),
   browseHistory: (query, offset, limit) => ipcRenderer.invoke('history:browse', query, offset, limit),
-  widgetsList: () => ipcRenderer.invoke('widgets:list'),
-  widgetsRefresh: () => ipcRenderer.send('widgets:refresh'),
-  widgetsRemove: (id) => ipcRenderer.send('widgets:remove', id),
-  widgetsSeen: (id) => ipcRenderer.send('widgets:seen', id),
-  widgetsCreate: (url, title, favicon) => ipcRenderer.send('widgets:create', url, title, favicon),
-  widgetsRetry: (id) => ipcRenderer.send('widgets:retry', id),
-  widgetsAsk: (peticion) => ipcRenderer.send('widgets:ask', peticion),
-  onWidgets: (cb) => {
-    const h = (_e: unknown, lista: WidgetInfo[]): void => cb(lista)
-    ipcRenderer.on('widgets:changed', h)
-    return () => { ipcRenderer.removeListener('widgets:changed', h) }
-  },
   memoryList: () => ipcRenderer.invoke('memory:list'),
   memoryRead: (path) => ipcRenderer.invoke('memory:read', path),
   memoryWrite: (path, contenido) => ipcRenderer.invoke('memory:write', path, contenido),

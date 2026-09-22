@@ -177,9 +177,11 @@ escribe directo en el portapapeles, así el valor ni siquiera entra en el DOM.
 
 - El portapapeles **se limpia solo a los 30 s**, y solo si sigue conteniendo lo que copiamos —
   si el usuario copió otra cosa mientras tanto, vaciarlo le destruiría su portapapeles.
-- Editar toca solo la metadata (nombre, usuario). **La contraseña no se edita ahí**: cambiarla
-  es cosa del sitio, y Titanio la vuelve a capturar en el siguiente login; un campo aquí solo
-  desincronizaría las dos.
+- Editar permite cambiar nombre, sitio, usuario y el valor guardado. Para tokens también
+  servicio y cuenta; para secretos genéricos, su identificador. El campo de reemplazo empieza
+  vacío y dejarlo así conserva el secreto actual: nunca se precarga la contraseña en el editor.
+  Esto actualiza el vault, no la contraseña ni el token en el servicio. Los errores de guardado
+  mantienen el formulario abierto y muestran el motivo.
 - Los `••••••••` de cada fila son decorativos y de longitud fija a propósito: pintar la longitud
   real filtraría cuánto mide la contraseña a quien mire la pantalla de lejos. Al revelarla se
   pinta **monoespaciada**: una proporcional confunde `l` con `1` y `O` con `0` justo cuando más
@@ -201,3 +203,19 @@ escribe directo en el portapapeles, así el valor ni siquiera entra en el DOM.
   volver a taparla salvo esperar los 15 s.
 - `vault:copy`, `vault:update` y `vault:available` llevan `isInternalSender`, como el resto de
   la gestión. El chrome no tiene siquiera el método en su preload, y hay un test que lo afirma.
+
+## Cuentas, importación y edición
+
+- Alta, importación y edición comparten `normalizeCredentialOrigin`: solo HTTP/HTTPS, sin
+  rutas ni credenciales embebidas. Al arrancar se migran los antiguos `data.url` a `data.origin`,
+  conservando ids y secretos. Los registros con sitios inválidos se conservan para editarlos.
+- La identidad de una cuenta es sitio + usuario (se recortan espacios, no se cambia el casing).
+  Se admite el alias `www`, pero no se mezclan protocolos, puertos ni otros subdominios.
+- Reimportar una cuenta existente no sobrescribe su contraseña. Un registro inválido no
+  interrumpe el resto de la importación y aparece en el resumen de errores.
+- La captura actualiza solo la cuenta cuyo usuario coincide; no el primer registro del sitio.
+  Sin usuario solo coincide con una cuenta guardada sin usuario.
+- El agente debe indicar id o usuario cuando hay varias cuentas. El autorrelleno valida que
+  el registro sea una credencial web del sitio actual, también cuando se elige por id.
+- Regresiones comprobables sin abrir Electron:
+  `node --experimental-vm-modules --test tests/vault-unit.cjs`.

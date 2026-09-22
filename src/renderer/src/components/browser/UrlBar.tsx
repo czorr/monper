@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type JSX } from 'react'
 import type { ActiveInfo, Suggestion } from '@shared/types'
 import { domainOf } from '@renderer/lib/dom'
-import TitanioMark from '@renderer/components/ui/TitanioMark'
+import TitanioLogo from '@renderer/components/ui/TitanioLogo'
 import { useAutocomplete, useInlineCompletion } from '@renderer/components/omnibox'
 
 const { titanio } = window
@@ -108,8 +108,7 @@ export default function UrlBar({ active, editRequest, onGo }: Props): JSX.Elemen
             }}
             className="flex items-center gap-1.5 shrink-0 h-[30px] pl-2 pr-3 rounded-full text-[13px] font-medium text-text bg-bg-elev hover:bg-bg-hover transition-colors whitespace-nowrap tracking-[-0.08px]"
           >
-            {interna && <TitanioMark className="w-[12px] h-[12px]" />}
-            <span className={interna ? '' : 'pl-1'}>{domain}</span>
+            {interna ? <TitanioLogo height={13} /> : <span className="pl-1">{domain}</span>}
           </button>
           {/* Título → abre el input */}
           <button

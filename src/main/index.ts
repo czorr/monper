@@ -91,6 +91,7 @@ const VIBRANCY_DEFAULT: VibrancyMaterial = 'hud'
 /** 'none' = ventana opaca (sin vibrancy). Es un valor de ajuste, no un material de macOS. */
 type VibrancySetting = VibrancyMaterial | 'none'
 let vibrancyMaterial: VibrancySetting = VIBRANCY_DEFAULT
+let appearanceTint: string | null = null
 const NO_VIBRANCY = process.env['MONPER_NO_VIBRANCY'] === '1'
 const APP_BG = '#111114' // igual que --color-bg en styles.css
 const isMac = process.platform === 'darwin'
@@ -746,6 +747,7 @@ function crearVentana(opts: { sinPestanaInicial?: boolean; incognito?: boolean }
     const t = activeId != null ? tabs.get(activeId) : null
     const displayUrl = (u: string) => (isInternal(u) ? '' : u)
     const state: BrowserState = {
+      tint: appearanceTint,
       titanioFavicon: faviconFor('https://app.titanio.ai'),
       activeId,
       tabs: [...tabs.entries()].map(([id, tb]) => ({
@@ -1895,20 +1897,21 @@ ipcMain.handle('nav:reload', (ev) => { const t = vDe(ev).tabActiva(); t?.view.we
 function panelsFile(): string { return join(app.getPath('userData'), 'panels.json') }
 function loadPanels(): void {
   try {
-    const d = JSON.parse(readFileSync(panelsFile(), 'utf-8')) as { sidebar?: number; chat?: number; vibrancy?: string }
+    const d = JSON.parse(readFileSync(panelsFile(), 'utf-8')) as { sidebar?: number; chat?: number; vibrancy?: string; tint?: string }
     const L = PANEL_LIMITS
     if (d.sidebar) sidebarWidth = Math.min(L.sidebarMax, Math.max(L.sidebarMin, Math.round(d.sidebar)))
     if (d.chat) chatWidth = Math.min(L.chatMax, Math.max(L.chatMin, Math.round(d.chat)))
     // Solo aceptamos un valor conocido: el JSON lo puede editar el usuario.
     const v = d.vibrancy as VibrancySetting
     if (v === 'none' || VIBRANCY_MATERIALS.includes(v as VibrancyMaterial)) vibrancyMaterial = v
+    if (typeof d.tint === 'string' && /^#[0-9a-f]{6}$/i.test(d.tint)) appearanceTint = d.tint.toLowerCase()
   } catch { /* valores por defecto */ }
 }
 let savePanelsTimer: NodeJS.Timeout | null = null
 function savePanels(): void {
   if (savePanelsTimer) clearTimeout(savePanelsTimer)
   savePanelsTimer = setTimeout(() => {
-    writeJson(panelsFile(), { sidebar: sidebarWidth, chat: chatWidth, vibrancy: vibrancyMaterial }, 'el tamaño de los paneles', false)
+    writeJson(panelsFile(), { sidebar: sidebarWidth, chat: chatWidth, vibrancy: vibrancyMaterial, tint: appearanceTint }, 'la apariencia y el tamaño de los paneles', false)
   }, 400)
 }
 ipcMain.handle('state:get', (ev) => vDe(ev).buildState())
@@ -1926,14 +1929,25 @@ const VIBRANCY_OPTIONS: { id: VibrancySetting; label: string; desc: string }[] =
 ]
 /** Aplica el ajuste en vivo. 'none' quita la vibrancy y pone fondo opaco. */
 function applyVibrancy(v: VibrancySetting): void {
-  if (!vActOpt()?.win || vActOpt()?.win.isDestroyed() || !isMac) return
-  if (v === 'none') {
-    vActOpt()?.win.setVibrancy(null)
-    vActOpt()?.win.setBackgroundColor(APP_BG)
-  } else {
-    vActOpt()?.win.setBackgroundColor('#00000000') // necesario para que el material se vea
-    vActOpt()?.win.setVibrancy(v)
+  if (!isMac || NO_VIBRANCY) return
+  for (const { win } of ventanas.values()) {
+    if (win.isDestroyed()) continue
+    if (v === 'none') {
+      win.setVibrancy(null)
+      win.setBackgroundColor(APP_BG)
+    } else {
+      win.setBackgroundColor('#00000000') // necesario para que el material se vea
+      win.setVibrancy(v)
+    }
   }
+}
+
+function appearanceData() {
+  return { vibrancy: vibrancyMaterial, tint: appearanceTint, options: VIBRANCY_OPTIONS }
+}
+function broadcastAppearance(): void {
+  paraPaginas('/settings.html', 'ui:appearanceChanged', appearanceData())
+  for (const v of ventanas.values()) v.pushState()
 }
 // ---- Actualizaciones: estado compartido con el chrome (pill) y con Settings ----
 function broadcastUpdateState(s: ReturnType<typeof getUpdateState>): void {
@@ -2088,12 +2102,21 @@ ipcMain.on('update:check', () => void checkForUpdates(true, vActOpt()?.win))
 ipcMain.on('update:download', () => void downloadUpdate())
 ipcMain.on('update:install', () => installUpdate())
 
-ipcMain.handle('ui:appearance', () => ({ vibrancy: vibrancyMaterial, options: VIBRANCY_OPTIONS }))
+ipcMain.handle('ui:appearance', () => appearanceData())
+ipcMain.handle('ui:setTint', (e, color: unknown) => {
+  if (!isInternalSender(e.senderFrame?.url)) throw new Error('No permitido.')
+  if (color !== null && (typeof color !== 'string' || !/^#[0-9a-f]{6}$/i.test(color))) throw new Error('Color no válido.')
+  appearanceTint = typeof color === 'string' ? color.toLowerCase() : null
+  broadcastAppearance()
+  savePanels()
+  return appearanceTint
+})
 ipcMain.on('ui:setVibrancy', (e, v: VibrancySetting) => {
   if (!isInternalSender(e.senderFrame?.url)) return
   if (!VIBRANCY_OPTIONS.some((o) => o.id === v)) return
   vibrancyMaterial = v
   applyVibrancy(v)
+  broadcastAppearance()
   savePanels()
 })
 ipcMain.on('ui:setPanel', (ev, which: 'sidebar' | 'chat', width: number) => {
@@ -3892,9 +3915,10 @@ ipcMain.handle('usage:limit', (e, valor?: number) => {
 ipcMain.on('ui:cycleVibrancy', () => {
   if (!vActOpt()?.win || !isMac) return
   // Cicla solo entre materiales; 'none' se elige desde Settings.
-  const i = VIBRANCY_MATERIALS.indexOf(vibrancyMaterial as VibrancyMaterial)
-  vibrancyMaterial = VIBRANCY_MATERIALS[(i + 1) % VIBRANCY_MATERIALS.length]
+  const i = VIBRANCY_OPTIONS.findIndex((o) => o.id === vibrancyMaterial)
+  vibrancyMaterial = VIBRANCY_OPTIONS[(i + 1) % VIBRANCY_OPTIONS.length].id
   applyVibrancy(vibrancyMaterial)
+  broadcastAppearance()
   savePanels()
   console.log('[vibrancy]', vibrancyMaterial, '· ⌘⌥V para el siguiente')
 })

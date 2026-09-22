@@ -8,17 +8,17 @@ import IconPencil from '~icons/tabler/pencil'
 import IconChevron from '~icons/tabler/chevron-down'
 import IconFileText from '~icons/tabler/file-text'
 import IconDots from '~icons/tabler/dots'
-import logo from '@renderer/assets/iso-white.svg'
+import TitanioLogo from '@renderer/components/ui/TitanioLogo'
 import SkillIcon from './SkillIcon'
 import { MD_COMPONENTS } from './markdown'
 import { SettingsHeader, SettingsContent, Button, Toggle } from './ui'
 
 const { titanioTab } = window
 
-/** Renderiza un autor; si es "Titanio", antepone el iso pequeño con opacity-80. */
+/** Las skills oficiales usan el logo completo, no texto que imite la marca. */
 function Author({ name }: { name: string }): JSX.Element {
   if (name === 'Titanio') {
-    return <span className="inline-flex items-center gap-1.5"><img src={logo} alt="" className="w-4 h-4 object-contain opacity-80" />Titanio</span>
+    return <TitanioLogo height={16} />
   }
   return <>{name}</>
 }

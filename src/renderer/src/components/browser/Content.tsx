@@ -1,5 +1,5 @@
 import { useEffect, useRef, type JSX, type ReactNode } from 'react'
-import titanioLogo from '@renderer/assets/iso-white.svg' // aquí el fondo es siempre oscuro
+import TitanioLogo from '@renderer/components/ui/TitanioLogo'
 
 const { titanio } = window
 
@@ -73,9 +73,9 @@ export default function Content({ leftInset, rightInset, pageColor, controlling,
       )}
       {controlling && (
         <div className="absolute left-0 right-0 bottom-0 h-10 flex items-center justify-center gap-3 px-4 text-[12.5px] text-text-dim">
-          <span className="flex items-center gap-2 [&>img]:w-4 [&>img]:h-4 [&>img]:opacity-80">
-            <img src={titanioLogo} alt="" />
-            Titanio is controlling this tab
+          <span className="flex items-center gap-2">
+            <TitanioLogo height={14} />
+            <span>is controlling this tab</span>
           </span>
           <button
             onClick={onTakeOver}

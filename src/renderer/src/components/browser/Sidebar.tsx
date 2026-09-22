@@ -165,6 +165,7 @@ export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBo
 
   return (
     <aside
+      style={{ backgroundColor: state.tint ? `${state.tint}3d` : undefined }}
       className={
         'group flex flex-col pb-2.5 px-2 ' +
         (floating ? 'h-full w-full pt-2 ' : 'fixed inset-y-0 left-0 w-sidebar ') +

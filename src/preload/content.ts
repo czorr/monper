@@ -70,6 +70,12 @@ const api: TitanioTabApi = {
   setProfile: (name) => ipcRenderer.invoke('profile:set', name),
   setAvatar: (dataUrl) => ipcRenderer.invoke('profile:setAvatar', dataUrl),
   getAppearance: () => ipcRenderer.invoke('ui:appearance'),
+  setTint: (color) => ipcRenderer.invoke('ui:setTint', color),
+  onAppearance: (cb) => {
+    const handler = (_e: unknown, data: import('../shared/types').AppearanceData): void => cb(data)
+    ipcRenderer.on('ui:appearanceChanged', handler)
+    return () => { ipcRenderer.removeListener('ui:appearanceChanged', handler) }
+  },
   updateBookmark: (id, cambios) => ipcRenderer.invoke('bookmarks:update', id, cambios),
   newBookmarkFolder: (title) => ipcRenderer.invoke('bookmarks:newFolder', title),
   moveBookmark: (id, parentId) => ipcRenderer.send('bookmarks:move', id, parentId),

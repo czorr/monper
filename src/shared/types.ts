@@ -295,6 +295,7 @@ export interface Suggestion {
 }
 
 export interface BrowserState {
+  tint?: string | null
   titanioFavicon?: string | null
   activeId: number | null
   tabs: TabInfo[]
@@ -799,6 +800,7 @@ export const NO_UPDATE: UpdateState = {
 /** Ajustes de apariencia: nivel de transparencia del chrome. */
 export interface AppearanceData {
   vibrancy: string
+  tint: string | null
   options: { id: string; label: string; desc: string }[]
 }
 
@@ -897,6 +899,8 @@ export interface TitanioTabApi {
   clearDownloads: () => void
   // ---- Apariencia (Settings) ----
   getAppearance: () => Promise<AppearanceData>
+  onAppearance: (cb: (data: AppearanceData) => void) => () => void
+  setTint: (color: string | null) => Promise<string | null>
   setVibrancy: (id: string) => void
   // ---- Permisos de sitios (Settings → Permissions) ----
   /**

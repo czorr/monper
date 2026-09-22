@@ -179,7 +179,7 @@ export default function App(): JSX.Element {
         />
       )}
 
-      <ChatPanel open={chatOpen} onClose={() => setChatOpen(false)} inject={inject} resizing={resizing} />
+      <ChatPanel open={chatOpen} onClose={() => setChatOpen(false)} inject={inject} resizing={resizing} tint={state.tint} />
     </>
   )
 }

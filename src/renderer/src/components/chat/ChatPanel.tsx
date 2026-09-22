@@ -14,6 +14,7 @@ const EMPTY_CTX: ChatContext = { provider: null, models: [], model: '', effort: 
 const { titanio } = window
 
 interface Props {
+  tint?: string | null
   open: boolean
   onClose: () => void
   /** prompt inyectado (p. ej. desde una acción rápida): se envía al cambiar el nonce */
@@ -22,7 +23,7 @@ interface Props {
   resizing?: boolean
 }
 
-export default function ChatPanel({ open, onClose, inject, resizing }: Props): JSX.Element {
+export default function ChatPanel({ open, onClose, inject, resizing, tint }: Props): JSX.Element {
   const [messages, setMessages] = useState<Msg[]>([])
   const [running, setRunning] = useState(false)
   const [sessionId, setSessionId] = useState('')
@@ -172,6 +173,7 @@ export default function ChatPanel({ open, onClose, inject, resizing }: Props): J
 
   return (
     <aside
+      style={{ backgroundColor: tint ? `${tint}3d` : undefined }}
       className={
         'fixed top-0 right-0 bottom-0 w-panel flex flex-col bg-transparent ' +
         (resizing ? '' : 'transition-transform duration-[180ms] ease-[cubic-bezier(0.33,1,0.68,1)] ') +

@@ -122,7 +122,7 @@ export default function SettingsPage(): JSX.Element {
                 key={n.id}
                 onClick={() => setCat(n.id)}
                 className={
-                  'flex items-center gap-2.5 w-full h-9 px-2.5 rounded-lg text-[14px] text-left transition-colors [&>svg]:w-[18px] [&>svg]:h-[18px] [&>svg]:shrink-0 ' +
+                  'flex items-center gap-2.5 w-full h-8 px-2 rounded-lg text-[14px] text-left transition-colors [&>svg]:w-[18px] [&>svg]:h-[18px] [&>svg]:shrink-0 ' +
                   (cat === n.id ? 'bg-white/[0.08] text-text' : 'text-text-dim hover:bg-white/[0.04] hover:text-text')
                 }
               >
@@ -144,7 +144,7 @@ export default function SettingsPage(): JSX.Element {
             <Button
               key={l.label}
               onClick={l.onClick}
-              className="flex items-center gap-2.5 w-full h-9 px-2.5 rounded-lg text-[14px] text-left text-text-dim hover:bg-white/[0.04] hover:text-text transition-colors [&>svg]:w-[18px] [&>svg]:h-[18px] [&>svg]:shrink-0"
+              className="flex items-center gap-2.5 w-full h-8 px-2 rounded-lg text-[14px] text-left text-text-dim hover:bg-white/[0.04] hover:text-text transition-colors [&>svg]:w-[18px] [&>svg]:h-[18px] [&>svg]:shrink-0"
             >
               {l.icon}
               <span className="flex-1 truncate">{l.label}</span>
@@ -300,18 +300,26 @@ function AccountPage(): JSX.Element {
 
 /** Transparencia del chrome: cambia el material de vibrancy de la ventana, en vivo. */
 function AppearancePage(): JSX.Element {
-  const [data, setData] = useState<AppearanceData>({ vibrancy: '', options: [] })
+  const [data, setData] = useState<AppearanceData>({ vibrancy: '', tint: null, options: [] })
   const [error, setError] = useState('')
+  const tintRequest = useRef(0)
   // Con catch: si el preload es viejo o el handler no está, se ve el motivo en vez de
   // quedarse en blanco (era exactamente el patrón de fallo silencioso que arrastrábamos).
   useEffect(() => {
+    let live = true
+    let updated = false
+    const unsubscribe = titanioTab.onAppearance((next) => {
+      updated = true
+      if (live) setData(next)
+    })
     Promise.resolve()
       .then(() => titanioTab.getAppearance())
-      .then(setData)
+      .then((next) => { if (live && !updated) setData(next) })
       .catch((e) => {
         console.error('[appearance] no se pudo leer la configuración:', e)
-        setError('No se pudo cargar la configuración. Reinicia Titanio e inténtalo de nuevo.')
+        if (live) setError('No se pudo cargar la configuración. Reinicia Titanio e inténtalo de nuevo.')
       })
+    return () => { live = false; unsubscribe() }
   }, [])
 
   const pick = (id: string): void => {
@@ -319,9 +327,28 @@ function AppearancePage(): JSX.Element {
     titanioTab.setVibrancy(id)
   }
 
+  const pickTint = async (color: string | null): Promise<void> => {
+    const request = ++tintRequest.current
+    const previous = data.tint
+    setError('')
+    setData((d) => ({ ...d, tint: color }))
+    try {
+      await titanioTab.setTint(color)
+    } catch (e) {
+      if (request !== tintRequest.current) return
+      console.error('[appearance] no se pudo cambiar el tono:', e)
+      setData((d) => ({ ...d, tint: previous }))
+      setError('No se pudo guardar el tono. Inténtalo de nuevo.')
+    }
+  }
+
+  const levels = [...data.options].reverse()
+  const level = levels.findIndex((o) => o.id === data.vibrancy)
+  const currentLabel = level >= 0 ? levels[level].label : 'Personalizada'
+
   return (
     <>
-      <SettingsHeader title="Appearance" description="Ajusta la transparencia de la barra lateral y del panel de chat." />
+      <SettingsHeader title="Appearance" description="Ajusta la transparencia y el tono de la barra lateral y del panel de chat." />
 
       {error && (
         <div className="mb-6 px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[13px] text-amber-300 leading-relaxed">
@@ -334,23 +361,50 @@ function AppearancePage(): JSX.Element {
           {data.options.length === 0 && !error && (
             <div className="px-4 py-4 text-[13px] text-text-faint">Cargando…</div>
           )}
-          {data.options.map((o) => {
-            const on = o.id === data.vibrancy
-            return (
-              <Button key={o.id} onClick={() => pick(o.id)} className="w-full text-left overflow-hidden">
-                <Row label={o.label} desc={o.desc}>
-                  <span
-                    className={
-                      'w-[18px] h-[18px] rounded-full border grid place-items-center shrink-0 ' +
-                      (on ? 'border-white/70' : 'border-white/20')
-                    }
-                  >
-                    {on && <span className="w-2.5 h-2.5 rounded-full bg-white" />}
-                  </span>
-                </Row>
-              </Button>
-            )
-          })}
+          {levels.length > 0 && (
+            <div className="px-4 py-4">
+              <div className="flex items-center justify-between gap-4 mb-3">
+                <label htmlFor="appearance-transparency" className="text-[14px]">Nivel de transparencia</label>
+                <output htmlFor="appearance-transparency" className="text-[13px] text-text-dim">{currentLabel}</output>
+              </div>
+              <input
+                id="appearance-transparency"
+                type="range"
+                min={0}
+                max={levels.length - 1}
+                step={1}
+                value={Math.max(0, level)}
+                aria-valuetext={currentLabel}
+                onChange={(e) => pick(levels[Number(e.target.value)].id)}
+                className="w-full h-6 accent-white cursor-pointer"
+              />
+              <div className="flex justify-between mt-1 text-[12px] text-text-faint">
+                <span>Opaco</span><span>Más transparente</span>
+              </div>
+            </div>
+          )}
+        </Card>
+      </Group>
+
+      <Group title="Tono">
+        <Card>
+          <div className="flex items-center justify-between gap-4 px-4 py-4">
+            <div className="flex items-center gap-3">
+              <input
+                id="appearance-tint"
+                type="color"
+                value={data.tint ?? '#111114'}
+                disabled={!data.options.length}
+                onChange={(e) => void pickTint(e.target.value)}
+                className="appearance-color w-11 h-11 shrink-0 cursor-pointer disabled:opacity-40"
+              />
+              <div>
+                <label htmlFor="appearance-tint" className="block text-[14px]">Color del tono</label>
+                <span className="text-[12.5px] text-text-dim">{data.tint?.toUpperCase() ?? 'Sin tono'}</span>
+              </div>
+            </div>
+            <Button variant="ghost" size="sm" disabled={!data.tint} onClick={() => void pickTint(null)}>Quitar tono</Button>
+          </div>
         </Card>
       </Group>
 

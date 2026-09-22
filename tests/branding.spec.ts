@@ -11,16 +11,13 @@ let h: Harness
 test.beforeAll(async () => { h = await launch() })
 test.afterAll(async () => { await h?.close() })
 
-test('en una página interna la pill dice Titanio y lleva el iso', async () => {
+test('en una página interna la pill muestra el logo completo de Titanio', async () => {
   await api(h.win, 'openSettings')
   // Se espera por `internal`, no por la URL: el main vacía la url de nuestras páginas.
   await waitForState(h.win, (s) => (s.tabs.find((t) => t.id === s.activeId) as { internal?: string } | undefined)?.internal === 'settings')
-  // Exacto, no substring: el topbar tiene un botón "Ask Titanio" que lo pillaba de rebote.
-  const marca = h.win.locator('button', { hasText: /^Titanio$/ }).first()
+  const marca = h.win.locator('button:has(.titanio-logo)').first()
   await expect(marca).toBeVisible()
-  // El iso, no solo el texto. Ya no es un <img>: es un span con el PNG como máscara para
-  // poder recolorearlo (ver TitanioMark).
-  await expect(marca.locator('.titanio-mark')).toBeVisible()
+  await expect(marca.getByRole('img', { name: 'Titanio' })).toBeVisible()
 })
 
 test('en un sitio real la pill muestra el dominio, sin iso', async () => {
@@ -31,8 +28,8 @@ test('en un sitio real la pill muestra el dominio, sin iso', async () => {
     await waitForState(h.win, (s) => s.tabs.find((t) => t.id === s.activeId)?.title === 'Un sitio')
     const dominio = h.win.locator('button', { hasText: '127.0.0.1' }).first()
     await expect(dominio).toBeVisible()
-    await expect(dominio.locator('.titanio-mark')).toHaveCount(0)
-    await expect(h.win.locator('button', { hasText: /^Titanio$/ })).toHaveCount(0)
+    await expect(dominio.locator('.titanio-logo')).toHaveCount(0)
+    await expect(h.win.locator('header button:has(.titanio-logo)')).toHaveCount(0)
   } finally {
     await site.close()
   }
@@ -65,17 +62,15 @@ test('el título de la ventana sigue a la pestaña activa', async () => {
   }
 })
 
-test('el iso se oscurece en páginas de fondo claro', async () => {
-  // El PNG es blanco sobre transparente y el topbar toma el color real de la página: sobre
-  // un sitio claro el iso desaparecía. TitanioMark usa el alfa como máscara y lo rellena con
-  // `currentColor`, así que hereda los tokens que `.on-light` ya redefine.
-  const claro = await serve({ '/': '<!doctype html><meta charset="utf-8"><title>Claro</title><body style="margin:0;background:#ffffff;height:100vh"></body>' })
-  const oscuro = await serve({ '/': '<!doctype html><meta charset="utf-8"><title>Oscuro</title><body style="margin:0;background:#101014;height:100vh"></body>' })
-
-  /** Luminancia del relleno del iso (0 = negro, 1 = blanco). */
+test('el logo completo hereda el color del contexto claro y oscuro', async () => {
+  await api(h.win, 'openSettings')
+  await waitForState(h.win, (s) => (s.tabs.find((t) => t.id === s.activeId) as { internal?: string } | undefined)?.internal === 'settings')
+  await expect(h.win.locator('header .titanio-logo')).toBeVisible()
+  // El logo vive en páginas internas. Se prueban ambos contextos de color sin navegar
+  // a un sitio externo, donde la barra muestra el dominio y el logo no existe.
   const lumMarca = async (): Promise<number> =>
     h.win.evaluate(() => {
-      const el = document.querySelector('.titanio-mark')
+      const el = document.querySelector('header .titanio-logo')
       if (!el) return -1
       const m = /rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(getComputedStyle(el).backgroundColor)
       if (!m) return -1
@@ -84,17 +79,13 @@ test('el iso se oscurece en páginas de fondo claro', async () => {
     })
 
   try {
-    await api(h.win, 'newTab')
-    await api(h.win, 'go', claro.url + '/')
-    await waitForState(h.win, (s) => s.tabs.find((t) => t.id === s.activeId)?.title === 'Claro')
+    await h.win.locator('header:has(.titanio-logo)').evaluate((el) => el.classList.add('on-light'))
     await expect.poll(lumMarca, { timeout: 8000 }).toBeLessThan(0.4)
 
-    await api(h.win, 'go', oscuro.url + '/')
-    await waitForState(h.win, (s) => s.tabs.find((t) => t.id === s.activeId)?.title === 'Oscuro')
+    await h.win.locator('header:has(.titanio-logo)').evaluate((el) => el.classList.remove('on-light'))
     await expect.poll(lumMarca, { timeout: 8000 }).toBeGreaterThan(0.6)
   } finally {
-    await claro.close()
-    await oscuro.close()
+    await h.win.locator('header:has(.titanio-logo)').evaluate((el) => el.classList.remove('on-light'))
   }
 })
 
@@ -111,7 +102,7 @@ test('en una página interna el topbar va en claro sobre la vibrancy', async () 
 
   await expect(h.win.locator('header.on-light'), 'el topbar no debe entrar en modo claro').toHaveCount(0)
   const lum = await h.win.evaluate(() => {
-    const el = document.querySelector('.titanio-mark')
+    const el = document.querySelector('header .titanio-logo')
     if (!el) return -1
     const m = /rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(getComputedStyle(el).backgroundColor)
     if (!m) return -1

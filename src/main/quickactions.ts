@@ -4,6 +4,7 @@ import { existsSync } from 'fs'
 import { readJson, writeJson } from './jsonfile'
 import { app } from 'electron'
 import type { QuickAction } from '../shared/types'
+import { QUICK_ICONS } from '../shared/types'
 import { DEFAULT_QUICK_ACTIONS, localizeQuickAction } from '../shared/quickactions'
 
 // Acciones por defecto (el usuario puede editarlas/borrarlas o crear las suyas).
@@ -18,6 +19,9 @@ export function initQuickActions(): void {
   file = join(app.getPath('userData'), 'quickactions.json')
   if (existsSync(file)) {
     items = readJson<QuickAction[]>(file, [...DEFAULTS], 'las acciones rápidas')
+    // Retira iconos antiguos del catálogo sin cambiar el contenido de las acciones.
+    const normalized = items.map((item) => ({ ...item, icon: supportedIcon(item.icon) }))
+    if (normalized.some((item, i) => item.icon !== items[i].icon)) { items = normalized; persist() }
   } else {
     items = [...DEFAULTS]
     persist()
@@ -26,10 +30,12 @@ export function initQuickActions(): void {
 
 export function listQuickActions(): QuickAction[] { return items }
 
+function supportedIcon(icon: string): string { return QUICK_ICONS.some((value) => value === icon) ? icon : 'message' }
+
 /** Crea o actualiza una acción (por id). Devuelve la lista resultante. */
 export function saveQuickAction(a: QuickAction): QuickAction[] {
   const id = a.id || 'qa_' + Math.random().toString(36).slice(2, 9)
-  const entry: QuickAction = { id, name: a.name.trim() || tr("Sin nombre"), icon: a.icon || 'sparkles', template: a.template }
+  const entry: QuickAction = { id, name: a.name.trim() || tr("Sin nombre"), icon: supportedIcon(a.icon), template: a.template }
   const i = items.findIndex((x) => x.id === id)
   if (i >= 0) items[i] = entry
   else items.push(entry)

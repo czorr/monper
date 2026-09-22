@@ -4,7 +4,6 @@ import { QUICK_ICONS, type QuickAction } from '@shared/types'
 import { localizeQuickAction } from '@shared/quickactions'
 import IconList from '~icons/tabler/list'
 import IconLanguage from '~icons/tabler/language'
-import IconSparkles from '~icons/tabler/sparkles'
 import IconWand from '~icons/tabler/wand'
 import IconMessage from '~icons/tabler/message'
 import IconPencil from '~icons/tabler/pencil'
@@ -21,17 +20,17 @@ import { SettingsHeader, Button } from './ui'
 const { titanioTab } = window
 
 const ICON_MAP: Record<string, ComponentType<SVGProps<SVGSVGElement>>> = {
-  list: IconList, language: IconLanguage, sparkles: IconSparkles, wand: IconWand,
+  list: IconList, language: IconLanguage, wand: IconWand,
   message: IconMessage, pencil: IconPencil, bulb: IconBulb, world: IconWorld,
   quote: IconQuote, code: IconCode, mail: IconMail, search: IconSearch
 }
 function Icon({ name }: { name: string }): JSX.Element {
   useLocale()
-  const C = ICON_MAP[name] || IconSparkles
+  const C = ICON_MAP[name] || IconMessage
   return <C />
 }
 
-const BLANK: QuickAction = { id: '', name: '', icon: 'sparkles', template: '{{selection}}' }
+const BLANK: QuickAction = { id: '', name: '', icon: 'message', template: '{{selection}}' }
 
 export default function QuickActionsSection(): JSX.Element {
   useLocale()

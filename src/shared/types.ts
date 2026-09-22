@@ -274,6 +274,13 @@ export interface StoredChatMsg {
 export type StoredPart =
   | { type: 'text'; text: string; error?: boolean }
   | { type: 'step'; step: Omit<ChatStep, 'image'>; hadImage?: boolean }
+  | { type: 'fail'; fail: ChatFallo }
+
+/** Historial enviado por el panel, antes de retirar las imágenes para persistirlo. */
+export interface IncomingChatMsg extends Omit<StoredChatMsg, 'attachments' | 'parts'> {
+  attachments?: ChatAttachment[]
+  parts?: (Exclude<StoredPart, { type: 'step' }> | { type: 'step'; step: ChatStep })[]
+}
 
 /** Tipo de acción de un paso, para elegir su icono en el chat */
 export type StepKind =
@@ -647,7 +654,7 @@ export interface TitanioApi {
   onChatContext: (cb: (ctx: ChatContext) => void) => () => void
   setModel: (modelId: string) => void
   setEffort: (effort: Effort) => void
-  chatSend: (messages: ChatMessage[]) => void
+  chatSend: (messages: ChatMessage[]) => Promise<void>
   chatCancel: () => void
   takeOver: () => void
   onChatToken: (cb: (text: string) => void) => () => void
@@ -669,7 +676,7 @@ export interface TitanioApi {
   /** Antes de enviar: puede devolver otra id si la actual expiró por inactividad. */
   chatsForNext: (id: string) => Promise<{ id: string; fresh: boolean }>
   /** Persiste la conversación completa (el panel es la fuente de verdad en vivo). */
-  chatsSave: (id: string, messages: unknown[]) => void
+  chatsSave: (id: string, messages: IncomingChatMsg[]) => Promise<void>
   chatsRemove: (id: string) => void
   // ---- Vault (ventana nativa flotante) ----
   openVault: (anchor: MenuAnchor) => void
@@ -740,7 +747,7 @@ export interface QuickAction {
 
 /** Iconos de tabler soportados para las acciones rápidas (deben existir en el mapa inyectado). */
 export const QUICK_ICONS = [
-  'list', 'language', 'sparkles', 'wand', 'message', 'pencil',
+  'list', 'language', 'wand', 'message', 'pencil',
   'bulb', 'world', 'quote', 'code', 'mail', 'search'
 ] as const
 

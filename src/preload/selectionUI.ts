@@ -7,7 +7,6 @@ import { localizeQuickAction } from '../shared/quickactions'
 const ICONS: Record<string, string> = {
   list: '<line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/><line x1="5" y1="6" x2="5" y2="6.01"/><line x1="5" y1="12" x2="5" y2="12.01"/><line x1="5" y1="18" x2="5" y2="18.01"/>',
   language: '<path d="M4 5h7"/><path d="M9 3v2c0 4.418 -2.239 8 -5 8"/><path d="M5 9c0 2.144 2.952 3.908 6.7 4"/><path d="M12 20l4 -9l4 9"/><path d="M19.1 18h-6.2"/>',
-  sparkles: '<path d="M16 18a2 2 0 0 1 2 2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 -2 2zm0 -12a2 2 0 0 1 2 2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 -2 2zm-7 12a6 6 0 0 1 6 -6a6 6 0 0 1 -6 -6a6 6 0 0 1 -6 6a6 6 0 0 1 6 6z"/>',
   wand: '<path d="M6 21l15 -15l-3 -3l-15 15l3 3"/><path d="M15 6l3 3"/>',
   message: '<path d="M8 9h8"/><path d="M8 13h6"/><path d="M18 4a3 3 0 0 1 3 3v8a3 3 0 0 1 -3 3h-5l-5 3v-3h-2a3 3 0 0 1 -3 -3v-8a3 3 0 0 1 3 -3h12z"/>',
   pencil: '<path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4"/><line x1="13.5" y1="6.5" x2="17.5" y2="10.5"/>',
@@ -20,7 +19,7 @@ const ICONS: Record<string, string> = {
   send: '<path d="M10 14l11 -11"/><path d="M21 3l-6.5 18a.55 .55 0 0 1 -1 0l-3.5 -7l-7 -3.5a.55 .55 0 0 1 0 -1l18 -6.5"/>'
 }
 function svg(name: string, size = 16): string {
-  const inner = ICONS[name] || ICONS.sparkles
+  const inner = ICONS[name] || ICONS.message
   return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`
 }
 function setHTML(el: { innerHTML: string }, html: string): void { try { el.innerHTML = html } catch { /* Trusted Types: sin icono */ } }
@@ -70,7 +69,7 @@ export function setupSelectionUI(): void {
     const wrap = box(x, y)
     const btn = document.createElement('button')
     btn.style.cssText = 'all:unset;box-sizing:border-box;display:grid;place-items:center;width:26px;height:26px;border-radius:8px;background:#1c1c20;color:#ececee;border:1px solid rgba(255,255,255,.12);box-shadow:0 4px 14px rgba(0,0,0,.4);cursor:pointer;'
-    setHTML(btn, svg('sparkles', 16))
+    setHTML(btn, svg('message', 16))
     btn.addEventListener('mousedown', (e) => { e.preventDefault(); e.stopPropagation() })
     btn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); openMenu(x, y) })
     wrap.appendChild(btn)

@@ -2,7 +2,7 @@ import { t as tr } from '../shared/i18n'
 import { join } from 'path'
 import { app } from 'electron'
 import { readJson, writeJson } from './jsonfile'
-import type { ChatSessionMeta, StoredChatMsg, StoredPart } from '../shared/types'
+import type { ChatSessionMeta, StoredChatMsg, StoredPart, IncomingChatMsg } from '../shared/types'
 
 /**
  * Historial de conversaciones con el agente.
@@ -65,37 +65,22 @@ function titleFor(messages: StoredChatMsg[]): string {
 }
 
 /**
- * El mensaje tal y como llega del panel: aquí los adjuntos y los screenshots SÍ son data URLs.
- * Se declara aparte del tipo guardado para que `strip` tenga que convertir de verdad y no se
- * pueda escribir una imagen a disco por descuido.
- */
-interface IncomingMsg {
-  role: 'user' | 'assistant'
-  text?: string
-  at?: number
-  attachments?: unknown[]
-  parts?: (
-    | { type: 'text'; text: string; error?: boolean }
-    | { type: 'step'; step: Record<string, unknown> & { image?: string } }
-  )[]
-}
-
-/**
  * Quita las imágenes antes de escribir a disco.
  *
  * Los adjuntos del usuario y los screenshots de los pasos son data URLs: unas pocas capturas
  * son megas de JSON, y el fichero se lee entero en cada arranque. Se guarda la marca de que
  * hubo imagen, no la imagen.
  */
-function strip(m: IncomingMsg): StoredChatMsg {
+function strip(m: IncomingChatMsg): StoredChatMsg {
   const out: StoredChatMsg = { role: m.role, at: m.at }
   if (m.text !== undefined) out.text = m.text
   if (m.attachments?.length) out.attachments = m.attachments.length // solo cuántas, no las imágenes
   if (m.parts) {
     out.parts = m.parts.map((p): StoredPart => {
       if (p.type === 'text') return { type: 'text', text: p.text, error: p.error }
+      if (p.type === 'fail') return { type: 'fail', fail: p.fail }
       const { image, ...step } = p.step
-      return { type: 'step', step: step as StoredPart extends { step: infer S } ? S : never, hadImage: !!image }
+      return { type: 'step', step, hadImage: !!image }
     })
   }
   return out
@@ -221,9 +206,11 @@ export function sessionForNextMessage(id: string): { id: string; fresh: boolean 
 }
 
 /** Guarda el estado completo de la conversación (el panel es la fuente de verdad en vivo). */
-export function saveSession(id: string, messages: IncomingMsg[]): void {
+export function saveSession(id: string, messages: IncomingChatMsg[]): void {
+  // Convierte antes de modificar la sesión: un dato inválido no debe dejarla a medias.
+  const stripped = messages.map(strip)
   const s = find(id) ?? create()
-  s.messages = messages.map(strip)
+  s.messages = stripped
   s.updatedAt = now()
   if (s.title === 'Nueva conversación') s.title = titleFor(s.messages)
   // Se tiran las vacías y las más viejas por encima del techo.
@@ -235,7 +222,8 @@ export function saveSession(id: string, messages: IncomingMsg[]): void {
     const resto = sessions.filter((x) => !x.archived).sort((a, b) => b.updatedAt - a.updatedAt)
     sessions = [...guardadas, ...resto.slice(0, Math.max(0, MAX_SESSIONS - guardadas.length))]
   }
-  persist()
+  const result = writeJson(file, sessions, 'el historial de chats')
+  if (!result.ok) throw new Error('No se pudo guardar la conversación.')
 }
 
 export function removeSession(id: string): void {

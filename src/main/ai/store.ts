@@ -1,4 +1,6 @@
 import { join } from 'path'
+import { t as tr } from '../../shared/i18n'
+import type { ChatFallo } from '../../shared/types'
 import { readFileSync, existsSync, watchFile } from 'fs'
 import { createHash, randomUUID } from 'crypto'
 import { writeJson, writeText } from '../jsonfile'
@@ -312,10 +314,39 @@ export function getChatContext(): ChatContext {
 }
 
 /** Proveedor activo + clave + modelo + effort — sólo para uso en main */
-export function getActiveProvider(): { provider: AIProvider; key: string; model: string; effort: Effort } | null {
+type ActiveProvider = { provider: AIProvider; key: string; model: string; effort: Effort }
+
+export function prepareActiveProvider(): { ok: true; active: ActiveProvider } | { ok: false; error: ChatFallo } {
+  reloadConfig()
+  const accion: NonNullable<ChatFallo['accion']> = { label: tr('Revisar conexión'), kind: 'settings' }
+  if (configError) return { ok: false, error: {
+    tipo: 'proveedor', titulo: tr('Revisa titanio.jsonc'),
+    detalle: configError, accion
+  } }
   const p = activeInfo()
-  if (!p) return null
+  if (!p) return { ok: false, error: {
+    tipo: 'sin-proveedor', titulo: tr('No hay proveedores configurados'),
+    detalle: tr('Añade una conexión en Ajustes o en titanio.jsonc para enviar mensajes.'), accion
+  } }
   const key = keyFor(p.id)
-  if (!key) return null
-  return { provider: { id: p.id, label: p.label, kind: p.kind, baseUrl: p.baseUrl }, key, model: resolveModel(), effort: cfg.effort }
+  if (!key) return { ok: false, error: {
+    tipo: 'auth', titulo: tr('Faltan credenciales para {0}', p.label),
+    detalle: p.envVar
+      ? tr('La variable {0} no está disponible en el proceso de Titanio. Configúrala antes de iniciar la app o guarda una API key desde Ajustes.', p.envVar)
+      : p.keySource === 'vault'
+        ? tr('No se pudo leer la clave de {0} en el Vault. Revisa o reemplaza su API key desde Ajustes.', p.label)
+        : tr('La conexión {0} no tiene una API key configurada. Añádela desde Ajustes o referencia una variable de entorno en titanio.jsonc.', p.label),
+    accion
+  } }
+  const model = resolveModel()
+  if (!model) return { ok: false, error: {
+    tipo: 'modelo', titulo: tr('No hay modelos disponibles para {0}', p.label),
+    detalle: tr('Añade un modelo o consulta el catálogo desde los ajustes de esta conexión.'), accion
+  } }
+  return { ok: true, active: { provider: { id: p.id, label: p.label, kind: p.kind, baseUrl: p.baseUrl }, key, model, effort: cfg.effort } }
+}
+
+export function getActiveProvider(): ActiveProvider | null {
+  const result = prepareActiveProvider()
+  return result.ok ? result.active : null
 }

@@ -3,7 +3,6 @@ import { useEffect, useState, type JSX } from 'react'
 import type { VaultItemMeta, VaultItemType } from '@shared/vault'
 import { useNoInitialFocus } from '@renderer/components/popover/focus'
 import IconLock from '~icons/tabler/lock'
-import IconSparkles from '~icons/tabler/sparkles'
 import IconKey from '~icons/tabler/key'
 import IconWorld from '~icons/tabler/world'
 import IconTag from '~icons/tabler/tag'
@@ -12,7 +11,7 @@ import IconSettings from '~icons/tabler/settings'
 const { vaultwin } = window
 
 const GROUPS: { type: VaultItemType; label: string; icon: JSX.Element }[] = [
-  { type: 'ai-key', get label() { return tr("AI Keys") }, icon: <IconSparkles /> },
+  { type: 'ai-key', get label() { return tr("AI Keys") }, icon: <IconKey /> },
   { type: 'web-credential', get label() { return tr("Passwords") }, icon: <IconWorld /> },
   { type: 'service-token', get label() { return tr("Tokens") }, icon: <IconKey /> },
   { type: 'secret', get label() { return tr("Secrets") }, icon: <IconTag /> }

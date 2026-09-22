@@ -2,7 +2,7 @@ import { t as tr, useLocale } from '@renderer/lib/i18n'
 import { useEffect, useRef, useState, type JSX } from 'react'
 import { NO_UPDATE, type AppearanceData, type Profile, type UpdateState } from '@shared/types'
 import { Avatar, Select } from '@renderer/components/ui'
-import IconSparkles from '~icons/tabler/sparkles'
+import IconCpu from '~icons/tabler/cpu'
 import IconCamera from '~icons/tabler/camera'
 import IconSettings from '~icons/tabler/settings'
 import IconShield from '~icons/tabler/shield-lock'
@@ -63,7 +63,7 @@ const NAV: NavGroup[] = [
       { id: 'privacy', get label() { return tr("Privacy") }, icon: <IconShield /> },
       { id: 'adblock', get label() { return tr("Adblocker") }, icon: <IconShieldCheck /> },
       { id: 'password', get label() { return tr("Password") }, icon: <IconKey /> },
-      { id: 'ai', get label() { return tr("AI") }, icon: <IconSparkles /> },
+      { id: 'ai', get label() { return tr("AI") }, icon: <IconCpu /> },
       { id: 'developers', get label() { return tr("Developers") }, icon: <IconCode />, soon: true },
       { id: 'about', get label() { return tr("About") }, icon: <IconInfo /> }
     ]

@@ -9,9 +9,9 @@ import type { BrowserState, Bookmark, ChatFallo, ChatMessage, MenuAnchor, Provid
 import { internalPageOf, type DatosMenuPerfil } from '../shared/types'
 import { nombreDeUrl } from '../shared/url'
 import { initBookmarks, listBookmarks, isBookmarked, addBookmark, removeBookmark, toggleBookmark, reorderBookmarks, updateBookmark, createFolder, moveBookmark, setFolderCollapsed } from './bookmarks'
-import { initAI, listProviders, addProvider, removeProvider, setActive as setActiveProvider, setModel, setEffort, getChatContext, getActiveProvider, refrescarModelos, providerSettings, saveProvider, providerConfigPath } from './ai/store'
+import { initAI, listProviders, addProvider, removeProvider, setActive as setActiveProvider, setModel, setEffort, getChatContext, refrescarModelos, providerSettings, saveProvider, providerConfigPath } from './ai/store'
 import type { ProviderInput } from '../shared/types'
-import { discoverProvider } from './ai/store'
+import { discoverProvider, prepareActiveProvider } from './ai/store'
 import { runMastra, diagnosticar } from './agent/mastra'
 import { initUsage, anotarTurno, resumen as resumenUso, gastoDeHoy, borrarUso, limiteDiario, setLimiteDiario } from './usage'
 import { initHistory, recordVisit, updateMeta, recent as historyRecent, browse as historyBrowse, removeEntry as historyRemove, clearHistory as historyClear } from './history'
@@ -3807,7 +3807,7 @@ ipcMain.handle('chats:resume', () => resumeOrNew())
 ipcMain.handle('chats:new', () => startSession())
 ipcMain.handle('chats:open', (_e, id: string) => openSession(id))
 ipcMain.handle('chats:forNext', (_e, id: string) => sessionForNextMessage(id))
-ipcMain.on('chats:save', (_e, id: string, messages) => saveSession(id, messages))
+ipcMain.handle('chats:save', (_e, id: string, messages) => saveSession(id, messages))
 ipcMain.on('chats:remove', (_e, id: string) => removeChatSession(id))
 
 // ---- Gestión del historial de chats (Settings → Archived chats) ----
@@ -3845,16 +3845,12 @@ ipcMain.on('chats:resumeInPanel', (ev, id: string) => {
 // "Take over": el usuario retoma el control → aborta el agente.
 ipcMain.on('agent:takeOver', () => pararAgente(tr("el usuario retomó el control")))
 ipcMain.handle('chat:send', async (ev, messages: ChatMessage[]) => {
-  const active = getActiveProvider()
-  if (!active) {
-    vDe(ev).win.webContents.send('chat:error', {
-      tipo: 'sin-proveedor',
-      titulo: tr("No hay ninguna IA conectada"),
-      detalle: tr('Titanio no trae modelo propio: pon tu API key de Anthropic o de OpenAI y el asistente se activa.'),
-      accion: { label: tr("Abrir Settings"), kind: 'settings' }
-    } satisfies ChatFallo)
+  const prepared = prepareActiveProvider()
+  if (!prepared.ok) {
+    ev.sender.send('chat:error', prepared.error)
     return
   }
+  const active = prepared.active
   // Techo de gasto diario: se comprueba ANTES de arrancar, que es el único momento en que
   // sirve de algo. Con el turno en marcha ya se está gastando.
   const tope = limiteDiario()

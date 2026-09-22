@@ -3,7 +3,7 @@ import { join } from 'path'
 import { readJson, writeJson } from './jsonfile'
 import { app, Notification, type BrowserWindow } from 'electron'
 import type { Routine, RoutineCondition } from '../shared/types'
-import { getActiveProvider } from './ai/store'
+import { prepareActiveProvider } from './ai/store'
 import { askModel, parseJsonLoose } from './agent/oneshot'
 import { withHeadlessPage, runHeadlessSnippet } from './agent/headless'
 
@@ -81,8 +81,9 @@ Devuelve SOLO un JSON con esta forma:
 
 /** Genera el extractor + la condición a partir de lo que pidió el usuario. */
 async function buildWatch(url: string, request: string): Promise<{ label: string; extractor: string; condition: RoutineCondition }> {
-  const active = getActiveProvider()
-  if (!active) throw new Error(tr("Conecta un proveedor de IA en Settings para crear rutinas."))
+  const prepared = prepareActiveProvider()
+  if (!prepared.ok) throw new Error(`${prepared.error.titulo}. ${prepared.error.detalle}`)
+  const active = prepared.active
   const context = await pageContextFor(url)
   const raw = await askModel(
     active.provider, active.key, active.model, EXTRACTOR_SYSTEM,

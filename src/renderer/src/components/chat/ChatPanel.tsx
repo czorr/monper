@@ -28,6 +28,7 @@ export default function ChatPanel({ open, onClose, inject, resizing, tint }: Pro
   useLocale()
   const [messages, setMessages] = useState<Msg[]>([])
   const [running, setRunning] = useState(false)
+  const [saveError, setSaveError] = useState(false)
   const [sessionId, setSessionId] = useState('')
   const [sessions, setSessions] = useState<ChatSessionMeta[]>([])
   const [ctx, setCtx] = useState<ChatContext>(EMPTY_CTX)
@@ -43,7 +44,7 @@ export default function ChatPanel({ open, onClose, inject, resizing, tint }: Pro
       text: m.text,
       at: m.at,
       attachments: m.attachments ? Array.from({ length: m.attachments }, () => ({ type: 'image' as const, dataUrl: '' })) : undefined,
-      parts: m.parts?.map((p) => (p.type === 'text' ? { type: 'text' as const, text: p.text, error: p.error } : { type: 'step' as const, step: p.step }))
+       parts: m.parts?.map((p) => (p.type === 'step' ? { type: 'step' as const, step: p.step } : p))
     }))
 
   const refrescarLista = (): void => { void titanio.chatsList().then(setSessions) }
@@ -58,8 +59,13 @@ export default function ChatPanel({ open, onClose, inject, resizing, tint }: Pro
   /** Guarda tras cada turno terminado. El panel es la fuente de verdad mientras está vivo. */
   const guardar = (ms: Msg[]): void => {
     if (!sessionId || ms.length === 0) return
-    titanio.chatsSave(sessionId, ms)
-    refrescarLista()
+    void titanio.chatsSave(sessionId, ms).then(() => {
+      setSaveError(false)
+      refrescarLista()
+    }).catch((error) => {
+      console.error('[chats] no se pudo guardar la conversación:', error)
+      setSaveError(true)
+    })
   }
 
   const nuevaSesion = (): void => {
@@ -167,7 +173,18 @@ export default function ChatPanel({ open, onClose, inject, resizing, tint }: Pro
     setRunning(true)
     setMessages((ms) => [...ms, { role: 'user', text, attachments }, { role: 'assistant', parts: [], streaming: true, at: Date.now() }])
     scrollToEnd()
-    titanio.chatSend(history)
+    try {
+      await titanio.chatSend(history)
+    } catch (error) {
+      // Los fallos esperados llegan por chat:error; aquí solo falla el envío IPC.
+      console.error('[chat] no se pudo enviar el mensaje:', error)
+      patchLast((m) => ({ ...pushPart(m, { type: 'fail', fail: {
+        tipo: 'desconocido', titulo: tr('No se pudo enviar el mensaje'),
+        detalle: tr('Se produjo un error al iniciar el envío. Vuelve a intentarlo.')
+      } }), streaming: false }))
+      setRunning(false)
+      setMessages((ms) => { guardar(ms); return ms })
+    }
   }
 
   // Envía el prompt inyectado (acción rápida) cuando cambia el nonce.
@@ -196,6 +213,7 @@ export default function ChatPanel({ open, onClose, inject, resizing, tint }: Pro
         <IconButton size="sm" title={tr("Cerrar (⌘J)")} onClick={onClose}><IconX /></IconButton>
       </header>
 
+      {saveError && <p role="alert" className="mx-4 my-2 text-[12px] text-amber-400">{tr('No se pudo guardar la conversación. Los mensajes siguen disponibles en este panel.')}</p>}
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3 [&::-webkit-scrollbar]:w-0">
         {messages.length === 0 ? (
           <EmptyState provider={ctx.provider} />

@@ -35,6 +35,9 @@ learns *which fields were filled*. No IPC channel, tool, or log may carry a secr
 
 **AI provider auth is API key / OpenAI-compatible only.** Never subscription OAuth.
 
+**Do not use the sparkles icon anywhere in the app.** Use a contextual icon instead
+(plug for connections, key for credentials, message for quick actions, CPU for AI settings).
+
 **Do not touch the page-view corners or vibrancy without reading
 [docs/esquinas-y-vibrancy.md](docs/esquinas-y-vibrancy.md).** The rounding and the window
 vibrancy are, in the user's words, part of Titanio's soul. Four failed attempts came from

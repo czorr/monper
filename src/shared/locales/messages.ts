@@ -1,5 +1,18 @@
 // Las claves conservan el copy de origen para facilitar la revisión de la migración.
 const spanish = {
+  'No se pudo guardar la conversación. Los mensajes siguen disponibles en este panel.': 'Could not save the conversation. Your messages are still available in this panel.',
+  'Revisar conexión': 'Review connection',
+  'Revisa titanio.jsonc': 'Check titanio.jsonc',
+  'No hay proveedores configurados': 'No providers configured',
+  'Añade una conexión en Ajustes o en titanio.jsonc para enviar mensajes.': 'Add a connection in Settings or titanio.jsonc to send messages.',
+  'Faltan credenciales para {0}': 'Missing credentials for {0}',
+  'La variable {0} no está disponible en el proceso de Titanio. Configúrala antes de iniciar la app o guarda una API key desde Ajustes.': 'The variable {0} is not available to the Titanio process. Set it before launching the app or save an API key in Settings.',
+  'No se pudo leer la clave de {0} en el Vault. Revisa o reemplaza su API key desde Ajustes.': 'The key for {0} could not be read from the Vault. Check or replace its API key in Settings.',
+  'La conexión {0} no tiene una API key configurada. Añádela desde Ajustes o referencia una variable de entorno en titanio.jsonc.': 'The connection {0} has no API key configured. Add one in Settings or reference an environment variable in titanio.jsonc.',
+  'No hay modelos disponibles para {0}': 'No models available for {0}',
+  'Añade un modelo o consulta el catálogo desde los ajustes de esta conexión.': 'Add a model or fetch the catalog in this connection’s settings.',
+  'No se pudo enviar el mensaje': 'Could not send the message',
+  'Se produjo un error al iniciar el envío. Vuelve a intentarlo.': 'An error occurred while starting the request. Try again.',
   'Conexiones de IA': 'AI connections',
   'Tus proveedores, tus modelos. Configúralos aquí o en titanio.jsonc.': 'Your providers, your models. Configure them here or in titanio.jsonc.',
   'Añadir conexión': 'Add connection',

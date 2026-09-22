@@ -1,7 +1,7 @@
 import { t as tr, useLocale } from '@renderer/lib/i18n'
 import { useState, type JSX } from 'react'
 import type { ChatContext } from '@shared/types'
-import IconSparkles from '~icons/tabler/sparkles'
+import IconPlug from '~icons/tabler/plug'
 import IconChevronDown from '~icons/tabler/chevron-down'
 import IconCheck from '~icons/tabler/check'
 import ProviderIcon from '@renderer/components/ui/ProviderIcon'
@@ -23,7 +23,7 @@ export default function ModelSelector({ ctx, onPick, onConnect }: Props): JSX.El
         onClick={onConnect}
         className="flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-[12.5px] text-text-faint hover:text-text hover:bg-white/[0.06] transition-colors"
       >
-        <IconSparkles className="w-4 h-4" /> {tr("Conectar proveedor")} </button>
+        <IconPlug className="w-4 h-4" /> {tr("Conectar proveedor")} </button>
     )
   }
 

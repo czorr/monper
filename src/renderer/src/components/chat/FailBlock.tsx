@@ -8,7 +8,7 @@ import IconCube from '~icons/tabler/cube'
 import IconWifiOff from '~icons/tabler/wifi-off'
 import IconServer from '~icons/tabler/server-bolt'
 import IconTextWrap from '~icons/tabler/text-wrap-disabled'
-import IconSpark from '~icons/tabler/sparkles'
+import IconPlug from '~icons/tabler/plug'
 import IconAlert from '~icons/tabler/alert-triangle'
 import IconChevron from '~icons/tabler/chevron-right'
 import IconExternal from '~icons/tabler/external-link'
@@ -22,7 +22,7 @@ const ICONO: Record<ChatFallo['tipo'], typeof IconKey> = {
   red: IconWifiOff,
   proveedor: IconServer,
   contexto: IconTextWrap,
-  'sin-proveedor': IconSpark,
+  'sin-proveedor': IconPlug,
   desconocido: IconAlert
 }
 

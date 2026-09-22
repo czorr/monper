@@ -102,4 +102,50 @@ test('configuración bidireccional de proveedores', async (t) => {
     ai.removeProvider(added.id, next.revision)
     assert.equal(ai.parseConfig(readFileSync(file, 'utf8')).provider[added.id], undefined)
   })
+
+  await t.test('distingue un proveedor ausente de una conexión sin credenciales', () => {
+    writeFileSync(file, '{"provider":{}}')
+    assert.equal(ai.prepareActiveProvider().error.tipo, 'sin-proveedor')
+    writeFileSync(file, JSON.stringify({ provider: { azure: {
+      name: 'Azure OpenAI', kind: 'openai',
+      options: { apiKey: '{env:TITANIO_MISSING_TEST_KEY}' },
+      models: { 'gpt-test': { name: 'GPT test' } }
+    } } }))
+    delete process.env.TITANIO_MISSING_TEST_KEY
+    const missing = ai.prepareActiveProvider()
+    assert.equal(missing.ok, false)
+    assert.equal(missing.error.tipo, 'auth')
+    assert.match(missing.error.titulo, /Azure OpenAI/)
+    assert.match(missing.error.detalle, /TITANIO_MISSING_TEST_KEY/)
+    assert.equal(missing.error.accion.kind, 'settings')
+    process.env.TITANIO_MISSING_TEST_KEY = 'only-main-can-see-this'
+    const ready = ai.prepareActiveProvider()
+    assert.equal(ready.ok, true)
+    assert.equal(ready.active.model, 'gpt-test')
+    assert.equal(ready.active.key, 'only-main-can-see-this')
+    delete process.env.TITANIO_MISSING_TEST_KEY
+  })
+
+  await t.test('explica una clave sin configurar o inaccesible en el Vault', () => {
+    const provider = { name: 'Custom', kind: 'openai', options: {} }
+    writeFileSync(file, JSON.stringify({ provider: { custom: provider } }))
+    const unconfigured = ai.prepareActiveProvider()
+    assert.equal(unconfigured.error.tipo, 'auth')
+    assert.match(unconfigured.error.detalle, /no tiene una API key/)
+    provider.options.apiKey = '{vault:missing-key}'
+    writeFileSync(file, JSON.stringify({ provider: { custom: provider } }))
+    const unreadable = ai.prepareActiveProvider()
+    assert.equal(unreadable.error.tipo, 'auth')
+    assert.match(unreadable.error.detalle, /Vault/)
+  })
+
+  await t.test('bloquea el envío con configuración inválida o sin modelos', () => {
+    writeFileSync(file, '{ invalid')
+    assert.equal(ai.prepareActiveProvider().error.tipo, 'proveedor')
+    writeFileSync(file, JSON.stringify({ provider: { custom: {
+      name: 'Custom', kind: 'openai',
+      options: { baseURL: 'https://example.com/v1', apiKey: `{vault:${legacy.id}}` }
+    } } }))
+    assert.equal(ai.prepareActiveProvider().error.tipo, 'modelo')
+  })
 })

@@ -10,7 +10,7 @@ import IconCheck from '~icons/tabler/check'
 import IconPencil from '~icons/tabler/pencil'
 import IconTrash from '~icons/tabler/trash'
 import IconWorld from '~icons/tabler/world'
-import IconSparkles from '~icons/tabler/sparkles'
+import IconKey from '~icons/tabler/key'
 import IconPlug from '~icons/tabler/plug'
 import IconLock from '~icons/tabler/lock'
 import IconShieldLock from '~icons/tabler/shield-lock'
@@ -22,7 +22,7 @@ const { titanioTab } = window
 
 const GRUPOS: { type: VaultItemType; title: string; vacio: string; Icon: typeof IconWorld }[] = [
   { type: 'web-credential', get title() { return tr("Sitios web") }, get vacio() { return tr("Cuando inicies sesión en un sitio, Titanio te ofrecerá guardarlo.") }, Icon: IconWorld },
-  { type: 'ai-key', get title() { return tr("API keys de IA") }, get vacio() { return tr("Se guardan solas al conectar un proveedor en la sección AI.") }, Icon: IconSparkles },
+  { type: 'ai-key', get title() { return tr("API keys de IA") }, get vacio() { return tr("Se guardan solas al conectar un proveedor en la sección AI.") }, Icon: IconKey },
   { type: 'service-token', get title() { return tr("Tokens de servicio") }, get vacio() { return tr("No hay tokens guardados.") }, Icon: IconPlug },
   { type: 'secret', get title() { return tr("Otros secretos") }, get vacio() { return tr("No hay otros secretos guardados.") }, Icon: IconLock }
 ]

@@ -76,7 +76,7 @@ export default function Content({ leftInset, rightInset, pageColor, controlling,
       {controlling && (
         <div className="absolute left-0 right-0 bottom-0 h-10 flex items-center justify-center gap-3 px-4 text-[12.5px] text-text-dim">
           <span className="flex items-center gap-2">
-            <TitanioLogo height={14} />
+            <TitanioLogo height={12} />
             <span>{tr("is controlling this tab")}</span>
           </span>
           <button

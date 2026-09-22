@@ -1,3 +1,4 @@
+import { t as tr, useLocale } from '@renderer/lib/i18n'
 import { useCallback, useEffect, useState, type JSX } from 'react'
 import type { McpServerInfo } from '@shared/types'
 import IconPlug from '~icons/tabler/plug'
@@ -23,15 +24,16 @@ const { titanioTab } = window
 const CONFIG = JSON.stringify({ mcpServers: { titanio: { command: 'npx', args: ['-y', 'titanio-mcp'] } } }, null, 2)
 
 const HERRAMIENTAS: { nombre: string; que: string }[] = [
-  { nombre: 'open_page', que: 'Abre una URL con tu sesión, en segundo plano' },
-  { nombre: 'read_page', que: 'Texto legible, sin menús ni pies de página' },
-  { nombre: 'list_tabs', que: 'Lista las pestañas abiertas' },
-  { nombre: 'click', que: 'Pulsa por texto visible' },
-  { nombre: 'fill', que: 'Escribe en un campo (nunca en uno de contraseña)' },
-  { nombre: 'screenshot', que: 'Captura la página' }
+  { nombre: 'open_page', get que() { return tr("Abre una URL con tu sesión, en segundo plano") } },
+  { nombre: 'read_page', get que() { return tr("Texto legible, sin menús ni pies de página") } },
+  { nombre: 'list_tabs', get que() { return tr("Lista las pestañas abiertas") } },
+  { nombre: 'click', get que() { return tr("Pulsa por texto visible") } },
+  { nombre: 'fill', get que() { return tr("Escribe en un campo (nunca en uno de contraseña)") } },
+  { nombre: 'screenshot', get que() { return tr("Captura la página") } }
 ]
 
 function Copiar({ texto }: { texto: string }): JSX.Element {
+  useLocale()
   const [copiado, setCopiado] = useState(false)
   const [error, setError] = useState('')
   const copiar = async (): Promise<void> => {
@@ -43,7 +45,7 @@ function Copiar({ texto }: { texto: string }): JSX.Element {
       setTimeout(() => setCopiado(false), 1600)
     } catch (e) {
       console.error('[mcp] no se pudo copiar al portapapeles:', e)
-      setError('No se pudo copiar. Selecciónalo a mano.')
+      setError(tr("No se pudo copiar. Selecciónalo a mano."))
     }
   }
   return (
@@ -53,13 +55,14 @@ function Copiar({ texto }: { texto: string }): JSX.Element {
         onClick={copiar}
       >
         {copiado ? <IconCheck /> : <IconCopy />}
-        {copiado ? 'Copiado' : 'Copiar'}
+        {copiado ? tr("Copiado") : tr("Copiar")}
       </Button>
     </div>
   )
 }
 
 export default function McpSection(): JSX.Element {
+  useLocale()
   const [estado, setEstado] = useState<{ enabled: boolean; port: number } | null>(null)
   const [error, setError] = useState('')
   const [servidores, setServidores] = useState<McpServerInfo[] | null>(null)
@@ -80,7 +83,7 @@ export default function McpSection(): JSX.Element {
       setError('')
     } catch (e) {
       console.error('[mcp] no se pudo leer el estado:', e)
-      setError('No se pudo cargar el estado de MCP. Reinicia Titanio e inténtalo de nuevo.')
+      setError(tr("No se pudo cargar el estado de MCP. Reinicia Titanio e inténtalo de nuevo."))
     }
   }, [])
   useEffect(() => { void leer() }, [leer])
@@ -100,7 +103,7 @@ export default function McpSection(): JSX.Element {
 
   return (
     <>
-      <SettingsHeader title="MCPs" description="Conecta Titanio con otras IAs y con herramientas externas." />
+      <SettingsHeader title={tr("MCPs")} description={tr("Conecta Titanio con otras IAs y con herramientas externas.")} />
 
       {error && (
         <div className="mb-6 px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[13px] text-amber-300 leading-relaxed">
@@ -108,15 +111,15 @@ export default function McpSection(): JSX.Element {
         </div>
       )}
 
-      <Group title="Acceso desde otras aplicaciones">
+      <Group title={tr("Acceso desde otras aplicaciones")}>
         <Card>
           <div className="flex items-start gap-3.5 px-4 py-4">
             <div className="flex-1 min-w-0">
-              <div className="text-[14px] text-text leading-tight">Activar servidor MCP</div>
+              <div className="text-[14px] text-text leading-tight">{tr("Activar servidor MCP")}</div>
               <div className="text-[12.5px] text-text-dim mt-1 leading-relaxed">
                 {on
-                  ? <>Conexión local en <span className="tabular-nums">127.0.0.1:{estado?.port}</span>, protegida con un token.</>
-                  : 'Desactivado. Debes activarlo cada vez que abres Titanio.'}
+                  ? <>{tr("Conexión local en")} <span className="tabular-nums">127.0.0.1:{estado?.port}</span>{tr(", protegida con un token.")}</>
+                  : tr("Desactivado. Debes activarlo cada vez que abres Titanio.")}
               </div>
             </div>
             <div className="mt-0.5">
@@ -130,18 +133,15 @@ export default function McpSection(): JSX.Element {
             y esa frase es la diferencia entre una decisión y un descuido.
           */}
           <div className="px-4 py-3.5 text-[12.5px] text-text-dim leading-relaxed">
-            Los clientes autorizados pueden abrir páginas e interactuar con tus sesiones iniciadas.
-            Titanio pide permiso en la primera conexión.
-          </div>
+            {tr("Los clientes autorizados pueden abrir páginas e interactuar con tus sesiones iniciadas. Titanio pide permiso en la primera conexión.")} </div>
         </Card>
       </Group>
 
-      <Group title="Conectar tu cliente">
+      <Group title={tr("Conectar tu cliente")}>
         <Card>
           <div className="px-4 py-3.5 flex items-center gap-3">
             <div className="flex-1 min-w-0 text-[12.5px] text-text-dim leading-relaxed">
-              Pégalo en la configuración MCP de Claude Code, Cursor o el cliente que uses.
-            </div>
+              {tr("Pégalo en la configuración MCP de Claude Code, Cursor o el cliente que uses.")} </div>
             <Copiar texto={CONFIG} />
           </div>
           <pre className="px-4 py-3.5 text-[12px] leading-relaxed text-text-dim overflow-x-auto select-text">
@@ -150,43 +150,38 @@ export default function McpSection(): JSX.Element {
         </Card>
       </Group>
 
-      <Group title="Herramientas para el agente">
+      <Group title={tr("Herramientas para el agente")}>
         <Card>
           <div className="px-4 py-3.5 flex items-start gap-3">
             <div className="flex-1 min-w-0 text-[12.5px] text-text-dim leading-relaxed">
-              Añade servidores para que el agente pueda ejecutar código, leer ficheros o
-              consultar bases de datos.
-            </div>
+              {tr("Añade servidores para que el agente pueda ejecutar código, leer ficheros o consultar bases de datos.")} </div>
             <div className="flex items-center gap-2 shrink-0">
               <Button variant="secondary" size="icon"
                 onClick={() => leerServidores(true)}
-                title="Releer el fichero de configuración"
+                title={tr("Releer el fichero de configuración")}
               >
                 <IconRefresh />
               </Button>
               <Button variant="secondary" size="sm"
                 onClick={async () => { setServidores(await titanioTab.probeMcpServers()) }}
-                title="Comprobar conexión"
+                title={tr("Comprobar conexión")}
               >
-                Probar
-              </Button>
+                {tr("Probar")} </Button>
               <Button variant="secondary" size="sm"
                 onClick={() => titanioTab.openMcpConfig()}
               >
-                Editar configuración
-              </Button>
+                {tr("Editar configuración")} </Button>
             </div>
           </div>
 
-          {servidores === null && <div className="px-4 py-4 text-[13px] text-text-faint">Cargando…</div>}
+          {servidores === null && <div className="px-4 py-4 text-[13px] text-text-faint">{tr("Cargando…")}</div>}
 
           {servidores?.length === 0 && (
             <div className="px-4 py-6 flex flex-col items-center gap-2 text-center">
               <IconPlug className="w-5 h-5 text-text-faint" />
-              <div className="text-[13.5px] text-text-dim">Ningún servidor conectado</div>
+              <div className="text-[13.5px] text-text-dim">{tr("Ningún servidor conectado")}</div>
               <div className="text-[12.5px] text-text-faint max-w-[420px] leading-relaxed">
-                Añade uno desde «Editar configuración».
-              </div>
+                {tr("Añade uno desde «Editar configuración».")} </div>
             </div>
           )}
 
@@ -194,7 +189,7 @@ export default function McpSection(): JSX.Element {
             <div key={sv.name} className="flex items-center gap-3 px-4 py-3">
               <span
                 className={'w-2 h-2 rounded-full shrink-0 ' + (sv.error ? 'bg-red-400' : sv.running ? 'bg-emerald-400' : 'bg-white/25')}
-                title={sv.error ? 'con error' : sv.running ? 'en marcha' : 'se lanzará al usarlo'}
+                title={sv.error ? tr("con error") : sv.running ? tr("en marcha") : tr("se lanzará al usarlo")}
               />
               <div className="flex-1 min-w-0">
                 <div className="text-[13.5px] text-text truncate">{sv.name}</div>
@@ -203,9 +198,9 @@ export default function McpSection(): JSX.Element {
                       el usuario solo ve que el agente "no sabe" hacer algo. */}
                   {sv.error
                     ? sv.error
-                    : !sv.enabled ? 'desactivado en la configuración'
+                    : !sv.enabled ? tr("desactivado en la configuración")
                       : sv.running ? `${sv.tools} ${sv.tools === 1 ? 'herramienta' : 'herramientas'}`
-                        : 'se inicia al usarlo'}
+                        : tr("se inicia al usarlo")}
                 </div>
               </div>
             </div>
@@ -213,7 +208,7 @@ export default function McpSection(): JSX.Element {
         </Card>
       </Group>
 
-      <Group title="Herramientas disponibles">
+      <Group title={tr("Herramientas disponibles")}>
         <Card>
           {HERRAMIENTAS.map((h) => (
             <div key={h.nombre} className="flex items-baseline gap-3 px-4 py-3">

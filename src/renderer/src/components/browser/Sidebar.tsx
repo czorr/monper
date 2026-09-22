@@ -1,3 +1,4 @@
+import { t as tr, useLocale } from '@renderer/lib/i18n'
 import { useState, type JSX } from 'react'
 import type { BrowserState, Bookmark, Profile, UpdateState } from '@shared/types'
 import UpdatePill from './UpdatePill'
@@ -42,6 +43,7 @@ const newRowClass =
   'min-h-[29px] hover:bg-bg-hover hover:text-text [&>svg]:opacity-80 [&>svg]:w-[16px] [&>svg]:h-[16px]'
 
 export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBookmark, onOpenMenu, onCollapse, onNewTab, onSelectTab, onCloseTab, onReorderTabs, floating = false, update, onDownloadUpdate, onInstallUpdate, remote, onDisableRemote }: Props): JSX.Element {
+  useLocale()
   const noop = (): void => {}
 
   /**
@@ -59,7 +61,7 @@ export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBo
   const hijosDe = (id: string): Bookmark[] => bookmarks.filter((b) => b.parentId === id)
 
   const nuevaCarpeta = async (): Promise<void> => {
-    const f = await window.titanio.newBookmarkFolder('Nueva carpeta')
+    const f = await window.titanio.newBookmarkFolder(tr("Nueva carpeta"))
     setCarpetaNueva(f.id)
   }
 
@@ -191,7 +193,7 @@ export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBo
               onInstall={onInstallUpdate ?? noop}
             />
           )}
-          <IconButton title="Colapsar sidebar (⌘S)" onClick={onCollapse}>
+          <IconButton title={tr("Colapsar sidebar (⌘S)")} onClick={onCollapse}>
             <SidebarIcon />
           </IconButton>
         </div>
@@ -202,7 +204,7 @@ export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBo
       {state.incognito && (
         <div className="flex items-center gap-2 h-8 px-2.5 mb-1 rounded-xl bg-white/[0.06] text-[12.5px] text-text-dim [-webkit-app-region:drag]">
           <IconSpy className="w-[15px] h-[15px] shrink-0 text-text-faint" />
-          <span className="truncate">Ventana de incógnito</span>
+          <span className="truncate">{tr("Ventana de incógnito")}</span>
         </div>
       )}
 
@@ -217,7 +219,7 @@ export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBo
           onDragOver={(e) => { if (arrastre) { e.preventDefault(); setSobre('__bookmarks__') } }}
           onDrop={soltarEnRaiz}
         >
-          <SectionLabel label="Bookmarks" action={{ label: <IconFolderPlus className="w-[15px] h-[15px]" />, title: 'Nueva carpeta', onClick: () => void nuevaCarpeta() }} />
+          <SectionLabel label={tr("Bookmarks")} action={{ label: <IconFolderPlus className="w-[15px] h-[15px]" />, title: tr("Nueva carpeta"), onClick: () => void nuevaCarpeta() }} />
           {/* pb-px: la fila pulsada baja 1px y, si es la última, sacaba scroll en este
               contenedor. Ese píxel de holgura evita la barra sin tocar el efecto. */}
           <div className="flex flex-col gap-px pb-px max-h-[35vh] overflow-y-auto [&::-webkit-scrollbar]:w-0">
@@ -260,11 +262,11 @@ export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBo
         </div>
       )}
 
-      <SectionLabel label="Tabs" action={{ label: 'Clear', title: 'Cerrar todas menos la activa', onClick: closeOthers }} />
+      <SectionLabel label={tr("Tabs")} action={{ label: tr("Clear"), title: tr("Cerrar todas menos la activa"), onClick: closeOthers }} />
 
       <button className={newRowClass} onClick={onNewTab}>
         <PlusIcon />
-        <span>New tab</span>
+        <span>{tr("New tab")}</span>
       </button>
 
       <div
@@ -288,7 +290,7 @@ export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBo
         <div className="shrink-0 mt-1">
           <div className="flex items-center gap-1.5 px-2 pb-1 text-[12px] font-medium text-text-faint [&>img]:w-3.5 [&>img]:h-3.5 [&>img]:opacity-80">
             <img src={titanioLogo} alt="" />
-            <span>Agent tabs</span>
+            <span>{tr("Agent tabs")}</span>
           </div>
           <div className="flex flex-col gap-0.5 pb-px max-h-[40vh] overflow-y-auto [&::-webkit-scrollbar]:w-0">
             {agentTabs.map((t) => (

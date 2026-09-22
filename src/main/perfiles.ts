@@ -1,3 +1,4 @@
+import { t as tr } from '../shared/i18n'
 import { join } from 'path'
 import { existsSync, mkdirSync, readFileSync } from 'fs'
 import { writeJson } from './jsonfile'
@@ -34,7 +35,7 @@ interface Datos {
 
 const POR_DEFECTO: Datos = {
   activo: PERFIL_POR_DEFECTO,
-  perfiles: [{ id: PERFIL_POR_DEFECTO, nombre: 'Tú', avatar: null }]
+  perfiles: [{ id: PERFIL_POR_DEFECTO, get nombre() { return tr("Tú") }, avatar: null }]
 }
 
 let datos: Datos = POR_DEFECTO
@@ -139,7 +140,7 @@ function idLibre(nombre: string): string {
 }
 
 export function crearPerfil(nombre: string): Perfil {
-  const n = String(nombre || '').trim().slice(0, 60) || 'Perfil'
+  const n = String(nombre || '').trim().slice(0, 60) || tr("Perfil")
   const p: Perfil = { id: idLibre(n), nombre: n, avatar: null }
   datos = { ...datos, perfiles: [...datos.perfiles, p] }
   guardar()

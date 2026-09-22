@@ -1,3 +1,4 @@
+import { t as tr, useLocale } from '@renderer/lib/i18n'
 import { useEffect, useState, type JSX } from 'react'
 import IconDownload from '~icons/tabler/download'
 import { Card, Group, Button } from './ui'
@@ -18,6 +19,7 @@ type Resultado = { ok: boolean; bookmarks: number; history: number; passwords: n
  * y mueve secretos de sitio. Que sea un gesto consciente, no una casilla que ya venía puesta.
  */
 export default function ImportSection(): JSX.Element {
+  useLocale()
   const [navs, setNavs] = useState<Nav[] | null>(null)
   const [sel, setSel] = useState<string | null>(null)
   const [que, setQue] = useState<Que>({ bookmarks: true, history: true, passwords: false })
@@ -68,17 +70,16 @@ export default function ImportSection(): JSX.Element {
 
   return (
     <>
-      <Group title="Importar de otro navegador">
+      <Group title={tr("Importar de otro navegador")}>
         <Card>
-          {navs === null && <div className="px-4 py-4 text-[13px] text-text-faint">Buscando navegadores…</div>}
+          {navs === null && <div className="px-4 py-4 text-[13px] text-text-faint">{tr("Buscando navegadores…")}</div>}
           {navs?.every((n) => !n.disponible) && (
             <div className="px-4 py-6 text-center">
-              <div className="text-[13.5px] text-text-dim">No se encontraron navegadores compatibles</div>
+              <div className="text-[13.5px] text-text-dim">{tr("No se encontraron navegadores compatibles")}</div>
               {/* Se dice qué se buscó: si no, "no encuentro nada" es indistinguible de un fallo. */}
               {/* Se dice qué se buscó: si no, "no encuentro nada" es indistinguible de un fallo. */}
               <div className="text-[12.5px] text-text-faint mt-1 max-w-[420px] mx-auto leading-relaxed">
-                Navegadores compatibles: Chrome, Arc, Brave, Edge y Safari.
-              </div>
+                {tr("Navegadores compatibles: Chrome, Arc, Brave, Edge y Safari.")} </div>
             </div>
           )}
           {navs?.filter((n) => n.disponible).map((n) => (
@@ -101,11 +102,11 @@ export default function ImportSection(): JSX.Element {
         </Card>
       </Group>
 
-      <Group title="Datos a importar">
+      <Group title={tr("Datos a importar")}>
         <Card>
-          {casilla('bookmarks', 'Marcadores', 'Omite los marcadores que ya tienes.')}
-          {casilla('history', 'Historial', 'Mejora el autocompletado de la barra de direcciones.')}
-          {casilla('passwords', 'Contraseñas', 'Se guardan cifradas en el vault. macOS puede pedirte permiso.')}
+          {casilla('bookmarks', tr("Marcadores"), tr("Omite los marcadores que ya tienes."))}
+          {casilla('history', tr("Historial"), tr("Mejora el autocompletado de la barra de direcciones."))}
+          {casilla('passwords', tr("Contraseñas"), tr("Se guardan cifradas en el vault. macOS puede pedirte permiso."))}
         </Card>
       </Group>
 
@@ -120,7 +121,7 @@ export default function ImportSection(): JSX.Element {
         disabled={!sel || corriendo || !(que.bookmarks || que.history || que.passwords)}
       >
         <IconDownload />
-        {corriendo ? 'Importando…' : 'Importar'}
+        {corriendo ? tr("Importando…") : tr("Importar")}
       </Button>
 
       {/*
@@ -133,8 +134,8 @@ export default function ImportSection(): JSX.Element {
           <Card>
             <div className="px-4 py-3.5 text-[13.5px] text-text">
               {res.bookmarks + res.history + res.passwords > 0
-                ? `Importado: ${res.bookmarks} marcadores, ${res.history} páginas de historial, ${res.passwords} contraseñas.`
-                : 'No se importó nada.'}
+                ? tr("Importado: {0} marcadores, {1} páginas de historial, {2} contraseñas.", res.bookmarks, res.history, res.passwords)
+                : tr("No se importó nada.")}
             </div>
             {res.error && (
               <div className="px-4 py-3.5 text-[12.5px] text-amber-300 leading-relaxed">{res.error}</div>

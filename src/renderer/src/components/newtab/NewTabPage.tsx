@@ -1,3 +1,4 @@
+import { t as tr, useLocale } from '@renderer/lib/i18n'
 import { useEffect, useState, type JSX } from 'react'
 import type { Suggestion } from '@shared/types'
 import { useAutocomplete, useInlineCompletion, SuggestionList } from '@renderer/components/omnibox'
@@ -10,6 +11,7 @@ type Mode = 'search' | 'ai'
 
 
 export default function NewTabPage(): JSX.Element {
+  useLocale()
   const [mode, setMode] = useState<Mode>('search')
   const ac = useAutocomplete(titanioTab.suggest, 110, true)
   const [removeError, setRemoveError] = useState('')
@@ -32,12 +34,12 @@ export default function NewTabPage(): JSX.Element {
     setRemoveError('')
     try {
       const removed = await titanioTab.removeHistoryEntry(s.url)
-      if (!removed) throw new Error('No se pudo borrar la entrada')
+      if (!removed) throw new Error(tr("No se pudo borrar la entrada"))
       if (ac.current?.url === s.url || ic.inputRef.current?.hasAttribute('data-completado')) ic.setValue(ac.query)
       ac.remove(s.url)
     } catch (error) {
       console.error('[newtab] fallo al borrar historial:', error)
-      setRemoveError('No se pudo eliminar del historial. Inténtalo de nuevo.')
+      setRemoveError(tr("No se pudo eliminar del historial. Inténtalo de nuevo."))
     }
   }
   const submit = (): void => {
@@ -77,16 +79,15 @@ export default function NewTabPage(): JSX.Element {
             onKeyDown={onKeyDown}
             onFocus={ac.refresh}
             onBlur={ac.close}
-            placeholder={mode === 'ai' ? 'Pregúntale a Titanio…' : 'Busca o escribe una URL'}
+            placeholder={mode === 'ai' ? tr("Pregúntale a Titanio…") : tr("Busca o escribe una URL")}
             className="flex-1 min-w-0 bg-transparent outline-none text-[15px] placeholder:text-text-faint select-text [&[data-completado]::selection]:bg-white/15 [&[data-completado]::selection]:text-text-dim"
           />
           <div className="flex items-center gap-2.5 shrink-0">
             <span className="flex items-center gap-1.5 text-[11px] text-text-faint">
-              <kbd className="px-1.5 py-0.5 rounded-md bg-white/[0.08] font-sans">Tab</kbd> para cambiar
-            </span>
+              <kbd className="px-1.5 py-0.5 rounded-md bg-white/[0.08] font-sans">Tab</kbd> {tr("para cambiar")} </span>
             <div className="flex p-0.5 rounded-xl bg-white/[0.05]">
-              <button onClick={() => setMode('search')} className={pill(mode === 'search')}>Search</button>
-              <button onClick={() => setMode('ai')} className={pill(mode === 'ai')}>Ask AI</button>
+              <button onClick={() => setMode('search')} className={pill(mode === 'search')}>{tr("Search")}</button>
+              <button onClick={() => setMode('ai')} className={pill(mode === 'ai')}>{tr("Ask AI")}</button>
             </div>
           </div>
         </div>

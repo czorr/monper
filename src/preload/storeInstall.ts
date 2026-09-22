@@ -1,3 +1,4 @@
+import { t as tr, subscribeLocale } from '../shared/i18n'
 import { ipcRenderer } from 'electron'
 
 /**
@@ -11,6 +12,7 @@ export function setupStoreInstall(): void {
 
   const BTN_ID = 'titanio-install-btn'
   let installing = false
+  let installed = false
 
   const isDetailPage = (): boolean => /\/detail\//.test(location.pathname)
 
@@ -27,7 +29,7 @@ export function setupStoreInstall(): void {
     const b = document.createElement('button')
     b.id = BTN_ID
     b.type = 'button'
-    b.textContent = 'Install to Titanio'
+    b.textContent = tr("Install to Titanio")
     b.style.cssText = [
       'appearance:none', 'border:none', 'cursor:pointer',
       'background:#1a73e8', 'color:#fff',
@@ -39,7 +41,8 @@ export function setupStoreInstall(): void {
       e.preventDefault(); e.stopPropagation()
       if (installing) return
       installing = true
-      setLabel('Instalando…', true)
+      installed = false
+      setLabel(tr("Instalando…"), true)
       ipcRenderer.send('extensions:installFromStore')
     })
     return b
@@ -67,11 +70,15 @@ export function setupStoreInstall(): void {
   ipcRenderer.on('extensions:installResult', (_e, r: { ok: boolean; error?: string; name?: string }) => {
     installing = false
     if (r.ok) {
-      setLabel('Instalada ✓', true)
+      installed = true
+      setLabel(tr("Instalada ✓"), true)
     } else {
-      setLabel('Install to Titanio', false)
+      setLabel(tr("Install to Titanio"), false)
       if (r.error) console.warn('[titanio] no se pudo instalar:', r.error)
     }
+  })
+  subscribeLocale(() => {
+    setLabel(installed ? tr('Instalada ✓') : installing ? tr('Instalando…') : tr('Install to Titanio'), installed || installing)
   })
 
   // La Store es una SPA: el botón aparece tarde y cambia al navegar entre extensiones.

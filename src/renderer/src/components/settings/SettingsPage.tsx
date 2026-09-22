@@ -1,3 +1,4 @@
+import { t as tr, useLocale } from '@renderer/lib/i18n'
 import { useEffect, useRef, useState, type JSX } from 'react'
 import { NO_UPDATE, type AppearanceData, type Profile, type UpdateState } from '@shared/types'
 import { Avatar } from '@renderer/components/ui'
@@ -53,41 +54,41 @@ interface NavGroup { title?: string; items: NavItem[] }
 // Las secciones sin implementar se identifican como pendientes.
 const NAV: NavGroup[] = [
   {
-    title: 'Settings',
+    get title() { return tr("Settings") },
     items: [
-      { id: 'general', label: 'General', icon: <IconSettings /> },
-      { id: 'account', label: 'Account', icon: <IconUser /> },
-      { id: 'appearance', label: 'Appearance', icon: <IconPalette /> },
-      { id: 'billing', label: 'Billing', icon: <IconCreditCard /> },
-      { id: 'privacy', label: 'Privacy', icon: <IconShield /> },
-      { id: 'adblock', label: 'Adblocker', icon: <IconShieldCheck /> },
-      { id: 'password', label: 'Password', icon: <IconKey /> },
-      { id: 'ai', label: 'AI', icon: <IconSparkles /> },
-      { id: 'developers', label: 'Developers', icon: <IconCode />, soon: true },
-      { id: 'about', label: 'About', icon: <IconInfo /> }
+      { id: 'general', get label() { return tr("General") }, icon: <IconSettings /> },
+      { id: 'account', get label() { return tr("Account") }, icon: <IconUser /> },
+      { id: 'appearance', get label() { return tr("Appearance") }, icon: <IconPalette /> },
+      { id: 'billing', get label() { return tr("Billing") }, icon: <IconCreditCard /> },
+      { id: 'privacy', get label() { return tr("Privacy") }, icon: <IconShield /> },
+      { id: 'adblock', get label() { return tr("Adblocker") }, icon: <IconShieldCheck /> },
+      { id: 'password', get label() { return tr("Password") }, icon: <IconKey /> },
+      { id: 'ai', get label() { return tr("AI") }, icon: <IconSparkles /> },
+      { id: 'developers', get label() { return tr("Developers") }, icon: <IconCode />, soon: true },
+      { id: 'about', get label() { return tr("About") }, icon: <IconInfo /> }
     ]
   },
   {
-    title: 'Agent Settings',
+    get title() { return tr("Agent Settings") },
     items: [
-      { id: 'projects', label: 'Projects', icon: <IconFolder />, soon: true },
-      { id: 'skills', label: 'Skills', icon: <IconBolt /> },
-      { id: 'memory', label: 'Memory', icon: <IconBrain /> },
-      { id: 'mcps', label: 'MCPs', icon: <IconPlug /> },
-      { id: 'permissions', label: 'Permissions', icon: <IconLock /> },
-      { id: 'actions', label: 'Quick actions', icon: <IconWand /> },
-      { id: 'routines', label: 'Routines', icon: <IconClockBolt /> },
-      { id: 'statistics', label: 'Statistics', icon: <IconChart /> },
-      { id: 'archived', label: 'Chats', icon: <IconArchive /> },
-      { id: 'notifications', label: 'Notifications', icon: <IconBell />, soon: true }
+      { id: 'projects', get label() { return tr("Projects") }, icon: <IconFolder />, soon: true },
+      { id: 'skills', get label() { return tr("Skills") }, icon: <IconBolt /> },
+      { id: 'memory', get label() { return tr("Memory") }, icon: <IconBrain /> },
+      { id: 'mcps', get label() { return tr("MCPs") }, icon: <IconPlug /> },
+      { id: 'permissions', get label() { return tr("Permissions") }, icon: <IconLock /> },
+      { id: 'actions', get label() { return tr("Quick actions") }, icon: <IconWand /> },
+      { id: 'routines', get label() { return tr("Routines") }, icon: <IconClockBolt /> },
+      { id: 'statistics', get label() { return tr("Statistics") }, icon: <IconChart /> },
+      { id: 'archived', get label() { return tr("Chats") }, icon: <IconArchive /> },
+      { id: 'notifications', get label() { return tr("Notifications") }, icon: <IconBell />, soon: true }
     ]
   }
 ]
 
 const SOON: Partial<Record<Cat, { title: string }>> = {
-  developers: { title: 'Developers' },
-  projects: { title: 'Projects' },
-  notifications: { title: 'Notifications' }
+  developers: { get title() { return tr("Developers") } },
+  projects: { get title() { return tr("Projects") } },
+  notifications: { get title() { return tr("Notifications") } }
 }
 
 const ALL_CATS = NAV.flatMap((g) => g.items.map((i) => i.id))
@@ -98,16 +99,18 @@ function initialCat(): Cat {
 
 /** Estado de una sección que aún no está disponible. */
 function ComingSoon({ cat }: { cat: Cat }): JSX.Element {
+  useLocale()
   const s = SOON[cat]
   if (!s) return <></>
   return (
     <>
-      <SettingsHeader title={s.title} description="Esta sección aún no está disponible." />
+      <SettingsHeader title={s.title} description={tr("Esta sección aún no está disponible.")} />
     </>
   )
 }
 
 export default function SettingsPage(): JSX.Element {
+  useLocale()
   const [cat, setCat] = useState<Cat>(initialCat)
 
   return (
@@ -128,7 +131,7 @@ export default function SettingsPage(): JSX.Element {
               >
                 {n.icon}
                 <span className="flex-1 truncate">{n.label}</span>
-                {n.soon && <span className="text-[10px] uppercase tracking-wide text-text-faint shrink-0">Pendiente</span>}
+                {n.soon && <span className="text-[10px] uppercase tracking-wide text-text-faint shrink-0">{tr("Pendiente")}</span>}
               </Button>
             ))}
           </div>
@@ -137,9 +140,9 @@ export default function SettingsPage(): JSX.Element {
         {/* Accesos externos */}
         <div className="mt-5 pt-5 border-t border-white/[0.06]">
           {[
-            { label: 'Extensions', icon: <IconPuzzle />, onClick: () => titanioTab.navigate('https://chromewebstore.google.com/category/extensions') },
-            { label: 'Community', icon: <IconUsers />, onClick: () => titanioTab.navigate('https://github.com/czorr/titanio') },
-            { label: 'Send feedback', icon: <IconMessage />, onClick: () => titanioTab.navigate('https://github.com/czorr/titanio/issues/new') }
+            { label: tr("Extensions"), icon: <IconPuzzle />, onClick: () => titanioTab.navigate('https://chromewebstore.google.com/category/extensions') },
+            { label: tr("Community"), icon: <IconUsers />, onClick: () => titanioTab.navigate('https://github.com/czorr/titanio') },
+            { label: tr("Send feedback"), icon: <IconMessage />, onClick: () => titanioTab.navigate('https://github.com/czorr/titanio/issues/new') }
           ].map((l) => (
             <Button
               key={l.label}
@@ -188,12 +191,13 @@ export default function SettingsPage(): JSX.Element {
 }
 
 function AIPage(): JSX.Element {
+  useLocale()
   // Al abrir AI se relee el catálogo del proveedor: es el momento en que el usuario va a mirar
   // qué modelos hay, y así los nuevos aparecen sin esperar a una versión de Titanio.
   useEffect(() => { void titanioTab.refreshModels() }, [])
   return (
     <>
-      <SettingsHeader title="AI" />
+      <SettingsHeader title={tr("AI")} />
       <ProvidersSection />
     </>
   )
@@ -225,6 +229,7 @@ function fileToAvatar(file: File): Promise<string> {
 }
 
 function AccountPage(): JSX.Element {
+  useLocale()
   const [profile, setProfile] = useState<Profile>({ name: '', initials: '?', avatar: null })
   const [name, setName] = useState('')
   const [saved, setSaved] = useState(false)
@@ -247,17 +252,17 @@ function AccountPage(): JSX.Element {
     try {
       setProfile(await titanioTab.setAvatar(await fileToAvatar(f)))
     } catch (err) {
-      setAvatarError(err instanceof Error ? err.message : 'No se pudo usar esa imagen.')
+      setAvatarError(err instanceof Error ? err.message : tr("No se pudo usar esa imagen."))
     }
   }
   const removeAvatar = async (): Promise<void> => setProfile(await titanioTab.setAvatar(null))
 
   return (
     <>
-      <SettingsHeader title="Account" />
+      <SettingsHeader title={tr("Account")} />
 
       <div className="flex items-center gap-4 mb-8">
-        <Button shape="pill" title="Cambiar foto" className="relative group/av" onClick={() => fileRef.current?.click()}>
+        <Button shape="pill" title={tr("Cambiar foto")} className="relative group/av" onClick={() => fileRef.current?.click()}>
           <Avatar initials={profile.initials} src={profile.avatar} size="lg" />
           <div className="absolute inset-0 rounded-full grid place-items-center bg-black/50 opacity-0 group-hover/av:opacity-100 transition-opacity [&>svg]:w-5 [&>svg]:h-5 [&>svg]:text-white">
             <IconCamera />
@@ -266,22 +271,22 @@ function AccountPage(): JSX.Element {
         <div>
           <div className="text-[16px] font-medium">{profile.name || '—'}</div>
           <div className="flex items-center gap-3 mt-1">
-            <Button variant="ghost" size="sm" onClick={() => fileRef.current?.click()}>Cambiar foto</Button>
-            {profile.avatar && <Button variant="danger-ghost" size="sm" onClick={removeAvatar}>Quitar</Button>}
+            <Button variant="ghost" size="sm" onClick={() => fileRef.current?.click()}>{tr("Cambiar foto")}</Button>
+            {profile.avatar && <Button variant="danger-ghost" size="sm" onClick={removeAvatar}>{tr("Quitar")}</Button>}
           </div>
           {avatarError && <div className="mt-1 text-[12.5px] text-amber-400">{avatarError}</div>}
         </div>
         <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onPickAvatar} />
       </div>
 
-      <Group title="Nombre">
+      <Group title={tr("Nombre")}>
         <Card>
           <div className="p-4 flex flex-col gap-3">
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter' && dirty) save() }}
-              placeholder="Tu nombre"
+              placeholder={tr("Tu nombre")}
               className="w-full h-11 px-4 rounded-xl bg-white/[0.04] border border-white/[0.08] text-[14px] text-text outline-none focus:border-white/25 placeholder:text-text-faint transition-colors"
             />
             <Button variant="primary" size="md"
@@ -289,7 +294,7 @@ function AccountPage(): JSX.Element {
               disabled={!dirty && !saved}
               className="self-start"
             >
-              {saved ? 'Guardado ✓' : 'Guardar'}
+              {saved ? tr("Guardado ✓") : tr("Guardar")}
             </Button>
           </div>
         </Card>
@@ -300,6 +305,7 @@ function AccountPage(): JSX.Element {
 
 /** Transparencia del chrome: cambia el material de vibrancy de la ventana, en vivo. */
 function AppearancePage(): JSX.Element {
+  useLocale()
   const [data, setData] = useState<AppearanceData>({ vibrancy: '', tint: null, options: [] })
   const [error, setError] = useState('')
   const tintRequest = useRef(0)
@@ -317,7 +323,7 @@ function AppearancePage(): JSX.Element {
       .then((next) => { if (live && !updated) setData(next) })
       .catch((e) => {
         console.error('[appearance] no se pudo leer la configuración:', e)
-        if (live) setError('No se pudo cargar la configuración. Reinicia Titanio e inténtalo de nuevo.')
+        if (live) setError(tr("No se pudo cargar la configuración. Reinicia Titanio e inténtalo de nuevo."))
       })
     return () => { live = false; unsubscribe() }
   }, [])
@@ -338,17 +344,17 @@ function AppearancePage(): JSX.Element {
       if (request !== tintRequest.current) return
       console.error('[appearance] no se pudo cambiar el tono:', e)
       setData((d) => ({ ...d, tint: previous }))
-      setError('No se pudo guardar el tono. Inténtalo de nuevo.')
+      setError(tr("No se pudo guardar el tono. Inténtalo de nuevo."))
     }
   }
 
   const levels = [...data.options].reverse()
   const level = levels.findIndex((o) => o.id === data.vibrancy)
-  const currentLabel = level >= 0 ? levels[level].label : 'Personalizada'
+  const currentLabel = level >= 0 ? levels[level].label : tr("Personalizada")
 
   return (
     <>
-      <SettingsHeader title="Appearance" description="Ajusta la transparencia y el tono de la barra lateral y del panel de chat." />
+      <SettingsHeader title={tr("Appearance")} description={tr("Ajusta la transparencia y el tono de la barra lateral y del panel de chat.")} />
 
       {error && (
         <div className="mb-6 px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[13px] text-amber-300 leading-relaxed">
@@ -356,15 +362,15 @@ function AppearancePage(): JSX.Element {
         </div>
       )}
 
-      <Group title="Transparencia">
+      <Group title={tr("Transparencia")}>
         <Card>
           {data.options.length === 0 && !error && (
-            <div className="px-4 py-4 text-[13px] text-text-faint">Cargando…</div>
+            <div className="px-4 py-4 text-[13px] text-text-faint">{tr("Cargando…")}</div>
           )}
           {levels.length > 0 && (
             <div className="px-4 py-4">
               <div className="flex items-center justify-between gap-4 mb-3">
-                <label htmlFor="appearance-transparency" className="text-[14px]">Nivel de transparencia</label>
+                <label htmlFor="appearance-transparency" className="text-[14px]">{tr("Nivel de transparencia")}</label>
                 <output htmlFor="appearance-transparency" className="text-[13px] text-text-dim">{currentLabel}</output>
               </div>
               <input
@@ -379,14 +385,14 @@ function AppearancePage(): JSX.Element {
                 className="w-full h-6 accent-white cursor-pointer"
               />
               <div className="flex justify-between mt-1 text-[12px] text-text-faint">
-                <span>Opaco</span><span>Más transparente</span>
+                <span>{tr("Opaco")}</span><span>{tr("Más transparente")}</span>
               </div>
             </div>
           )}
         </Card>
       </Group>
 
-      <Group title="Tono">
+      <Group title={tr("Tono")}>
         <Card>
           <div className="flex items-center justify-between gap-4 px-4 py-4">
             <div className="flex items-center gap-3">
@@ -399,23 +405,23 @@ function AppearancePage(): JSX.Element {
                 className="appearance-color w-11 h-11 shrink-0 cursor-pointer disabled:opacity-40"
               />
               <div>
-                <label htmlFor="appearance-tint" className="block text-[14px]">Color del tono</label>
-                <span className="text-[12.5px] text-text-dim">{data.tint?.toUpperCase() ?? 'Sin tono'}</span>
+                <label htmlFor="appearance-tint" className="block text-[14px]">{tr("Color del tono")}</label>
+                <span className="text-[12.5px] text-text-dim">{data.tint?.toUpperCase() ?? tr("Sin tono")}</span>
               </div>
             </div>
-            <Button variant="ghost" size="sm" disabled={!data.tint} onClick={() => void pickTint(null)}>Quitar tono</Button>
+            <Button variant="ghost" size="sm" disabled={!data.tint} onClick={() => void pickTint(null)}>{tr("Quitar tono")}</Button>
           </div>
         </Card>
       </Group>
 
       <p className="text-[12.5px] text-text-faint">
-        Usa <kbd className="px-1.5 py-0.5 rounded-md bg-white/[0.08] font-sans">⌘⌥V</kbd> para cambiar el nivel de transparencia.
-      </p>
+        {tr("Usa")} <kbd className="px-1.5 py-0.5 rounded-md bg-white/[0.08] font-sans">⌘⌥V</kbd> {tr("para cambiar el nivel de transparencia.")} </p>
     </>
   )
 }
 
 function GeneralPage(): JSX.Element {
+  useLocale()
   // El perfil sale del main, no del JSX: estuvo escrito a mano y mostraba el mismo nombre y
   // correo a cualquiera que abriera Settings.
   const [profile, setProfile] = useState<Profile>({ name: '', initials: '?', avatar: null })
@@ -430,24 +436,25 @@ function GeneralPage(): JSX.Element {
   useEffect(() => {
     titanioTab.getDefaultBrowser()
       .then(setPred)
-      .catch((e) => { console.error('[predeterminado] no se pudo consultar:', e); setErrPred('No se pudo consultar el estado.') })
+      .catch((e) => { console.error('[predeterminado] no se pudo consultar:', e); setErrPred(tr("No se pudo consultar el estado.")) })
   }, [])
 
   return (
     <>
-      <SettingsHeader title="General" />
-      <Group title="Perfil">
+      <SettingsHeader title={tr("General")} />
+      <LanguageSection />
+      <Group title={tr("Perfil")}>
         <Card>
-          <Row icon={<IconUser />} label={profile.name || 'Sin nombre'} desc="Edita tu perfil en Account" />
+          <Row icon={<IconUser />} label={profile.name || tr("Sin nombre")} desc={tr("Edita tu perfil en Account")} />
         </Card>
       </Group>
-      <Group title="Navegador predeterminado">
+      <Group title={tr("Navegador predeterminado")}>
         <Card>
           <Row
-            label={pred?.isDefault ? 'Titanio es tu navegador predeterminado' : 'Titanio no es tu navegador predeterminado'}
+            label={pred?.isDefault ? tr("Titanio es tu navegador predeterminado") : tr("Titanio no es tu navegador predeterminado")}
             desc={errPred || (pred?.isDefault
-              ? 'Los enlaces de otras apps se abren aquí.'
-              : 'Abre los enlaces de otras aplicaciones en Titanio.')}
+              ? tr("Los enlaces de otras apps se abren aquí.")
+              : tr("Abre los enlaces de otras aplicaciones en Titanio."))}
           >
             {pred && !pred.isDefault && (
               <Button variant="primary" size="sm"
@@ -455,24 +462,23 @@ function GeneralPage(): JSX.Element {
                   const r = await titanioTab.makeDefaultBrowser()
                   if (r.ok) setPred({ ...pred, isDefault: true })
                   // Si el sistema lo rechaza hay que decir por qué: si no, el botón parece roto.
-                  else setErrPred(r.error || 'El sistema no aceptó el cambio.')
+                  else setErrPred(r.error || tr("El sistema no aceptó el cambio."))
                 }}
                 className="shrink-0"
               >
-                Usar Titanio
-              </Button>
+                {tr("Usar Titanio")} </Button>
             )}
           </Row>
         </Card>
       </Group>
 
-      <Group title="Vídeo">
+      <Group title={tr("Vídeo")}>
         <Card>
           <Row
-            label="Picture in picture"
+            label={tr("Picture in picture")}
             desc={pip
-              ? 'Reproduce vídeos en una ventana flotante.'
-              : 'Los vídeos se quedan en su pestaña.'}
+              ? tr("Reproduce vídeos en una ventana flotante.")
+              : tr("Los vídeos se quedan en su pestaña.")}
           >
             <Toggle
               on={pip === true}
@@ -491,12 +497,12 @@ function GeneralPage(): JSX.Element {
           se vuelve. Como pestaña propia tenía un peso permanente que no le corresponde. */}
       <ImportSection />
 
-      <Group title="Navegación">
+      <Group title={tr("Navegación")}>
         <Card>
-          <Row label="Página de inicio">
-            <span className="text-[13px] text-text-faint">Nueva pestaña</span>
+          <Row label={tr("Página de inicio")}>
+            <span className="text-[13px] text-text-faint">{tr("Nueva pestaña")}</span>
           </Row>
-          <Row label="Buscador">
+          <Row label={tr("Buscador")}>
             <span className="text-[13px] text-text-faint">Google</span>
           </Row>
         </Card>
@@ -505,11 +511,48 @@ function GeneralPage(): JSX.Element {
   )
 }
 
+function LanguageSection(): JSX.Element {
+  const locale = useLocale()
+  const [error, setError] = useState('')
+  const [saving, setSaving] = useState(false)
+  return (
+    <Group title={tr('Idioma')}>
+      <Card>
+        <Row label={tr('Idioma del navegador')} desc={tr('El cambio se aplica a todas las ventanas.')}>
+          <select
+            aria-label={tr('Idioma del navegador')}
+            value={locale}
+            disabled={saving}
+            className="h-9 rounded-lg border border-white/10 bg-surface px-3 text-[13px] text-text"
+            onChange={async (event) => {
+              const value = event.target.value
+              if (value !== 'en' && value !== 'es') return
+              setError(''); setSaving(true)
+              try {
+                if (!window.titanioLanguage) throw new Error('Language API unavailable')
+                await window.titanioLanguage.set(value)
+              } catch (cause) {
+                console.error('[language] no se pudo guardar:', cause)
+                setError(tr('No se pudo guardar el idioma.'))
+              } finally { setSaving(false) }
+            }}
+          >
+            <option value="en" lang="en">English</option>
+            <option value="es" lang="es">Español</option>
+          </select>
+        </Row>
+        {error && <p role="alert" className="px-4 pb-3 text-[13px] text-amber-400">{error}</p>}
+      </Card>
+    </Group>
+  )
+}
+
 function PrivacyPage(): JSX.Element {
+  useLocale()
   const [clearing, setClearing] = useState(false)
   const [cleared, setCleared] = useState(false)
   const clear = async (): Promise<void> => {
-    if (!confirm('¿Borrar cookies, almacenamiento y caché de este perfil? Cerrarás sesión en todos los sitios.')) return
+    if (!confirm(tr("¿Borrar cookies, almacenamiento y caché de este perfil? Cerrarás sesión en todos los sitios."))) return
     setClearing(true)
     const ok = await titanioTab.clearBrowsingData()
     setClearing(false); setCleared(ok)
@@ -517,15 +560,15 @@ function PrivacyPage(): JSX.Element {
   }
   return (
     <>
-      <SettingsHeader title="Privacy" />
-      <Group title="Datos">
+      <SettingsHeader title={tr("Privacy")} />
+      <Group title={tr("Datos")}>
         <Card>
-          <Row label="Borrar datos de navegación" desc="Cookies, almacenamiento local y caché del perfil">
+          <Row label={tr("Borrar datos de navegación")} desc={tr("Cookies, almacenamiento local y caché del perfil")}>
             <Button variant="danger" size="sm"
               onClick={clear}
               disabled={clearing}
             >
-              {clearing ? 'Borrando…' : cleared ? 'Listo ✓' : 'Borrar'}
+              {clearing ? tr("Borrando…") : cleared ? tr("Listo ✓") : tr("Borrar")}
             </Button>
           </Row>
         </Card>
@@ -535,6 +578,7 @@ function PrivacyPage(): JSX.Element {
 }
 
 function AboutPage(): JSX.Element {
+  useLocale()
   const [version, setVersion] = useState('')
   const [u, setU] = useState<UpdateState>(NO_UPDATE)
 
@@ -544,31 +588,31 @@ function AboutPage(): JSX.Element {
   // Un solo lugar decide qué se ve: evita estados contradictorios (p. ej. "al día" + botón).
   const status = u.error
     ? u.error
-    : u.downloaded ? `Versión ${u.version} lista para instalar`
-      : u.downloading ? `Descargando la versión ${u.version}… ${u.percent}%`
-        : u.available ? `Versión ${u.version} disponible`
-          : u.checking ? 'Buscando actualizaciones…'
-            : 'Titanio está al día'
+    : u.downloaded ? tr("Versión {0} lista para instalar", u.version)
+      : u.downloading ? tr("Descargando la versión {0}… {1}%", u.version, u.percent)
+        : u.available ? tr("Versión {0} disponible", u.version)
+          : u.checking ? tr("Buscando actualizaciones…")
+            : tr("Titanio está al día")
 
   return (
     <>
-      <SettingsHeader title="About" />
-      <Group title="Aplicación">
+      <SettingsHeader title={tr("About")} />
+      <Group title={tr("Aplicación")}>
         <Card>
           <Row label="Titanio" />
-          <Row label="Versión">
+          <Row label={tr("Versión")}>
             <span className="text-[13px] text-text-dim tabular-nums">{version || '—'}</span>
           </Row>
-          <Row label="Actualizaciones" desc={status}>
+          <Row label={tr("Actualizaciones")} desc={status}>
             {u.downloaded ? (
-              <Button variant="primary" size="sm" onClick={() => titanioTab.installUpdate()}>Reiniciar e instalar</Button>
+              <Button variant="primary" size="sm" onClick={() => titanioTab.installUpdate()}>{tr("Reiniciar e instalar")}</Button>
             ) : u.downloading ? (
               <span className="text-[13px] text-purple-300 tabular-nums">{u.percent}%</span>
             ) : u.available ? (
-              <Button variant="primary" size="sm" onClick={() => titanioTab.downloadUpdate()}>Descargar</Button>
+              <Button variant="primary" size="sm" onClick={() => titanioTab.downloadUpdate()}>{tr("Descargar")}</Button>
             ) : (
               <Pill onClick={() => titanioTab.checkUpdates()}>
-                {u.checking ? 'Buscando…' : 'Buscar actualizaciones'}
+                {u.checking ? tr("Buscando…") : tr("Buscar actualizaciones")}
               </Pill>
             )}
           </Row>

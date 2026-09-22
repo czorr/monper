@@ -1,3 +1,4 @@
+import { t as tr } from '../shared/i18n'
 import { join } from 'path'
 import { app, BrowserWindow } from 'electron'
 import { readJson, writeJson } from './jsonfile'
@@ -116,11 +117,11 @@ export function esPredeterminado(): boolean {
  */
 export function hacerPredeterminado(): { ok: boolean; error?: string } {
   if (!app.isPackaged) {
-    return { ok: false, error: 'En desarrollo esto registraría Electron, no Titanio. Pruébalo en la app empaquetada.' }
+    return { ok: false, error: tr("En desarrollo esto registraría Electron, no Titanio. Pruébalo en la app empaquetada.") }
   }
   try {
     const ok = ESQUEMAS.every((e) => app.setAsDefaultProtocolClient(e))
-    return ok ? { ok: true } : { ok: false, error: 'El sistema no aceptó el cambio.' }
+    return ok ? { ok: true } : { ok: false, error: tr("El sistema no aceptó el cambio.") }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) }
   }

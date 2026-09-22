@@ -1,3 +1,4 @@
+import { t as tr, useLocale } from '@renderer/lib/i18n'
 import { useEffect, useState, type JSX } from 'react'
 import type { ProviderInfo, ProviderKind } from '@shared/types'
 import IconPlus from '~icons/tabler/plus'
@@ -7,9 +8,10 @@ import ProviderIcon from '@renderer/components/ui/ProviderIcon'
 
 const { titanioTab } = window
 
-const KIND_SHORT: Record<ProviderKind, string> = { anthropic: 'Claude', openai: 'OpenAI-compatible' }
+const KIND_SHORT: Record<ProviderKind, string> = { anthropic: 'Claude', get openai() { return tr("OpenAI-compatible") } }
 
 export default function ProvidersSection(): JSX.Element {
+  useLocale()
   const [providers, setProviders] = useState<ProviderInfo[]>([])
   const [adding, setAdding] = useState(false)
 
@@ -19,7 +21,7 @@ export default function ProvidersSection(): JSX.Element {
   const activate = async (id: string): Promise<void> => setProviders(await titanioTab.setActiveProvider(id))
 
   return (
-    <Group title="Providers">
+    <Group title={tr("Providers")}>
       <Card>
         {providers.map((p) => (
           <div key={p.id} className="group flex items-center gap-3.5 px-4 py-3.5">
@@ -29,20 +31,20 @@ export default function ProvidersSection(): JSX.Element {
             <div className="flex-1 min-w-0">
               <div className="text-[14px] text-text leading-tight">{p.label}</div>
               <div className="text-[12.5px] text-text-dim mt-0.5 truncate">
-                {KIND_SHORT[p.kind]}{p.baseUrl ? ` · ${p.baseUrl.replace(/^https?:\/\//, '')}` : ' · API key'}
+                {KIND_SHORT[p.kind]}{p.baseUrl ? ` · ${p.baseUrl.replace(/^https?:\/\//, '')}` : tr(" · API key")}
               </div>
             </div>
-            {!p.hasKey && <span className="text-[11px] text-amber-400 mr-1">sin clave</span>}
+            {!p.hasKey && <span className="text-[11px] text-amber-400 mr-1">{tr("sin clave")}</span>}
             <Button
               onClick={() => remove(p.id)}
               className="w-7 h-7 grid place-items-center rounded-lg text-text-faint opacity-0 group-hover:opacity-100 hover:bg-white/[0.08] hover:text-red-400 transition [&>svg]:w-4 [&>svg]:h-4"
-              title="Quitar"
+              title={tr("Quitar")}
             >
               <IconX />
             </Button>
             <Button shape="pill"
               onClick={() => activate(p.id)}
-              title={p.active ? 'Proveedor activo' : 'Usar este proveedor'}
+              title={p.active ? tr("Proveedor activo") : tr("Usar este proveedor")}
               className={'w-[18px] h-[18px] rounded-full border shrink-0 grid place-items-center transition-colors ' + (p.active ? 'border-white' : 'border-white/25 hover:border-white/50')}
             >
               {p.active && <span className="w-[9px] h-[9px] rounded-full bg-white" />}
@@ -55,8 +57,7 @@ export default function ProvidersSection(): JSX.Element {
           className="flex items-center gap-2.5 w-full px-4 py-3.5 text-[14px] text-text-dim hover:text-text hover:bg-white/[0.02] transition-colors [&>svg]:w-[18px] [&>svg]:h-[18px]"
         >
           <span className="w-9 h-9 rounded-xl grid place-items-center text-text-faint shrink-0 [&>svg]:w-[18px] [&>svg]:h-[18px]"><IconPlus /></span>
-          Connect
-        </Button>
+          {tr("Connect")} </Button>
       </Card>
 
       {adding && <ConnectForm onDone={(next) => { setProviders(next); setAdding(false) }} />}
@@ -65,6 +66,7 @@ export default function ProvidersSection(): JSX.Element {
 }
 
 function ConnectForm({ onDone }: { onDone: (next: ProviderInfo[]) => void }): JSX.Element {
+  useLocale()
   const [kind, setKind] = useState<ProviderKind>('anthropic')
   const [label, setLabel] = useState('')
   const [baseUrl, setBaseUrl] = useState('')
@@ -104,25 +106,24 @@ function ConnectForm({ onDone }: { onDone: (next: ProviderInfo[]) => void }): JS
         ))}
       </div>
 
-      <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Nombre (opcional)" className={field} />
+      <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder={tr("Nombre (opcional)")} className={field} />
       {/* La URL es OPCIONAL y se dice: sin ella va a la API de OpenAI. Antes el campo salía a
           secas y parecía obligatorio, así que conectar OpenAI a pelo parecía imposible. */}
       {kind === 'openai' && (
         <div>
           <input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="https://api.openai.com/v1" className={field} />
           <p className="mt-1.5 px-1 text-[12px] text-text-faint">
-            Opcional para OpenAI. Para otros servicios compatibles, introduce su URL de API.
-          </p>
+            {tr("Opcional para OpenAI. Para otros servicios compatibles, introduce su URL de API.")} </p>
         </div>
       )}
-      <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="API key" className={field} />
+      <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder={tr("API key")} className={field} />
 
       <div className="flex items-center justify-end gap-2 pt-1">
         <Button variant="primary" size="md"
           onClick={submit}
           disabled={!apiKey.trim() || busy}
         >
-          {busy ? 'Conectando…' : 'Connect'}
+          {busy ? tr("Conectando…") : tr("Connect")}
         </Button>
       </div>
     </div>

@@ -1,3 +1,4 @@
+import { t as tr } from '../shared/i18n'
 import { net } from 'electron'
 import { faviconFor } from './favicons'
 import { urlVisible } from '../shared/url'
@@ -162,7 +163,7 @@ export async function suggest(query: string, signal?: AbortSignal): Promise<Sugg
   // 1) Si parece URL, ofrécela como destino directo (primero).
   if (looksLikeUrl(q)) {
     const url = toUrl(q)
-    push({ kind: 'url', title: q, url, detail: 'Ir al sitio', favicon: faviconOf(url) })
+    push({ kind: 'url', title: q, url, detail: tr("Ir al sitio"), favicon: faviconOf(url) })
   }
 
   // 2) Historial (frecency).
@@ -172,7 +173,7 @@ export async function suggest(query: string, signal?: AbortSignal): Promise<Sugg
     try { detail = new URL(h.url).hostname.replace(/^www\./, '') } catch { /* sin subtexto */ }
     const term = history.searchTerm(h.url)
     push({ kind: 'history', title: term || h.title || h.url, url: h.url,
-      detail: term ? 'Búsqueda anterior' : detail, favicon: term ? undefined : faviconOf(h.url) || h.favicon })
+      detail: term ? tr("Búsqueda anterior") : detail, favicon: term ? undefined : faviconOf(h.url) || h.favicon })
   }
 
   if (!q) return out
@@ -181,7 +182,7 @@ export async function suggest(query: string, signal?: AbortSignal): Promise<Sugg
   const ql = q.toLowerCase()
   for (const b of listBookmarks()) {
     if (b.title.toLowerCase().includes(ql) || b.url.toLowerCase().includes(ql)) {
-      push({ kind: 'bookmark', title: b.title, url: b.url, detail: 'Marcador', favicon: faviconOf(b.url) || b.favicon })
+      push({ kind: 'bookmark', title: b.title, url: b.url, detail: tr("Marcador"), favicon: faviconOf(b.url) || b.favicon })
     }
   }
 
@@ -207,12 +208,12 @@ export async function suggest(query: string, signal?: AbortSignal): Promise<Sugg
       push({ kind: 'search', title: s.title || s.text, url: searchUrl(s.text), detail: s.annotation, favicon: s.image, round: !!s.image })
       continue
     }
-    push({ kind: 'search', title: s.text, url: searchUrl(s.text), detail: 'Buscar en Google' })
+    push({ kind: 'search', title: s.text, url: searchUrl(s.text), detail: tr("Buscar en Google") })
   }
 
   // 5) Fallback: si no parecía URL y no hubo nada arriba, ofrece buscar el texto tal cual.
   if (!looksLikeUrl(q) && !seen.has(searchUrl(q))) {
-    push({ kind: 'search', title: q, url: searchUrl(q), detail: 'Buscar en Google' })
+    push({ kind: 'search', title: q, url: searchUrl(q), detail: tr("Buscar en Google") })
   }
 
   return out.slice(0, 9)

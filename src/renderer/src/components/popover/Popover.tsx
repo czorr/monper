@@ -1,3 +1,4 @@
+import { t as tr, useLocale } from '@renderer/lib/i18n'
 import { useEffect, useLayoutEffect, useRef, type JSX, type ReactNode } from 'react'
 import { useNoInitialFocus } from './focus'
 
@@ -57,6 +58,7 @@ interface PanelProps {
 const ANIM_DEFAULT = 'peek-in 140ms cubic-bezier(0.33,1,0.68,1)'
 
 export function PopoverPanel({ children, onHeight, measure, fill, padded = true, className = '', animation = ANIM_DEFAULT }: PanelProps): JSX.Element {
+  useLocale()
   const box = useRef<HTMLDivElement>(null)
   useNoInitialFocus() // un popover no abre con una fila resaltada
 
@@ -105,6 +107,7 @@ interface RowProps {
 
 /** Fila estándar de un popover. Es la ÚNICA fila: no crear variantes por ventana. */
 export function PopoverRow({ children, icon, label, meta, onClick, active, disabled, danger, title }: RowProps): JSX.Element {
+  useLocale()
   const state = disabled ? ROW_OFF : active ? ROW_ACTIVE : danger ? ROW_DANGER : ROW_IDLE
   const Tag = onClick && !disabled ? 'button' : 'div'
   return (
@@ -123,15 +126,18 @@ export function PopoverRow({ children, icon, label, meta, onClick, active, disab
 
 /** Etiqueta de sección ("Profiles", "Instaladas"…). */
 export function PopoverLabel({ children }: { children: ReactNode }): JSX.Element {
+  useLocale()
   return <div data-popover-label="" className="px-2.5 pt-2 pb-1 text-[11.5px] font-medium text-text-faint">{children}</div>
 }
 
 export function PopoverDivider(): JSX.Element {
+  useLocale()
   return <div data-popover-divider="" className="h-px bg-white/[0.07] mx-1.5 my-1" />
 }
 
 /** Lista con scroll interno para popovers con muchos items. */
 export function PopoverList({ children, max = 320 }: { children: ReactNode; max?: number }): JSX.Element {
+  useLocale()
   return (
     <div className="overflow-y-auto [&::-webkit-scrollbar]:w-0" style={{ maxHeight: max }}>
       {children}
@@ -141,11 +147,12 @@ export function PopoverList({ children, max = 320 }: { children: ReactNode; max?
 
 /** Interruptor compartido (extensiones, permisos, skills…). */
 export function PopoverToggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }): JSX.Element {
+  useLocale()
   return (
     <button
       type="button"
       onClick={(e) => { e.stopPropagation(); onChange(!on) }}
-      title={on ? 'Desactivar' : 'Activar'}
+      title={on ? tr("Desactivar") : tr("Activar")}
       className={'w-8 h-[18px] rounded-full shrink-0 relative transition-colors ' + (on ? 'bg-emerald-500/90' : 'bg-white/15')}
     >
       <span className={'absolute top-0.5 w-[14px] h-[14px] rounded-full bg-white transition-all ' + (on ? 'left-[16px]' : 'left-0.5')} />

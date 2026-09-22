@@ -1,3 +1,4 @@
+import { t as tr, useLocale } from '@renderer/lib/i18n'
 import type { JSX } from 'react'
 import type { ActiveInfo, DownloadsSummary } from '@shared/types'
 import { luminance } from '@renderer/lib/dom'
@@ -35,6 +36,7 @@ interface Props {
 const navBtns = 'flex gap-0.5 [-webkit-app-region:no-drag]'
 
 export default function Topbar({ active, collapsed, mac, chatOpen, editRequest, onExpand, onBack, onForward, onReload, onGo, onToggleBookmark, onToggleMute, onToggleChat, onOpenVault, onOpenExtensions, downloads, onOpenDownloads, onPeekShow, onPeekHide }: Props): JSX.Element {
+  useLocale()
   const pageColor = active?.pageColor || '#111114'
   /**
    * Una página interna manda `transparent`: detrás no hay color, hay la vibrancy de la
@@ -62,7 +64,7 @@ export default function Topbar({ active, collapsed, mac, chatOpen, editRequest, 
       <div className={navBtns}>
         {collapsed && (
           <IconButton
-            title="Mostrar sidebar (⌘S)"
+            title={tr("Mostrar sidebar (⌘S)")}
             onClick={onExpand}
             onMouseEnter={(e) => onPeekShow((e.currentTarget as HTMLElement).getBoundingClientRect())}
             onMouseLeave={onPeekHide}
@@ -70,22 +72,22 @@ export default function Topbar({ active, collapsed, mac, chatOpen, editRequest, 
             <SidebarIcon />
           </IconButton>
         )}
-        <IconButton title="Atrás" disabled={!active?.canBack} onClick={onBack}><BackIcon /></IconButton>
-        <IconButton title="Adelante" disabled={!active?.canForward} onClick={onForward}><ForwardIcon /></IconButton>
-        <IconButton title="Recargar" onClick={onReload}><ReloadIcon /></IconButton>
+        <IconButton title={tr("Atrás")} disabled={!active?.canBack} onClick={onBack}><BackIcon /></IconButton>
+        <IconButton title={tr("Adelante")} disabled={!active?.canForward} onClick={onForward}><ForwardIcon /></IconButton>
+        <IconButton title={tr("Recargar")} onClick={onReload}><ReloadIcon /></IconButton>
       </div>
 
       <UrlBar active={active} editRequest={editRequest} onGo={onGo} />
 
       <div className={navBtns}>
         {(active?.muted || active?.audible) && (
-          <IconButton title={active?.muted ? 'Reactivar sonido' : 'Silenciar sitio'} onClick={onToggleMute}>
+          <IconButton title={active?.muted ? tr("Reactivar sonido") : tr("Silenciar sitio")} onClick={onToggleMute}>
             {active?.muted ? <IconVolumeOff /> : <IconVolume />}
           </IconButton>
         )}
 
         {downloads.total > 0 && (
-          <IconButton title="Descargas" onClick={(e) => onOpenDownloads((e.currentTarget as HTMLElement).getBoundingClientRect())}>
+          <IconButton title={tr("Descargas")} onClick={(e) => onOpenDownloads((e.currentTarget as HTMLElement).getBoundingClientRect())}>
             <span className="relative flex items-center justify-center [&>svg]:w-[18px] [&>svg]:h-[18px]">
               <IconDownload />
               {downloads.active > 0 && (
@@ -96,7 +98,7 @@ export default function Topbar({ active, collapsed, mac, chatOpen, editRequest, 
         )}
 
         <IconButton
-          title={active?.bookmarked ? 'Quitar bookmark' : 'Guardar bookmark'}
+          title={active?.bookmarked ? tr("Quitar bookmark") : tr("Guardar bookmark")}
           disabled={!canBookmark}
           onClick={onToggleBookmark}
         >
@@ -104,14 +106,14 @@ export default function Topbar({ active, collapsed, mac, chatOpen, editRequest, 
         </IconButton>
 
         <IconButton
-          title="Extensiones"
+          title={tr("Extensiones")}
           onClick={(e) => onOpenExtensions((e.currentTarget as HTMLElement).getBoundingClientRect())}
         >
           <IconPuzzle />
         </IconButton>
 
         <IconButton
-          title="Vault"
+          title={tr("Vault")}
           onClick={(e) => onOpenVault((e.currentTarget as HTMLElement).getBoundingClientRect())}
         >
           <IconLock />
@@ -119,15 +121,14 @@ export default function Topbar({ active, collapsed, mac, chatOpen, editRequest, 
 
         <button
           onClick={onToggleChat}
-          title="Ask Titanio (⌘J)"
+          title={tr("Ask Titanio (⌘J)")}
           className={
             'ml-1 flex items-center gap-1.5 h-8 pl-2.5 pr-3 rounded-full text-[13px] font-medium transition-colors [-webkit-app-region:no-drag] ' +
             (chatOpen ? 'bg-white/[0.16] text-text' : 'bg-white/[0.08] hover:bg-white/[0.13] text-text-dim hover:text-text')
           }
         >
           {/* Hereda el color del botón: en una página clara se vuelve oscuro solo. */}
-          Ask Titanio
-        </button>
+          {tr("Ask Titanio")} </button>
       </div>
     </header>
   )

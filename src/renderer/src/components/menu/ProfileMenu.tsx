@@ -1,3 +1,4 @@
+import { t as tr, useLocale } from '@renderer/lib/i18n'
 import { useEffect, type JSX } from 'react'
 import { Avatar, MenuLabel, MenuDivider, MenuItem } from '@renderer/components/ui'
 import IconChevronRight from '~icons/tabler/chevron-right'
@@ -23,6 +24,7 @@ interface Props {
 }
 
 export default function ProfileMenu({ anchor, onClose }: Props): JSX.Element {
+  useLocale()
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', onKey)
@@ -59,7 +61,7 @@ export default function ProfileMenu({ anchor, onClose }: Props): JSX.Element {
         style={{ left: anchor.left, top: anchor.bottom + 6 }}
         onPointerDown={(e) => e.stopPropagation()}
       >
-        <MenuLabel>Profiles</MenuLabel>
+        <MenuLabel>{tr("Profiles")}</MenuLabel>
 
         <button
           className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-[13.5px] text-text text-left hover:bg-white/[0.05]"
@@ -73,21 +75,21 @@ export default function ProfileMenu({ anchor, onClose }: Props): JSX.Element {
           </span>
         </button>
 
-        <MenuItem icon={<IconUserPlus />} name="New profile" onClick={() => act('new-profile')} />
+        <MenuItem icon={<IconUserPlus />} name={tr("New profile")} onClick={() => act('new-profile')} />
 
         <MenuDivider />
 
-        <MenuItem icon={<IconBookmark />} name="Bookmarks" meta={<Chevron />} onClick={() => act('bookmarks')} />
-        <MenuItem icon={<IconDownload />} name="Downloads" meta={<Chevron />} onClick={() => act('downloads')} />
-        <MenuItem icon={<IconPuzzle />} name="Extensions" meta={<Chevron />} onClick={() => act('extensions')} />
-        <MenuItem icon={<IconHistory />} name="History" meta={<Chevron />} onClick={() => act('history')} />
-        <MenuItem icon={<IconCode />} name="Developers" meta={<Chevron />} onClick={() => act('developers')} />
-        <MenuItem icon={<IconSettings />} name="Settings" meta="⌘," onClick={() => act('settings')} />
+        <MenuItem icon={<IconBookmark />} name={tr("Bookmarks")} meta={<Chevron />} onClick={() => act('bookmarks')} />
+        <MenuItem icon={<IconDownload />} name={tr("Downloads")} meta={<Chevron />} onClick={() => act('downloads')} />
+        <MenuItem icon={<IconPuzzle />} name={tr("Extensions")} meta={<Chevron />} onClick={() => act('extensions')} />
+        <MenuItem icon={<IconHistory />} name={tr("History")} meta={<Chevron />} onClick={() => act('history')} />
+        <MenuItem icon={<IconCode />} name={tr("Developers")} meta={<Chevron />} onClick={() => act('developers')} />
+        <MenuItem icon={<IconSettings />} name={tr("Settings")} meta="⌘," onClick={() => act('settings')} />
 
         <MenuDivider />
 
-        <MenuItem icon={<IconPlus />} name="New Tab" meta="⌘T" onClick={() => act('new-tab')} />
-        <MenuItem icon={<IconSpy />} name="Incognito Window" meta="⇧⌘N" onClick={() => act('incognito')} />
+        <MenuItem icon={<IconPlus />} name={tr("New Tab")} meta="⌘T" onClick={() => act('new-tab')} />
+        <MenuItem icon={<IconSpy />} name={tr("Incognito Window")} meta="⇧⌘N" onClick={() => act('incognito')} />
       </div>
     </>
   )

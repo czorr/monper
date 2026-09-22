@@ -1,3 +1,4 @@
+import { t as tr, useLocale } from '@renderer/lib/i18n'
 import { createRoot } from 'react-dom/client'
 import { useEffect, useState, type JSX } from 'react'
 import type { DownloadEntry } from '@shared/types'
@@ -12,6 +13,7 @@ import { fmtBytes } from '@shared/bytes'
 const { titanioTab } = window
 
 function Row({ d }: { d: DownloadEntry }): JSX.Element {
+  useLocale()
   const pct = d.total > 0 ? Math.min(100, Math.round((d.received / d.total) * 100)) : 0
   const done = d.state === 'completed'
   const failed = d.state === 'interrupted' || d.state === 'cancelled'
@@ -36,22 +38,22 @@ function Row({ d }: { d: DownloadEntry }): JSX.Element {
               <div className="h-full bg-white/60" style={{ width: `${pct}%` }} />
             </div>
             <div className="mt-1 text-[12px] text-text-faint tabular-nums">
-              {fmtBytes(d.received)}{d.total > 0 ? ` / ${fmtBytes(d.total)}` : ''}{d.paused ? ' · en pausa' : ''}
+              {fmtBytes(d.received)}{d.total > 0 ? ` / ${fmtBytes(d.total)}` : ''}{d.paused ? tr(" · en pausa") : ''}
             </div>
           </>
         ) : (
           <div className={'mt-0.5 text-[12px] ' + (failed ? 'text-red-400' : 'text-text-faint')}>
-            {done ? fmtBytes(d.received) : d.state === 'cancelled' ? 'Cancelada' : 'Interrumpida'}
+            {done ? fmtBytes(d.received) : d.state === 'cancelled' ? tr("Cancelada") : tr("Interrumpida")}
             <span className="text-text-faint"> · {(() => { try { return new URL(d.url).hostname.replace(/^www\./, '') } catch { return '' } })()}</span>
           </div>
         )}
       </div>
       <div className="shrink-0 flex items-center gap-1">
         {done && (
-          <button title="Mostrar en carpeta" onClick={() => titanioTab.showDownload(d.id)} className="w-8 h-8 grid place-items-center rounded-lg text-text-faint hover:text-text hover:bg-white/[0.08] [&>svg]:w-[16px] [&>svg]:h-[16px]"><IconFolder /></button>
+          <button title={tr("Mostrar en carpeta")} onClick={() => titanioTab.showDownload(d.id)} className="w-8 h-8 grid place-items-center rounded-lg text-text-faint hover:text-text hover:bg-white/[0.08] [&>svg]:w-[16px] [&>svg]:h-[16px]"><IconFolder /></button>
         )}
         {d.state === 'progressing' && (
-          <button title="Cancelar" onClick={() => titanioTab.cancelDownload(d.id)} className="w-8 h-8 grid place-items-center rounded-lg text-text-faint hover:text-red-400 hover:bg-white/[0.08] [&>svg]:w-[16px] [&>svg]:h-[16px]"><IconX /></button>
+          <button title={tr("Cancelar")} onClick={() => titanioTab.cancelDownload(d.id)} className="w-8 h-8 grid place-items-center rounded-lg text-text-faint hover:text-red-400 hover:bg-white/[0.08] [&>svg]:w-[16px] [&>svg]:h-[16px]"><IconX /></button>
         )}
       </div>
     </div>
@@ -59,6 +61,7 @@ function Row({ d }: { d: DownloadEntry }): JSX.Element {
 }
 
 function DownloadsPage(): JSX.Element {
+  useLocale()
   const [list, setList] = useState<DownloadEntry[]>([])
   useEffect(() => { titanioTab.listDownloads().then(setList); return titanioTab.onDownloads(setList) }, [])
 
@@ -66,15 +69,14 @@ function DownloadsPage(): JSX.Element {
     <div className="h-full overflow-y-auto page-backdrop text-text select-none [&::-webkit-scrollbar]:w-0">
       <div className="max-w-[720px] mx-auto px-8 py-12">
         <div className="flex items-center justify-between mb-8">
-          <h1 className="text-[30px] font-semibold tracking-tight">Descargas</h1>
+          <h1 className="text-[30px] font-semibold tracking-tight">{tr("Descargas")}</h1>
           {list.length > 0 && (
             <button onClick={() => titanioTab.clearDownloads()} className="flex items-center gap-1.5 text-[13px] text-text-dim hover:text-text px-3 py-1.5 rounded-lg hover:bg-white/[0.06] [&>svg]:w-4 [&>svg]:h-4">
-              <IconTrash /> Limpiar
-            </button>
+              <IconTrash /> {tr("Limpiar")} </button>
           )}
         </div>
         {list.length === 0 ? (
-          <div className="text-[14px] text-text-faint py-16 text-center">No hay descargas todavía.</div>
+          <div className="text-[14px] text-text-faint py-16 text-center">{tr("No hay descargas todavía.")}</div>
         ) : (
           <div className="flex flex-col gap-0.5">
             {list.map((d) => <Row key={d.id} d={d} />)}

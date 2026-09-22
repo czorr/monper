@@ -1,3 +1,4 @@
+import { t as tr } from '../shared/i18n'
 import { join } from 'path'
 import { readJson, writeJson } from './jsonfile'
 import { app, Notification, type BrowserWindow } from 'electron'
@@ -47,7 +48,7 @@ export function removeRoutine(id: string): void {
 // ---- Ejecución sobre una página headless (mismo REPL y `page` que usa el agente) ----
 
 function requireWin(): BrowserWindow {
-  if (!win || win.isDestroyed()) throw new Error('Ventana no disponible.')
+  if (!win || win.isDestroyed()) throw new Error(tr('Ventana no disponible.'))
   return win
 }
 
@@ -81,14 +82,14 @@ Devuelve SOLO un JSON con esta forma:
 /** Genera el extractor + la condición a partir de lo que pidió el usuario. */
 async function buildWatch(url: string, request: string): Promise<{ label: string; extractor: string; condition: RoutineCondition }> {
   const active = getActiveProvider()
-  if (!active) throw new Error('Conecta un proveedor de IA en Settings para crear rutinas.')
+  if (!active) throw new Error(tr("Conecta un proveedor de IA en Settings para crear rutinas."))
   const context = await pageContextFor(url)
   const raw = await askModel(
     active.provider, active.key, active.model, EXTRACTOR_SYSTEM,
     `URL: ${url}\n\nLo que quiero vigilar: ${request}\n\nLa página ahora mismo:\n${context}`
   )
   const j = parseJsonLoose<{ label?: string; code?: string; op?: string; value?: unknown }>(raw)
-  if (!j?.code) throw new Error('El modelo no devolvió un extractor válido.')
+  if (!j?.code) throw new Error(tr("El modelo no devolvió un extractor válido."))
   const ops = ['changed', 'lt', 'gt', 'contains', 'notContains']
   const op = (ops.includes(String(j.op)) ? j.op : 'changed') as RoutineCondition['op']
   return {
@@ -141,7 +142,7 @@ export async function runRoutine(id: string): Promise<void> {
     const value = await runHeadlessSnippet(requireWin(), r.url, r.extractor)
     if (value == null) {
       r.failures++
-      r.lastError = 'No se encontró el dato en la página.'
+      r.lastError = tr("No se encontró el dato en la página.")
       // Auto-reparación: tras 2 fallos seguidos, pedimos al modelo un extractor nuevo.
       if (r.failures >= 2) { await healRoutine(r) }
     } else {
@@ -166,7 +167,7 @@ async function healRoutine(r: Routine): Promise<void> {
     r.extractor = fixed.extractor
     r.condition = fixed.condition
     r.failures = 0
-    r.lastError = 'Extractor regenerado (el sitio cambió).'
+    r.lastError = tr("Extractor regenerado (el sitio cambió).")
   } catch (e) {
     r.lastError = e instanceof Error ? e.message : String(e)
   }

@@ -1,5 +1,7 @@
+import { t as tr, subscribeLocale } from '../shared/i18n'
 import { ipcRenderer } from 'electron'
 import type { QuickAction } from '../shared/types'
+import { localizeQuickAction } from '../shared/quickactions'
 
 // SVGs (tabler-style) para los iconos soportados, inyectados en el menú.
 const ICONS: Record<string, string> = {
@@ -28,6 +30,15 @@ export function setupSelectionUI(): void {
   let root: ShadowRoot | null = null
   let selection = ''
   let menuOpen = false
+  let actions: QuickAction[] = []
+  subscribeLocale(() => {
+    const input = root?.querySelector('input')
+    if (input) input.placeholder = tr('What would you like to do?')
+    root?.querySelectorAll<HTMLElement>('[data-action-label]').forEach((element) => {
+      const action = actions.find((item) => item.id === element.dataset.actionLabel)
+      if (action) element.textContent = localizeQuickAction(action).name
+    })
+  })
 
   const ensureHost = (): ShadowRoot => {
     if (root) return root
@@ -67,7 +78,7 @@ export function setupSelectionUI(): void {
   }
 
   const openMenu = async (x: number, y: number): Promise<void> => {
-    let actions: QuickAction[] = []
+    actions = []
     // Sin acciones el menú sale solo con "Preguntar a Titanio", que sigue sirviendo.
     try { actions = await ipcRenderer.invoke('quickactions:list') } catch (e) {
       console.error('[quickactions] no se pudieron cargar:', e)
@@ -89,7 +100,8 @@ export function setupSelectionUI(): void {
       ic.style.cssText = 'display:grid;place-items:center;width:18px;height:18px;color:rgba(235,235,245,.7);'
       setHTML(ic, svg(a.icon, 18))
       const label = document.createElement('span')
-      label.textContent = a.name
+      label.dataset.actionLabel = a.id
+      label.textContent = localizeQuickAction(a).name
       item.appendChild(ic); item.appendChild(label)
       item.addEventListener('mouseenter', () => (item.style.background = 'rgba(255,255,255,.06)'))
       item.addEventListener('mouseleave', () => (item.style.background = 'transparent'))
@@ -104,7 +116,7 @@ export function setupSelectionUI(): void {
     const row = document.createElement('div')
     row.style.cssText = 'display:flex;align-items:center;gap:6px;padding:4px 6px 6px;'
     const input = document.createElement('input')
-    input.placeholder = 'What would you like to do?'
+    input.placeholder = tr("What would you like to do?")
     input.style.cssText = 'all:unset;flex:1;font-size:14px;color:#ececee;'
     const send = document.createElement('button')
     send.style.cssText = 'all:unset;display:grid;place-items:center;width:28px;height:28px;border-radius:8px;background:rgba(255,255,255,.9);color:#000;cursor:pointer;'

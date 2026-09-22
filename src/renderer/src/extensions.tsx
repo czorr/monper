@@ -1,3 +1,4 @@
+import { t as tr, useLocale } from '@renderer/lib/i18n'
 import { createRoot } from 'react-dom/client'
 import { useEffect, useState, type JSX } from 'react'
 import type { ExtensionInfo, ExtensionsData } from '@shared/types'
@@ -14,6 +15,7 @@ const ex = window.extensionswin
 const EMPTY: ExtensionsData = { items: [], storeCandidate: null, installing: false }
 
 function Row({ e }: { e: ExtensionInfo }): JSX.Element {
+  useLocale()
   const icon = e.icon
     ? <img src={e.icon} alt="" className="w-[18px] h-[18px] rounded-[4px] object-contain" />
     : <IconPuzzle />
@@ -21,7 +23,7 @@ function Row({ e }: { e: ExtensionInfo }): JSX.Element {
     <PopoverRow
       icon={icon}
       label={e.name}
-      title={e.enabled ? 'Abrir' : 'Actívala para usarla'}
+      title={e.enabled ? tr("Abrir") : tr("Actívala para usarla")}
       onClick={() => e.enabled && ex.openPopup(e.path)}
       meta={
         <>
@@ -29,7 +31,7 @@ function Row({ e }: { e: ExtensionInfo }): JSX.Element {
           <button
             type="button"
             onClick={(ev) => { ev.stopPropagation(); ex.menu(e.path) }}
-            title="Más opciones"
+            title={tr("Más opciones")}
             className="w-6 h-6 grid place-items-center rounded-md hover:text-text hover:bg-white/[0.1] [&>svg]:w-4 [&>svg]:h-4"
           >
             <IconDots />
@@ -42,6 +44,7 @@ function Row({ e }: { e: ExtensionInfo }): JSX.Element {
 }
 
 function Extensions(): JSX.Element {
+  useLocale()
   const [d, setD] = useState<ExtensionsData>(EMPTY)
   useEffect(() => ex.onData(setD), [])
   const cand = d.storeCandidate
@@ -49,27 +52,25 @@ function Extensions(): JSX.Element {
   return (
     <PopoverPanel onHeight={ex.reportHeight} measure={d}>
       {/* Instalar la extensión de la página actual (si estás en la Store) */}
-      {cand?.installed && <PopoverRow icon={<IconCheck />} label="Ya la tienes instalada" disabled />}
+      {cand?.installed && <PopoverRow icon={<IconCheck />} label={tr("Ya la tienes instalada")} disabled />}
       {cand && !cand.installed && (
         <PopoverRow
           icon={<IconPlus />}
-          label={d.installing ? 'Instalando…' : 'Añadir esta extensión a Titanio'}
+          label={d.installing ? tr("Instalando…") : tr("Añadir esta extensión a Titanio")}
           active
           disabled={d.installing}
           onClick={() => ex.installFromStore()}
         />
       )}
 
-      <PopoverRow icon={<IconPuzzle />} label="Explorar extensiones" onClick={() => ex.browseStore()} />
-      <PopoverRow icon={<IconFolder />} label="Instalar desde una carpeta" onClick={() => ex.installFromFolder()} />
+      <PopoverRow icon={<IconPuzzle />} label={tr("Explorar extensiones")} onClick={() => ex.browseStore()} />
+      <PopoverRow icon={<IconFolder />} label={tr("Instalar desde una carpeta")} onClick={() => ex.installFromFolder()} />
 
       <PopoverDivider />
-      <PopoverLabel>Tus extensiones</PopoverLabel>
+      <PopoverLabel>{tr("Tus extensiones")}</PopoverLabel>
       {d.items.length === 0 ? (
         <div className="px-2.5 pb-2 text-[12.5px] text-text-faint leading-relaxed">
-          Todavía no tienes extensiones. Toca <span className="text-text-dim">Explorar extensiones</span>,
-          abre la que te guste y vuelve aquí para añadirla.
-        </div>
+          {tr("Todavía no tienes extensiones. Toca")} <span className="text-text-dim">{tr("Explorar extensiones")}</span>{tr(", abre la que te guste y vuelve aquí para añadirla.")} </div>
       ) : (
         <PopoverList>{d.items.map((e) => <Row key={e.path} e={e} />)}</PopoverList>
       )}

@@ -33,6 +33,12 @@ export function hostOf(url: string): string {
 export function initFavicons(): void {
   file = rutaDePerfil('favicons.json')
   byHost = readJson<Record<string, string>>(file, {}, 'los favicons')
+  // Una versión anterior copiaba el icono del proveedor de login al slot fijo de Titanio.
+  const titanio = byHost['app.titanio.ai']
+  if (titanio && Object.entries(byHost).some(([host, icon]) =>
+    (host === 'google.com' || host.endsWith('.google.com')) && icon === titanio)) {
+    delete byHost['app.titanio.ai']
+  }
 }
 
 /** Se llama en cada `page-favicon-updated`: muy seguido, así que la escritura va agrupada. */
@@ -71,11 +77,11 @@ const MAX_ICONO = 96 * 1024
 const imagenesPorSesion = new WeakMap<Electron.Session, Map<string, Promise<string | null>>>()
 
 /** Conserva los bytes del icono visitado usando la misma sesión que la página. */
-export async function cacheVisitedFavicon(url: string, icon: string, ses: Electron.Session): Promise<string | null> {
+export async function cacheVisitedFavicon(icon: string, ses: Electron.Session): Promise<string | null> {
   if (icon.startsWith('data:image/')) return icon
   if (!/^https?:\/\//i.test(icon)) return null
-  const cached = faviconFor(url)
-  if (cached?.startsWith('data:image/')) return cached
+  // La URL del icono, no solo el host, identifica la imagen: una caché antigua puede
+  // contener el favicon de una redirección. La primera visita de la sesión lo revalida.
   let imagenes = imagenesPorSesion.get(ses)
   if (!imagenes) { imagenes = new Map(); imagenesPorSesion.set(ses, imagenes) }
   const pending = imagenes.get(icon)
@@ -104,7 +110,11 @@ export async function cacheVisitedFavicon(url: string, icon: string, ses: Electr
     } finally { clearTimeout(timer) }
   })()
   imagenes.set(icon, request)
-  try { return await request } finally { imagenes.delete(icon) }
+  const data = await request
+  if (!data) imagenes.delete(icon)
+  // Conserva las descargas correctas durante la sesión, con un límite de memoria.
+  while (imagenes.size > 256) imagenes.delete(imagenes.keys().next().value!)
+  return data
 }
 
 /**

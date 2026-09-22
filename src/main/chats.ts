@@ -1,3 +1,4 @@
+import { t as tr } from '../shared/i18n'
 import { join } from 'path'
 import { app } from 'electron'
 import { readJson, writeJson } from './jsonfile'
@@ -59,7 +60,7 @@ function persist(): void {
 function titleFor(messages: StoredChatMsg[]): string {
   const first = messages.find((m) => m.role === 'user' && (m.text ?? '').trim())
   const t = (first?.text ?? '').trim().replace(/\s+/g, ' ')
-  if (!t) return 'Nueva conversación'
+  if (!t) return tr("Nueva conversación")
   return t.length > TITLE_MAX ? `${t.slice(0, TITLE_MAX - 1)}…` : t
 }
 
@@ -168,7 +169,7 @@ function find(id: string): Session | undefined {
 }
 
 function create(): Session {
-  const s: Session = { id: newId(), title: 'Nueva conversación', createdAt: now(), updatedAt: now(), messages: [] }
+  const s: Session = { id: newId(), title: tr("Nueva conversación"), createdAt: now(), updatedAt: now(), messages: [] }
   sessions.unshift(s)
   currentId = s.id
   return s

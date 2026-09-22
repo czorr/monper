@@ -1,3 +1,4 @@
+import { t as tr, useLocale } from '@renderer/lib/i18n'
 import { useCallback, useEffect, useMemo, useState, type JSX } from 'react'
 import type { VaultItemMeta, VaultItemType } from '@shared/vault'
 import { normalizeCredentialOrigin } from '@shared/vault'
@@ -20,16 +21,16 @@ import { Card, Group, SettingsHeader, Button } from './ui'
 const { titanioTab } = window
 
 const GRUPOS: { type: VaultItemType; title: string; vacio: string; Icon: typeof IconWorld }[] = [
-  { type: 'web-credential', title: 'Sitios web', vacio: 'Cuando inicies sesión en un sitio, Titanio te ofrecerá guardarlo.', Icon: IconWorld },
-  { type: 'ai-key', title: 'API keys de IA', vacio: 'Se guardan solas al conectar un proveedor en la sección AI.', Icon: IconSparkles },
-  { type: 'service-token', title: 'Tokens de servicio', vacio: 'No hay tokens guardados.', Icon: IconPlug },
-  { type: 'secret', title: 'Otros secretos', vacio: 'No hay otros secretos guardados.', Icon: IconLock }
+  { type: 'web-credential', get title() { return tr("Sitios web") }, get vacio() { return tr("Cuando inicies sesión en un sitio, Titanio te ofrecerá guardarlo.") }, Icon: IconWorld },
+  { type: 'ai-key', get title() { return tr("API keys de IA") }, get vacio() { return tr("Se guardan solas al conectar un proveedor en la sección AI.") }, Icon: IconSparkles },
+  { type: 'service-token', get title() { return tr("Tokens de servicio") }, get vacio() { return tr("No hay tokens guardados.") }, Icon: IconPlug },
+  { type: 'secret', get title() { return tr("Otros secretos") }, get vacio() { return tr("No hay otros secretos guardados.") }, Icon: IconLock }
 ]
 
 /** Lo que identifica al ítem debajo de su nombre. Cada tipo lo tiene en un sitio distinto. */
 function subtitulo(i: VaultItemMeta): string {
   if (i.type === 'web-credential') return i.data.username || i.data.origin || ''
-  if (i.type === 'ai-key') return i.data.kind === 'openai' ? 'OpenAI' : i.data.kind === 'anthropic' ? 'Anthropic' : 'Proveedor'
+  if (i.type === 'ai-key') return i.data.kind === 'openai' ? 'OpenAI' : i.data.kind === 'anthropic' ? 'Anthropic' : tr("Proveedor")
   if (i.type === 'service-token') return i.data.service || ''
   return i.data.name || ''
 }
@@ -45,6 +46,7 @@ const VER_TTL = 15_000
  * exactamente lo contrario de lo que promete este panel.
  */
 function IconoItem({ favicon }: { favicon?: string }): JSX.Element {
+  useLocale()
   const [roto, setRoto] = useState(false)
   return (
     <span className="w-8 h-8 rounded-lg grid place-items-center bg-white/[0.05] text-text-dim shrink-0 overflow-hidden">
@@ -56,6 +58,7 @@ function IconoItem({ favicon }: { favicon?: string }): JSX.Element {
 }
 
 function Fila({ item, favicon, onCambio }: { item: VaultItemMeta; favicon?: string; onCambio: (l: VaultItemMeta[]) => void }): JSX.Element {
+  useLocale()
   const [copiado, setCopiado] = useState(false)
   const [visible, setVisible] = useState<string | null>(null)
   const [editando, setEditando] = useState(false)
@@ -80,7 +83,7 @@ function Fila({ item, favicon, onCambio }: { item: VaultItemMeta; favicon?: stri
 
   const copiar = async (): Promise<void> => {
     const ok = await titanioTab.vaultCopy(item.id)
-    if (!ok) { setError('No se pudo leer el secreto. ¿Se guardó con otro usuario del sistema?'); return }
+    if (!ok) { setError(tr("No se pudo leer el secreto. ¿Se guardó con otro usuario del sistema?")); return }
     setError('')
     setCopiado(true)
     setTimeout(() => setCopiado(false), 1800)
@@ -93,7 +96,7 @@ function Fila({ item, favicon, onCambio }: { item: VaultItemMeta; favicon?: stri
   const alternarVer = async (): Promise<void> => {
     if (visible !== null) { setVisible(null); return }
     const v = await titanioTab.vaultReveal(item.id)
-    if (v === null) { setError('No se pudo leer el secreto.'); return }
+    if (v === null) { setError(tr("No se pudo leer el secreto.")); return }
     setError('')
     setVisible(v)
     setTimeout(() => setVisible(null), VER_TTL)
@@ -102,14 +105,14 @@ function Fila({ item, favicon, onCambio }: { item: VaultItemMeta; favicon?: stri
   const guardar = async (): Promise<void> => {
     const l = label.trim()
     if (guardando) return
-    if (!l) { setError('Introduce un nombre.'); return }
+    if (!l) { setError(tr("Introduce un nombre.")); return }
     const patch: { label: string; data?: Record<string, string>; secret?: string } = { label: l }
     if (item.type === 'web-credential') {
       const origin = normalizeCredentialOrigin(sitio)
-      if (!origin) { setError('Escribe un sitio HTTP o HTTPS válido.'); return }
+      if (!origin) { setError(tr("Escribe un sitio HTTP o HTTPS válido.")); return }
       patch.data = { origin, username: usuario.trim() }
     } else if (item.type === 'service-token') {
-      if (!servicio.trim()) { setError('Indica el servicio del token.'); return }
+      if (!servicio.trim()) { setError(tr("Indica el servicio del token.")); return }
       patch.data = { service: servicio.trim(), account: cuenta.trim() }
     } else if (item.type === 'secret') {
       patch.data = { name: nombreSecreto.trim() || l }
@@ -120,7 +123,7 @@ function Fila({ item, favicon, onCambio }: { item: VaultItemMeta; favicon?: stri
       onCambio(await titanioTab.vaultUpdate(item.id, patch))
       setNuevoSecreto(''); setVisible(null); setEditando(false)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'No se pudieron guardar los cambios.')
+      setError(e instanceof Error ? e.message : tr("No se pudieron guardar los cambios."))
     } finally { setGuardando(false) }
   }
 
@@ -136,43 +139,37 @@ function Fila({ item, favicon, onCambio }: { item: VaultItemMeta; favicon?: stri
         onSubmit={(e) => { e.preventDefault(); void guardar() }}
         onKeyDown={(e) => { if (e.key === 'Escape' && !guardando) { e.preventDefault(); cancelar() } }}>
         <fieldset disabled={guardando} className="flex flex-col gap-2 min-w-0 border-0 p-0">
-        <label className="flex flex-col gap-1 text-xs text-text-dim">Nombre
-          <input value={label} onChange={(e) => setLabel(e.target.value)} autoFocus className={campo} />
+        <label className="flex flex-col gap-1 text-xs text-text-dim">{tr("Nombre")} <input value={label} onChange={(e) => setLabel(e.target.value)} autoFocus className={campo} />
         </label>
         {item.type === 'web-credential' && (
           <>
-            <label className="flex flex-col gap-1 text-xs text-text-dim">Sitio
-              <input value={sitio} onChange={(e) => setSitio(e.target.value)} placeholder="https://example.com" className={campo} />
+            <label className="flex flex-col gap-1 text-xs text-text-dim">{tr("Sitio")} <input value={sitio} onChange={(e) => setSitio(e.target.value)} placeholder="https://example.com" className={campo} />
             </label>
-            <label className="flex flex-col gap-1 text-xs text-text-dim">Usuario o correo
-              <input value={usuario} onChange={(e) => setUsuario(e.target.value)} className={campo} />
+            <label className="flex flex-col gap-1 text-xs text-text-dim">{tr("Usuario o correo")} <input value={usuario} onChange={(e) => setUsuario(e.target.value)} className={campo} />
             </label>
           </>
         )}
         {item.type === 'service-token' && (
           <>
-            <label className="flex flex-col gap-1 text-xs text-text-dim">Servicio
-              <input value={servicio} onChange={(e) => setServicio(e.target.value)} className={campo} />
+            <label className="flex flex-col gap-1 text-xs text-text-dim">{tr("Servicio")} <input value={servicio} onChange={(e) => setServicio(e.target.value)} className={campo} />
             </label>
-            <label className="flex flex-col gap-1 text-xs text-text-dim">Cuenta (opcional)
-              <input value={cuenta} onChange={(e) => setCuenta(e.target.value)} className={campo} />
+            <label className="flex flex-col gap-1 text-xs text-text-dim">{tr("Cuenta (opcional)")} <input value={cuenta} onChange={(e) => setCuenta(e.target.value)} className={campo} />
             </label>
           </>
         )}
         {item.type === 'secret' && (
-          <label className="flex flex-col gap-1 text-xs text-text-dim">Identificador
-            <input value={nombreSecreto} onChange={(e) => setNombreSecreto(e.target.value)} className={campo} />
+          <label className="flex flex-col gap-1 text-xs text-text-dim">{tr("Identificador")} <input value={nombreSecreto} onChange={(e) => setNombreSecreto(e.target.value)} className={campo} />
           </label>
         )}
         <label className="flex flex-col gap-1 text-xs text-text-dim">
-          {item.type === 'web-credential' ? 'Nueva contraseña' : 'Nuevo valor secreto'}
-          <input type="password" autoComplete="new-password" value={nuevoSecreto} onChange={(e) => setNuevoSecreto(e.target.value)} placeholder="Dejar vacío para conservar el actual" className={campo} />
+          {item.type === 'web-credential' ? tr("Nueva contraseña") : tr("Nuevo valor secreto")}
+          <input type="password" autoComplete="new-password" value={nuevoSecreto} onChange={(e) => setNuevoSecreto(e.target.value)} placeholder={tr("Dejar vacío para conservar el actual")} className={campo} />
         </label>
-        <p className="text-xs text-text-faint">Actualiza el valor guardado en Titanio; no cambia la contraseña ni el token en el servicio.</p>
+        <p className="text-xs text-text-faint">{tr("Actualiza el valor guardado en Titanio; no cambia la contraseña ni el token en el servicio.")}</p>
         {error && <p role="alert" className="text-xs text-amber-400">{error}</p>}
         <div className="flex items-center gap-2">
-          <Button variant="primary" size="sm" type="submit">{guardando ? 'Guardando…' : 'Guardar'}</Button>
-          <Button variant="ghost" size="sm" onClick={cancelar}>Cancelar</Button>
+          <Button variant="primary" size="sm" type="submit">{guardando ? tr("Guardando…") : tr("Guardar")}</Button>
+          <Button variant="ghost" size="sm" onClick={cancelar}>{tr("Cancelar")}</Button>
         </div>
         </fieldset>
       </form>
@@ -209,21 +206,21 @@ function Fila({ item, favicon, onCambio }: { item: VaultItemMeta; favicon?: stri
         (visible !== null || copiado ? 'opacity-100' : 'opacity-0 group-hover/v:opacity-100')}>
         <Button variant="ghost" size="icon"
           onClick={() => void alternarVer()}
-          title={visible !== null ? 'Ocultar' : 'Ver la contraseña (se tapa sola en 15 s)'}
+          title={visible !== null ? tr("Ocultar") : tr("Ver la contraseña (se tapa sola en 15 s)")}
         >
           {visible !== null ? <IconEyeOff /> : <IconEye />}
         </Button>
         <Button variant={copiado ? 'custom' : 'ghost'} size="icon"
           onClick={() => void copiar()}
-          title="Copiar al portapapeles (se borra solo en 30 s)"
+          title={tr("Copiar al portapapeles (se borra solo en 30 s)")}
           className={copiado ? 'text-emerald-400' : ''}
         >
           {copiado ? <IconCheck /> : <IconCopy />}
         </Button>
-        <Button variant="ghost" size="icon" onClick={editar} title="Editar">
+        <Button variant="ghost" size="icon" onClick={editar} title={tr("Editar")}>
           <IconPencil />
         </Button>
-        <Button variant="danger-ghost" size="icon" onClick={() => void borrar()} title="Borrar">
+        <Button variant="danger-ghost" size="icon" onClick={() => void borrar()} title={tr("Borrar")}>
           <IconTrash />
         </Button>
       </div>
@@ -240,6 +237,7 @@ function Fila({ item, favicon, onCambio }: { item: VaultItemMeta; favicon?: stri
  * Sin esto, el vault solo se llenaba por accidente.
  */
 function Alta({ onHecho, onCancelar }: { onHecho: (l: VaultItemMeta[]) => void; onCancelar: () => void }): JSX.Element {
+  useLocale()
   const [type, setType] = useState<VaultItemType>('web-credential')
   const [label, setLabel] = useState('')
   const [sitio, setSitio] = useState('')
@@ -250,31 +248,31 @@ function Alta({ onHecho, onCancelar }: { onHecho: (l: VaultItemMeta[]) => void; 
   const campo = 'w-full h-9 px-3 rounded-lg bg-white/[0.05] border border-white/[0.10] text-[13.5px] text-text outline-none focus:border-white/30 select-text'
 
   const guardar = async (): Promise<void> => {
-    if (!secreto) { setError(type === 'web-credential' ? 'Introduce la contraseña.' : 'Introduce el valor que quieres guardar.'); return }
+    if (!secreto) { setError(type === 'web-credential' ? tr("Introduce la contraseña.") : tr("Introduce el valor que quieres guardar.")); return }
     const data: Record<string, string> = {}
     let nombre = label.trim()
 
     if (type === 'web-credential') {
       const origin = normalizeCredentialOrigin(sitio)
-      if (!origin) { setError('Introduce un sitio válido, por ejemplo, github.com.'); return }
+      if (!origin) { setError(tr("Introduce un sitio válido, por ejemplo, github.com.")); return }
       data.origin = origin
       data.username = usuario.trim()
       // El nombre por defecto es el dominio: obligar a escribirlo cuando ya lo has puesto en
       // el sitio es pedir dos veces lo mismo.
       if (!nombre) nombre = origin.replace(/^https?:\/\//, '')
     } else if (type === 'secret') {
-      data.name = nombre || 'Secreto'
+      data.name = nombre || tr("Secreto")
     } else if (type === 'service-token') {
-      data.service = nombre || 'Servicio'
+      data.service = nombre || tr("Servicio")
     }
-    if (!nombre) { setError('Introduce un nombre.'); return }
+    if (!nombre) { setError(tr("Introduce un nombre.")); return }
 
     try {
       onHecho(await titanioTab.vaultAdd(type, nombre, data, secreto))
       onCancelar()
     } catch (e) {
       console.error('[vault] no se pudo guardar:', e)
-      setError(e instanceof Error ? e.message : 'No se pudo guardar. Puede que el llavero del sistema no esté disponible.')
+      setError(e instanceof Error ? e.message : tr("No se pudo guardar. Puede que el llavero del sistema no esté disponible."))
     }
   }
 
@@ -283,7 +281,7 @@ function Alta({ onHecho, onCancelar }: { onHecho: (l: VaultItemMeta[]) => void; 
       <div className="flex items-center gap-2">
         {/* Solo los tipos que tiene sentido crear a mano: las API keys se guardan solas al
             conectar un proveedor, y duplicarlas aquí dejaría dos fuentes de verdad. */}
-        {([['web-credential', 'Sitio web'], ['service-token', 'Token'], ['secret', 'Secreto']] as const).map(([t, l]) => (
+        {([['web-credential', tr("Sitio web")], ['service-token', tr("Token")], ['secret', tr("Secreto")]] as const).map(([t, l]) => (
           <Button
             key={t}
             onClick={() => setType(t)}
@@ -298,13 +296,13 @@ function Alta({ onHecho, onCancelar }: { onHecho: (l: VaultItemMeta[]) => void; 
       {type === 'web-credential' && (
         <>
           <input value={sitio} onChange={(e) => setSitio(e.target.value)} placeholder="github.com" autoFocus className={campo} />
-          <input value={usuario} onChange={(e) => setUsuario(e.target.value)} placeholder="Usuario o correo" className={campo} />
+          <input value={usuario} onChange={(e) => setUsuario(e.target.value)} placeholder={tr("Usuario o correo")} className={campo} />
         </>
       )}
       <input
         value={label}
         onChange={(e) => setLabel(e.target.value)}
-        placeholder={type === 'web-credential' ? 'Nombre (opcional)' : 'Nombre'}
+        placeholder={type === 'web-credential' ? tr("Nombre (opcional)") : tr("Nombre")}
         autoFocus={type !== 'web-credential'}
         className={campo}
       />
@@ -313,7 +311,7 @@ function Alta({ onHecho, onCancelar }: { onHecho: (l: VaultItemMeta[]) => void; 
         type="password"
         value={secreto}
         onChange={(e) => setSecreto(e.target.value)}
-        placeholder={type === 'web-credential' ? 'Contraseña' : 'Valor'}
+        placeholder={type === 'web-credential' ? tr("Contraseña") : tr("Valor")}
         className={campo}
         onKeyDown={(e) => { if (e.key === 'Enter') void guardar() }}
       />
@@ -321,8 +319,8 @@ function Alta({ onHecho, onCancelar }: { onHecho: (l: VaultItemMeta[]) => void; 
       {error && <div className="text-[12.5px] text-amber-400">{error}</div>}
 
       <div className="flex items-center gap-2">
-        <Button variant="primary" size="sm" onClick={() => void guardar()}>Guardar</Button>
-        <Button variant="ghost" size="sm" onClick={onCancelar}>Cancelar</Button>
+        <Button variant="primary" size="sm" onClick={() => void guardar()}>{tr("Guardar")}</Button>
+        <Button variant="ghost" size="sm" onClick={onCancelar}>{tr("Cancelar")}</Button>
       </div>
     </div>
   )
@@ -339,6 +337,7 @@ function Alta({ onHecho, onCancelar }: { onHecho: (l: VaultItemMeta[]) => void; 
  * el secreto existente dentro del formulario.
  */
 export default function PasswordSection(): JSX.Element {
+  useLocale()
   const [items, setItems] = useState<VaultItemMeta[]>([])
   const [favicons, setFavicons] = useState<Record<string, string>>({})
   const [q, setQ] = useState('')
@@ -354,7 +353,7 @@ export default function PasswordSection(): JSX.Element {
       setError('')
     } catch (e) {
       console.error('[vault] no se pudo leer:', e)
-      setError('No se pudo cargar el vault. Reinicia Titanio e inténtalo de nuevo.')
+      setError(tr("No se pudo cargar el vault. Reinicia Titanio e inténtalo de nuevo."))
     }
   }, [])
   // Se escucha además de leer: se puede guardar una credencial desde otra pestaña mientras
@@ -374,15 +373,14 @@ export default function PasswordSection(): JSX.Element {
   return (
     <div>
       <SettingsHeader
-        title="Password"
-        description="Contraseñas, claves y tokens guardados con el cifrado del sistema."
+        title={tr("Password")}
+        description={tr("Contraseñas, claves y tokens guardados con el cifrado del sistema.")}
         actions={<>
           <Button variant="secondary" size="sm"
             onClick={() => setAnadiendo((v) => !v)}
             disabled={!disponible}
           >
-            <IconPlus /> Añadir
-          </Button>
+            <IconPlus /> {tr("Añadir")} </Button>
           <span className="text-[13px] text-text-faint tabular-nums">{items.length}</span>
         </>}
       />
@@ -393,8 +391,7 @@ export default function PasswordSection(): JSX.Element {
         <div className="mb-5 rounded-xl border border-amber-400/25 bg-amber-400/[0.06] px-3.5 py-3 flex items-start gap-2.5">
           <IconAlert className="w-[17px] h-[17px] text-amber-400 shrink-0 mt-px" />
           <div className="text-[13px] text-text-dim">
-            El llavero del sistema no está disponible. No se pueden guardar secretos.
-          </div>
+            {tr("El llavero del sistema no está disponible. No se pueden guardar secretos.")} </div>
         </div>
       )}
 
@@ -405,7 +402,7 @@ export default function PasswordSection(): JSX.Element {
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Buscar por nombre, usuario o sitio"
+          placeholder={tr("Buscar por nombre, usuario o sitio")}
           className="w-full h-10 pl-9 pr-3 rounded-xl bg-white/[0.04] border border-white/[0.08] text-[13.5px] text-text outline-none focus:border-white/25 placeholder:text-text-faint transition-colors select-text"
         />
       </div>
@@ -430,7 +427,7 @@ export default function PasswordSection(): JSX.Element {
       })}
 
       <p className="text-[12.5px] text-text-faint leading-relaxed">
-        Importa contraseñas de otro navegador desde <span className="text-text-dim">General → Importar</span>.
+        {tr("Importa contraseñas de otro navegador desde")} <span className="text-text-dim">{tr("General → Importar")}</span>.
       </p>
     </div>
   )

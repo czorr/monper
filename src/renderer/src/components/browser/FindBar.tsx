@@ -1,3 +1,4 @@
+import { t as tr, useLocale } from '@renderer/lib/i18n'
 import { useEffect, useRef, useState, type JSX, type KeyboardEvent } from 'react'
 import type { FindResult } from '@shared/types'
 import IconChevronUp from '~icons/tabler/chevron-up'
@@ -14,6 +15,7 @@ interface Props {
 
 /** Barra de "buscar en página", flotante en la banda del topbar (no la tapa la vista nativa). */
 export default function FindBar({ openRequest, onClose }: Props): JSX.Element {
+  useLocale()
   const [query, setQuery] = useState('')
   const [result, setResult] = useState<FindResult>({ matches: 0, active: 0 })
   const inputRef = useRef<HTMLInputElement>(null)
@@ -44,15 +46,15 @@ export default function FindBar({ openRequest, onClose }: Props): JSX.Element {
         value={query}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={onKeyDown}
-        placeholder="Buscar en la página"
+        placeholder={tr("Buscar en la página")}
         className={'w-48 bg-transparent outline-none text-[13px] placeholder:text-text-faint ' + (none ? 'text-red-400' : 'text-text')}
       />
       <span className="text-[12px] tabular-nums text-text-faint min-w-[42px] text-right pr-1">
         {query ? `${result.active}/${result.matches}` : ''}
       </span>
-      <button onClick={() => search(query, true, false)} disabled={!result.matches} title="Anterior (⇧↵)" className="w-7 h-7 grid place-items-center rounded-lg text-text-dim hover:text-text hover:bg-white/[0.08] disabled:opacity-30 [&>svg]:w-4 [&>svg]:h-4"><IconChevronUp /></button>
-      <button onClick={() => search(query, true, true)} disabled={!result.matches} title="Siguiente (↵)" className="w-7 h-7 grid place-items-center rounded-lg text-text-dim hover:text-text hover:bg-white/[0.08] disabled:opacity-30 [&>svg]:w-4 [&>svg]:h-4"><IconChevronDown /></button>
-      <button onClick={close} title="Cerrar (Esc)" className="w-7 h-7 grid place-items-center rounded-lg text-text-dim hover:text-text hover:bg-white/[0.08] [&>svg]:w-4 [&>svg]:h-4"><IconX /></button>
+      <button onClick={() => search(query, true, false)} disabled={!result.matches} title={tr("Anterior (⇧↵)")} className="w-7 h-7 grid place-items-center rounded-lg text-text-dim hover:text-text hover:bg-white/[0.08] disabled:opacity-30 [&>svg]:w-4 [&>svg]:h-4"><IconChevronUp /></button>
+      <button onClick={() => search(query, true, true)} disabled={!result.matches} title={tr("Siguiente (↵)")} className="w-7 h-7 grid place-items-center rounded-lg text-text-dim hover:text-text hover:bg-white/[0.08] disabled:opacity-30 [&>svg]:w-4 [&>svg]:h-4"><IconChevronDown /></button>
+      <button onClick={close} title={tr("Cerrar (Esc)")} className="w-7 h-7 grid place-items-center rounded-lg text-text-dim hover:text-text hover:bg-white/[0.08] [&>svg]:w-4 [&>svg]:h-4"><IconX /></button>
     </div>
   )
 }

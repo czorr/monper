@@ -1,3 +1,4 @@
+import { t as tr, useLocale } from '@renderer/lib/i18n'
 import { useCallback, useEffect, useState, type JSX } from 'react'
 import type { AdblockInfo } from '@shared/types'
 import IconShield from '~icons/tabler/shield-check'
@@ -15,6 +16,7 @@ const { titanioTab } = window
  * página en vez de que el usuario lo descubra y crea que está roto.
  */
 export default function AdblockSection(): JSX.Element {
+  useLocale()
   const [estado, setEstado] = useState<AdblockInfo | null>(null)
   const [error, setError] = useState('')
 
@@ -24,7 +26,7 @@ export default function AdblockSection(): JSX.Element {
       setError('')
     } catch (e) {
       console.error('[adblock] no se pudo leer el estado:', e)
-      setError('No se pudo cargar el bloqueador. Reinicia Titanio e inténtalo de nuevo.')
+      setError(tr("No se pudo cargar el bloqueador. Reinicia Titanio e inténtalo de nuevo."))
     }
   }, [])
   useEffect(() => { void leer() }, [leer])
@@ -54,7 +56,7 @@ export default function AdblockSection(): JSX.Element {
 
   return (
     <>
-      <SettingsHeader title="Adblocker" description="Bloquea anuncios y rastreadores en las páginas que visitas." />
+      <SettingsHeader title={tr("Adblocker")} description={tr("Bloquea anuncios y rastreadores en las páginas que visitas.")} />
 
       {error && (
         <div className="mb-6 px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[13px] text-amber-300 leading-relaxed">
@@ -62,20 +64,20 @@ export default function AdblockSection(): JSX.Element {
         </div>
       )}
 
-      <Group title="Bloqueo">
+      <Group title={tr("Bloqueo")}>
         <Card>
           <div className="flex items-start gap-3.5 px-4 py-3.5">
             <span className="w-8 h-8 rounded-lg grid place-items-center bg-white/[0.05] text-text-dim shrink-0 [&>svg]:w-[18px] [&>svg]:h-[18px]">
               <IconShield />
             </span>
             <div className="flex-1 min-w-0">
-              <div className="text-[14px] text-text leading-tight">Bloquear anuncios y rastreadores</div>
+              <div className="text-[14px] text-text leading-tight">{tr("Bloquear anuncios y rastreadores")}</div>
               <div className="text-[12.5px] text-text-dim mt-1 leading-relaxed">
                 {estado && !estado.ready
-                  ? 'Cargando las listas de filtros…'
+                  ? tr("Cargando las listas de filtros…")
                   : on
-                    ? 'Activo en tus pestañas y en las del agente.'
-                    : 'Desactivado.'}
+                    ? tr("Activo en tus pestañas y en las del agente.")
+                    : tr("Desactivado.")}
               </div>
             </div>
             <div className="mt-0.5">
@@ -84,19 +86,18 @@ export default function AdblockSection(): JSX.Element {
           </div>
 
           <div className="px-4 py-3.5 text-[12.5px] text-text-dim leading-relaxed">
-            Si una página no funciona, desactiva el bloqueo para ese sitio desde la barra de direcciones.
-          </div>
+            {tr("Si una página no funciona, desactiva el bloqueo para ese sitio desde la barra de direcciones.")} </div>
         </Card>
       </Group>
 
       {!!estado?.allow.length && (
-        <Group title="Sitios sin bloqueo">
+        <Group title={tr("Sitios sin bloqueo")}>
           <Card>
             {estado.allow.map((host) => (
               <Row key={host} label={host}>
                 <Button
                   onClick={() => void quitarExcepcion(host)}
-                  title="Volver a bloquear aquí"
+                  title={tr("Volver a bloquear aquí")}
                   className="w-8 h-8 rounded-lg grid place-items-center text-text-faint hover:text-text hover:bg-white/[0.06] transition-colors [&>svg]:w-[17px] [&>svg]:h-[17px]"
                 >
                   <IconTrash />

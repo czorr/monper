@@ -22,7 +22,18 @@ export default defineConfig({
     }
   },
   preload: {
-    plugins: [externalizeDepsPlugin()],
+    plugins: [externalizeDepsPlugin(), {
+      name: 'sandboxed-content-preload',
+      enforce: 'pre',
+      // Aísla el grafo del preload sandboxed: Electron no deja hacer require de chunks.
+      // Los demás preloads sí pueden compartir módulos entre sus ventanas.
+      async resolveId(source, importer) {
+        if (!source.startsWith('.') || !importer ||
+          !(importer === resolve(__dirname, 'src/preload/content.ts') || importer.endsWith('?sandbox'))) return null
+        const resolved = await this.resolve(source, importer.replace(/\?sandbox$/, ''), { skipSelf: true })
+        return resolved && !resolved.external ? { ...resolved, id: `${resolved.id}?sandbox` } : null
+      }
+    }],
     build: {
       minify: 'esbuild',
       rollupOptions: {

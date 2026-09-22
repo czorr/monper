@@ -15,7 +15,9 @@ export default function PinnedTitanio({ tab, activeId, favicon, onClose }: Props
   const open = (): void => window.titanio.openTitanioTab()
 
   if (tab) {
-    return <TabRow tab={{ ...tab, title: 'Titanio', favicon: tab.favicon || favicon || null }} active={tab.id === activeId} onSelect={open} onClose={onClose} />
+    // La identidad del acceso fijo no cambia al navegar por el login de Google.
+    const isTitanio = /^https:\/\/app\.titanio\.ai(?:[/?#]|$)/i.test(tab.url)
+    return <TabRow tab={{ ...tab, title: 'Titanio', favicon: favicon || (isTitanio ? tab.favicon : null), internal: null }} active={tab.id === activeId} onSelect={open} onClose={onClose} />
   }
 
   return (

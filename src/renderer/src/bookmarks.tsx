@@ -1,3 +1,4 @@
+import { t as tr, useLocale } from '@renderer/lib/i18n'
 import { createRoot } from 'react-dom/client'
 import { useEffect, useMemo, useState, type JSX } from 'react'
 import type { Bookmark } from '@shared/types'
@@ -17,6 +18,7 @@ function dominio(url: string): string {
 }
 
 function Favicon({ src }: { src?: string | null }): JSX.Element {
+  useLocale()
   const [roto, setRoto] = useState(false)
   return (
     <span className="w-[22px] h-[22px] rounded-md grid place-items-center bg-white/[0.05] shrink-0 overflow-hidden">
@@ -33,6 +35,7 @@ function Editor({ bm, onGuardar, onCancelar }: {
   onGuardar: (title: string, url: string) => void
   onCancelar: () => void
 }): JSX.Element {
+  useLocale()
   const [title, setTitle] = useState(bm.title)
   const [url, setUrl] = useState(bm.url)
   const esCarpeta = !!bm.folder
@@ -43,18 +46,19 @@ function Editor({ bm, onGuardar, onCancelar }: {
   }
   return (
     <div className="px-4 py-3 flex flex-col gap-2 bg-white/[0.03]">
-      <input value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={teclas} placeholder="Título" autoFocus className={campo} />
+      <input value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={teclas} placeholder={tr("Título")} autoFocus className={campo} />
       {/* Una carpeta no tiene URL: enseñar el campo invitaría a escribir algo que se descarta. */}
       {!esCarpeta && <input value={url} onChange={(e) => setUrl(e.target.value)} onKeyDown={teclas} placeholder="https://…" className={campo} />}
       <div className="flex items-center gap-2">
-        <button onClick={() => onGuardar(title, url)} className="h-8 px-3 rounded-lg bg-white/90 text-black text-[12.5px] font-medium hover:bg-white transition-colors">Guardar</button>
-        <button onClick={onCancelar} className="h-8 px-3 rounded-lg text-[12.5px] text-text-dim hover:text-text transition-colors">Cancelar</button>
+        <button onClick={() => onGuardar(title, url)} className="h-8 px-3 rounded-lg bg-white/90 text-black text-[12.5px] font-medium hover:bg-white transition-colors">{tr("Guardar")}</button>
+        <button onClick={onCancelar} className="h-8 px-3 rounded-lg text-[12.5px] text-text-dim hover:text-text transition-colors">{tr("Cancelar")}</button>
       </div>
     </div>
   )
 }
 
 function BookmarksPage(): JSX.Element {
+  useLocale()
   const [items, setItems] = useState<Bookmark[]>([])
   const [q, setQ] = useState('')
   const [editando, setEditando] = useState<string | null>(null)
@@ -65,7 +69,7 @@ function BookmarksPage(): JSX.Element {
   useEffect(() => {
     titanioTab.getBookmarks().then(setItems).catch((e) => {
       console.error('[marcadores] no se pudieron leer:', e)
-      setError('No se pudieron leer los marcadores.')
+      setError(tr("No se pudieron leer los marcadores."))
     })
     return titanioTab.onBookmarks(setItems)
   }, [])
@@ -119,24 +123,24 @@ function BookmarksPage(): JSX.Element {
                       <select
                         value={b.parentId ?? ''}
                         onChange={(e) => titanioTab.moveBookmark(b.id, e.target.value || null)}
-                        title="Mover a una carpeta"
+                        title={tr("Mover a una carpeta")}
                         className="shrink-0 h-7 max-w-[150px] px-1.5 rounded-md bg-white/[0.05] border border-white/[0.10] text-[12px] text-text-dim outline-none opacity-0 group-hover/b:opacity-100 focus:opacity-100 transition-opacity"
                       >
-                        <option value="">Sin carpeta</option>
+                        <option value="">{tr("Sin carpeta")}</option>
                         {carpetas.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
                       </select>
                     )}
                     <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover/b:opacity-100 transition-opacity">
                       <button
                         onClick={() => { setEditando(b.id); setError('') }}
-                        title="Editar"
+                        title={tr("Editar")}
                         className="w-7 h-7 grid place-items-center rounded-md text-text-faint hover:text-text hover:bg-white/[0.08] [&>svg]:w-4 [&>svg]:h-4"
                       >
                         <IconPencil />
                       </button>
                       <button
                         onClick={() => titanioTab.removeBookmark(b.id)}
-                        title="Quitar"
+                        title={tr("Quitar")}
                         className="w-7 h-7 grid place-items-center rounded-md text-text-faint hover:text-red-400 hover:bg-red-500/15 [&>svg]:w-4 [&>svg]:h-4"
                       >
                         <IconTrash />
@@ -147,14 +151,14 @@ function BookmarksPage(): JSX.Element {
   )
 
   const nuevaCarpeta = async (): Promise<void> => {
-    const f = await titanioTab.newBookmarkFolder('Nueva carpeta')
+    const f = await titanioTab.newBookmarkFolder(tr("Nueva carpeta"))
     setEditando(f.id)
   }
 
   const guardar = async (id: string, title: string, url: string): Promise<void> => {
     const r = await titanioTab.updateBookmark(id, { title, url })
     // `null` = la URL no vale. Se dice en vez de cerrar el editor como si se hubiera guardado.
-    if (!r) { setError('Esa URL no es válida. Tiene que empezar por http:// o https://'); return }
+    if (!r) { setError(tr("Esa URL no es válida. Tiene que empezar por http:// o https://")); return }
     setError('')
     setEditando(null)
   }
@@ -164,14 +168,13 @@ function BookmarksPage(): JSX.Element {
       <header className="shrink-0 px-8 pt-10 pb-5">
         <div className="max-w-[760px] mx-auto">
           <div className="flex items-center justify-between gap-4 mb-5">
-            <h1 className="text-[30px] font-semibold tracking-tight">Marcadores</h1>
+            <h1 className="text-[30px] font-semibold tracking-tight">{tr("Marcadores")}</h1>
             <div className="flex items-center gap-3">
               <button
                 onClick={() => void nuevaCarpeta()}
                 className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] text-[12.5px] text-text transition-colors [&>svg]:w-4 [&>svg]:h-4 [&>svg]:text-text-dim"
               >
-                <IconFolderPlus /> Nueva carpeta
-              </button>
+                <IconFolderPlus /> {tr("Nueva carpeta")} </button>
               {/* Solo los marcadores: contar las carpetas aquí haría que el número no cuadrara
                   con lo que se ve en el sidebar. */}
               <span className="text-[13px] text-text-faint tabular-nums">{items.filter((b) => !b.folder).length}</span>
@@ -182,7 +185,7 @@ function BookmarksPage(): JSX.Element {
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Buscar marcadores"
+              placeholder={tr("Buscar marcadores")}
               autoFocus
               className="w-full h-11 pl-10 pr-4 rounded-xl bg-white/[0.04] border border-white/[0.08] text-[14px] text-text outline-none focus:border-white/25 placeholder:text-text-faint transition-colors select-text"
             />
@@ -196,12 +199,12 @@ function BookmarksPage(): JSX.Element {
           {items.length === 0 && (
             <div className="py-20 flex flex-col items-center gap-2 text-center">
               <IconBookmark className="w-6 h-6 text-text-faint" />
-              <div className="text-[13.5px] text-text-dim">Todavía no hay marcadores</div>
+              <div className="text-[13.5px] text-text-dim">{tr("Todavía no hay marcadores")}</div>
             </div>
           )}
 
           {items.length > 0 && filtrados.length === 0 && (
-            <div className="py-16 text-center text-[13.5px] text-text-dim">Nada coincide con “{q.trim()}”</div>
+            <div className="py-16 text-center text-[13.5px] text-text-dim">{tr("Nada coincide con “")}{q.trim()}”</div>
           )}
 
           {buscando && filtrados.length > 0 && (
@@ -229,14 +232,14 @@ function BookmarksPage(): JSX.Element {
                     <div className="flex items-center gap-1 opacity-0 group-hover/c:opacity-100 transition-opacity">
                       <button
                         onClick={() => { setEditando(carpeta.id); setError('') }}
-                        title="Renombrar carpeta"
+                        title={tr("Renombrar carpeta")}
                         className="w-6 h-6 grid place-items-center rounded-md text-text-faint hover:text-text hover:bg-white/[0.08] [&>svg]:w-3.5 [&>svg]:h-3.5"
                       >
                         <IconPencil />
                       </button>
                       <button
                         onClick={() => titanioTab.removeBookmark(carpeta.id)}
-                        title="Borrar la carpeta (sus marcadores vuelven a la raíz)"
+                        title={tr("Borrar la carpeta (sus marcadores vuelven a la raíz)")}
                         className="w-6 h-6 grid place-items-center rounded-md text-text-faint hover:text-red-400 hover:bg-red-500/15 [&>svg]:w-3.5 [&>svg]:h-3.5"
                       >
                         <IconTrash />
@@ -250,7 +253,7 @@ function BookmarksPage(): JSX.Element {
                   {hijos.map((b) => fila(b, false))}
                 </div>
               ) : (
-                carpeta && <div className="px-4 py-3 rounded-2xl border border-dashed border-white/[0.08] text-[12.5px] text-text-faint">Carpeta vacía</div>
+                carpeta && <div className="px-4 py-3 rounded-2xl border border-dashed border-white/[0.08] text-[12.5px] text-text-faint">{tr("Carpeta vacía")}</div>
               )}
             </div>
           ))}

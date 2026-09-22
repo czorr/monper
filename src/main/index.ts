@@ -1,3 +1,5 @@
+import { t as tr } from '../shared/i18n'
+import { initLanguage } from './language'
 import { join } from 'path'
 import { readFileSync } from 'fs'
 import { app, BrowserWindow, Menu, Notification, WebContentsView, clipboard, dialog, ipcMain, nativeImage, net, screen, session, shell, type WebContents } from 'electron'
@@ -751,7 +753,7 @@ function crearVentana(opts: { sinPestanaInicial?: boolean; incognito?: boolean }
       titanioFavicon: faviconFor('https://app.titanio.ai'),
       activeId,
       tabs: [...tabs.entries()].map(([id, tb]) => ({
-        id, url: tb.errorUrl ?? displayUrl(tb.url), title: tb.title || 'Nueva pestaña', favicon: tb.favicon, loading: tb.loading, recording: tb.recording, muted: tb.muted, audible: tb.audible, agent: tb.agent, bookmarkId: tb.bookmarkId, pinnedTitanio: tb.pinnedTitanio, internal: internalPageOf(tb.url)
+        id, url: tb.errorUrl ?? displayUrl(tb.url), title: tb.title || tr("Nueva pestaña"), favicon: tb.favicon, loading: tb.loading, recording: tb.recording, muted: tb.muted, audible: tb.audible, agent: tb.agent, bookmarkId: tb.bookmarkId, pinnedTitanio: tb.pinnedTitanio, internal: internalPageOf(tb.url)
       })),
       active: t
         ? {
@@ -1060,12 +1062,11 @@ function crearVentana(opts: { sinPestanaInicial?: boolean; incognito?: boolean }
         updateMeta(t.url, undefined, t.favicon)
       }
       suya().pushState()
-      void cacheVisitedFavicon(url, icon, wc.session).then((data) => {
+      void cacheVisitedFavicon(icon, wc.session).then((data) => {
         if (!data || wc.isDestroyed() || t.url !== url) return
         t.favicon = data
         if (!suya().incognito) {
           rememberFavicon(url, data)
-          if (t.pinnedTitanio) rememberFavicon('https://app.titanio.ai', data)
           updateMeta(url, undefined, data)
         }
         suya().pushState()
@@ -1119,7 +1120,7 @@ function crearVentana(opts: { sinPestanaInicial?: boolean; incognito?: boolean }
         isAuthUrl(details.url)
       console.log('[popup]', { url: details.url, disposition: details.disposition, feats, isPopup })
       if (isPopup) {
-        pushAgentEvent(`Se abrió una ventana emergente: ${details.url}`)
+        pushAgentEvent(tr("Se abrió una ventana emergente: {0}", details.url))
         return {
           action: 'allow',
           overrideBrowserWindowOptions: {
@@ -1132,7 +1133,7 @@ function crearVentana(opts: { sinPestanaInicial?: boolean; incognito?: boolean }
         }
       }
       // Links normales (target=_blank) → nueva pestaña.
-      pushAgentEvent(`Se abrió una pestaña nueva: ${details.url}`)
+      pushAgentEvent(tr("Se abrió una pestaña nueva: {0}", details.url))
       suya().createTab(details.url)
       return { action: 'deny' }
     })
@@ -1208,14 +1209,14 @@ function crearVentana(opts: { sinPestanaInicial?: boolean; incognito?: boolean }
     if (respondio || avisandoCuelgue || activeId !== idEnCurso || !win || win.isDestroyed() || !win.isVisible()) return
 
     avisandoCuelgue = true
-    const nombre = t.title || nombreDeUrl(t.url) || 'La página'
+    const nombre = t.title || nombreDeUrl(t.url) || tr("La página")
     const { response } = await dialog.showMessageBox(win, {
       type: 'warning',
-      buttons: ['Esperar', 'Cerrar la pestaña'],
+      buttons: [tr("Esperar"), tr("Cerrar la pestaña")],
       defaultId: 0,
       cancelId: 0,
-      message: `${nombre} no responde`,
-      detail: 'La página se quedó bloqueada. Puedes darle más tiempo o cerrarla y perder lo que no hayas guardado.'
+      message: tr("{0} no responde", nombre),
+      detail: tr("La página se quedó bloqueada. Puedes darle más tiempo o cerrarla y perder lo que no hayas guardado.")
     })
     avisandoCuelgue = false
     if (response === 1 && tabs.has(idEnCurso)) closeTab(idEnCurso)
@@ -1286,7 +1287,7 @@ function crearVentana(opts: { sinPestanaInicial?: boolean; incognito?: boolean }
     // Cerrar la pestaña que el agente está operando es una orden de parar inequívoca. Sin
     // esto, el agente la reabría con `openTab` y seguía: el usuario cerraba una pestaña que
     // volvía sola, una y otra vez, sin forma de detenerla salvo cerrar Titanio.
-    if (t.agent || id === controlledTabId) pararAgente('se cerró su pestaña')
+    if (t.agent || id === controlledTabId) pararAgente(tr("se cerró su pestaña"))
     // Recuerda la URL para poder reabrirla (solo http(s), no agent tabs).
     const u = t.errorUrl ?? t.url
     if (!t.agent && /^https?:\/\//i.test(u)) { closedStack.push(u); if (closedStack.length > 25) closedStack.shift() }
@@ -1471,7 +1472,7 @@ function imprimirActiva(): void {
     if (!ok && motivo && motivo !== 'cancelled') {
       console.error('[imprimir] no se pudo:', motivo)
       dialog.showMessageBox(vActOpt()?.win ?? undefined!, {
-        type: 'error', buttons: ['OK'], message: 'No se pudo imprimir esta página', detail: motivo
+        type: 'error', buttons: ['OK'], message: tr("No se pudo imprimir esta página"), detail: motivo
       })
     }
   })
@@ -1608,20 +1609,20 @@ async function showPageContextMenu(wc: Electron.WebContents, p: Electron.Context
   const nav = wc.navigationHistory
   const items: MenuItemConstructorOptions[] = []
   if (!p.isEditable && !p.linkURL && !p.selectionText) {
-    items.push({ label: 'Imprimir…', accelerator: 'CmdOrCtrl+P', click: () => imprimirActiva() }, { type: 'separator' })
+    items.push({ label: tr("Imprimir…"), accelerator: 'CmdOrCtrl+P', click: () => imprimirActiva() }, { type: 'separator' })
   }
   if (p.linkURL) {
     items.push(
-      { label: 'Abrir enlace en pestaña nueva', click: () => vAct().createTab(p.linkURL) },
-      { label: 'Copiar dirección del enlace', click: () => clipboard.writeText(p.linkURL) },
+      { label: tr("Abrir enlace en pestaña nueva"), click: () => vAct().createTab(p.linkURL) },
+      { label: tr("Copiar dirección del enlace"), click: () => clipboard.writeText(p.linkURL) },
       { type: 'separator' }
     )
   }
   if (p.mediaType === 'image' && p.srcURL) {
     items.push(
-      { label: 'Abrir imagen en pestaña nueva', click: () => vAct().createTab(p.srcURL) },
-      { label: 'Copiar dirección de la imagen', click: () => clipboard.writeText(p.srcURL) },
-      { label: 'Guardar imagen', click: () => wc.downloadURL(p.srcURL) },
+      { label: tr("Abrir imagen en pestaña nueva"), click: () => vAct().createTab(p.srcURL) },
+      { label: tr("Copiar dirección de la imagen"), click: () => clipboard.writeText(p.srcURL) },
+      { label: tr("Guardar imagen"), click: () => wc.downloadURL(p.srcURL) },
       { type: 'separator' }
     )
   }
@@ -1637,27 +1638,27 @@ async function showPageContextMenu(wc: Electron.WebContents, p: Electron.Context
   }))
   if (p.isEditable) {
     items.push(
-      { role: 'cut', enabled: p.editFlags.canCut },
-      { role: 'copy', enabled: p.editFlags.canCopy },
-      { role: 'paste', enabled: p.editFlags.canPaste },
-      { role: 'selectAll' },
+      { role: 'cut', label: tr('Cortar'), enabled: p.editFlags.canCut },
+      { role: 'copy', label: tr('Copiar'), enabled: p.editFlags.canCopy },
+      { role: 'paste', label: tr('Pegar'), enabled: p.editFlags.canPaste },
+      { role: 'selectAll', label: tr('Seleccionar todo') },
       { type: 'separator' }
     )
   } else if (p.selectionText) {
     const sel = p.selectionText.trim().slice(0, 40)
     items.push(
-      { role: 'copy' },
-      { label: `Buscar "${sel}" en Google`, click: () => vAct().createTab('https://www.google.com/search?q=' + encodeURIComponent(p.selectionText)) },
+      { role: 'copy', label: tr('Copiar') },
+      { label: tr("Buscar \"{0}\" en Google", sel), click: () => vAct().createTab('https://www.google.com/search?q=' + encodeURIComponent(p.selectionText)) },
       { type: 'separator' }
     )
   }
   items.push(
-    { label: 'Atrás', enabled: nav.canGoBack(), click: () => nav.goBack() },
-    { label: 'Adelante', enabled: nav.canGoForward(), click: () => nav.goForward() },
-    { label: 'Recargar', click: () => wc.reload() },
+    { label: tr("Atrás"), enabled: nav.canGoBack(), click: () => nav.goBack() },
+    { label: tr("Adelante"), enabled: nav.canGoForward(), click: () => nav.goForward() },
+    { label: tr("Recargar"), click: () => wc.reload() },
     { type: 'separator' },
-    { label: 'Copiar dirección de la página', click: () => clipboard.writeText(wc.getURL()) },
-    { label: 'Inspeccionar elemento', click: () => wc.inspectElement(p.x, p.y) }
+    { label: tr("Copiar dirección de la página"), click: () => clipboard.writeText(wc.getURL()) },
+    { label: tr("Inspeccionar elemento"), click: () => wc.inspectElement(p.x, p.y) }
   )
   Menu.buildFromTemplate(items).popup({ window: vActOpt()?.win })
 }
@@ -1783,76 +1784,82 @@ function buildAppMenu(): void {
   const appMenu: MenuItemConstructorOptions = {
     label: 'Titanio',
     submenu: [
-      { role: 'about', label: 'Acerca de Titanio' },
-      { label: 'Buscar actualizaciones…', click: () => void checkForUpdates(true, vActOpt()?.win) },
+      { role: 'about', label: tr("Acerca de Titanio") },
+      { label: tr("Buscar actualizaciones…"), click: () => void checkForUpdates(true, vActOpt()?.win) },
       { type: 'separator' },
-      { label: 'Ajustes…', accelerator: 'CmdOrCtrl+,', click: () => openSettings() },
+      { label: tr("Ajustes…"), accelerator: 'CmdOrCtrl+,', click: () => openSettings() },
       { type: 'separator' },
       { role: 'services' },
       { type: 'separator' },
-      { role: 'hide', label: 'Ocultar Titanio' },
-      { role: 'hideOthers', label: 'Ocultar otros' },
-      { role: 'unhide', label: 'Mostrar todo' },
+      { role: 'hide', label: tr("Ocultar Titanio") },
+      { role: 'hideOthers', label: tr("Ocultar otros") },
+      { role: 'unhide', label: tr("Mostrar todo") },
       { type: 'separator' },
-      { role: 'quit', label: 'Salir de Titanio' }
+      { role: 'quit', label: tr("Salir de Titanio") }
     ]
   }
 
   const fileMenu: MenuItemConstructorOptions = {
-    label: 'Archivo',
+    label: tr("Archivo"),
     submenu: [
-      { label: 'Nueva ventana', accelerator: 'CmdOrCtrl+N', click: () => { createWindow() } },
-      { label: 'Nueva ventana de incógnito', accelerator: 'CmdOrCtrl+Shift+N', click: () => { createWindow({ incognito: true }) } },
-      { label: 'Nueva pestaña', accelerator: 'CmdOrCtrl+T', click: () => vAct().createTab() },
-      { label: 'Reabrir pestaña cerrada', accelerator: 'CmdOrCtrl+Shift+T', click: () => vAct().reopenClosedTab() },
-      { label: 'Historial', accelerator: 'CmdOrCtrl+Y', click: () => openHistory() },
-      { label: 'Marcadores', accelerator: 'CmdOrCtrl+Alt+B', click: () => openBookmarksManager() },
+      { label: tr("Nueva ventana"), accelerator: 'CmdOrCtrl+N', click: () => { createWindow() } },
+      { label: tr("Nueva ventana de incógnito"), accelerator: 'CmdOrCtrl+Shift+N', click: () => { createWindow({ incognito: true }) } },
+      { label: tr("Nueva pestaña"), accelerator: 'CmdOrCtrl+T', click: () => vAct().createTab() },
+      { label: tr("Reabrir pestaña cerrada"), accelerator: 'CmdOrCtrl+Shift+T', click: () => vAct().reopenClosedTab() },
+      { label: tr("Historial"), accelerator: 'CmdOrCtrl+Y', click: () => openHistory() },
+      { label: tr("Marcadores"), accelerator: 'CmdOrCtrl+Alt+B', click: () => openBookmarksManager() },
       { type: 'separator' },
-      { label: 'Imprimir…', accelerator: 'CmdOrCtrl+P', click: () => imprimirActiva() },
-      { label: 'Cerrar pestaña', accelerator: 'CmdOrCtrl+W', click: () => { const id = vAct().activeId(); if (id != null) vAct().closeTab(id) } },
+      { label: tr("Imprimir…"), accelerator: 'CmdOrCtrl+P', click: () => imprimirActiva() },
+      { label: tr("Cerrar pestaña"), accelerator: 'CmdOrCtrl+W', click: () => { const id = vAct().activeId(); if (id != null) vAct().closeTab(id) } },
       { type: 'separator' },
-      { label: 'Editar URL', accelerator: 'CmdOrCtrl+L', click: () => menuAction('edit-url') }
+      { label: tr("Editar URL"), accelerator: 'CmdOrCtrl+L', click: () => menuAction('edit-url') }
     ]
   }
 
   const editMenu: MenuItemConstructorOptions = {
-    label: 'Editar',
+    label: tr("Editar"),
     submenu: [
-      { role: 'undo', label: 'Deshacer' },
-      { role: 'redo', label: 'Rehacer' },
+      { role: 'undo', label: tr("Deshacer") },
+      { role: 'redo', label: tr("Rehacer") },
       { type: 'separator' },
-      { role: 'cut', label: 'Cortar' },
-      { role: 'copy', label: 'Copiar' },
-      { role: 'paste', label: 'Pegar' },
-      { role: 'selectAll', label: 'Seleccionar todo' },
+      { role: 'cut', label: tr("Cortar") },
+      { role: 'copy', label: tr("Copiar") },
+      { role: 'paste', label: tr("Pegar") },
+      { role: 'selectAll', label: tr("Seleccionar todo") },
       { type: 'separator' },
-      { label: 'Buscar en la página', accelerator: 'CmdOrCtrl+F', click: () => menuAction('find') }
+      { label: tr("Buscar en la página"), accelerator: 'CmdOrCtrl+F', click: () => menuAction('find') }
     ]
   }
 
   const viewMenu: MenuItemConstructorOptions = {
-    label: 'Ver',
+    label: tr("Ver"),
     submenu: [
-      { label: 'Recargar', accelerator: 'CmdOrCtrl+R', click: () => activeWc()?.reload() },
-      { label: 'Atrás', accelerator: 'CmdOrCtrl+[', click: () => { const wc = activeWc(); if (wc?.navigationHistory.canGoBack()) wc.navigationHistory.goBack() } },
-      { label: 'Adelante', accelerator: 'CmdOrCtrl+]', click: () => { const wc = activeWc(); if (wc?.navigationHistory.canGoForward()) wc.navigationHistory.goForward() } },
+      { label: tr("Recargar"), accelerator: 'CmdOrCtrl+R', click: () => activeWc()?.reload() },
+      { label: tr("Atrás"), accelerator: 'CmdOrCtrl+[', click: () => { const wc = activeWc(); if (wc?.navigationHistory.canGoBack()) wc.navigationHistory.goBack() } },
+      { label: tr("Adelante"), accelerator: 'CmdOrCtrl+]', click: () => { const wc = activeWc(); if (wc?.navigationHistory.canGoForward()) wc.navigationHistory.goForward() } },
       { type: 'separator' },
-      { label: 'Acercar', accelerator: 'CmdOrCtrl+Plus', click: () => changeZoom(1) },
-      { label: 'Acercar', accelerator: 'CmdOrCtrl+=', visible: false, click: () => changeZoom(1) },
-      { label: 'Alejar', accelerator: 'CmdOrCtrl+-', click: () => changeZoom(-1) },
-      { label: 'Zoom normal', accelerator: 'CmdOrCtrl+0', click: () => changeZoom('reset') },
+      { label: tr("Acercar"), accelerator: 'CmdOrCtrl+Plus', click: () => changeZoom(1) },
+      { label: tr("Acercar"), accelerator: 'CmdOrCtrl+=', visible: false, click: () => changeZoom(1) },
+      { label: tr("Alejar"), accelerator: 'CmdOrCtrl+-', click: () => changeZoom(-1) },
+      { label: tr("Zoom normal"), accelerator: 'CmdOrCtrl+0', click: () => changeZoom('reset') },
       { type: 'separator' },
-      { label: 'Mostrar/ocultar sidebar', accelerator: 'CmdOrCtrl+S', click: () => menuAction('toggle-sidebar') },
-      { label: 'Ask Titanio', accelerator: 'CmdOrCtrl+J', click: () => menuAction('toggle-chat') },
+      { label: tr("Mostrar/ocultar sidebar"), accelerator: 'CmdOrCtrl+S', click: () => menuAction('toggle-sidebar') },
+      { label: tr("Ask Titanio"), accelerator: 'CmdOrCtrl+J', click: () => menuAction('toggle-chat') },
       { type: 'separator' },
-      { role: 'togglefullscreen', label: 'Pantalla completa' },
-      { label: 'Herramientas de desarrollo', accelerator: 'F12', click: () => vAct().toggleDevtools() }
+      { role: 'togglefullscreen', label: tr("Pantalla completa") },
+      { label: tr("Herramientas de desarrollo"), accelerator: 'F12', click: () => vAct().toggleDevtools() }
     ]
   }
 
   const windowMenu: MenuItemConstructorOptions = {
-    label: 'Ventana',
-    role: 'windowMenu'
+    label: tr("Ventana"),
+    role: 'windowMenu',
+    submenu: [
+      { role: 'minimize', label: tr('Minimizar') },
+      { role: 'zoom', label: tr('Ampliar ventana') },
+      { type: 'separator' },
+      { role: 'front', label: tr('Traer todo al frente') }
+    ]
   }
 
   const template: MenuItemConstructorOptions[] = isMac
@@ -1920,12 +1927,12 @@ ipcMain.handle('ui:panels', () => ({ sidebar: sidebarWidth, chat: chatWidth, lim
 // ---- Apariencia: nivel de transparencia del chrome (sidebar y panel de chat) ----
 /** Materiales expuestos en Settings, con nombre humano en vez del término de macOS. */
 const VIBRANCY_OPTIONS: { id: VibrancySetting; label: string; desc: string }[] = [
-  { id: 'hud', label: 'Máxima', desc: 'Fondo muy visible' },
-  { id: 'popover', label: 'Alta', desc: 'Fondo visible' },
-  { id: 'menu', label: 'Media', desc: 'Fondo parcialmente visible' },
-  { id: 'sidebar', label: 'Baja', desc: 'Fondo poco visible' },
-  { id: 'under-window', label: 'Mínima', desc: 'Casi opaco' },
-  { id: 'none', label: 'Sin transparencia', desc: 'Fondo opaco' }
+  { id: 'hud', get label() { return tr("Máxima") }, get desc() { return tr("Fondo muy visible") } },
+  { id: 'popover', get label() { return tr("Alta") }, get desc() { return tr("Fondo visible") } },
+  { id: 'menu', get label() { return tr("Media") }, get desc() { return tr("Fondo parcialmente visible") } },
+  { id: 'sidebar', get label() { return tr("Baja") }, get desc() { return tr("Fondo poco visible") } },
+  { id: 'under-window', get label() { return tr("Mínima") }, get desc() { return tr("Casi opaco") } },
+  { id: 'none', get label() { return tr("Sin transparencia") }, get desc() { return tr("Fondo opaco") } }
 ]
 /** Aplica el ajuste en vivo. 'none' quita la vibrancy y pone fondo opaco. */
 function applyVibrancy(v: VibrancySetting): void {
@@ -1989,7 +1996,7 @@ ipcMain.handle('history:clear', (e, desde?: number) => (isInternalSender(e.sende
 // historial completo del usuario y sus contraseñas). Una web no puede ni preguntar.
 ipcMain.handle('import:browsers', (e) => (isInternalSender(e.senderFrame?.url) ? navegadoresDisponibles() : []))
 ipcMain.handle('import:run', async (e, id: NavegadorId, que: { bookmarks: boolean; history: boolean; passwords: boolean }) => {
-  if (!isInternalSender(e.senderFrame?.url)) return { ok: false, error: 'No permitido.' }
+  if (!isInternalSender(e.senderFrame?.url)) return { ok: false, error: tr("No permitido.") }
   const resumen = { bookmarks: 0, history: 0, passwords: 0 }
   const errores: string[] = []
 
@@ -2104,8 +2111,8 @@ ipcMain.on('update:install', () => installUpdate())
 
 ipcMain.handle('ui:appearance', () => appearanceData())
 ipcMain.handle('ui:setTint', (e, color: unknown) => {
-  if (!isInternalSender(e.senderFrame?.url)) throw new Error('No permitido.')
-  if (color !== null && (typeof color !== 'string' || !/^#[0-9a-f]{6}$/i.test(color))) throw new Error('Color no válido.')
+  if (!isInternalSender(e.senderFrame?.url)) throw new Error(tr("No permitido."))
+  if (color !== null && (typeof color !== 'string' || !/^#[0-9a-f]{6}$/i.test(color))) throw new Error(tr("Color no válido."))
   appearanceTint = typeof color === 'string' ? color.toLowerCase() : null
   broadcastAppearance()
   savePanels()
@@ -2239,12 +2246,12 @@ ipcMain.on('bookmark:contextMenu', (ev: IpcMainEvent, id: string) => {
   const b = listBookmarks().find((x) => x.id === id)
   if (!b || !vActOpt()?.win) return
   const template: MenuItemConstructorOptions[] = [
-    { label: 'Abrir', click: () => { for (const [tid, t] of vDe(ev).tabs) { if (t.bookmarkId === id) { vDe(ev).setActive(tid); return } } const nid = vDe(ev).createTab(b.url, true); const nt = vDe(ev).tabs.get(nid); if (nt) { nt.bookmarkId = id; vDe(ev).pushState() } } },
-    { label: 'Abrir en pestaña nueva', click: () => vDe(ev).createTab(b.url) },
+    { label: tr("Abrir"), click: () => { for (const [tid, t] of vDe(ev).tabs) { if (t.bookmarkId === id) { vDe(ev).setActive(tid); return } } const nid = vDe(ev).createTab(b.url, true); const nt = vDe(ev).tabs.get(nid); if (nt) { nt.bookmarkId = id; vDe(ev).pushState() } } },
+    { label: tr("Abrir en pestaña nueva"), click: () => vDe(ev).createTab(b.url) },
     {
       // Un marcador abierto es una pestaña como otra: se muda entera, con su historial. Si no
       // está abierto no hay nada que mudar y se abre de cero en la ventana nueva.
-      label: 'Abrir en ventana nueva',
+      label: tr("Abrir en ventana nueva"),
       click: () => {
         const v = vDe(ev)
         const abierta = [...v.tabs.entries()].find(([, t]) => t.bookmarkId === id)
@@ -2255,9 +2262,9 @@ ipcMain.on('bookmark:contextMenu', (ev: IpcMainEvent, id: string) => {
         if (nt) { nt.bookmarkId = id; destino.pushState() }
       }
     },
-    { label: 'Copiar enlace', click: () => clipboard.writeText(b.url) },
+    { label: tr("Copiar enlace"), click: () => clipboard.writeText(b.url) },
     { type: 'separator' },
-    { label: 'Quitar de bookmarks', click: () => { soltarTabsDelBookmark(id); removeBookmark(id); broadcastBookmarks() } }
+    { label: tr("Quitar de bookmarks"), click: () => { soltarTabsDelBookmark(id); removeBookmark(id); broadcastBookmarks() } }
   ]
   Menu.buildFromTemplate(template).popup({ window: vDe(ev).win })
 })
@@ -2272,17 +2279,17 @@ ipcMain.on('tab:contextMenu', (ev: IpcMainEvent, id: number) => {
   const others = ids.filter((x) => x !== id)
   const internal = isInternal(t.url)
   const template: MenuItemConstructorOptions[] = [
-    { label: 'Nueva pestaña', click: () => vDe(ev).createTab() },
-    { label: 'Duplicar', enabled: !internal, click: () => vDe(ev).createTab(t.url) },
+    { label: tr("Nueva pestaña"), click: () => vDe(ev).createTab() },
+    { label: tr("Duplicar"), enabled: !internal, click: () => vDe(ev).createTab(t.url) },
     {
-      label: 'Abrir en ventana nueva',
+      label: tr("Abrir en ventana nueva"),
       enabled: [...vDe(ev).tabs.values()].filter((tb) => !tb.agent).length > 1,
       click: () => { moverTabAVentanaNueva(vDe(ev), id) }
     },
     { type: 'separator' },
-    { label: 'Recargar', click: () => wc.reload() },
+    { label: tr("Recargar"), click: () => wc.reload() },
     {
-      label: isBookmarked(t.url) ? 'Quitar de bookmarks' : 'Agregar a bookmarks',
+      label: isBookmarked(t.url) ? tr("Quitar de bookmarks") : 'Agregar a bookmarks',
       enabled: !internal,
       click: () => {
         if (t.bookmarkId) soltarTabsDelBookmark(t.bookmarkId)
@@ -2290,12 +2297,12 @@ ipcMain.on('tab:contextMenu', (ev: IpcMainEvent, id: number) => {
         broadcastBookmarks()
       }
     },
-    { label: t.muted ? 'Reactivar sonido' : 'Silenciar sitio', click: () => setTabMuted(id, !t.muted) },
-    { label: 'Copiar enlace', enabled: !internal, click: () => clipboard.writeText(t.url) },
+    { label: t.muted ? tr("Reactivar sonido") : tr("Silenciar sitio"), click: () => setTabMuted(id, !t.muted) },
+    { label: tr("Copiar enlace"), enabled: !internal, click: () => clipboard.writeText(t.url) },
     { type: 'separator' },
-    { label: 'Cerrar', click: () => vDe(ev).closeTab(id) },
-    { label: 'Cerrar otras', enabled: others.length > 0, click: () => others.forEach((x) => vDe(ev).closeTab(x)) },
-    { label: 'Cerrar las de abajo', enabled: below.length > 0, click: () => below.forEach((x) => vDe(ev).closeTab(x)) }
+    { label: tr("Cerrar"), click: () => vDe(ev).closeTab(id) },
+    { label: tr("Cerrar otras"), enabled: others.length > 0, click: () => others.forEach((x) => vDe(ev).closeTab(x)) },
+    { label: tr("Cerrar las de abajo"), enabled: below.length > 0, click: () => below.forEach((x) => vDe(ev).closeTab(x)) }
   ]
   Menu.buildFromTemplate(template).popup({ window: vDe(ev).win })
 })
@@ -2484,13 +2491,13 @@ ipcMain.handle('skills:list', async (e, resolve?: boolean) => {
 })
 ipcMain.handle('skills:get', (e, id: string) => (isInternalSender(e.senderFrame?.url) ? getSkill(id) : null))
 ipcMain.handle('skills:save', (e, id: string, source: string, expectedSource: string) => {
-  if (!isInternalSender(e.senderFrame?.url)) throw new Error('No permitido.')
+  if (!isInternalSender(e.senderFrame?.url)) throw new Error(tr("No permitido."))
   const detail = saveSkill(id, source, expectedSource)
   notifyChatContext()
   return detail
 })
 ipcMain.handle('skills:openItemFolder', async (e, id: string) => {
-  if (!isInternalSender(e.senderFrame?.url)) throw new Error('No permitido.')
+  if (!isInternalSender(e.senderFrame?.url)) throw new Error(tr("No permitido."))
   const error = await shell.openPath(skillFolder(id))
   if (error) throw new Error(error)
 })
@@ -2608,7 +2615,7 @@ function reportVaultError(e: unknown): void {
   const detail = e instanceof Error ? e.message : String(e)
   console.error('[vault]', detail)
   dialog.showMessageBox(vActOpt()?.win ?? undefined!, {
-    type: 'error', buttons: ['OK'], message: 'No se pudo guardar en el Vault', detail
+    type: 'error', buttons: ['OK'], message: tr("No se pudo guardar en el Vault"), detail
   })
 }
 
@@ -2722,9 +2729,9 @@ ipcMain.on('vault:capture', async (ev, cred: { username: string; password: strin
   const { response } = await dialog.showMessageBox(vActOpt()?.win ?? undefined!, {
     type: 'question',
     icon,
-    message: update ? `¿Actualizar la contraseña de ${host}?` : `¿Guardar la contraseña de ${host} en tu Vault?`,
-    detail: cred.username ? `Usuario: ${cred.username}` : 'Titanio la guardará cifrada.',
-    buttons: ['Ahora no', update ? 'Actualizar' : 'Guardar'],
+    message: update ? tr("¿Actualizar la contraseña de {0}?", host) : tr("¿Guardar la contraseña de {0} en tu Vault?", host),
+    detail: cred.username ? `Usuario: ${cred.username}` : tr("Titanio la guardará cifrada."),
+    buttons: [tr("Ahora no"), update ? tr("Actualizar") : tr("Guardar")],
     defaultId: 1,
     cancelId: 0,
     noLink: true
@@ -2939,7 +2946,7 @@ ipcMain.on('siteinfo:clear', async () => {
     console.error('[siteinfo] no se pudieron borrar los datos de', activeUrl(), detail)
     dialog.showMessageBox(vActOpt()?.win ?? undefined!, {
       type: 'error', buttons: ['OK'],
-      message: 'No se pudieron borrar los datos del sitio', detail
+      message: tr("No se pudieron borrar los datos del sitio"), detail
     })
   }
   sitePopover.hide()
@@ -3250,7 +3257,7 @@ function broadcastRoutines(): void {
 }
 ipcMain.handle('routines:list', (e) => (isInternalSender(e.senderFrame?.url) ? listRoutines() : []))
 ipcMain.handle('routines:create', async (e, input: { url: string; request: string; minutes: number }) => {
-  if (!isInternalSender(e.senderFrame?.url)) return { ok: false, error: 'No permitido.' }
+  if (!isInternalSender(e.senderFrame?.url)) return { ok: false, error: tr("No permitido.") }
   try {
     await createWatchRoutine(input)
     return { ok: true }
@@ -3316,10 +3323,10 @@ ipcMain.on('extensions:openPopup', (_e, path: string) => {
 ipcMain.on('extensions:menu', (ev, path: string) => {
   const ui = extensionUi(path)
   const items: MenuItemConstructorOptions[] = [
-    { label: 'Abrir', enabled: !!ui?.popup, click: () => { extPopover.hide(); openExtensionPopup(path) } },
-    { label: 'Opciones', enabled: !!ui?.options, click: () => { extPopover.hide(); if (ui?.options) vDe(ev).createTab(ui.options) } },
+    { label: tr("Abrir"), enabled: !!ui?.popup, click: () => { extPopover.hide(); openExtensionPopup(path) } },
+    { label: tr("Opciones"), enabled: !!ui?.options, click: () => { extPopover.hide(); if (ui?.options) vDe(ev).createTab(ui.options) } },
     { type: 'separator' },
-    { label: 'Quitar de Titanio', click: () => { removeExt(path); sendExtensions() } }
+    { label: tr("Quitar de Titanio"), click: () => { removeExt(path); sendExtensions() } }
   ]
   Menu.buildFromTemplate(items).popup({ window: extPopover.window ?? vActOpt()?.win! })
 })
@@ -3342,17 +3349,17 @@ ipcMain.on('extensions:installFromStore', async (ev) => {
     const parent = extPopover.isVisible() ? extPopover.window : vActOpt()?.win
     dialog.showMessageBox(parent!, {
       type: 'error', buttons: ['OK'],
-      message: 'No se pudo añadir la extensión',
+      message: tr("No se pudo añadir la extensión"),
       detail: r.error
     })
   } else if (r.ok) {
-    new Notification({ title: 'Extensión añadida', body: r.name ?? 'Listo' }).show()
+    new Notification({ title: tr("Extensión añadida"), body: r.name ?? 'Listo' }).show()
   }
 })
 async function importarExtensionDesdeCarpeta(): Promise<void> {
   const parent = extPopover.window ?? vActOpt()?.win
   const res = await dialog.showOpenDialog(parent!, {
-    title: 'Elige la carpeta de la extensión',
+    title: tr("Elige la carpeta de la extensión"),
     properties: ['openDirectory']
   })
   const dir = res.filePaths?.[0]
@@ -3360,7 +3367,7 @@ async function importarExtensionDesdeCarpeta(): Promise<void> {
   const r = await addExtension(dir)
   sendExtensions()
   if (!r.ok && r.error) {
-    dialog.showMessageBox(parent!, { type: 'error', message: 'No se pudo añadir la extensión', detail: r.error, buttons: ['OK'] })
+    dialog.showMessageBox(parent!, { type: 'error', message: tr("No se pudo añadir la extensión"), detail: r.error, buttons: ['OK'] })
   }
 }
 ipcMain.on('extensions:installFromFolder', () => void importarExtensionDesdeCarpeta())
@@ -3430,7 +3437,7 @@ function datosSubmenu(): SubmenuData {
       return {
         section: 'downloads',
         rows: [
-          { id: 'all', label: 'Show all downloads', icon: 'download', action: 'downloads:all', primary: true },
+          { id: 'all', label: tr("Show all downloads"), icon: 'download', action: 'downloads:all', primary: true },
           ...listDownloads().slice(0, 8).map((d) => ({
             id: d.id,
             label: d.filename,
@@ -3447,8 +3454,8 @@ function datosSubmenu(): SubmenuData {
         section: 'extensions',
         listLabel: items.length ? 'Installed extensions' : undefined,
         rows: [
-          { id: 'manage', label: 'Manage all extensions', icon: 'puzzle', action: 'extensions:manage', primary: true },
-          { id: 'import', label: 'Import extensions', icon: 'download', action: 'extensions:import', primary: true },
+          { id: 'manage', label: tr("Manage all extensions"), icon: 'puzzle', action: 'extensions:manage', primary: true },
+          { id: 'import', label: tr("Import extensions"), icon: 'download', action: 'extensions:import', primary: true },
           ...items.map((e) => ({
             id: e.path,
             label: e.name,
@@ -3465,7 +3472,7 @@ function datosSubmenu(): SubmenuData {
         // Los 12 primeros son un atajo, no la lista: con 79 marcadores importados hacía falta
         // una puerta al gestor, igual que en historial.
         rows: [
-          { id: 'todos', label: 'Gestionar marcadores', icon: 'bookmark' as const, meta: '⌘⌥B', action: 'bookmarks:all', primary: true },
+          { id: 'todos', label: tr("Gestionar marcadores"), icon: 'bookmark' as const, meta: '⌘⌥B', action: 'bookmarks:all', primary: true },
           ...items.slice(0, 12).map((b) => ({
           id: b.id,
           label: b.title || b.url,
@@ -3483,7 +3490,7 @@ function datosSubmenu(): SubmenuData {
         // un atajo, no el historial: sin esta fila no había forma de llegar a la lista
         // completa desde la UI.
         rows: [
-          { id: 'todo', label: 'Ver todo el historial', icon: 'history' as const, meta: '⌘Y', action: 'history:all', primary: true },
+          { id: 'todo', label: tr("Ver todo el historial"), icon: 'history' as const, meta: '⌘Y', action: 'history:all', primary: true },
           ...historyRecent(10).map((h) => ({
           id: h.url,
           label: h.title || h.url,
@@ -3501,18 +3508,18 @@ function datosSubmenu(): SubmenuData {
         section: 'developers',
         listLabel: 'Advanced',
         rows: [
-          { id: 'devtools', label: 'Developer tools', icon: 'code', meta: '⌥⌘I', action: 'dev:devtools', primary: true },
-          { id: 'reload', label: 'Recargar sin caché', icon: 'gauge', meta: '⇧⌘R', action: 'dev:hardReload', primary: true },
+          { id: 'devtools', label: tr("Developer tools"), icon: 'code', meta: '⌥⌘I', action: 'dev:devtools', primary: true },
+          { id: 'reload', label: tr("Recargar sin caché"), icon: 'gauge', meta: '⇧⌘R', action: 'dev:hardReload', primary: true },
           {
             id: 'remote',
-            label: 'Remote debugging',
+            label: tr("Remote debugging"),
             sub: r.enabled ? `Escuchando en 127.0.0.1:${r.port}` : 'Deja que una IA externa controle el navegador',
             toggle: true,
             on: r.enabled,
             action: 'dev:remote'
           },
           ...(r.enabled
-            ? [{ id: 'token', label: 'Copiar token de acceso', icon: 'code' as const, action: 'dev:copyToken' }]
+            ? [{ id: 'token', label: tr("Copiar token de acceso"), icon: 'code' as const, action: 'dev:copyToken' }]
             : [])
         ]
       }
@@ -3647,9 +3654,9 @@ ipcMain.on('profilemenu:deleteProfile', (ev, id: string) => {
   const p = listaPerfiles().find((x) => x.id === String(id))
   if (!p) return
   const r = dialog.showMessageBoxSync(vDe(ev).win, {
-    type: 'warning', buttons: ['Cancelar', 'Quitar'], defaultId: 0, cancelId: 0, noLink: true,
-    message: `¿Quitar el perfil "${p.nombre}"?`,
-    detail: 'Deja de aparecer en la lista. Sus datos (historial, marcadores, sesión) se quedan en el disco.'
+    type: 'warning', buttons: [tr("Cancelar"), tr("Quitar")], defaultId: 0, cancelId: 0, noLink: true,
+    message: tr("¿Quitar el perfil \"{0}\"?", p.nombre),
+    detail: tr("Deja de aparecer en la lista. Sus datos (historial, marcadores, sesión) se quedan en el disco.")
   })
   if (r !== 1) return
   if (!borrarPerfil(p.id)) {
@@ -3762,7 +3769,7 @@ function setControlledTab(id: number): void {
 // Cola de eventos asíncronos del navegador (popups, descargas) para steering del agente.
 let agentEvents: string[] = []
 function pushAgentEvent(msg: string): void { if (agentEvents.length < 20) agentEvents.push(msg) }
-ipcMain.on('chat:cancel', () => pararAgente('el usuario lo canceló'))
+ipcMain.on('chat:cancel', () => pararAgente(tr("el usuario lo canceló")))
 // El historial de chats vive en el chrome como el propio chat, así que estos canales no
 // llevan la guarda de `isInternalSender` — igual que `chat:send`.
 ipcMain.handle('chats:list', () => listSessions())
@@ -3806,15 +3813,15 @@ ipcMain.on('chats:resumeInPanel', (ev, id: string) => {
   v.win.webContents.send('chat:openSession', String(id))
 })
 // "Take over": el usuario retoma el control → aborta el agente.
-ipcMain.on('agent:takeOver', () => pararAgente('el usuario retomó el control'))
+ipcMain.on('agent:takeOver', () => pararAgente(tr("el usuario retomó el control")))
 ipcMain.handle('chat:send', async (ev, messages: ChatMessage[]) => {
   const active = getActiveProvider()
   if (!active) {
     vDe(ev).win.webContents.send('chat:error', {
       tipo: 'sin-proveedor',
-      titulo: 'No hay ninguna IA conectada',
-      detalle: 'Titanio no trae modelo propio: pon tu API key de Anthropic o de OpenAI y el asistente se activa.',
-      accion: { label: 'Abrir Settings', kind: 'settings' }
+      titulo: tr("No hay ninguna IA conectada"),
+      detalle: tr('Titanio no trae modelo propio: pon tu API key de Anthropic o de OpenAI y el asistente se activa.'),
+      accion: { label: tr("Abrir Settings"), kind: 'settings' }
     } satisfies ChatFallo)
     return
   }
@@ -3824,9 +3831,9 @@ ipcMain.handle('chat:send', async (ev, messages: ChatMessage[]) => {
   if (tope > 0 && gastoDeHoy() >= tope) {
     vDe(ev).win.webContents.send('chat:error', {
       tipo: 'tope',
-      titulo: 'Llegaste a tu límite de gasto de hoy',
-      detalle: `Lo pusiste tú en ${tope.toFixed(2)} $/día. El agente no va a gastar más hasta mañana, o hasta que subas el tope.`,
-      accion: { label: 'Abrir Settings', kind: 'settings' }
+      titulo: tr("Llegaste a tu límite de gasto de hoy"),
+      detalle: tr("Lo pusiste tú en {0} $/día. El agente no va a gastar más hasta mañana, o hasta que subas el tope.", tope.toFixed(2)),
+      accion: { label: tr("Abrir Settings"), kind: 'settings' }
     } satisfies ChatFallo)
     return
   }
@@ -3948,6 +3955,18 @@ if (reservarInstanciaUnica()) {
 
 app.whenReady().then(() => {
   if (!app.hasSingleInstanceLock() && app.isPackaged) return // otra instancia manda
+  initLanguage((raw) => {
+    if (!raw) return false
+    try {
+      const url = new URL(raw)
+      const settings = new URL(internalUrl('settings'))
+      return url.protocol === settings.protocol && url.host === settings.host && url.pathname === settings.pathname
+    } catch { return false }
+  }, () => {
+    buildAppMenu()
+    app.setAboutPanelOptions({ credits: tr('Un navegador agéntico de escritorio') })
+    broadcastAppearance()
+  })
   // En dev muestra nuestro icono en el dock (mac) en vez del de Electron.
   if (isMac && app.dock) app.dock.setIcon(appIcon)
   // Panel "Acerca de Titanio" con nuestra info en vez de la de Electron.
@@ -3955,7 +3974,7 @@ app.whenReady().then(() => {
     applicationName: 'Titanio',
     applicationVersion: app.getVersion(),
     copyright: '© 2026 Titanio',
-    credits: 'Un navegador agéntico de escritorio'
+    credits: tr("Un navegador agéntico de escritorio")
   })
   /**
    * Lo PRIMERO de todo: decide qué perfil está activo, y de ahí salen las rutas de los ficheros
@@ -3999,12 +4018,12 @@ app.whenReady().then(() => {
     confirmClient: async (nombre) => {
       const { response } = await dialog.showMessageBox(vActOpt()?.win ?? undefined!, {
         type: 'warning',
-        message: `«${nombre}» quiere conducir tu navegador`,
+        message: tr("«{0}» quiere conducir tu navegador", nombre),
         detail:
-          'Podrá abrir páginas, leerlas y actuar en los sitios donde tengas la sesión abierta, ' +
-          'igual que tú. No puede ver tus contraseñas ni usar el vault.\n\n' +
-          'Solo para esta sesión: al cerrar Titanio se olvida.',
-        buttons: ['No permitir', 'Permitir'],
+          tr("Podrá abrir páginas, leerlas y actuar en los sitios donde tengas la sesión abierta, ") +
+          tr("igual que tú. No puede ver tus contraseñas ni usar el vault.\n\n") +
+          tr("Solo para esta sesión: al cerrar Titanio se olvida."),
+        buttons: [tr("No permitir"), tr("Permitir")],
         defaultId: 0,
         cancelId: 0,
         noLink: true

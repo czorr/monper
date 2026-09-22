@@ -1,3 +1,4 @@
+import { t as tr } from '../../shared/i18n'
 import { Agent } from '@mastra/core/agent'
 import { createTool } from '@mastra/core/tools'
 import { createAnthropic } from '@ai-sdk/anthropic'
@@ -391,7 +392,7 @@ function buildTools(ctrl: BrowserControl, settings: SettingsControl, skills: Ski
       inputSchema: z.object({ name: z.string().describe('Nuevo nombre (1–60 caracteres)') }),
       execute: async ({ name }) => safe(async () => {
         const n = name.trim()
-        if (!n) return { error: 'El nombre no puede estar vacío.' }
+        if (!n) return { error: tr("El nombre no puede estar vacío.") }
         return `Nombre actualizado a "${settings.setProfileName(n)}".`
       })
     }),
@@ -518,31 +519,31 @@ export function buildAgent(provider: AIProvider, key: string, model: string, ctr
 function describe(toolName: string, args: unknown): ChatStep {
   const a = (args ?? {}) as Record<string, unknown>
   switch (toolName) {
-    case 'run_js': return { state: 'solving', label: 'Ejecutando código', kind: 'generic' }
-    case 'read_page': return { state: 'listening', label: 'Leyendo la página', kind: 'read' }
+    case 'run_js': return { state: 'solving', label: tr("Ejecutando código"), kind: 'generic' }
+    case 'read_page': return { state: 'listening', label: tr("Leyendo la página"), kind: 'read' }
     case 'navigate': {
       const h = host(String(a.url ?? ''))
-      return { state: 'searching', label: `Navegando a ${h}`, kind: 'navigate', favicon: faviconDelPaso(h) }
+      return { state: 'searching', label: tr("Navegando a {0}", h), kind: 'navigate', favicon: faviconDelPaso(h) }
     }
-    case 'click': return { state: 'working', label: `Click en el elemento ${a.ref}`, kind: 'click' }
-    case 'type': return { state: 'composing', label: 'Escribiendo', kind: 'type' }
-    case 'scroll': return { state: 'working', label: `Scroll ${a.direction}`, kind: 'scroll' }
-    case 'wait_for': return { state: 'searching', label: `Esperando ${a.text ? `"${a.text}"` : a.selector ?? 'contenido'}`, kind: 'wait' }
-    case 'press_key': return { state: 'working', label: `Tecla ${a.key}`, kind: 'press' }
-    case 'hover': return { state: 'working', label: `Hover en el elemento ${a.ref}`, kind: 'hover' }
-    case 'select_option': return { state: 'composing', label: `Eligiendo "${a.value}"`, kind: 'select' }
-    case 'history': return { state: 'searching', label: `Historial: ${a.action}`, kind: 'history' }
-    case 'list_tabs': return { state: 'listening', label: 'Viendo las pestañas', kind: 'tab' }
-    case 'open_tab': return { state: 'searching', label: `Abriendo ${host(String(a.url ?? ''))}`, kind: 'tab', favicon: faviconDelPaso(host(String(a.url ?? ''))) }
-    case 'switch_tab': return { state: 'working', label: `Cambiando a la pestaña ${a.id}`, kind: 'tab' }
-    case 'close_tab': return { state: 'working', label: `Cerrando la pestaña ${a.id}`, kind: 'tab' }
-    case 'screenshot': return { state: 'searching', label: 'Mirando la pantalla', kind: 'screenshot' }
-    case 'click_at': return { state: 'working', label: `Click en (${a.x}, ${a.y})`, kind: 'click' }
-    case 'use_skill': return { state: 'listening', label: `Usando skill: ${a.id}`, kind: 'read' }
-    case 'get_settings': return { state: 'listening', label: 'Leyendo los ajustes', kind: 'read' }
-    case 'set_profile_name': return { state: 'composing', label: `Cambiando el nombre a "${a.name}"`, kind: 'generic' }
-    case 'set_skill': return { state: 'working', label: `${a.enabled ? 'Activando' : 'Desactivando'} skill ${a.id}`, kind: 'generic' }
-    case 'open_settings': return { state: 'searching', label: `Abriendo ajustes${a.section ? `: ${a.section}` : ''}`, kind: 'navigate' }
+    case 'click': return { state: 'working', label: tr("Click en el elemento {0}", a.ref), kind: 'click' }
+    case 'type': return { state: 'composing', label: tr("Escribiendo"), kind: 'type' }
+    case 'scroll': return { state: 'working', label: tr("Scroll {0}", a.direction), kind: 'scroll' }
+    case 'wait_for': return { state: 'searching', label: tr("Esperando {0}", a.text ? `"${a.text}"` : a.selector ?? 'contenido'), kind: 'wait' }
+    case 'press_key': return { state: 'working', label: tr("Tecla {0}", a.key), kind: 'press' }
+    case 'hover': return { state: 'working', label: tr("Hover en el elemento {0}", a.ref), kind: 'hover' }
+    case 'select_option': return { state: 'composing', label: tr("Eligiendo \"{0}\"", a.value), kind: 'select' }
+    case 'history': return { state: 'searching', label: tr("Historial: {0}", a.action), kind: 'history' }
+    case 'list_tabs': return { state: 'listening', label: tr("Viendo las pestañas"), kind: 'tab' }
+    case 'open_tab': return { state: 'searching', label: tr("Abriendo {0}", host(String(a.url ?? ''))), kind: 'tab', favicon: faviconDelPaso(host(String(a.url ?? ''))) }
+    case 'switch_tab': return { state: 'working', label: tr("Cambiando a la pestaña {0}", a.id), kind: 'tab' }
+    case 'close_tab': return { state: 'working', label: tr("Cerrando la pestaña {0}", a.id), kind: 'tab' }
+    case 'screenshot': return { state: 'searching', label: tr("Mirando la pantalla"), kind: 'screenshot' }
+    case 'click_at': return { state: 'working', label: tr("Click en ({0}, {1})", a.x, a.y), kind: 'click' }
+    case 'use_skill': return { state: 'listening', label: tr("Usando skill: {0}", a.id), kind: 'read' }
+    case 'get_settings': return { state: 'listening', label: tr("Leyendo los ajustes"), kind: 'read' }
+    case 'set_profile_name': return { state: 'composing', label: tr("Cambiando el nombre a \"{0}\"", a.name), kind: 'generic' }
+    case 'set_skill': return { state: 'working', label: tr("{0} skill {1}", a.enabled ? 'Activando' : 'Desactivando', a.id), kind: 'generic' }
+    case 'open_settings': return { state: 'searching', label: tr("Abriendo ajustes{0}", a.section ? `: ${a.section}` : ''), kind: 'navigate' }
     default: return { state: 'working', label: toolName, kind: 'generic' }
   }
 }
@@ -664,11 +665,11 @@ export async function runMastra(opts: {
   console.log('[agent] turno sin texto —', { steps, finishReason, streamError })
   if (streamError) { opts.emit.error(streamError); return leerUso() }
   if (finishReason === 'length') {
-    opts.emit.token('Me quedé sin espacio de respuesta (límite de tokens). Pídeme algo más acotado o dime que continúe.')
+    opts.emit.token(tr("Me quedé sin espacio de respuesta (límite de tokens). Pídeme algo más acotado o dime que continúe."))
   } else if (steps >= MAX_STEPS) {
-    opts.emit.token(`Alcancé el límite de ${MAX_STEPS} pasos sin terminar. ¿Quieres que continúe?`)
+    opts.emit.token(tr("Alcancé el límite de {0} pasos sin terminar. ¿Quieres que continúe?", MAX_STEPS))
   } else {
-    opts.emit.token(`El modelo terminó sin responder${finishReason ? ` (motivo: ${finishReason})` : ''}. Intenta reformular la petición.`)
+    opts.emit.token(tr("El modelo terminó sin responder{0}. Intenta reformular la petición.", finishReason ? ` (motivo: ${finishReason})` : ''))
   }
   return leerUso()
 }
@@ -729,9 +730,9 @@ export function diagnosticar(e: unknown, kind?: ProviderKind): ChatFallo {
   const o = (e ?? {}) as { status?: unknown; statusCode?: unknown; error?: { type?: unknown }; name?: unknown }
   const status = Number(o.status ?? o.statusCode ?? 0)
   const t = crudo.toLowerCase()
-  const ajustes = { label: 'Abrir Settings', kind: 'settings' as const }
+  const ajustes = { label: tr("Abrir Settings"), kind: 'settings' as const }
   const recargar = kind
-    ? { label: 'Ver mi saldo', kind: 'url' as const, value: FACTURACION[kind] }
+    ? { label: tr("Ver mi saldo"), kind: 'url' as const, value: FACTURACION[kind] }
     : ajustes
 
   // El crédito agotado llega como 400 en Anthropic y como 429 en OpenAI, así que el texto
@@ -739,8 +740,8 @@ export function diagnosticar(e: unknown, kind?: ProviderKind): ChatFallo {
   if (/credit balance|insufficient_quota|insufficient funds|billing|quota/.test(t)) {
     return {
       tipo: 'credito',
-      titulo: 'Se acabó el crédito',
-      detalle: `Tu cuenta de ${kind === 'openai' ? 'OpenAI' : 'Anthropic'} no tiene saldo. Titanio no cobra nada: pagas al proveedor directamente.`,
+      titulo: tr("Se acabó el crédito"),
+      detalle: tr("Tu cuenta de {0} no tiene saldo. Titanio no cobra nada: pagas al proveedor directamente.", kind === 'openai' ? 'OpenAI' : 'Anthropic'),
       accion: recargar, crudo
     }
   }
@@ -748,8 +749,8 @@ export function diagnosticar(e: unknown, kind?: ProviderKind): ChatFallo {
   if (status === 401 || status === 403 || /invalid.*api[_ -]?key|authentication|unauthorized|permission/.test(t)) {
     return {
       tipo: 'auth',
-      titulo: 'La API key no es válida',
-      detalle: 'El proveedor la rechazó. Puede estar mal copiada, revocada, o ser de otra cuenta.',
+      titulo: tr("La API key no es válida"),
+      detalle: tr("El proveedor la rechazó. Puede estar mal copiada, revocada, o ser de otra cuenta."),
       accion: ajustes, crudo
     }
   }
@@ -757,8 +758,8 @@ export function diagnosticar(e: unknown, kind?: ProviderKind): ChatFallo {
   if (status === 429 || /rate limit|too many requests/.test(t)) {
     return {
       tipo: 'limite',
-      titulo: 'Demasiadas peticiones',
-      detalle: 'El proveedor te está limitando. Espera unos segundos y vuelve a enviarlo.',
+      titulo: tr("Demasiadas peticiones"),
+      detalle: tr("El proveedor te está limitando. Espera unos segundos y vuelve a enviarlo."),
       crudo
     }
   }
@@ -766,8 +767,8 @@ export function diagnosticar(e: unknown, kind?: ProviderKind): ChatFallo {
   if (status === 404 || /model.*not found|does not exist|unknown model|no access to model/.test(t)) {
     return {
       tipo: 'modelo',
-      titulo: 'Ese modelo no está disponible',
-      detalle: 'No existe o tu cuenta no tiene acceso. Elige otro en Settings.',
+      titulo: tr("Ese modelo no está disponible"),
+      detalle: tr("No existe o tu cuenta no tiene acceso. Elige otro en Settings."),
       accion: ajustes, crudo
     }
   }
@@ -775,8 +776,8 @@ export function diagnosticar(e: unknown, kind?: ProviderKind): ChatFallo {
   if (/context length|too many tokens|maximum context|prompt is too long|request too large/.test(t)) {
     return {
       tipo: 'contexto',
-      titulo: 'La conversación es demasiado larga',
-      detalle: 'Ya no cabe en el modelo. Empieza un chat nuevo para seguir.',
+      titulo: tr("La conversación es demasiado larga"),
+      detalle: tr("Ya no cabe en el modelo. Empieza un chat nuevo para seguir."),
       crudo
     }
   }
@@ -786,8 +787,8 @@ export function diagnosticar(e: unknown, kind?: ProviderKind): ChatFallo {
   if (!status && /fetch failed|enotfound|econnrefused|etimedout|network|socket|dns|getaddrinfo|und_err/.test(t)) {
     return {
       tipo: 'red',
-      titulo: 'Sin conexión con el proveedor',
-      detalle: 'No se pudo llegar al servidor. Revisa tu conexión y vuelve a intentarlo.',
+      titulo: tr("Sin conexión con el proveedor"),
+      detalle: tr("No se pudo llegar al servidor. Revisa tu conexión y vuelve a intentarlo."),
       crudo
     }
   }
@@ -795,16 +796,16 @@ export function diagnosticar(e: unknown, kind?: ProviderKind): ChatFallo {
   if (status >= 500) {
     return {
       tipo: 'proveedor',
-      titulo: 'El proveedor está fallando',
-      detalle: `Ha devuelto un error ${status}. No es cosa tuya: espera un momento y reintenta.`,
+      titulo: tr("El proveedor está fallando"),
+      detalle: tr("Ha devuelto un error {0}. No es cosa tuya: espera un momento y reintenta.", status),
       crudo
     }
   }
 
   return {
     tipo: 'desconocido',
-    titulo: 'El modelo no pudo responder',
-    detalle: 'Ha fallado algo que no sabemos clasificar. El detalle de abajo es lo que dijo el proveedor.',
+    titulo: tr("El modelo no pudo responder"),
+    detalle: tr("Ha fallado algo que no sabemos clasificar. El detalle de abajo es lo que dijo el proveedor."),
     crudo
   }
 }

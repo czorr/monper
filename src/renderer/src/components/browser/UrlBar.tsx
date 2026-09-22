@@ -1,3 +1,4 @@
+import { t as tr, useLocale } from '@renderer/lib/i18n'
 import { useEffect, useRef, useState, type JSX } from 'react'
 import type { ActiveInfo, Suggestion } from '@shared/types'
 import { domainOf } from '@renderer/lib/dom'
@@ -14,6 +15,7 @@ interface Props {
 }
 
 export default function UrlBar({ active, editRequest, onGo }: Props): JSX.Element {
+  useLocale()
   const [editing, setEditing] = useState(false)
   const ac = useAutocomplete(titanio.suggest)
   // Completado inline compartido con la new-tab page: misma lógica, un solo sitio.
@@ -80,7 +82,7 @@ export default function UrlBar({ active, editRequest, onGo }: Props): JSX.Elemen
   // En nuestras páginas no hay dominio que mostrar (el main manda la url vacía a propósito),
   // así que ese hueco lo ocupa la marca. El nombre de la página lo pone el título de al lado.
   const interna = !!active?.internal
-  const domain = active ? (interna ? 'Titanio' : domainOf(active.url) || 'New tab') : ''
+  const domain = active ? (interna ? 'Titanio' : domainOf(active.url) || tr("New tab")) : ''
   const title = active && active.title && active.title !== domain ? active.title : ''
 
   return (
@@ -91,7 +93,7 @@ export default function UrlBar({ active, editRequest, onGo }: Props): JSX.Elemen
           type="text"
           spellCheck={false}
           autoComplete="off"
-          placeholder="Busca en Google o escribe una URL"
+          placeholder={tr("Busca en Google o escribe una URL")}
           onChange={ic.onChange}
           onPointerDown={ic.onPointerDown}
           onBlur={() => stopEditing()}
@@ -123,7 +125,7 @@ export default function UrlBar({ active, editRequest, onGo }: Props): JSX.Elemen
           onClick={startEditing}
           className="flex items-center w-full min-w-0 h-[30px] px-3 rounded-lg text-[13px] text-left hover:bg-bg-elev"
         >
-          <span className="text-text font-medium whitespace-nowrap tracking-[-0.08px]">New tab</span>
+          <span className="text-text font-medium whitespace-nowrap tracking-[-0.08px]">{tr("New tab")}</span>
         </button>
       )}
     </div>

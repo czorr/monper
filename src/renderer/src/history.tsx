@@ -1,3 +1,4 @@
+import { t as tr, useLocale, getLocale } from '@renderer/lib/i18n'
 import { createRoot } from 'react-dom/client'
 import { useCallback, useEffect, useRef, useState, type JSX } from 'react'
 import type { HistoryEntryInfo } from '@shared/types'
@@ -18,18 +19,19 @@ function etiquetaDeDia(ms: number): string {
   const ayer = new Date(hoy.getTime() - 86_400_000)
   const mismoDia = (a: Date, b: Date): boolean =>
     a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
-  if (mismoDia(d, hoy)) return 'Hoy'
-  if (mismoDia(d, ayer)) return 'Ayer'
-  return d.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: d.getFullYear() === hoy.getFullYear() ? undefined : 'numeric' })
+  if (mismoDia(d, hoy)) return tr("Hoy")
+  if (mismoDia(d, ayer)) return tr("Ayer")
+  return d.toLocaleDateString(getLocale(), { weekday: 'long', day: 'numeric', month: 'long', year: d.getFullYear() === hoy.getFullYear() ? undefined : 'numeric' })
 }
 
-const hora = (ms: number): string => new Date(ms).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+const hora = (ms: number): string => new Date(ms).toLocaleTimeString(getLocale(), { hour: '2-digit', minute: '2-digit' })
 
 function dominio(url: string): string {
   try { return new URL(url).hostname.replace(/^www\./, '') } catch { return url }
 }
 
 function Favicon({ src }: { src?: string | null }): JSX.Element {
+  useLocale()
   const [roto, setRoto] = useState(false)
   return (
     <span className="w-[22px] h-[22px] rounded-md grid place-items-center bg-white/[0.05] shrink-0 overflow-hidden">
@@ -41,6 +43,7 @@ function Favicon({ src }: { src?: string | null }): JSX.Element {
 }
 
 function HistoryPage(): JSX.Element {
+  useLocale()
   const [q, setQ] = useState('')
   const [entries, setEntries] = useState<HistoryEntryInfo[]>([])
   const [total, setTotal] = useState(0)
@@ -64,7 +67,7 @@ function HistoryPage(): JSX.Element {
     } catch (e) {
       if (mio !== peticion.current) return
       console.error('[historial] no se pudo leer:', e)
-      setError('No se pudo leer el historial.')
+      setError(tr("No se pudo leer el historial."))
     } finally {
       if (mio === peticion.current) setCargando(false)
     }
@@ -84,7 +87,7 @@ function HistoryPage(): JSX.Element {
   }
 
   const borrarTodo = async (): Promise<void> => {
-    if (!confirm('¿Borrar todo el historial? No se puede deshacer.')) return
+    if (!confirm(tr("¿Borrar todo el historial? No se puede deshacer."))) return
     await titanioTab.clearHistory()
     void cargar(q, 0)
   }
@@ -104,14 +107,13 @@ function HistoryPage(): JSX.Element {
       <header className="shrink-0 px-8 pt-10 pb-5">
         <div className="max-w-[760px] mx-auto">
           <div className="flex items-center justify-between gap-4 mb-5">
-            <h1 className="text-[30px] font-semibold tracking-tight">Historial</h1>
+            <h1 className="text-[30px] font-semibold tracking-tight">{tr("Historial")}</h1>
             {total > 0 && (
               <button
                 onClick={borrarTodo}
                 className="shrink-0 text-[13px] font-medium px-3.5 py-2 rounded-lg bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-colors"
               >
-                Borrar todo
-              </button>
+                {tr("Borrar todo")} </button>
             )}
           </div>
           <div className="relative">
@@ -119,7 +121,7 @@ function HistoryPage(): JSX.Element {
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Buscar en el historial"
+              placeholder={tr("Buscar en el historial")}
               autoFocus
               className="w-full h-11 pl-10 pr-4 rounded-xl bg-white/[0.04] border border-white/[0.08] text-[14px] text-text outline-none focus:border-white/25 placeholder:text-text-faint transition-colors select-text"
             />
@@ -137,7 +139,7 @@ function HistoryPage(): JSX.Element {
             <div className="py-20 flex flex-col items-center gap-2 text-center">
               <IconHistory className="w-6 h-6 text-text-faint" />
               <div className="text-[13.5px] text-text-dim">
-                {q ? `Nada coincide con “${q.trim()}”` : 'Todavía no hay historial'}
+                {q ? tr("Nada coincide con “{0}”", q.trim()) : tr("Todavía no hay historial")}
               </div>
             </div>
           )}
@@ -160,7 +162,7 @@ function HistoryPage(): JSX.Element {
                     </button>
                     <button
                       onClick={() => borrar(e.url)}
-                      title="Quitar del historial"
+                      title={tr("Quitar del historial")}
                       className="shrink-0 w-7 h-7 grid place-items-center rounded-md text-text-faint opacity-0 group-hover/h:opacity-100 hover:text-red-400 hover:bg-red-500/15 transition-colors [&>svg]:w-4 [&>svg]:h-4"
                     >
                       <IconTrash />
@@ -177,7 +179,7 @@ function HistoryPage(): JSX.Element {
               disabled={cargando}
               className="w-full h-10 rounded-xl bg-white/[0.05] hover:bg-white/[0.09] text-[13px] text-text-dim hover:text-text transition-colors disabled:opacity-50"
             >
-              {cargando ? 'Cargando…' : `Ver más (${total - entries.length} restantes)`}
+              {cargando ? tr("Cargando…") : tr("Ver más ({0} restantes)", total - entries.length)}
             </button>
           )}
         </div>

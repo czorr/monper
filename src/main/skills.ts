@@ -1,3 +1,4 @@
+import { t as tr } from '../shared/i18n'
 import { join, dirname, basename, relative, isAbsolute } from 'path'
 import { readFileSync, existsSync, mkdirSync, readdirSync, statSync, writeFileSync, renameSync, unlinkSync, realpathSync } from 'fs'
 import { randomUUID } from 'crypto'
@@ -69,7 +70,7 @@ function readSkill(dir: string, id: string, builtin: boolean): Loaded | null {
     name: (data.name as string) || id,
     description: (data.description as string) || '',
     keywords: Array.isArray(kw) ? (kw as string[]) : typeof kw === 'string' && kw ? [kw] : [],
-    author: (data.author as string) || (builtin ? 'Titanio' : 'Tú'),
+    author: (data.author as string) || (builtin ? 'Titanio' : tr("Tú")),
     // Identidad visual: dominio del servicio o glifo. Ver SkillMeta.
     host: ((data.host as string) || '').trim() || null,
     icon: ((data.icon as string) || '').trim() || null,
@@ -94,7 +95,8 @@ function allLoaded(): Loaded[] {
   }
   scan(builtinDir(), true)
   scan(userDir(), false)
-  return out.sort((a, b) => a.name.localeCompare(b.name))
+  // La app oficial encabeza tanto Settings como el catálogo que recibe el agente.
+  return out.sort((a, b) => Number(b.id === 'titanio-app') - Number(a.id === 'titanio-app') || a.name.localeCompare(b.name))
 }
 
 function toMeta(s: Loaded): SkillMeta {
@@ -125,36 +127,36 @@ export function getSkill(id: string): SkillDetail | null {
 
 export function skillFolder(id: string): string {
   const skill = allLoaded().find((s) => s.id === id)
-  if (!skill) throw new Error('La skill ya no existe.')
+  if (!skill) throw new Error(tr("La skill ya no existe."))
   return dirname(skill.file)
 }
 
 /** Las ediciones se guardan fuera de la aplicación para sobrevivir a sus actualizaciones. */
 export function saveSkill(id: string, source: string, expectedSource: string): SkillDetail {
   if (typeof id !== 'string' || !id || id === '.' || id === '..' || basename(id) !== id || /[\\\0]/.test(id)) {
-    throw new Error('Identificador de skill no válido.')
+    throw new Error(tr("Identificador de skill no válido."))
   }
   if (typeof source !== 'string' || !source.trim() || Buffer.byteLength(source, 'utf8') > 1024 * 1024) {
-    throw new Error('La skill debe tener contenido y ocupar menos de 1 MB.')
+    throw new Error(tr("La skill debe tener contenido y ocupar menos de 1 MB."))
   }
   if (/^---(?:\r?\n|$)/.test(source) && !/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/.test(source)) {
-    throw new Error('Cierra los metadatos iniciales con una línea de tres guiones (---).')
+    throw new Error(tr("Cierra los metadatos iniciales con una línea de tres guiones (---)."))
   }
   const parsed = parseFrontmatter(source)
   for (const field of ['name', 'description', 'author', 'host', 'icon', 'requires']) {
     if (parsed.data[field] !== undefined && typeof parsed.data[field] !== 'string') {
-      throw new Error(`El campo ${field} debe ser texto.`)
+      throw new Error(tr("El campo {0} debe ser texto.", field))
     }
   }
   const current = getSkill(id)
-  if (!current) throw new Error('La skill ya no existe.')
+  if (!current) throw new Error(tr("La skill ya no existe."))
   if (typeof expectedSource !== 'string' || current.source !== expectedSource) {
-    throw new Error('La skill cambió desde que la abriste. Recarga el contenido antes de guardar.')
+    throw new Error(tr("La skill cambió desde que la abriste. Recarga el contenido antes de guardar."))
   }
   const directory = join(userDir(), id)
   mkdirSync(directory, { recursive: true })
   const inside = relative(realpathSync(userDir()), realpathSync(directory))
-  if (inside.startsWith('..') || isAbsolute(inside)) throw new Error('La carpeta de la skill debe estar dentro de tus skills locales.')
+  if (inside.startsWith('..') || isAbsolute(inside)) throw new Error(tr("La carpeta de la skill debe estar dentro de tus skills locales."))
   const file = join(directory, 'SKILL.md')
   const temporary = join(directory, `.SKILL-${randomUUID()}.tmp`)
   try {

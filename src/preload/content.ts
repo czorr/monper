@@ -1,3 +1,4 @@
+import './language'
 import { contextBridge, ipcRenderer } from 'electron'
 import type { Bookmark, DownloadEntry, TitanioTabApi, Suggestion } from '../shared/types'
 import { setupSelectionUI } from './selectionUI'

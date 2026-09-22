@@ -1,3 +1,4 @@
+import { t as tr, useLocale } from '@renderer/lib/i18n'
 import { useState, type JSX } from 'react'
 import type { TabInfo } from '@shared/types'
 import { domainOf } from '@renderer/lib/dom'
@@ -27,6 +28,7 @@ const rowBase =
 const PRESSED = 'scale-[0.98] translate-y-[1px]'
 
 export default function TabRow({ tab, active, onSelect, onClose }: Props): JSX.Element {
+  useLocale()
   const [pressed, setPressed] = useState(false)
   const [failedFavicon, setFailedFavicon] = useState<string | null>(null)
   const state = active
@@ -62,12 +64,12 @@ export default function TabRow({ tab, active, onSelect, onClose }: Props): JSX.E
       )}
 
       <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[15px] tracking-[-0.08px]">
-        {tab.title || domainOf(tab.url) || 'New tab'}
+        {tab.title || domainOf(tab.url) || tr("New tab")}
       </span>
 
       {tab.muted && (
         <button
-          title="Reactivar sonido"
+          title={tr("Reactivar sonido")}
           onClick={(e) => { e.stopPropagation(); window.titanio.toggleMute(tab.id) }}
           className="shrink-0 w-[18px] h-[18px] grid place-items-center rounded-md text-text-faint hover:text-text hover:bg-white/15 [&>svg]:w-[14px] [&>svg]:h-[14px]"
         >
@@ -84,7 +86,7 @@ export default function TabRow({ tab, active, onSelect, onClose }: Props): JSX.E
         )}
         <button
           className="absolute inset-0 grid place-items-center rounded-md text-text-faint opacity-0 group-hover/tab:opacity-100 hover:text-text hover:bg-white/15 [&>svg]:w-[13px] [&>svg]:h-[13px]"
-          title="Cerrar"
+          title={tr("Cerrar")}
           onClick={(e) => { e.stopPropagation(); onClose(tab.id) }}
         >
           <CloseIcon />

@@ -1,3 +1,4 @@
+import { t as tr, useLocale } from '@renderer/lib/i18n'
 import type { JSX } from 'react'
 import { Avatar } from '@renderer/components/ui'
 import { ChevronDown } from '@renderer/lib/icons'
@@ -10,10 +11,11 @@ interface Props {
 }
 
 export default function AccountPill({ initials, name, avatar, onOpen }: Props): JSX.Element {
+  useLocale()
   return (
     <button
       title={name}
-      aria-label={`Abrir menú de ${name}`}
+      aria-label={tr("Abrir menú de {0}", name)}
       aria-haspopup="menu"
       onPointerEnter={() => window.titanio.warmProfileMenu()}
       onFocus={() => window.titanio.warmProfileMenu()}

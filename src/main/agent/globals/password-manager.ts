@@ -1,3 +1,4 @@
+import { t as tr } from '../../../shared/i18n'
 import type { WebContents } from 'electron'
 import { dialog, BrowserWindow } from 'electron'
 import type { Page } from '../../../../packages/titaniowright/src'
@@ -32,9 +33,9 @@ export function makePasswordManager(page: Page, wc: WebContents) {
   const approve = (origin: string): boolean => {
     const opts = {
       type: 'question' as const,
-      message: `¿Rellenar tu contraseña guardada para ${hostOf(origin)}?`,
-      detail: 'Titanio rellenará las credenciales directamente; el agente no las ve.',
-      buttons: ['Cancelar', 'Rellenar'],
+      message: tr("¿Rellenar tu contraseña guardada para {0}?", hostOf(origin)),
+      detail: tr("Titanio rellenará las credenciales directamente; el agente no las ve."),
+      buttons: [tr("Cancelar"), tr("Rellenar")],
       defaultId: 1,
       cancelId: 0,
       noLink: true

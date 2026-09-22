@@ -1,3 +1,4 @@
+import { t as tr } from '../shared/i18n'
 import { contextBridge, ipcRenderer } from 'electron'
 
 /**
@@ -147,7 +148,7 @@ export function setupPipSource(): void {
           document.dispatchEvent(new CustomEvent('titanio:pip'))
         } catch (e) {
           console.warn('[titanio] no se pudo abrir el picture-in-picture:', e)
-          return Promise.reject(new DOMException('No se pudo abrir el PiP', 'NotAllowedError'))
+          return Promise.reject(new DOMException(tr("No se pudo abrir el PiP"), 'NotAllowedError'))
         }
         const falso = document.createElement('div')
         Object.defineProperty(falso, 'width', { get: () => 320 })

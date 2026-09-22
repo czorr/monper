@@ -1,3 +1,4 @@
+import { t as tr, useLocale } from '@renderer/lib/i18n'
 import { useEffect, useRef, useState, type JSX } from 'react'
 import type { ChatContext, ChatMessage, ChatAttachment, Effort, ChatSessionMeta, StoredChatMsg } from '@shared/types'
 import IconX from '~icons/tabler/x'
@@ -24,6 +25,7 @@ interface Props {
 }
 
 export default function ChatPanel({ open, onClose, inject, resizing, tint }: Props): JSX.Element {
+  useLocale()
   const [messages, setMessages] = useState<Msg[]>([])
   const [running, setRunning] = useState(false)
   const [sessionId, setSessionId] = useState('')
@@ -153,7 +155,7 @@ export default function ChatPanel({ open, onClose, inject, resizing, tint }: Pro
       } catch (e) {
         // No se puede tragar: sin esto el mensaje del usuario desaparecía sin explicación.
         console.error('[chats] no se pudo resolver la conversación destino:', e)
-        setMessages((ms) => [...ms, { role: 'assistant', parts: [{ type: 'text', text: 'No se pudo abrir la conversación. Vuelve a intentarlo.', error: true }] }])
+        setMessages((ms) => [...ms, { role: 'assistant', parts: [{ type: 'text', text: tr("No se pudo abrir la conversación. Vuelve a intentarlo."), error: true }] }])
         return
       }
     }
@@ -191,7 +193,7 @@ export default function ChatPanel({ open, onClose, inject, resizing, tint }: Pro
             onRefresh={refrescarLista}
           />
         </div>
-        <IconButton size="sm" title="Cerrar (⌘J)" onClick={onClose}><IconX /></IconButton>
+        <IconButton size="sm" title={tr("Cerrar (⌘J)")} onClick={onClose}><IconX /></IconButton>
       </header>
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3 [&::-webkit-scrollbar]:w-0">

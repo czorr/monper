@@ -1,3 +1,4 @@
+import { t as tr, useLocale } from '@renderer/lib/i18n'
 import { useState, type JSX } from 'react'
 import type { ChatFallo } from '@shared/types'
 import IconKey from '~icons/tabler/key'
@@ -32,6 +33,7 @@ const ICONO: Record<ChatFallo['tipo'], typeof IconKey> = {
 const TEMPLADO: ChatFallo['tipo'][] = ['limite', 'red', 'proveedor']
 
 export default function FailBlock({ fail }: { fail: ChatFallo }): JSX.Element {
+  useLocale()
   const [abierto, setAbierto] = useState(false)
   const Icon = ICONO[fail.tipo] ?? IconAlert
   const suave = TEMPLADO.includes(fail.tipo)
@@ -72,8 +74,7 @@ export default function FailBlock({ fail }: { fail: ChatFallo }): JSX.Element {
             className="flex items-center gap-1 h-7 px-1.5 rounded-lg text-[12px] text-text-faint hover:text-text-dim transition-colors"
           >
             <IconChevron className={'w-3 h-3 transition-transform duration-150 ' + (abierto ? 'rotate-90' : '')} />
-            Detalle técnico
-          </button>
+            {tr("Detalle técnico")} </button>
         )}
       </div>
 

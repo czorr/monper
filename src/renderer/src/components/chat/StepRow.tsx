@@ -1,3 +1,4 @@
+import { t as tr, useLocale } from '@renderer/lib/i18n'
 import { useState, type JSX } from 'react'
 import { ThinkingOrb } from 'thinking-orbs'
 import type { ChatStep, StepKind } from '@shared/types'
@@ -34,6 +35,7 @@ const KIND_ICON: Record<StepKind, typeof IconWorld> = {
 
 /** Icono de un paso completado: favicon (navegación) o icono tabler de la acción. */
 function StepIcon({ step }: { step: ChatStep }): JSX.Element {
+  useLocale()
   const [broken, setBroken] = useState(false)
   if (step.favicon && !broken) {
     return (
@@ -51,6 +53,7 @@ function StepIcon({ step }: { step: ChatStep }): JSX.Element {
 
 /** Una fila de paso: orb animado si está activo, icono/favicon si está completado. */
 export default function StepRow({ step, active }: { step: ChatStep; active: boolean }): JSX.Element {
+  useLocale()
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center gap-2.5">
@@ -62,7 +65,7 @@ export default function StepRow({ step, active }: { step: ChatStep; active: bool
       {step.image && (
         <img
           src={step.image}
-          alt="captura de pantalla"
+          alt={tr("captura de pantalla")}
           className="ml-[30px] max-w-full h-auto aspect-auto rounded-lg border border-white/10"
         />
       )}

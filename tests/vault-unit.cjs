@@ -35,9 +35,13 @@ async function setup(initial = []) {
   }
   const load = (file) => new SourceTextModule(stripTypeScriptTypes(readFileSync(join(__dirname, '..', file), 'utf8')), { identifier: file })
   const shared = load('src/shared/vault.ts')
+  const i18n = load('src/shared/i18n.ts')
+  const messages = load('src/shared/locales/messages.ts')
+  await i18n.link(() => messages)
   const store = load('src/main/vault/store.ts')
   const autofill = load('src/main/autofill.ts')
   const link = (specifier) => {
+    if (specifier.endsWith('/shared/i18n')) return i18n
     if (specifier.endsWith('/shared/vault')) return shared
     if (specifier === './vault/store') return store
     if (mocks[specifier]) return mocks[specifier]

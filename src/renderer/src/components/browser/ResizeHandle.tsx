@@ -1,3 +1,4 @@
+import { t as tr, useLocale } from '@renderer/lib/i18n'
 import { useEffect, useRef, useState, type JSX } from 'react'
 
 interface Props {
@@ -21,6 +22,7 @@ interface Props {
  * muerta**: por eso costaba apuntar. Ahora la zona entera vive del lado del chrome.
  */
 export default function ResizeHandle({ side, width, min, max, onResize, onEnd }: Props): JSX.Element {
+  useLocale()
   const [dragging, setDragging] = useState(false)
   const startX = useRef(0)
   const startW = useRef(0)
@@ -51,7 +53,7 @@ export default function ResizeHandle({ side, width, min, max, onResize, onEnd }:
     <div
       onPointerDown={(e) => { e.preventDefault(); startX.current = e.clientX; startW.current = width; setDragging(true) }}
       onDoubleClick={() => onResize(side === 'left' ? 240 : 380)}
-      title="Arrastra para redimensionar (doble click para restablecer)"
+      title={tr("Arrastra para redimensionar (doble click para restablecer)")}
       className={
         // 10px de zona activa, TODA del lado del chrome (ver el comentario de arriba).
         'group/rz fixed top-0 bottom-0 z-40 w-2.5 cursor-col-resize [-webkit-app-region:no-drag] ' +

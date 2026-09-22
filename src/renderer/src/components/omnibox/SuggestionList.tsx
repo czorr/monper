@@ -1,3 +1,4 @@
+import { t as tr, useLocale } from '@renderer/lib/i18n'
 import { useState, type JSX } from 'react'
 import type { Suggestion } from '@shared/types'
 import IconSearch from '~icons/tabler/search'
@@ -19,6 +20,7 @@ interface Props {
 const KIND_ICON = { search: IconSearch, url: IconWorld, history: IconClock, bookmark: IconStar }
 
 function Leading({ s }: { s: Suggestion }): JSX.Element {
+  useLocale()
   const [failedFavicon, setFailedFavicon] = useState<string | null>(null)
   // Una búsqueda normal lleva lupa, pero una ENTIDAD de Google (persona, empresa) sí trae
   // foto: por eso el icono depende de que HAYA imagen, no del kind.
@@ -39,6 +41,7 @@ function Leading({ s }: { s: Suggestion }): JSX.Element {
 
 /** Resalta lo que el usuario tecleó (prefijo en negrita); el completado va tenue. */
 function Highlight({ text, query }: { text: string; query: string }): JSX.Element {
+  useLocale()
   const q = query.trim()
   let n = 0
   const a = text.toLowerCase()
@@ -55,6 +58,7 @@ function Highlight({ text, query }: { text: string; query: string }): JSX.Elemen
 
 /** Lista desplegable de sugerencias del omnibox (estilo Arc: full-width, completado en negrita). */
 export default function SuggestionList({ items, active, query, onHover, onChoose, onRemove }: Props): JSX.Element {
+  useLocale()
   return (
     <ul className="p-1">
       {items.map((s, i) => (
@@ -78,8 +82,8 @@ export default function SuggestionList({ items, active, query, onHover, onChoose
           {onRemove && s.kind === 'history' && (
             <button
               type="button"
-              aria-label={`Eliminar ${s.title} del historial`}
-              title="Eliminar del historial"
+              aria-label={tr("Eliminar {0} del historial", s.title)}
+              title={tr("Eliminar del historial")}
               className={'absolute right-1 top-1/2 -translate-y-1/2 w-8 h-8 grid place-items-center rounded-lg text-text-faint hover:text-text hover:bg-white/[0.08] focus-visible:outline focus-visible:outline-1 group-hover/suggestion:opacity-100 focus-visible:opacity-100 ' + (i === active ? 'opacity-100' : 'opacity-0')}
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => onRemove(s)}

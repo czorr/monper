@@ -1,3 +1,4 @@
+import { t as tr, useLocale } from '@renderer/lib/i18n'
 import type { JSX } from 'react'
 import type { UpdateState } from '@shared/types'
 import IconRefresh from '~icons/tabler/refresh'
@@ -25,6 +26,7 @@ interface Props {
  * Cuando no hay nada que hacer, no se renderiza.
  */
 export default function UpdatePill({ state, onDownload, onInstall }: Props): JSX.Element | null {
+  useLocale()
   if (!state.available && !state.downloading) return null
 
   const base =
@@ -40,7 +42,7 @@ export default function UpdatePill({ state, onDownload, onInstall }: Props): JSX
     return (
       <button
         onClick={onDownload}
-        title={`La actualización falló: ${state.error}`}
+        title={tr("La actualización falló: {0}", state.error)}
         className={
           'flex items-center justify-center gap-1.5 h-6 pl-2 pr-2.5 rounded-full shrink-0 ' +
           'bg-amber-400/15 text-amber-300 border border-amber-400/25 ' +
@@ -50,15 +52,14 @@ export default function UpdatePill({ state, onDownload, onInstall }: Props): JSX
         }
       >
         <IconAlert />
-        Reintentar
-      </button>
+        {tr("Reintentar")} </button>
     )
   }
 
   if (state.downloading) {
     return (
       <span
-        title={`Descargando la actualización… ${state.percent}%`}
+        title={tr("Descargando la actualización… {0}%", state.percent)}
         className={`${base} px-1.5 tabular-nums cursor-default`}
       >
         <IconLoader className="animate-spin" />
@@ -71,23 +72,21 @@ export default function UpdatePill({ state, onDownload, onInstall }: Props): JSX
     return (
       <button
         onClick={onInstall}
-        title={`Reiniciar Titanio para instalar la versión ${state.version ?? ''}`}
+        title={tr("Reiniciar Titanio para instalar la versión {0}", state.version ?? '')}
         className={`${base} ${hover} pl-2 pr-2.5`}
       >
         <IconRefresh />
-        Reiniciar
-      </button>
+        {tr("Reiniciar")} </button>
     )
   }
 
   return (
     <button
       onClick={onDownload}
-      title={`Descargar la versión ${state.version ?? ''}`}
+      title={tr("Descargar la versión {0}", state.version ?? '')}
       className={`${base} ${hover} pl-2 pr-2.5`}
     >
       <IconArrowDown />
-      Actualizar
-    </button>
+      {tr("Actualizar")} </button>
   )
 }

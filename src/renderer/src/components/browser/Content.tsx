@@ -1,3 +1,4 @@
+import { t as tr, useLocale } from '@renderer/lib/i18n'
 import { useEffect, useRef, type JSX, type ReactNode } from 'react'
 import TitanioLogo from '@renderer/components/ui/TitanioLogo'
 
@@ -25,6 +26,7 @@ interface Props {
  * "flotante" lo da el topbar, que al ser DOM sí redondea limpio.
  */
 export default function Content({ leftInset, rightInset, pageColor, controlling, onTakeOver, children }: Props): JSX.Element {
+  useLocale()
   const box = useRef<HTMLDivElement>(null)
 
   /**
@@ -75,14 +77,13 @@ export default function Content({ leftInset, rightInset, pageColor, controlling,
         <div className="absolute left-0 right-0 bottom-0 h-10 flex items-center justify-center gap-3 px-4 text-[12.5px] text-text-dim">
           <span className="flex items-center gap-2">
             <TitanioLogo height={14} />
-            <span>is controlling this tab</span>
+            <span>{tr("is controlling this tab")}</span>
           </span>
           <button
             onClick={onTakeOver}
             className="px-2.5 py-1 rounded-lg text-[12.5px] font-medium text-text bg-white/[0.08] hover:bg-white/[0.14] transition-colors"
           >
-            Take over
-          </button>
+            {tr("Take over")} </button>
         </div>
       )}
     </div>

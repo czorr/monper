@@ -47,6 +47,10 @@ async function setup() {
     './mcp/client': synthetic({ mcpCapabilities: () => new Set() })
   }
   const source = fs.readFileSync(path.join(__dirname, '../src/main/skills.ts'), 'utf8')
+  const messages = new SourceTextModule(stripTypeScriptTypes(fs.readFileSync(path.join(__dirname, '../src/shared/locales/messages.ts'), 'utf8')))
+  const i18n = new SourceTextModule(stripTypeScriptTypes(fs.readFileSync(path.join(__dirname, '../src/shared/i18n.ts'), 'utf8')))
+  await i18n.link(() => messages)
+  mocks['../shared/i18n'] = i18n
   const module = new SourceTextModule(stripTypeScriptTypes(source))
   await module.link((name) => mocks[name])
   await module.evaluate()
@@ -66,6 +70,22 @@ test('editar una skill oficial crea una copia local y conserva el original y los
   assert.equal(result.builtin, true)
   assert.equal(result.customized, true)
   assert.equal(skills.listSkills().length, 1)
+})
+
+test('Titanio App encabeza la lista y el catálogo del agente incluso personalizada, pero respeta la desactivación', async () => {
+  const { skills, files } = await setup()
+  const official = fs.readFileSync(path.join(__dirname, '../resources/skills/titanio-app/SKILL.md'), 'utf8')
+  files.set('/app/resources/skills/titanio-app/SKILL.md', official)
+  files.set('/app/resources/skills/aaa/SKILL.md', ORIGINAL.replace('name: Example', 'name: AAA'))
+  assert.equal(skills.listSkills()[0].id, 'titanio-app')
+  assert.equal(skills.enabledSkills()[0].name, 'Titanio App')
+  assert.equal(skills.listSkills()[0].available, true)
+  skills.saveSkill('titanio-app', official.replace('name: Titanio App', 'name: Z Custom'), official)
+  assert.equal(skills.enabledSkills()[0].name, 'Z Custom')
+  assert.deepEqual([...skills.listSkills()].map((skill) => skill.id), ['titanio-app', 'aaa', 'example'])
+  skills.toggleSkill('titanio-app', false)
+  assert.equal(skills.listSkills()[0].id, 'titanio-app')
+  assert.equal(skills.enabledSkills().some((skill) => skill.id === 'titanio-app'), false)
 })
 
 test('el agente usa la edición y la conserva al reinicializar skills', async () => {

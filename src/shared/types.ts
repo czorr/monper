@@ -1,4 +1,5 @@
 import type { VaultItemMeta, VaultItemType } from './vault'
+import { t } from './i18n'
 
 export interface TabInfo {
   pinnedTitanio?: boolean
@@ -191,9 +192,9 @@ export const MODELS: Record<ProviderKind, ModelOption[]> = {
 
 export type Effort = 'low' | 'medium' | 'high'
 export const EFFORTS: { id: Effort; name: string }[] = [
-  { id: 'low', name: 'Low' },
-  { id: 'medium', name: 'Medium' },
-  { id: 'high', name: 'High' }
+  { id: 'low', get name() { return t('Low') } },
+  { id: 'medium', get name() { return t('Medium') } },
+  { id: 'high', get name() { return t('High') } }
 ]
 
 /** Contexto del chat que ve el composer: proveedor activo, modelos, modelo y effort */

@@ -1,3 +1,4 @@
+import { t as tr, useLocale } from '@renderer/lib/i18n'
 import { useCallback, useEffect, useState, type JSX } from 'react'
 import type { NodoMemoriaInfo } from '@shared/types'
 import ReactMarkdown from 'react-markdown'
@@ -26,6 +27,7 @@ const { titanioTab } = window
 function Nodo({ n, nivel, sel, onSel, onBorrar }: {
   n: NodoMemoriaInfo; nivel: number; sel: string; onSel: (p: string) => void; onBorrar: (p: string) => void
 }): JSX.Element {
+  useLocale()
   const [abierta, setAbierta] = useState(true)
   const sangria = { paddingLeft: 8 + nivel * 14 }
 
@@ -62,7 +64,7 @@ function Nodo({ n, nivel, sel, onSel, onBorrar }: {
       {/* MEMORY.md no se borra: es la raíz del índice. Vaciarlo sí, editándolo. */}
       {n.path !== 'MEMORY.md' && (
         <Button
-          title="Borrar"
+          title={tr("Borrar")}
           onClick={() => onBorrar(n.path)}
           className="absolute right-1.5 top-1/2 -translate-y-1/2 hidden group-hover:grid place-items-center w-6 h-6 rounded-md text-text-faint hover:text-red-400 hover:bg-red-500/15"
         >
@@ -74,6 +76,7 @@ function Nodo({ n, nivel, sel, onSel, onBorrar }: {
 }
 
 export default function MemorySection(): JSX.Element {
+  useLocale()
   const [arbol, setArbol] = useState<NodoMemoriaInfo[]>([])
   const [enabled, setEnabled] = useState(true)
   /** '' = la subpágina de ajustes; si no, la ruta del fichero abierto. */
@@ -118,10 +121,10 @@ export default function MemorySection(): JSX.Element {
       {/* Columna de la sección: sus ajustes y sus ficheros */}
       <div className="w-[268px] shrink-0 border-r border-white/[0.06] flex flex-col">
         <div className="flex items-center justify-between px-3.5 h-12 shrink-0">
-          <span className="text-[15px] font-semibold">Memory</span>
+          <span className="text-[15px] font-semibold">{tr("Memory")}</span>
           <Button
             onClick={() => titanioTab.memoryOpenFolder()}
-            title="Abrir la carpeta de memoria en Finder"
+            title={tr("Abrir la carpeta de memoria en Finder")}
             className="w-7 h-7 grid place-items-center rounded-md text-text-faint hover:text-text hover:bg-white/[0.06] transition-colors [&>svg]:w-[17px] [&>svg]:h-[17px]"
           >
             <IconFolder />
@@ -131,7 +134,7 @@ export default function MemorySection(): JSX.Element {
         <div className="px-2">
           <Button onClick={() => setSel('')} className={navRow(!sel)}>
             <IconSettings />
-            <span className="flex-1 text-left">Settings</span>
+            <span className="flex-1 text-left">{tr("Settings")}</span>
           </Button>
         </div>
 
@@ -139,7 +142,7 @@ export default function MemorySection(): JSX.Element {
 
         <div className="flex-1 overflow-y-auto px-2 pb-3 [&::-webkit-scrollbar]:w-0">
           {arbol.length === 0
-            ? <div className="px-2 py-2 text-[12.5px] text-text-faint">Sin ficheros todavía.</div>
+            ? <div className="px-2 py-2 text-[12.5px] text-text-faint">{tr("Sin ficheros todavía.")}</div>
             : arbol.map((n) => (
                 <Nodo key={n.path} n={n} nivel={0} sel={sel} onSel={setSel} onBorrar={(p) => void borrar(p)} />
               ))}
@@ -150,39 +153,35 @@ export default function MemorySection(): JSX.Element {
       <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-0">
         {!sel ? (
           <SettingsContent>
-            <SettingsHeader title="Memory" description="Consulta y edita las notas que el agente guarda entre sesiones." />
+            <SettingsHeader title={tr("Memory")} description={tr("Consulta y edita las notas que el agente guarda entre sesiones.")} />
 
-            <h2 className="mt-9 mb-3 text-[15px] font-semibold">Ajustes</h2>
+            <h2 className="mt-9 mb-3 text-[15px] font-semibold">{tr("Ajustes")}</h2>
             <div className="rounded-2xl border border-border overflow-hidden">
               <div className="flex items-center gap-3 px-4 h-16">
                 <div className="flex-1 min-w-0">
-                  <div className="text-[13.5px] text-text">Activar memoria</div>
+                  <div className="text-[13.5px] text-text">{tr("Activar memoria")}</div>
                   <div className="text-[12.5px] text-text-dim">
-                    Permite que el agente guarde y consulte estas notas.
-                  </div>
+                    {tr("Permite que el agente guarde y consulte estas notas.")} </div>
                 </div>
                 <Toggle on={enabled} onChange={(v) => { void titanioTab.memoryEnabled(v).then(setEnabled) }} />
               </div>
             </div>
 
             <p className="mt-4 text-[12.5px] text-text-faint leading-relaxed">
-              El agente recibe <code className="px-1 py-0.5 rounded bg-white/[0.07] text-[12px]">MEMORY.md</code> con
-              cada mensaje y consulta las demás notas cuando las necesita.
-            </p>
+              {tr("El agente recibe")} <code className="px-1 py-0.5 rounded bg-white/[0.07] text-[12px]">MEMORY.md</code> {tr("con cada mensaje y consulta las demás notas cuando las necesita.")} </p>
           </SettingsContent>
         ) : (
           <SettingsContent>
             <SettingsHeader title={sel} actions={editando ? (
                   <>
-                    <Button variant="ghost" size="sm" onClick={() => setEditando(false)}>Cancelar</Button>
-                    <Button variant="primary" size="sm" onClick={() => void guardar()}>Guardar</Button>
+                    <Button variant="ghost" size="sm" onClick={() => setEditando(false)}>{tr("Cancelar")}</Button>
+                    <Button variant="primary" size="sm" onClick={() => void guardar()}>{tr("Guardar")}</Button>
                   </>
                 ) : (
                   <Button variant="secondary" size="sm"
                     onClick={() => { setBorrador(texto ?? ''); setEditando(true) }}
                   >
-                    Editar
-                  </Button>
+                    {tr("Editar")} </Button>
                 )}
             />
 
@@ -195,7 +194,7 @@ export default function MemorySection(): JSX.Element {
                 className="w-full h-[calc(100vh-220px)] p-4 rounded-xl bg-[#0d0d10] border border-white/[0.06] outline-none text-[12.5px] font-mono leading-relaxed text-text resize-none"
               />
             ) : texto === null ? (
-              <div className="text-[13px] text-text-dim">Este fichero ya no está.</div>
+              <div className="text-[13px] text-text-dim">{tr("Este fichero ya no está.")}</div>
             ) : (
               <div className="max-w-[760px]">
                 <ReactMarkdown remarkPlugins={[remarkGfm]} components={MD_COMPONENTS}>{texto}</ReactMarkdown>

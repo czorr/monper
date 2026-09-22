@@ -1,3 +1,4 @@
+import './language'
 import { contextBridge, ipcRenderer } from 'electron'
 import type { ProfileMenuWinApi, DatosMenuPerfil } from '../shared/types'
 

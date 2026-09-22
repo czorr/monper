@@ -1,3 +1,4 @@
+import { t as tr, useLocale } from '@renderer/lib/i18n'
 import { useEffect, useState, type JSX } from 'react'
 import type { Routine } from '@shared/types'
 import IconPlus from '~icons/tabler/plus'
@@ -9,22 +10,23 @@ import { SettingsHeader, Button, Toggle } from './ui'
 const { titanioTab } = window
 
 const PRESETS = [
-  { label: 'Cada 15 min', minutes: 15 },
-  { label: 'Cada hora', minutes: 60 },
-  { label: 'Cada 6 horas', minutes: 360 },
-  { label: 'Una vez al día', minutes: 1440 }
+  { get label() { return tr("Cada 15 min") }, minutes: 15 },
+  { get label() { return tr("Cada hora") }, minutes: 60 },
+  { get label() { return tr("Cada 6 horas") }, minutes: 360 },
+  { get label() { return tr("Una vez al día") }, minutes: 1440 }
 ]
 
 function ago(ts: number): string {
   if (!ts) return 'nunca'
   const m = Math.round((Date.now() - ts) / 60000)
-  if (m < 1) return 'hace un momento'
-  if (m < 60) return `hace ${m} min`
+  if (m < 1) return tr("hace un momento")
+  if (m < 60) return tr("hace {0} min", m)
   const h = Math.round(m / 60)
-  return h < 24 ? `hace ${h} h` : `hace ${Math.round(h / 24)} d`
+  return h < 24 ? tr("hace {0} h", h) : tr("hace {0} d", Math.round(h / 24))
 }
 
 function Row({ r }: { r: Routine }): JSX.Element {
+  useLocale()
   return (
     <div className="group flex items-center gap-3 px-4 py-3 rounded-xl bg-white/[0.03] hover:bg-white/[0.05]">
       <div className="flex-1 min-w-0">
@@ -33,21 +35,21 @@ function Row({ r }: { r: Routine }): JSX.Element {
           {r.lastError && <IconAlert className="w-3.5 h-3.5 text-amber-400 shrink-0" />}
         </div>
         <div className="text-[12.5px] text-text-faint truncate">
-          {r.lastValue ? `Ahora: ${r.lastValue}` : 'Sin lectura todavía'}
-          <span> · revisado {ago(r.lastRun)}</span>
+          {r.lastValue ? tr("Ahora: {0}", r.lastValue) : tr("Sin lectura todavía")}
+          <span> {tr("· revisado")} {ago(r.lastRun)}</span>
           {r.lastError && <span className="text-amber-400/80"> · {r.lastError}</span>}
         </div>
       </div>
       <Button
         onClick={() => titanioTab.runRoutine(r.id)}
-        title="Revisar ahora"
+        title={tr("Revisar ahora")}
         className="w-8 h-8 grid place-items-center rounded-lg text-text-faint hover:text-text hover:bg-white/[0.08] opacity-0 group-hover:opacity-100 [&>svg]:w-4 [&>svg]:h-4"
       >
         <IconRefresh />
       </Button>
       <Button
         onClick={() => titanioTab.removeRoutine(r.id)}
-        title="Eliminar"
+        title={tr("Eliminar")}
         className="w-8 h-8 grid place-items-center rounded-lg text-text-faint hover:text-red-400 hover:bg-white/[0.08] opacity-0 group-hover:opacity-100 [&>svg]:w-4 [&>svg]:h-4"
       >
         <IconTrash />
@@ -58,6 +60,7 @@ function Row({ r }: { r: Routine }): JSX.Element {
 }
 
 export default function RoutinesSection(): JSX.Element {
+  useLocale()
   const [list, setList] = useState<Routine[]>([])
   const [creating, setCreating] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -72,7 +75,7 @@ export default function RoutinesSection(): JSX.Element {
     setBusy(true); setError('')
     const r = await titanioTab.createRoutine({ url: url.trim(), request: request.trim(), minutes })
     setBusy(false)
-    if (!r.ok) { setError(r.error || 'No se pudo crear.'); return }
+    if (!r.ok) { setError(r.error || tr("No se pudo crear.")); return }
     setCreating(false); setUrl(''); setRequest('')
   }
 
@@ -81,25 +84,24 @@ export default function RoutinesSection(): JSX.Element {
   return (
     <>
       <SettingsHeader
-        title="Rutinas"
-        description="Programa revisiones de una página y recibe un aviso cuando se cumpla tu condición. Titanio usa tu sesión iniciada."
+        title={tr("Rutinas")}
+        description={tr("Programa revisiones de una página y recibe un aviso cuando se cumpla tu condición. Titanio usa tu sesión iniciada.")}
         actions={!creating && (
           <Button variant="secondary" size="sm"
             onClick={() => setCreating(true)}
           >
-            <IconPlus /> Nueva
-          </Button>
+            <IconPlus /> {tr("Nueva")} </Button>
         )}
       />
 
       {creating && (
         <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 flex flex-col gap-3 mb-6">
-          <input className={input} value={url} onChange={(e) => setUrl(e.target.value)} placeholder="Página a vigilar (https://…)" />
+          <input className={input} value={url} onChange={(e) => setUrl(e.target.value)} placeholder={tr("Página a vigilar (https://…)")} />
           <input
             className={input}
             value={request}
             onChange={(e) => setRequest(e.target.value)}
-            placeholder="Avísame cuando… (p. ej. el precio baje de 8000)"
+            placeholder={tr("Avísame cuando… (p. ej. el precio baje de 8000)")}
           />
           <div className="flex flex-wrap gap-1.5">
             {PRESETS.map((p) => (
@@ -118,11 +120,10 @@ export default function RoutinesSection(): JSX.Element {
               onClick={create}
               disabled={busy || !url.trim() || !request.trim()}
             >
-              {busy ? 'Analizando la página…' : 'Crear rutina'}
+              {busy ? tr("Analizando la página…") : tr("Crear rutina")}
             </Button>
             <Button variant="ghost" size="md" onClick={() => { setCreating(false); setError('') }}>
-              Cancelar
-            </Button>
+              {tr("Cancelar")} </Button>
           </div>
         </div>
       )}
@@ -131,8 +132,7 @@ export default function RoutinesSection(): JSX.Element {
         {list.map((r) => <Row key={r.id} r={r} />)}
         {list.length === 0 && !creating && (
           <div className="text-[13.5px] text-text-faint py-10 text-center">
-            No hay rutinas guardadas.
-          </div>
+            {tr("No hay rutinas guardadas.")} </div>
         )}
       </div>
     </>

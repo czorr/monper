@@ -1,5 +1,5 @@
 import type { JSX } from 'react'
-import { ThinkingOrb } from 'thinking-orbs'
+import { t as tr, useLocale } from '@renderer/lib/i18n'
 import type { Msg, TextPart } from './types'
 import { Markdown } from './Markdown'
 import StepRow from './StepRow'
@@ -16,6 +16,7 @@ function plainText(msg: Msg): string {
 
 /** Turno del asistente: secuencia intercalada de texto (Markdown) y acciones (steps). */
 export default function AssistantTurn({ msg }: { msg: Msg }): JSX.Element {
+  useLocale()
   const parts = msg.parts ?? []
   const lastIdx = parts.length - 1
   const text = plainText(msg)
@@ -32,13 +33,14 @@ export default function AssistantTurn({ msg }: { msg: Msg }): JSX.Element {
         ) : p.type === 'fail' ? (
           <FailBlock key={i} fail={p.fail} />
         ) : (
-          // Un step está activo (orb animado) si es la última parte y aún estamos en streaming.
+          // El último paso mantiene el brillo mientras el turno sigue en streaming.
           <StepRow key={i} step={p.step} active={!!msg.streaming && i === lastIdx} />
         )
       )}
 
-      {/* Aún sin ninguna parte: orb inicial mientras el agente arranca. */}
-      {msg.streaming && parts.length === 0 && <ThinkingOrb state="working" size={20} theme="dark" />}
+      {msg.streaming && parts.length === 0 && (
+        <span role="status" className="chat-step-shimmer self-start text-[13px] text-text">{tr("Pensando…")}</span>
+      )}
 
       {/* Acciones (copiar / leer / hora): solo cuando el turno terminó y hay texto. */}
       {!msg.streaming && text && <MessageActions text={text} at={msg.at} />}

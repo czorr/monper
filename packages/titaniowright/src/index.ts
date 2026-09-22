@@ -15,5 +15,5 @@ export type {
   Screenshot
 } from './transport'
 
-// El adaptador de Electron vive en el subpath "monperwright/electron" para no
+// El adaptador de Electron vive en el subpath "titaniowright/electron" para no
 // exigir Electron a quien use un transport propio (CDP, socket, etc.).

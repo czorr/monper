@@ -1,3 +1,4 @@
+import { t as tr } from '../shared/i18n'
 import { app, dialog, Notification, type BrowserWindow } from 'electron'
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -50,8 +51,8 @@ function why(e: unknown): string {
 
 function readyNotification(version: string | null): void {
   const n = new Notification({
-    title: 'Monper está listo para actualizarse',
-    body: `Versión ${version ?? ''}. Click para reiniciar e instalar.`
+    title: tr("Titanio está listo para actualizarse"),
+    body: tr("Versión {0}. Click para reiniciar e instalar.", version ?? '')
   })
   n.on('click', () => installUpdate())
   n.show()
@@ -103,8 +104,8 @@ export async function checkForUpdates(manual = false, win?: BrowserWindow | null
     if (manual && win) {
       dialog.showMessageBox(win, {
         type: 'info', buttons: ['OK'],
-        message: 'Sin actualizaciones en desarrollo',
-        detail: 'Solo funcionan en la app empaquetada, o con MONPER_UPDATE_FEED apuntando a un feed de prueba.'
+        message: tr("Sin actualizaciones en desarrollo"),
+        detail: tr("Solo funcionan en la app empaquetada, o con MONPER_UPDATE_FEED apuntando a un feed de prueba.")
       })
     }
     return

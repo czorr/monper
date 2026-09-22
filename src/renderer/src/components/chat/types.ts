@@ -1,8 +1,5 @@
 import type { ChatStep, ChatAttachment, ChatFallo } from '@shared/types'
 
-/** Estados válidos del ThinkingOrb usados en el chat */
-export type OrbState = 'working' | 'searching' | 'listening' | 'composing' | 'solving' | 'shaping'
-
 /** Un fragmento de texto del asistente (entre acciones) */
 export interface TextPart {
   type: 'text'

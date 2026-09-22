@@ -1,0 +1,287 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "vllm": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "vLLM (Gemma 4)",
+      "options": {
+        "baseURL": "https://ai.titanio.ai/openai/v1",
+        "apiKey": "{env:VLLM_API_KEY}",
+      },
+      "models": {
+        "gemma-4-26b-a4b-it": {
+          "name": "Gemma 4 26B-A4B IT",
+          "limit": {
+            "context": 131072,
+            "output": 8192,
+          },
+          "variants": {
+            "thinking": {
+              "chat_template_kwargs": { "enable_thinking": true },
+            },
+            "fast": {
+              "chat_template_kwargs": { "enable_thinking": false },
+            },
+          },
+        },
+      },
+    },
+    "azure": {
+      "options": {
+        "baseURL": "https://ais-titanio-sys-eastus-dev.cognitiveservices.azure.com/openai/v1",
+        "chunkTimeout": 600000,
+        "timeout": 1200000,
+      },
+      "models": {
+        "gpt-6-astra": {
+          "attachment": true,
+          "id": "gpt-6-astra-2026-09-03",
+          "modalities": { "input": ["text", "image"], "output": ["text"] },
+          "name": "GPT-6 Astra",
+          "variants": {
+            "low": {
+              "reasoningEffort": "low",
+              "reasoningSummary": "auto",
+              "include": ["reasoning.encrypted_content"],
+            },
+            "medium": {
+              "reasoningEffort": "medium",
+              "reasoningSummary": "auto",
+              "include": ["reasoning.encrypted_content"],
+            },
+            "high": {
+              "reasoningEffort": "high",
+              "reasoningSummary": "auto",
+              "include": ["reasoning.encrypted_content"],
+            },
+            "xhigh": {
+              "reasoningEffort": "xhigh",
+              "reasoningSummary": "auto",
+              "include": ["reasoning.encrypted_content"],
+            },
+            "max": {
+              "reasoningEffort": "max",
+              "reasoningSummary": "auto",
+              "include": ["reasoning.encrypted_content"],
+            },
+          },
+        },
+        "gpt-5.6-sol": {
+          "attachment": true,
+          "id": "gpt-5.6-sol-2026-07-09",
+          "modalities": { "input": ["text", "image"], "output": ["text"] },
+          "name": "GPT-5.6 Sol",
+          // opencode1 replaces the catalog entry instead of merging it, which drops the
+          // reasoning variants.
+          "variants": {
+            "none": {
+              "reasoningEffort": "none",
+              "reasoningSummary": "auto",
+              "include": ["reasoning.encrypted_content"],
+            },
+            "low": {
+              "reasoningEffort": "low",
+              "reasoningSummary": "auto",
+              "include": ["reasoning.encrypted_content"],
+            },
+            "medium": {
+              "reasoningEffort": "medium",
+              "reasoningSummary": "auto",
+              "include": ["reasoning.encrypted_content"],
+            },
+            "high": {
+              "reasoningEffort": "high",
+              "reasoningSummary": "auto",
+              "include": ["reasoning.encrypted_content"],
+            },
+            "xhigh": {
+              "reasoningEffort": "xhigh",
+              "reasoningSummary": "auto",
+              "include": ["reasoning.encrypted_content"],
+            },
+            "max": {
+              "reasoningEffort": "max",
+              "reasoningSummary": "auto",
+              "include": ["reasoning.encrypted_content"],
+            },
+          },
+        },
+        "gpt-5.6-luna": {
+          "attachment": true,
+          "id": "gpt-5.6-luna-2026-07-09",
+          "modalities": { "input": ["text", "image"], "output": ["text"] },
+          "name": "GPT-5.6 Luna",
+          "variants": {
+            "none": {
+              "reasoningEffort": "none",
+              "reasoningSummary": "auto",
+              "include": ["reasoning.encrypted_content"],
+            },
+            "low": {
+              "reasoningEffort": "low",
+              "reasoningSummary": "auto",
+              "include": ["reasoning.encrypted_content"],
+            },
+            "medium": {
+              "reasoningEffort": "medium",
+              "reasoningSummary": "auto",
+              "include": ["reasoning.encrypted_content"],
+            },
+            "high": {
+              "reasoningEffort": "high",
+              "reasoningSummary": "auto",
+              "include": ["reasoning.encrypted_content"],
+            },
+            "xhigh": {
+              "reasoningEffort": "xhigh",
+              "reasoningSummary": "auto",
+              "include": ["reasoning.encrypted_content"],
+            },
+            "max": {
+              "reasoningEffort": "max",
+              "reasoningSummary": "auto",
+              "include": ["reasoning.encrypted_content"],
+            },
+          },
+        },
+        "claude-opus-5": {
+          "id": "claude-opus-5-2",
+          "name": "Claude Opus 5",
+          "modalities": { "input": ["text", "image"], "output": ["text"] },
+          "options": {
+            "baseURL": "https://ais-titanio-sys-eastus-dev.cognitiveservices.azure.com/anthropic/v1",
+            "chunkTimeout": 600000,
+            "timeout": 1200000,
+          },
+          "variants": {
+            "low": {
+              "thinking": { "type": "adaptive", "display": "summarized" },
+              "effort": "low",
+            },
+            "medium": {
+              "thinking": { "type": "adaptive", "display": "summarized" },
+              "effort": "medium",
+            },
+            "high": {
+              "thinking": { "type": "adaptive", "display": "summarized" },
+              "effort": "high",
+            },
+            "xhigh": {
+              "thinking": { "type": "adaptive", "display": "summarized" },
+              "effort": "xhigh",
+            },
+            "max": {
+              "thinking": { "type": "adaptive", "display": "summarized" },
+              "effort": "max",
+            },
+          },
+        },
+      },
+    },
+    // required for opencode1. sdk baseURL is mapped to `/responses`, there is no
+    // override functionality
+    "azure-anthropic": {
+      "name": "Azure Anthropic",
+      "npm": "@ai-sdk/anthropic",
+      "options": {
+        "baseURL": "https://ais-titanio-sys-eastus-dev.cognitiveservices.azure.com/anthropic/v1",
+        "chunkTimeout": 600000,
+        "timeout": 1200000,
+      },
+      "models": {
+        "claude-opus-5": {
+          "attachment": true,
+          "id": "claude-opus-5-2",
+          "modalities": { "input": ["text", "image"], "output": ["text"] },
+          "name": "Claude Opus 5",
+          "variants": {
+            "low": {
+              "thinking": { "type": "adaptive", "display": "summarized" },
+              "effort": "low",
+            },
+            "medium": {
+              "thinking": { "type": "adaptive", "display": "summarized" },
+              "effort": "medium",
+            },
+            "high": {
+              "thinking": { "type": "adaptive", "display": "summarized" },
+              "effort": "high",
+            },
+            "xhigh": {
+              "thinking": { "type": "adaptive", "display": "summarized" },
+              "effort": "xhigh",
+            },
+            "max": {
+              "thinking": { "type": "adaptive", "display": "summarized" },
+              "effort": "max",
+            },
+          },
+        },
+      },
+    },
+  },
+  "mcp": {
+    "better-auth": {
+      "enabled": false,
+      "type": "remote",
+      "url": "https://mcp.better-auth.com/mcp",
+    },
+    "cloudflare": {
+      "enabled": false,
+      "type": "remote",
+      "url": "https://docs.mcp.cloudflare.com/mcp",
+    },
+    "fastmcp": {
+      "enabled": false,
+      "type": "remote",
+      "url": "https://gofastmcp.com/mcp",
+    },
+    "langgraph": {
+      "enabled": false,
+      "type": "remote",
+      "url": "https://docs.langchain.com/mcp",
+    },
+    "langsmith": {
+      "enabled": false,
+      "type": "remote",
+      "url": "https://api.smith.langchain.com/mcp",
+    },
+    "opentofu": {
+      "enabled": false,
+      "type": "remote",
+      "url": "https://mcp.opentofu.org/mcp",
+    },
+    "retell": {
+      "enabled": false,
+      "headers": {
+        "Authorization": "Bearer {env:RETELL_API_KEY}",
+      },
+      "oauth": false,
+      "type": "remote",
+      "url": "https://mcp.retellai.com",
+    },
+    "titanio": {
+      "enabled": false,
+      "type": "remote",
+      "url": "https://api.titanio.ai/mcp",
+    },
+    "titanio-dev": {
+      "enabled": true,
+      "type": "remote",
+      "url": "https://api.titanio.dev/mcp",
+    },
+  },
+  "permission": {
+    "read": {
+      "*": "allow",
+      "*.env": "deny",
+      "*.env.*": "deny",
+      "*.env.example": "allow",
+      "*.tfvars": "deny",
+      "*.tfvars.json": "deny",
+      "*.tfvars.example": "allow",
+      "*apps.googleusercontent.com.json": "deny",
+      "example.apps.googleusercontent.com.json": "allow",
+    },
+  },
+}

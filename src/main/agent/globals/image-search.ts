@@ -1,4 +1,4 @@
-import type { Page } from '../../../../packages/monperwright/src'
+import type { Page } from '../../../../packages/titaniowright/src'
 
 /** Búsqueda de imágenes en Google (srcs de los thumbnails). */
 export function makeImageSearch(page: Page) {

@@ -1,6 +1,6 @@
 import type { AIProvider, ChatMessage, Effort } from '../../shared/types'
 
-const SYSTEM = 'Eres Monper, un asistente dentro de un navegador. Responde de forma clara y concisa en el idioma del usuario.'
+const SYSTEM = 'Eres Titanio, un asistente dentro de un navegador. Responde de forma clara y concisa en el idioma del usuario.'
 
 interface StreamHandlers {
   onDelta: (text: string) => void

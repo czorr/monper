@@ -1,7 +1,7 @@
 # Incógnito y perfiles
 
 Las dos son la misma pieza: **en qué sesión de Chromium vive una ventana**. Hasta agosto de 2026
-eso era una constante (`PARTITION = 'persist:monper'`) repetida en seis sitios. Ahora vive en
+eso era una constante (`PARTITION = 'persist:titanio'`) repetida en seis sitios. Ahora vive en
 [`src/main/particiones.ts`](../src/main/particiones.ts) y cuelga de la ventana
 (`Ventana.particion`, `Ventana.incognito`).
 
@@ -9,15 +9,16 @@ eso era una constante (`PARTITION = 'persist:monper'`) repetida en seis sitios. 
 
 - **Un solo perfil activo en toda la app**, no uno por ventana. Cambiar de perfil recarga todo.
 - **Alcance a lo Chrome**: separado por perfil serán cookies/sesión web, historial, marcadores,
-  descargas, favicons y permisos. Compartidos: el vault, los ajustes de la app, los chats del
-  agente y el consumo/billing. El vault sigue siendo una sola caja fuerte del Mac.
+  descargas, favicons y permisos. Desde la personalización de septiembre de 2026 también
+  apariencia, navegación y preferencias del agente. Compartidos: el vault, las conexiones
+  de IA, los chats y el consumo/billing.
 - Incógnito primero, porque es el mismo mecanismo y se puede probar entero.
 
 ## Incógnito: qué lo hace incógnito
 
 Dos capas, y **hacen falta las dos**:
 
-1. **La partición no persiste.** `monper-incognito`, sin el prefijo `persist:`. Chromium tira
+1. **La partición no persiste.** `titanio-incognito`, sin el prefijo `persist:`. Chromium tira
    cookies, localStorage, IndexedDB y caché al morir el proceso, los borre alguien o no. Sin
    esto, no escribir nuestros JSON no serviría de nada: la cookie del banco seguiría ahí mañana.
 2. **No se escribe nada nuestro**: ni `recordVisit`/`updateMeta` (historial), ni
@@ -30,7 +31,7 @@ suya, hacer login y abrir el sitio en otra ventana de incógnito volvería a ped
 ### `prepararSesion()`: la trampa que costó encontrar
 
 Todo lo que hace navegable una sesión —UA de Chrome, Client Hints, adblocker, permisos,
-`getDisplayMedia`, descargas— se enganchaba **una vez al arrancar**, sobre `persist:monper`. Una
+`getDisplayMedia`, descargas— se enganchaba **una vez al arrancar**, sobre `persist:titanio`. Una
 sesión nueva no hereda nada de eso: la primera ventana de incógnito navegaba **sin adblocker,
 diciendo ser Electron y con la pantalla compartida rechazada**. Por eso ese bloque es ahora
 `prepararSesion(particion, incognito)`, idempotente, y se llama al crear cada ventana.
@@ -69,8 +70,8 @@ verdad y contra los ficheros de disco, no contra botones. Dos cosas que aprendim
 ## Perfiles
 
 [`src/main/perfiles.ts`](../src/main/perfiles.ts). Por perfil van cookies/sesión web
-(`persist:monper-<id>`), historial, marcadores, favicons, permisos y las pestañas abiertas.
-Compartidos siguen el vault, los ajustes, los chats del agente y el consumo.
+(`persist:titanio-<id>`), historial, marcadores, favicons, permisos y las pestañas abiertas.
+Compartidos siguen el vault, las conexiones de IA, los chats del agente y el consumo.
 
 ### La decisión que se ahorró una migración entera
 
@@ -114,8 +115,34 @@ El primer intento no fue así: llamaba a `require('./perfiles.js')` dentro de `a
 ahí **no hay `require`**. La lección se repite (ya había pasado en `incognito.spec`): si algo
 merece tests de verdad, sácale la dependencia de Electron en vez de pelearte con el arnés.
 
-### Pendiente
+### Personalización por perfil (septiembre 2026)
 
-- Renombrar un perfil desde el menú (hoy solo el activo, por la vía de siempre en Settings).
-- Un "borrar también los datos" explícito.
-- Icono/color por perfil, para distinguirlos de un vistazo sin abrir el menú.
+General y el botón de configuración del perfil activo abren **Perfiles**. Allí se puede
+crear, renombrar, personalizar o quitar un perfil, sin tener que activarlo para editarlo.
+La foto, icono y color se reflejan en la tarjeta, el sidebar y el menú nativo.
+
+`perfiles.json` guarda `preferences`: color, icono, tinte del tema, inicio, nueva pestaña,
+buscador, instrucciones del agente, modelo predeterminado y habilitación de control del
+navegador, skills y MCP. Los temas usan el tinte existente; no cambian las capas ni esquinas
+de la vista nativa. El buscador seleccionado se aplica a la barra, sugerencias y menú de
+selección; Google solo recibe consultas de sugerencias cuando es el buscador elegido.
+
+`panels.json`, `chat.json`, `skills-enabled.json` y `mcp-servers.json` pasan por `rutaDePerfil`.
+La raíz sigue perteneciendo al perfil predeterminado y conserva su configuración anterior.
+Los perfiles nuevos parten de preferencias propias. La biblioteca de skills sigue siendo
+compartida; su activación es independiente. La configuración y activación de MCP se edita
+desde la sección MCP del perfil activo.
+
+Las instrucciones se incluyen al construir el agente. Las categorías desactivadas se
+retiran de las herramientas disponibles; MCP desactivado tampoco inicia sus servidores al
+enviar un mensaje. El modelo predeterminado identifica tanto la conexión como el modelo.
+Sin predeterminado, se recuerda la última selección de ese perfil.
+
+Al cambiar de perfil se guarda la sesión **antes** de activar el destino. La ruta de la
+sesión cargada queda fijada hasta cerrar el proceso para que `before-quit` no escriba las
+pestañas de origen en el destino. Los IDs nuevos tampoco reutilizan carpetas de perfiles
+retirados: conservar sus datos no debe hacer que reaparezcan en un perfil recién creado.
+
+`pnpm test:profiles` verifica migración, persistencia, aislamiento de rutas y modelos,
+buscadores y filtrado de herramientas sin abrir Electron. El borrado físico de datos
+continúa siendo una operación pendiente y separada.

@@ -1,3 +1,4 @@
+import { t as tr, useLocale } from '@renderer/lib/i18n'
 import { createRoot } from 'react-dom/client'
 import { useEffect, useState, type JSX } from 'react'
 import type { SigninCredential } from '@shared/types'
@@ -14,6 +15,7 @@ function hostOf(url: string): string {
 }
 
 function Row({ c }: { c: SigninCredential }): JSX.Element {
+  useLocale()
   const [broken, setBroken] = useState(false)
   // El favicon del sitio ya está cargado en la pestaña: pedirlo a Google le contaba a un
   // tercero en qué páginas guardas contraseñas. Si no hay, el candado.
@@ -37,6 +39,7 @@ function Row({ c }: { c: SigninCredential }): JSX.Element {
 }
 
 function SignIn(): JSX.Element {
+  useLocale()
   const [creds, setCreds] = useState<SigninCredential[]>([])
   useEffect(() => sg.onCredentials(setCreds), [])
 
@@ -45,10 +48,10 @@ function SignIn(): JSX.Element {
       <>
         <div className="flex items-center gap-2 px-1 pb-2.5">
           <IconKey className="w-[18px] h-[18px] text-text-dim shrink-0" />
-          <span className="flex-1 text-[15px] text-text-dim">Sign in with…</span>
+          <span className="flex-1 text-[15px] text-text-dim">{tr("Sign in with…")}</span>
           <button
             onClick={() => sg.dismiss()}
-            title="Cerrar"
+            title={tr("Cerrar")}
             className="w-5 h-5 grid place-items-center rounded-full bg-white/[0.10] text-text-dim hover:text-text hover:bg-white/[0.18] [&>svg]:w-3 [&>svg]:h-3"
           >
             <IconX />

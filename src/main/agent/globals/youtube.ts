@@ -1,4 +1,4 @@
-import type { Page } from '../../../../packages/monperwright/src'
+import type { Page } from '../../../../packages/titaniowright/src'
 import { decodeEntities } from './shared'
 
 function ytId(s: string): string | null {

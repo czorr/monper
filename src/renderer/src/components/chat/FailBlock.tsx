@@ -1,3 +1,4 @@
+import { t as tr, useLocale } from '@renderer/lib/i18n'
 import { useState, type JSX } from 'react'
 import type { ChatFallo } from '@shared/types'
 import IconKey from '~icons/tabler/key'
@@ -7,7 +8,7 @@ import IconCube from '~icons/tabler/cube'
 import IconWifiOff from '~icons/tabler/wifi-off'
 import IconServer from '~icons/tabler/server-bolt'
 import IconTextWrap from '~icons/tabler/text-wrap-disabled'
-import IconSpark from '~icons/tabler/sparkles'
+import IconPlug from '~icons/tabler/plug'
 import IconAlert from '~icons/tabler/alert-triangle'
 import IconChevron from '~icons/tabler/chevron-right'
 import IconExternal from '~icons/tabler/external-link'
@@ -21,7 +22,7 @@ const ICONO: Record<ChatFallo['tipo'], typeof IconKey> = {
   red: IconWifiOff,
   proveedor: IconServer,
   contexto: IconTextWrap,
-  'sin-proveedor': IconSpark,
+  'sin-proveedor': IconPlug,
   desconocido: IconAlert
 }
 
@@ -32,6 +33,7 @@ const ICONO: Record<ChatFallo['tipo'], typeof IconKey> = {
 const TEMPLADO: ChatFallo['tipo'][] = ['limite', 'red', 'proveedor']
 
 export default function FailBlock({ fail }: { fail: ChatFallo }): JSX.Element {
+  useLocale()
   const [abierto, setAbierto] = useState(false)
   const Icon = ICONO[fail.tipo] ?? IconAlert
   const suave = TEMPLADO.includes(fail.tipo)
@@ -40,8 +42,8 @@ export default function FailBlock({ fail }: { fail: ChatFallo }): JSX.Element {
 
   const actuar = (): void => {
     if (!fail.accion) return
-    if (fail.accion.kind === 'settings') window.monper.openSettings('ai')
-    else if (fail.accion.value) window.monper.go(fail.accion.value)
+    if (fail.accion.kind === 'settings') window.titanio.openSettings('ai')
+    else if (fail.accion.value) window.titanio.go(fail.accion.value)
   }
 
   return (
@@ -72,8 +74,7 @@ export default function FailBlock({ fail }: { fail: ChatFallo }): JSX.Element {
             className="flex items-center gap-1 h-7 px-1.5 rounded-lg text-[12px] text-text-faint hover:text-text-dim transition-colors"
           >
             <IconChevron className={'w-3 h-3 transition-transform duration-150 ' + (abierto ? 'rotate-90' : '')} />
-            Detalle técnico
-          </button>
+            {tr("Detalle técnico")} </button>
         )}
       </div>
 

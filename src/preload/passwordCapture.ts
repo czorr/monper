@@ -17,7 +17,11 @@ export function setupPasswordCapture(): void {
         'input[autocomplete=username], input[type=email], input[type=text], input[name*=user i], input[name*=email i]'
       )
     ).filter((el) => el.value)
-    return { username: cands[cands.length - 1]?.value || '', password: pw.value }
+    const user = cands.find((el) => el.autocomplete === 'username')
+      ?? cands.find((el) => el.type === 'email')
+      ?? cands.find((el) => /user|email/i.test(el.name))
+      ?? cands[cands.length - 1]
+    return { username: user?.value.trim() || '', password: pw.value }
   }
 
   const send = (): void => {

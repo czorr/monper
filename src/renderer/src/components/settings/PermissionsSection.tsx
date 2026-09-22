@@ -1,3 +1,4 @@
+import { t as tr, useLocale } from '@renderer/lib/i18n'
 import { useCallback, useEffect, useMemo, useState, type JSX } from 'react'
 import type { PermKey, PermSite, PermState } from '@shared/types'
 import IconCamera from '~icons/tabler/camera'
@@ -9,17 +10,17 @@ import IconLock from '~icons/tabler/lock-check'
 import IconWorld from '~icons/tabler/world'
 import IconSearch from '~icons/tabler/search'
 import IconChevron from '~icons/tabler/chevron-down'
-import { Card, Group, Toggle } from './ui'
+import { Card, Group, Toggle, SettingsHeader, Button } from './ui'
 
-const { monperTab } = window
+const { titanioTab } = window
 
 /** Las mismas etiquetas e iconos que el candado del sitio: es el mismo dato en otra vista. */
 const PERM: Record<PermKey, { label: string; Icon: typeof IconCamera }> = {
-  camera: { label: 'Cámara', Icon: IconCamera },
-  microphone: { label: 'Micrófono', Icon: IconMic },
-  geolocation: { label: 'Ubicación', Icon: IconMapPin },
-  notifications: { label: 'Notificaciones', Icon: IconBell },
-  clipboard: { label: 'Portapapeles', Icon: IconClipboard }
+  camera: { get label() { return tr("Cámara") }, Icon: IconCamera },
+  microphone: { get label() { return tr("Micrófono") }, Icon: IconMic },
+  geolocation: { get label() { return tr("Ubicación") }, Icon: IconMapPin },
+  notifications: { get label() { return tr("Notificaciones") }, Icon: IconBell },
+  clipboard: { get label() { return tr("Portapapeles") }, Icon: IconClipboard }
 }
 
 function prettyOrigin(origin: string): string {
@@ -34,6 +35,7 @@ function prettyOrigin(origin: string): string {
  * permiso sería filtrar justo esta lista. Ver docs/browser-hardening.md.
  */
 function SiteIcon({ src }: { src: string | null }): JSX.Element {
+  useLocale()
   const [roto, setRoto] = useState(false)
   return (
     <span className="w-7 h-7 rounded-lg grid place-items-center bg-white/[0.05] shrink-0 overflow-hidden">
@@ -48,7 +50,7 @@ function SiteIcon({ src }: { src: string | null }): JSX.Element {
 function resumen(site: PermSite): string {
   const nombres = site.perms.map((p) => PERM[p.key].label)
   if (nombres.length === 1) return nombres[0]
-  return `${nombres.slice(0, -1).join(', ')} y ${nombres[nombres.length - 1]}`
+  return tr("{0} y {1}", nombres.slice(0, -1).join(', '), nombres[nombres.length - 1])
 }
 
 function SiteRow({
@@ -64,6 +66,7 @@ function SiteRow({
   onSet: (key: PermKey, state: PermState) => void
   onForget: () => void
 }): JSX.Element {
+  useLocale()
   const bloqueados = site.perms.filter((p) => p.state === 'denied').length
   const permitidos = site.perms.length - bloqueados
 
@@ -71,21 +74,21 @@ function SiteRow({
     <div>
       {/* La cabecera entera abre y cierra. Los controles viven dentro, al desplegar, para que
           no haya nada que se pueda pulsar por error al ir a expandir. */}
-      <button onClick={onToggleOpen} className="flex items-center gap-3.5 w-full px-4 py-3 text-left hover:bg-white/[0.02] transition-colors">
+      <Button onClick={onToggleOpen} className="flex items-center gap-3.5 w-full px-4 py-3 text-left hover:bg-white/[0.02]">
         <SiteIcon src={site.favicon} />
         <div className="flex-1 min-w-0">
           <div className="text-[14px] text-text leading-tight truncate">{prettyOrigin(site.origin)}</div>
           <div className="text-[12.5px] text-text-dim mt-0.5 truncate">{resumen(site)}</div>
         </div>
         <span className="flex items-center gap-1.5 shrink-0 text-[12px] tabular-nums">
-          {permitidos > 0 && <span className="text-emerald-400/90">{permitidos} permitido{permitidos === 1 ? '' : 's'}</span>}
+          {permitidos > 0 && <span className="text-emerald-400/90">{permitidos} {tr("permitido")}{permitidos === 1 ? '' : 's'}</span>}
           {permitidos > 0 && bloqueados > 0 && <span className="text-text-faint">·</span>}
-          {bloqueados > 0 && <span className="text-text-faint">{bloqueados} bloqueado{bloqueados === 1 ? '' : 's'}</span>}
+          {bloqueados > 0 && <span className="text-text-faint">{bloqueados} {tr("bloqueado")}{bloqueados === 1 ? '' : 's'}</span>}
         </span>
         <IconChevron
           className={'w-4 h-4 text-text-faint shrink-0 transition-transform duration-150 ' + (open ? 'rotate-180' : '')}
         />
-      </button>
+      </Button>
 
       {open && (
         <div className="px-4 pb-3.5 pl-[62px] flex flex-col gap-2.5">
@@ -96,7 +99,7 @@ function SiteRow({
                 <Icon className="w-4 h-4 text-text-faint shrink-0" />
                 <span className="flex-1 text-[13px] text-text-dim">{label}</span>
                 <span className={'text-[12px] shrink-0 ' + (state === 'granted' ? 'text-emerald-400' : 'text-text-faint')}>
-                  {state === 'granted' ? 'Permitido' : 'Bloqueado'}
+                  {state === 'granted' ? tr("Permitido") : tr("Bloqueado")}
                 </span>
                 <Toggle on={state === 'granted'} onChange={(v) => onSet(key, v ? 'granted' : 'denied')} />
               </div>
@@ -104,9 +107,8 @@ function SiteRow({
           })}
           <div className="flex items-center gap-3 pt-1">
             <span className="flex-1 text-[12px] text-text-faint truncate">{site.origin}</span>
-            <button onClick={onForget} className="text-[12.5px] text-text-faint hover:text-red-400 transition-colors shrink-0">
-              Olvidar este sitio
-            </button>
+            <Button variant="danger-ghost" size="sm" onClick={onForget} className="shrink-0">
+              {tr("Olvidar este sitio")} </Button>
           </div>
         </div>
       )}
@@ -115,6 +117,7 @@ function SiteRow({
 }
 
 export default function PermissionsSection(): JSX.Element {
+  useLocale()
   const [sites, setSites] = useState<PermSite[] | null>(null)
   const [error, setError] = useState('')
   const [q, setQ] = useState('')
@@ -124,12 +127,12 @@ export default function PermissionsSection(): JSX.Element {
     // Si el IPC no responde, la lista vacía es indistinguible de "no has dado ningún
     // permiso" — y eso es justo lo que no debe pasar en una pantalla de privacidad.
     try {
-      setSites(await monperTab.listSitePermissions(resolve))
+      setSites(await titanioTab.listSitePermissions(resolve))
       setError('')
     } catch (e) {
       console.error('[permisos] no se pudo leer la lista:', e)
       setSites([])
-      setError('No se pudieron leer los permisos. Reinicia Monper: los cambios en el preload necesitan reiniciar la app, no solo recargar.')
+      setError(tr("No se pudieron cargar los permisos. Reinicia Titanio e inténtalo de nuevo."))
     }
   }, [])
 
@@ -142,12 +145,12 @@ export default function PermissionsSection(): JSX.Element {
     setSites((prev) => prev && prev.map((s) => s.origin === origin
       ? { ...s, perms: s.perms.map((p) => (p.key === key ? { ...p, state } : p)) }
       : s))
-    if (!(await monperTab.setSitePermission(origin, key, state))) void load()
+    if (!(await titanioTab.setSitePermission(origin, key, state))) void load()
   }
 
   const forget = async (origin: string | null): Promise<void> => {
-    if (!origin && !confirm('¿Olvidar los permisos de todos los sitios? Volverán a preguntarte la próxima vez.')) return
-    await monperTab.clearSitePermissions(origin)
+    if (!origin && !confirm(tr("¿Olvidar los permisos de todos los sitios? Volverán a preguntarte la próxima vez."))) return
+    await titanioTab.clearSitePermissions(origin)
     void load()
   }
 
@@ -163,10 +166,7 @@ export default function PermissionsSection(): JSX.Element {
 
   return (
     <>
-      <h1 className="text-[30px] font-semibold tracking-tight mb-3">Permissions</h1>
-      <p className="text-[13.5px] text-text-dim leading-relaxed mb-7">
-        Los sitios sobre los que ya has decidido algo. Al olvidarlos, volverán a preguntarte.
-      </p>
+      <SettingsHeader title={tr("Permissions")} description={tr("Administra el acceso de los sitios a la cámara, el micrófono y otros permisos.")} />
 
       {error && (
         <div className="mb-6 px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[13px] text-amber-300 leading-relaxed">
@@ -181,31 +181,29 @@ export default function PermissionsSection(): JSX.Element {
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Buscar un sitio"
+            placeholder={tr("Buscar un sitio")}
             className="w-full h-10 pl-10 pr-4 rounded-xl bg-white/[0.04] border border-white/[0.08] text-[13.5px] text-text outline-none focus:border-white/25 placeholder:text-text-faint transition-colors"
           />
         </div>
       )}
 
-      <Group title="Sitios">
+      <Group title={tr("Sitios")}>
         <Card>
-          {sites === null && <div className="px-4 py-4 text-[13px] text-text-faint">Cargando…</div>}
+          {sites === null && <div className="px-4 py-4 text-[13px] text-text-faint">{tr("Cargando…")}</div>}
 
           {sites?.length === 0 && !error && (
             <div className="px-4 py-8 flex flex-col items-center gap-2 text-center">
               <IconLock className="w-6 h-6 text-text-faint" />
-              <div className="text-[13.5px] text-text-dim">Ningún sitio te ha pedido permisos todavía</div>
+              <div className="text-[13.5px] text-text-dim">{tr("No hay permisos guardados")}</div>
               <div className="text-[12.5px] text-text-faint max-w-[380px] leading-relaxed">
-                Cuando una página pida la cámara, el micrófono o tu ubicación, tu respuesta
-                aparecerá aquí.
-              </div>
+                {tr("Cuando una página pida la cámara, el micrófono o tu ubicación, tu respuesta aparecerá aquí.")} </div>
             </div>
           )}
 
           {/* Buscar y no encontrar tiene que decirse: si no, parece que se borraron. */}
           {hayAlguno && filtrados?.length === 0 && (
             <div className="px-4 py-6 text-center text-[13px] text-text-faint">
-              Ningún sitio coincide con “{q.trim()}”
+              {tr("Ningún sitio coincide con “")}{q.trim()}”
             </div>
           )}
 
@@ -223,40 +221,24 @@ export default function PermissionsSection(): JSX.Element {
       </Group>
 
       {hayAlguno && (
-        <Group title="Todo">
+        <Group title={tr("Todo")}>
           <Card>
             <div className="flex items-center gap-3.5 px-4 py-3.5">
               <div className="flex-1 min-w-0">
-                <div className="text-[14px] text-text leading-tight">Olvidar todos los permisos</div>
+                <div className="text-[14px] text-text leading-tight">{tr("Olvidar todos los permisos")}</div>
                 <div className="text-[12.5px] text-text-dim mt-0.5">
-                  {sites!.length} {sites!.length === 1 ? 'sitio' : 'sitios'} volverán a preguntarte
-                </div>
+                  {sites!.length} {sites!.length === 1 ? tr("sitio volverá") : tr("sitios volverán")} {tr("a pedir permiso")} </div>
               </div>
-              <button
+              <Button variant="danger" size="sm"
                 onClick={() => forget(null)}
-                className="text-[13px] font-medium px-3.5 py-2 rounded-lg bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-colors shrink-0"
+                className="shrink-0"
               >
-                Olvidar todo
-              </button>
+                {tr("Olvidar todo")} </Button>
             </div>
           </Card>
         </Group>
       )}
 
-      {/* Lo que esta sección va a ser y todavía no es. Se dice, no se insinúa con un control
-          que no hace nada: ver el comentario de GeneralPage. */}
-      <Group title="Del agente · Pronto">
-        <Card>
-          <div className="p-5 flex flex-col gap-3">
-            {['Acciones que el agente debe confirmar antes de hacer', 'Sitios donde el agente no puede entrar'].map((b) => (
-              <div key={b} className="flex items-start gap-3 text-[13.5px] text-text-dim">
-                <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-white/25 shrink-0" />
-                {b}
-              </div>
-            ))}
-          </div>
-        </Card>
-      </Group>
     </>
   )
 }

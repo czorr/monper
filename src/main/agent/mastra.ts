@@ -1,3 +1,4 @@
+import { t as tr } from '../../shared/i18n'
 import { Agent } from '@mastra/core/agent'
 import { createTool } from '@mastra/core/tools'
 import { createAnthropic } from '@ai-sdk/anthropic'
@@ -6,6 +7,8 @@ import { z } from 'zod'
 import type { WebContents } from 'electron'
 import { faviconFor } from '../favicons'
 import { mcpTools, callMcpTool, type McpTool } from '../mcp/client'
+import { preferencesFor } from '../perfiles'
+import { profileInstructions, profileTools } from './profile'
 import type { AIProvider, ChatFallo, ChatMessage, ChatStep, ProviderKind, SkillDetail } from '../../shared/types'
 import * as page from './page'
 import { runRepl } from './repl'
@@ -80,10 +83,11 @@ export interface SettingsControl {
   openSettings: (section?: string) => void
 }
 
-export const SYSTEM = `Eres Monper, un agente que opera el navegador del usuario para cumplir su tarea.
-Tu herramienta principal es run_js: un REPL donde ESCRIBES CÓDIGO JavaScript para operar el navegador con la librería "monperwright" (API con la forma de Playwright). Prefiérela para cualquier tarea no trivial; puedes leer, actuar y decidir en un solo bloque de código, lo que es más eficiente que muchas tools atómicas.
+export const SYSTEM = `Eres Titanio, un agente que opera el navegador del usuario para cumplir su tarea.
+Tu herramienta principal es run_js: un REPL donde ESCRIBES CÓDIGO JavaScript para operar el navegador con la librería "titaniowright" (API con la forma de Playwright). Prefiérela para cualquier tarea no trivial; puedes leer, actuar y decidir en un solo bloque de código, lo que es más eficiente que muchas tools atómicas.
 En run_js tienes disponibles: 'page' (la pestaña activa), 'state' (objeto que PERSISTE entre llamadas a run_js del mismo turno: guarda ahí lo que quieras reusar), y 'log(...)' (para imprimir valores). El código es async: usa await y 'return' para devolver un valor.
-Globals extra que usan las skills: 'googleSearch.search(q, opts)' (→[{title,url,snippet}]), 'imageSearch.search(q)', 'cua.getVisibleScreenshot()', 'youtube.search/getMetadata/getTranscript/getComments', 'twitter.search/getTimeline/getUser/getTweet' (read-only), 'gmail.search/getInbox/getThread/openComposer/openThreadDetailsPage' (openComposer solo ABRE el borrador, no envía), 'notion.getClient()' → cliente read-only (client.search/getBlock) + global 'blockToMarkdown(block)', 'slack.listWorkspaces()/getClient(teamId)' → WebClient de @slack/web-api (client.conversations.history/list, chat.postMessage, search.messages…; postMessage ENVÍA, confirma antes), 'googleAccounts.list()/print()', 'googleDocs.getDocumentHTML/getDocumentText(url)', 'googleSheets.readSheet(url) → {cells}'. Los de servicios con sesión requieren que el usuario esté logueado. 'passwordManager' (vault interno de Monper): passwordManager.list() (metadata SIN secretos), passwordManager.fill()/fillAndSubmit() rellenan la credencial guardada del sitio actual. IMPORTANTE: NUNCA verás la contraseña — el relleno lo hace Monper y solo te devuelve qué campos se llenaron; el usuario aprueba cada relleno. No intentes leer el valor del campo de contraseña ni pedirle al usuario que te la diga. Las escrituras/ediciones (googleDocs/googleSheets edit, notion, gmail.downloadAttachment…) aún no están portadas: úsalas con page: si los llamas lanzan un error que te indica operar ese servicio con 'page' (navegar la web y usar page.click/type/evaluate).
+PROGRESO VISIBLE: cada llamada a run_js debe incluir 'summary', una sola frase breve en el idioma del usuario que describa QUÉ vas a hacer y sobre qué, no cómo lo implementas. Ejemplos: "Navegando a github.com", "Buscando vuelos a Lima", "Leyendo los precios del hotel", "Rellenando el formulario de contacto", "Comparando las tres opciones". Usa una acción en curso, sin afirmar resultados que todavía no has obtenido. Nunca "Ejecutando código", "Procesando" ni nombres de funciones, selectores o variables. No incluyas secretos. Indica 'action' según la acción principal y 'url' con la URL del sitio donde actúas (la de destino si navegas); omite url si no corresponde a un sitio. La frase se muestra como evento en el chat: no la repitas como mensaje de texto. Si cambias de objetivo, usa otra llamada con su propio resumen; agrupa las operaciones que sirven al mismo objetivo.
+Globals extra que usan las skills: 'googleSearch.search(q, opts)' (→[{title,url,snippet}]), 'imageSearch.search(q)', 'cua.getVisibleScreenshot()', 'youtube.search/getMetadata/getTranscript/getComments', 'twitter.search/getTimeline/getUser/getTweet' (read-only), 'gmail.search/getInbox/getThread/openComposer/openThreadDetailsPage' (openComposer solo ABRE el borrador, no envía), 'notion.getClient()' → cliente read-only (client.search/getBlock) + global 'blockToMarkdown(block)', 'slack.listWorkspaces()/getClient(teamId)' → WebClient de @slack/web-api (client.conversations.history/list, chat.postMessage, search.messages…; postMessage ENVÍA, confirma antes), 'googleAccounts.list()/print()', 'googleDocs.getDocumentHTML/getDocumentText(url)', 'googleSheets.readSheet(url) → {cells}'. Los de servicios con sesión requieren que el usuario esté logueado. 'passwordManager' (vault interno de Titanio): passwordManager.list() (metadata SIN secretos), passwordManager.fill()/fillAndSubmit() rellenan la credencial guardada del sitio actual. IMPORTANTE: NUNCA verás la contraseña — el relleno lo hace Titanio y solo te devuelve qué campos se llenaron; el usuario aprueba cada relleno. No intentes leer el valor del campo de contraseña ni pedirle al usuario que te la diga. Las escrituras/ediciones (googleDocs/googleSheets edit, notion, gmail.downloadAttachment…) aún no están portadas: úsalas con page: si los llamas lanzan un error que te indica operar ese servicio con 'page' (navegar la web y usar page.click/type/evaluate).
 API de 'page' (subset): await page.goto(url); page.snapshotText() (árbol de accesibilidad podado con [ref]); page.click(sel)/fill(sel,val)/type(sel,txt)/press(sel,key)/hover(sel)/selectOption(sel,val); page.clickRef(n)/fillRef(n,val) (usando un [ref] de snapshotText); page.locator(sel).nth(i).click(); page.waitForSelector(sel)/waitForText(txt); page.textContent(sel); page.$$text(sel) (textos de todos los que casan); page.evaluate(fn) (ejecuta una función en la página y devuelve su valor); page.keyboard/page.mouse. Ejemplo: const s = await page.snapshotText(); log(s); await page.clickRef(3); return await page.title();
 Red / APIs internas (para ir mucho más rápido que por la UI): page.resourceRequests({type:'fetch'}) descubre endpoints que la página ya llamó; page.installNetworkCapture() + luego page.capturedRequests() capturan método/URL/status de peticiones futuras; page.fetch(url, init) reproduce una petición DESDE la página (hereda cookies/origin del sitio, indistinguible de sus llamadas) y devuelve status/headers/body. Úsalo para leer datos directo de la API interna en vez de raspar el DOM.
 Si en una observación aparece "[EVENTOS DEL NAVEGADOR]" (popups, descargas), tenlos en cuenta: reacciona a ellos (cerrar/cambiar de pestaña, seguir el popup) según la tarea.
@@ -104,7 +108,7 @@ PERSISTENCIA (muy importante): no te detengas hasta COMPLETAR la tarea que te pi
 - Muchos elementos (cajas de comentario, botones) aparecen solo tras hacer scroll hasta ellos y esperar a que carguen: usa wait_for (por texto o selector) tras un scroll o navegación, y luego read_page de nuevo.
 - Herramientas disponibles además de las básicas: wait_for (esperar contenido diferido), press_key (enter/escape/tab/flechas + modificadores), hover (revelar menús), select_option (dropdowns nativos), history (atrás/adelante/recargar).
 - Pestañas: list_tabs (ver todas), open_tab (abrir una nueva con una URL), switch_tab (cambiar a una por id), close_tab (cerrar una por id). Úsalas para trabajar en varias páginas.
-- Settings de Monper: get_settings (leer el nombre del perfil y las skills con su estado), set_profile_name (cambiar el nombre del usuario), set_skill (activar/desactivar una skill por id), open_settings (abrir la pantalla de ajustes en una sección: general, account, ai, skills, privacy, about). Un cambio de skill aplica a partir de la próxima ejecución del agente. No manejas claves de API ni borras datos de navegación desde aquí: para eso, dirige al usuario a Settings con open_settings.
+- Settings de Titanio: get_settings (leer el nombre del perfil y las skills con su estado), set_profile_name (cambiar el nombre del usuario), set_skill (activar/desactivar una skill por id), open_settings (abrir la pantalla de ajustes en una sección: general, account, ai, skills, privacy, about). Un cambio de skill aplica a partir de la próxima ejecución del agente. No manejas claves de API ni borras datos de navegación desde aquí: para eso, dirige al usuario a Settings con open_settings.
 - Visión: si read_page no captura un elemento (canvas, mapas, PDFs, UIs complejas), usa screenshot para VER la página y luego click_at con las coordenadas del elemento. Es tu último recurso cuando no hay un ref utilizable.
 - Reintenta una acción fallida hasta 3 veces con enfoques distintos antes de considerarla bloqueada.
 - Solo termina cuando (a) la tarea está hecha, o (b) tras reintentos reales sigue bloqueada; en ese caso explica CLARAMENTE qué intentaste y por qué no se pudo. Nunca termines en silencio.
@@ -235,11 +239,17 @@ function buildTools(ctrl: BrowserControl, settings: SettingsControl, skills: Ski
     run_js: createTool({
       id: 'run_js',
       description:
-        'Ejecuta código JavaScript (async) para operar el navegador con la librería monperwright. ' +
+        'Ejecuta código JavaScript (async) para operar el navegador con la librería titaniowright. ' +
         'Globals: page (pestaña activa, API estilo Playwright), state (persiste entre llamadas de este turno), log(...). ' +
         'Usa await y return para devolver un valor. Es tu herramienta principal: prefiérela sobre las tools atómicas. ' +
         'Ej: const s = await page.snapshotText(); log(s); await page.clickRef(2); return await page.title();',
-      inputSchema: z.object({ code: z.string().describe('Código JS async. Tiene page, state y log.') }),
+      inputSchema: z.object({
+        summary: z.string().describe('Frase breve de progreso para el usuario: acción concreta y objetivo, en su idioma. Ej.: "Buscando vuelos a Lima". Sin código ni secretos.'),
+        action: z.enum(['navigate', 'search', 'read', 'click', 'type', 'scroll', 'wait', 'screenshot', 'generic'])
+          .describe('Acción principal de este bloque; generic solo para cálculo o comparación sin una acción de navegador predominante.'),
+        url: z.string().optional().describe('URL del sitio sobre el que actúas, o URL de destino al navegar. Omite si no hay un sitio asociado.'),
+        code: z.string().describe('Código JS async. Tiene page, state y log.')
+      }),
       execute: async ({ code }) => {
         const r = await safe(() => runRepl(wc(), code, replState))
         return typeof r === 'string' ? withEvents(r) : r
@@ -375,7 +385,7 @@ function buildTools(ctrl: BrowserControl, settings: SettingsControl, skills: Ski
     }),
     get_settings: createTool({
       id: 'get_settings',
-      description: 'Lee los ajustes de Monper: nombre del perfil y las skills disponibles con su estado (activada/desactivada) e id.',
+      description: 'Lee los ajustes de Titanio: nombre del perfil y las skills disponibles con su estado (activada/desactivada) e id.',
       inputSchema: z.object({}),
       execute: async () => {
         const s = settings.read()
@@ -391,7 +401,7 @@ function buildTools(ctrl: BrowserControl, settings: SettingsControl, skills: Ski
       inputSchema: z.object({ name: z.string().describe('Nuevo nombre (1–60 caracteres)') }),
       execute: async ({ name }) => safe(async () => {
         const n = name.trim()
-        if (!n) return { error: 'El nombre no puede estar vacío.' }
+        if (!n) return { error: tr("El nombre no puede estar vacío.") }
         return `Nombre actualizado a "${settings.setProfileName(n)}".`
       })
     }),
@@ -447,9 +457,9 @@ function buildTools(ctrl: BrowserControl, settings: SettingsControl, skills: Ski
     }),
     open_settings: createTool({
       id: 'open_settings',
-      description: 'Abre la pantalla de ajustes de Monper en una sección concreta. Úsalo para dirigir al usuario a algo que no puedes cambiar tú (claves de API, borrar datos, foto de perfil).',
+      description: 'Abre la pantalla de ajustes de Titanio en una sección concreta. Úsalo para dirigir al usuario a algo que no puedes cambiar tú (claves de API, borrar datos, foto de perfil).',
       inputSchema: z.object({
-        section: z.enum(['general', 'account', 'ai', 'skills', 'memory', 'privacy', 'about']).optional()
+        section: z.enum(['general', 'profiles', 'ai', 'skills', 'memory', 'privacy', 'about']).optional()
       }),
       execute: async ({ section }) => safe(async () => {
         settings.openSettings(section)
@@ -502,47 +512,70 @@ function skillsSection(skills: SkillDetail[]): string {
 
 /** Agente sin tools, para preguntas puntuales (p. ej. generar el extractor de una rutina). */
 export function buildOneShotAgent(provider: AIProvider, key: string, model: string, instructions: string): Agent {
-  return new Agent({ id: 'monper-oneshot', name: 'Monper', instructions, model: buildModel(provider, key, model) })
+  return new Agent({ id: 'titanio-oneshot', name: 'Titanio', instructions, model: buildModel(provider, key, model) })
 }
 
 export function buildAgent(provider: AIProvider, key: string, model: string, ctrl: BrowserControl, settings: SettingsControl, skills: SkillDetail[] = [], externas: McpTool[] = [], memoria?: MemoryControl): Agent {
+  const prefs = preferencesFor().agent
+  const selectedSkills = prefs.skills ? skills : []
+  const selectedMcp = prefs.mcp ? externas : []
+  const tools = buildTools(ctrl, settings, selectedSkills, selectedMcp, memoria)
   return new Agent({
-    id: 'monper-agent',
-    name: 'Monper',
-    instructions: wellFormed(SYSTEM + memorySection(memoria) + skillsSection(skills) + mcpSection(externas)), // las skills traen emojis
+    id: 'titanio-agent',
+    name: 'Titanio',
+    instructions: wellFormed(SYSTEM + memorySection(memoria) + skillsSection(selectedSkills) + mcpSection(selectedMcp) + profileInstructions(prefs)),
     model: buildModel(provider, key, model),
-    tools: buildTools(ctrl, settings, skills, externas, memoria)
+    tools: profileTools(tools, prefs)
   })
 }
 
 function describe(toolName: string, args: unknown): ChatStep {
   const a = (args ?? {}) as Record<string, unknown>
   switch (toolName) {
-    case 'run_js': return { state: 'solving', label: 'Ejecutando código', kind: 'generic' }
-    case 'read_page': return { state: 'listening', label: 'Leyendo la página', kind: 'read' }
+    case 'run_js': {
+      const actions: Record<string, Pick<ChatStep, 'state' | 'kind'>> = {
+        navigate: { state: 'searching', kind: 'navigate' },
+        search: { state: 'searching', kind: 'navigate' },
+        read: { state: 'listening', kind: 'read' },
+        click: { state: 'working', kind: 'click' },
+        type: { state: 'composing', kind: 'type' },
+        scroll: { state: 'working', kind: 'scroll' },
+        wait: { state: 'searching', kind: 'wait' },
+        screenshot: { state: 'searching', kind: 'screenshot' },
+        generic: { state: 'solving', kind: 'generic' }
+      }
+      const action = typeof a.action === 'string' && Object.hasOwn(actions, a.action) ? actions[a.action] : actions.generic
+      const summary = typeof a.summary === 'string' ? a.summary.replace(/\s+/g, ' ').trim() : ''
+      return {
+        ...action,
+        label: summary ? Array.from(summary).slice(0, 160).join('') : tr("Trabajando en tu solicitud"),
+        favicon: typeof a.url === 'string' ? faviconDelPaso(host(a.url)) : undefined
+      }
+    }
+    case 'read_page': return { state: 'listening', label: tr("Leyendo la página"), kind: 'read' }
     case 'navigate': {
       const h = host(String(a.url ?? ''))
-      return { state: 'searching', label: `Navegando a ${h}`, kind: 'navigate', favicon: faviconDelPaso(h) }
+      return { state: 'searching', label: tr("Navegando a {0}", h), kind: 'navigate', favicon: faviconDelPaso(h) }
     }
-    case 'click': return { state: 'working', label: `Click en el elemento ${a.ref}`, kind: 'click' }
-    case 'type': return { state: 'composing', label: 'Escribiendo', kind: 'type' }
-    case 'scroll': return { state: 'working', label: `Scroll ${a.direction}`, kind: 'scroll' }
-    case 'wait_for': return { state: 'searching', label: `Esperando ${a.text ? `"${a.text}"` : a.selector ?? 'contenido'}`, kind: 'wait' }
-    case 'press_key': return { state: 'working', label: `Tecla ${a.key}`, kind: 'press' }
-    case 'hover': return { state: 'working', label: `Hover en el elemento ${a.ref}`, kind: 'hover' }
-    case 'select_option': return { state: 'composing', label: `Eligiendo "${a.value}"`, kind: 'select' }
-    case 'history': return { state: 'searching', label: `Historial: ${a.action}`, kind: 'history' }
-    case 'list_tabs': return { state: 'listening', label: 'Viendo las pestañas', kind: 'tab' }
-    case 'open_tab': return { state: 'searching', label: `Abriendo ${host(String(a.url ?? ''))}`, kind: 'tab', favicon: faviconDelPaso(host(String(a.url ?? ''))) }
-    case 'switch_tab': return { state: 'working', label: `Cambiando a la pestaña ${a.id}`, kind: 'tab' }
-    case 'close_tab': return { state: 'working', label: `Cerrando la pestaña ${a.id}`, kind: 'tab' }
-    case 'screenshot': return { state: 'searching', label: 'Mirando la pantalla', kind: 'screenshot' }
-    case 'click_at': return { state: 'working', label: `Click en (${a.x}, ${a.y})`, kind: 'click' }
-    case 'use_skill': return { state: 'listening', label: `Usando skill: ${a.id}`, kind: 'read' }
-    case 'get_settings': return { state: 'listening', label: 'Leyendo los ajustes', kind: 'read' }
-    case 'set_profile_name': return { state: 'composing', label: `Cambiando el nombre a "${a.name}"`, kind: 'generic' }
-    case 'set_skill': return { state: 'working', label: `${a.enabled ? 'Activando' : 'Desactivando'} skill ${a.id}`, kind: 'generic' }
-    case 'open_settings': return { state: 'searching', label: `Abriendo ajustes${a.section ? `: ${a.section}` : ''}`, kind: 'navigate' }
+    case 'click': return { state: 'working', label: tr("Click en el elemento {0}", a.ref), kind: 'click' }
+    case 'type': return { state: 'composing', label: tr("Escribiendo"), kind: 'type' }
+    case 'scroll': return { state: 'working', label: tr("Scroll {0}", a.direction), kind: 'scroll' }
+    case 'wait_for': return { state: 'searching', label: tr("Esperando {0}", a.text ? `"${a.text}"` : a.selector ?? 'contenido'), kind: 'wait' }
+    case 'press_key': return { state: 'working', label: tr("Tecla {0}", a.key), kind: 'press' }
+    case 'hover': return { state: 'working', label: tr("Hover en el elemento {0}", a.ref), kind: 'hover' }
+    case 'select_option': return { state: 'composing', label: tr("Eligiendo \"{0}\"", a.value), kind: 'select' }
+    case 'history': return { state: 'searching', label: tr("Historial: {0}", a.action), kind: 'history' }
+    case 'list_tabs': return { state: 'listening', label: tr("Viendo las pestañas"), kind: 'tab' }
+    case 'open_tab': return { state: 'searching', label: tr("Abriendo {0}", host(String(a.url ?? ''))), kind: 'tab', favicon: faviconDelPaso(host(String(a.url ?? ''))) }
+    case 'switch_tab': return { state: 'working', label: tr("Cambiando a la pestaña {0}", a.id), kind: 'tab' }
+    case 'close_tab': return { state: 'working', label: tr("Cerrando la pestaña {0}", a.id), kind: 'tab' }
+    case 'screenshot': return { state: 'searching', label: tr("Mirando la pantalla"), kind: 'screenshot' }
+    case 'click_at': return { state: 'working', label: tr("Click en ({0}, {1})", a.x, a.y), kind: 'click' }
+    case 'use_skill': return { state: 'listening', label: tr("Usando skill: {0}", a.id), kind: 'read' }
+    case 'get_settings': return { state: 'listening', label: tr("Leyendo los ajustes"), kind: 'read' }
+    case 'set_profile_name': return { state: 'composing', label: tr("Cambiando el nombre a \"{0}\"", a.name), kind: 'generic' }
+    case 'set_skill': return { state: 'working', label: tr("{0} skill {1}", a.enabled ? 'Activando' : 'Desactivando', a.id), kind: 'generic' }
+    case 'open_settings': return { state: 'searching', label: tr("Abriendo ajustes{0}", a.section ? `: ${a.section}` : ''), kind: 'navigate' }
     default: return { state: 'working', label: toolName, kind: 'generic' }
   }
 }
@@ -595,12 +628,12 @@ export async function runMastra(opts: {
   provider: AIProvider; key: string; model: string
   messages: ChatMessage[]; control: BrowserControl; settings: SettingsControl; emit: Emit; signal: AbortSignal; skills?: SkillDetail[]; memoria?: MemoryControl
 }): Promise<UsoDelTurno> {
-  // Las herramientas externas se piden AQUÍ, no al abrir Monper: si nunca hablas con el
+  // Las herramientas externas se piden AQUÍ, no al abrir Titanio: si nunca hablas con el
   // agente, no se lanza ni un proceso de servidor MCP.
-  const externas = await mcpTools().catch((e) => {
+  const externas = preferencesFor().agent.mcp ? await mcpTools().catch((e) => {
     console.error('[mcp] no se pudieron cargar las herramientas externas:', e instanceof Error ? e.message : e)
     return [] as McpTool[]
-  })
+  }) : []
   const agent = buildAgent(opts.provider, opts.key, opts.model, congelable(opts.control, opts.signal), opts.settings, opts.skills ?? [], externas, opts.memoria)
   // {role, content:string} es un ModelMessage válido; la unión de Mastra es demasiado estricta para inferirlo.
   // maxSteps: el default de Mastra es 5 (corta la tarea a mitad); subimos para dejar completar flujos largos.
@@ -610,7 +643,7 @@ export async function runMastra(opts: {
    *
    * Sin pasarlo, pausar solo hacía que NUESTRO bucle dejara de emitir: la generación y las
    * herramientas seguían corriendo por debajo. El agente reabría su pestaña con `openTab`,
-   * seguía operando, y no había forma de pararlo salvo cerrar Monper. Aquí es donde se corta
+   * seguía operando, y no había forma de pararlo salvo cerrar Titanio. Aquí es donde se corta
    * de verdad la petición al proveedor.
    */
   const out = await agent.stream(messages as Parameters<typeof agent.stream>[0], {
@@ -664,11 +697,11 @@ export async function runMastra(opts: {
   console.log('[agent] turno sin texto —', { steps, finishReason, streamError })
   if (streamError) { opts.emit.error(streamError); return leerUso() }
   if (finishReason === 'length') {
-    opts.emit.token('Me quedé sin espacio de respuesta (límite de tokens). Pídeme algo más acotado o dime que continúe.')
+    opts.emit.token(tr("Me quedé sin espacio de respuesta (límite de tokens). Pídeme algo más acotado o dime que continúe."))
   } else if (steps >= MAX_STEPS) {
-    opts.emit.token(`Alcancé el límite de ${MAX_STEPS} pasos sin terminar. ¿Quieres que continúe?`)
+    opts.emit.token(tr("Alcancé el límite de {0} pasos sin terminar. ¿Quieres que continúe?", MAX_STEPS))
   } else {
-    opts.emit.token(`El modelo terminó sin responder${finishReason ? ` (motivo: ${finishReason})` : ''}. Intenta reformular la petición.`)
+    opts.emit.token(tr("El modelo terminó sin responder{0}. Intenta reformular la petición.", finishReason ? ` (motivo: ${finishReason})` : ''))
   }
   return leerUso()
 }
@@ -729,9 +762,9 @@ export function diagnosticar(e: unknown, kind?: ProviderKind): ChatFallo {
   const o = (e ?? {}) as { status?: unknown; statusCode?: unknown; error?: { type?: unknown }; name?: unknown }
   const status = Number(o.status ?? o.statusCode ?? 0)
   const t = crudo.toLowerCase()
-  const ajustes = { label: 'Abrir Settings', kind: 'settings' as const }
+  const ajustes = { label: tr("Abrir Settings"), kind: 'settings' as const }
   const recargar = kind
-    ? { label: 'Ver mi saldo', kind: 'url' as const, value: FACTURACION[kind] }
+    ? { label: tr("Ver mi saldo"), kind: 'url' as const, value: FACTURACION[kind] }
     : ajustes
 
   // El crédito agotado llega como 400 en Anthropic y como 429 en OpenAI, así que el texto
@@ -739,8 +772,8 @@ export function diagnosticar(e: unknown, kind?: ProviderKind): ChatFallo {
   if (/credit balance|insufficient_quota|insufficient funds|billing|quota/.test(t)) {
     return {
       tipo: 'credito',
-      titulo: 'Se acabó el crédito',
-      detalle: `Tu cuenta de ${kind === 'openai' ? 'OpenAI' : 'Anthropic'} no tiene saldo. Monper no cobra nada: pagas al proveedor directamente.`,
+      titulo: tr("Se acabó el crédito"),
+      detalle: tr("Tu cuenta de {0} no tiene saldo. Titanio no cobra nada: pagas al proveedor directamente.", kind === 'openai' ? 'OpenAI' : 'Anthropic'),
       accion: recargar, crudo
     }
   }
@@ -748,8 +781,8 @@ export function diagnosticar(e: unknown, kind?: ProviderKind): ChatFallo {
   if (status === 401 || status === 403 || /invalid.*api[_ -]?key|authentication|unauthorized|permission/.test(t)) {
     return {
       tipo: 'auth',
-      titulo: 'La API key no es válida',
-      detalle: 'El proveedor la rechazó. Puede estar mal copiada, revocada, o ser de otra cuenta.',
+      titulo: tr("La API key no es válida"),
+      detalle: tr("El proveedor la rechazó. Puede estar mal copiada, revocada, o ser de otra cuenta."),
       accion: ajustes, crudo
     }
   }
@@ -757,8 +790,8 @@ export function diagnosticar(e: unknown, kind?: ProviderKind): ChatFallo {
   if (status === 429 || /rate limit|too many requests/.test(t)) {
     return {
       tipo: 'limite',
-      titulo: 'Demasiadas peticiones',
-      detalle: 'El proveedor te está limitando. Espera unos segundos y vuelve a enviarlo.',
+      titulo: tr("Demasiadas peticiones"),
+      detalle: tr("El proveedor te está limitando. Espera unos segundos y vuelve a enviarlo."),
       crudo
     }
   }
@@ -766,8 +799,8 @@ export function diagnosticar(e: unknown, kind?: ProviderKind): ChatFallo {
   if (status === 404 || /model.*not found|does not exist|unknown model|no access to model/.test(t)) {
     return {
       tipo: 'modelo',
-      titulo: 'Ese modelo no está disponible',
-      detalle: 'No existe o tu cuenta no tiene acceso. Elige otro en Settings.',
+      titulo: tr("Ese modelo no está disponible"),
+      detalle: tr("No existe o tu cuenta no tiene acceso. Elige otro en Settings."),
       accion: ajustes, crudo
     }
   }
@@ -775,8 +808,8 @@ export function diagnosticar(e: unknown, kind?: ProviderKind): ChatFallo {
   if (/context length|too many tokens|maximum context|prompt is too long|request too large/.test(t)) {
     return {
       tipo: 'contexto',
-      titulo: 'La conversación es demasiado larga',
-      detalle: 'Ya no cabe en el modelo. Empieza un chat nuevo para seguir.',
+      titulo: tr("La conversación es demasiado larga"),
+      detalle: tr("Ya no cabe en el modelo. Empieza un chat nuevo para seguir."),
       crudo
     }
   }
@@ -786,8 +819,8 @@ export function diagnosticar(e: unknown, kind?: ProviderKind): ChatFallo {
   if (!status && /fetch failed|enotfound|econnrefused|etimedout|network|socket|dns|getaddrinfo|und_err/.test(t)) {
     return {
       tipo: 'red',
-      titulo: 'Sin conexión con el proveedor',
-      detalle: 'No se pudo llegar al servidor. Revisa tu conexión y vuelve a intentarlo.',
+      titulo: tr("Sin conexión con el proveedor"),
+      detalle: tr("No se pudo llegar al servidor. Revisa tu conexión y vuelve a intentarlo."),
       crudo
     }
   }
@@ -795,16 +828,16 @@ export function diagnosticar(e: unknown, kind?: ProviderKind): ChatFallo {
   if (status >= 500) {
     return {
       tipo: 'proveedor',
-      titulo: 'El proveedor está fallando',
-      detalle: `Ha devuelto un error ${status}. No es cosa tuya: espera un momento y reintenta.`,
+      titulo: tr("El proveedor está fallando"),
+      detalle: tr("Ha devuelto un error {0}. No es cosa tuya: espera un momento y reintenta.", status),
       crudo
     }
   }
 
   return {
     tipo: 'desconocido',
-    titulo: 'El modelo no pudo responder',
-    detalle: 'Ha fallado algo que no sabemos clasificar. El detalle de abajo es lo que dijo el proveedor.',
+    titulo: tr("El modelo no pudo responder"),
+    detalle: tr("Ha fallado algo que no sabemos clasificar. El detalle de abajo es lo que dijo el proveedor."),
     crudo
   }
 }

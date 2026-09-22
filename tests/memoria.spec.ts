@@ -20,7 +20,7 @@ let base = ''
 let dir = ''
 
 test.beforeEach(() => {
-  base = mkdtempSync(join(tmpdir(), 'monper-memoria-'))
+  base = mkdtempSync(join(tmpdir(), 'titanio-memoria-'))
   dir = join(base, 'memory')
   initMemoria(dir, join(base, 'memory-settings.json'))
 })

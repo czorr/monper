@@ -17,7 +17,7 @@ test.beforeAll(async () => {
 })
 test.afterAll(async () => { await h?.close(); await site?.close() })
 
-/** Simula lo que hace macOS al abrir un enlace con Monper como predeterminado. */
+/** Simula lo que hace macOS al abrir un enlace con Titanio como predeterminado. */
 const enlaceDelSistema = (url: string): Promise<unknown> =>
   h.app.evaluate(({ app }, u) => app.emit('open-url', { preventDefault: () => {} }, u), url)
 
@@ -35,7 +35,7 @@ test('no abre nada con un esquema que no es web', async () => {
   // Solo declaramos http/https. Si llegara otra cosa —por una asociación mal hecha, o por un
   // enlace malicioso— no debe convertirse en una pestaña.
   const antes = (await waitForState(h.win, () => true)).tabs.length
-  for (const u of ['file:///etc/passwd', 'javascript:alert(1)', 'monper://loquesea']) {
+  for (const u of ['file:///etc/passwd', 'javascript:alert(1)', 'titanio://loquesea']) {
     await enlaceDelSistema(u)
   }
   await h.win.waitForTimeout(500)
@@ -45,10 +45,10 @@ test('no abre nada con un esquema que no es web', async () => {
 
 test('en desarrollo no se ofrece ser el predeterminado', async () => {
   // `electron .` corre dentro de Electron.app: hacerlo predeterminado registraría ELECTRON,
-  // no Monper, y dejaría los enlaces del usuario apuntando a un binario de desarrollo.
+  // no Titanio, y dejaría los enlaces del usuario apuntando a un binario de desarrollo.
   const estado = await h.app.evaluate(async ({ webContents }) => {
     const wc = webContents.getAllWebContents().find((w) => w.getURL().includes('newtab'))
-    return wc ? wc.executeJavaScript('window.monperTab.getDefaultBrowser()') : null
+    return wc ? wc.executeJavaScript('window.titanioTab.getDefaultBrowser()') : null
   }) as { isDefault: boolean; shouldOffer: boolean } | null
 
   expect(estado, 'la new tab tiene que poder consultarlo').toBeTruthy()

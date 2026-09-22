@@ -1,7 +1,7 @@
 # Tests
 
 26 smoke tests sobre la app real (Playwright + Electron). No hay tests unitarios todavía:
-lo que se rompía en Monper no eran funciones puras, era el arranque, las pestañas y el IPC.
+lo que se rompía en Titanio no eran funciones puras, era el arranque, las pestañas y el IPC.
 
 ```bash
 pnpm test        # compila y ejecuta
@@ -13,15 +13,15 @@ npx playwright test tests/tabs.spec.ts -g "reordena"
 
 | Fichero | Qué fija |
 |---|---|
-| `app.spec.ts` | Arranca, abre la ventana, expone `window.monper`, hay pestaña activa, la versión cuadra con `package.json`, cero errores de consola |
+| `app.spec.ts` | Arranca, abre la ventana, expone `window.titanio`, hay pestaña activa, la versión cuadra con `package.json`, cero errores de consola |
 | `tabs.spec.ts` | Crear, navegar, cambiar, cerrar, reordenar, silenciar; nunca quedan 0 pestañas; una URL que no resuelve pinta la página de error |
 | `state.spec.ts` | Marcadores (añadir, desmarcar, `bookmarked` en el estado), tamaños de panel, estado de actualización, **persistencia tras reiniciar** |
-| `security.spec.ts` | Sin node ni `contextIsolation:false` en las páginas, el preload no expone nada con pinta de secreto, ningún canal IPC con "password/secret" en el nombre, el chrome no puede escribir datos privados, una web no ve `window.monper` ni `require`/`process` |
+| `security.spec.ts` | Sin node ni `contextIsolation:false` en las páginas, el preload no expone nada con pinta de secreto, ningún canal IPC con "password/secret" en el nombre, el chrome no puede escribir datos privados, una web no ve `window.titanio` ni `require`/`process` |
 
 ## Reglas que salieron a base de tropezar
 
 - **Perfil desechable siempre.** `launch()` pasa `--user-data-dir` a un tmpdir. Sin eso los
-  tests escriben en `~/Library/Application Support/Monper` y le borran al usuario sus
+  tests escriben en `~/Library/Application Support/Titanio` y le borran al usuario sus
   marcadores y su vault.
 - **Un worker, en serie.** Varias instancias se pelean por el foco.
 - **Nada de red.** `serve()` levanta un HTTP local en el puerto 0. Y tiene que ser http:
@@ -97,7 +97,7 @@ falta un provider falso), el REPL y las rutinas, y la instalación de una actual
 
 ## `pnpm build` construye también los paquetes
 
-`tests/mcp.spec.ts` lanza `packages/monper-mcp/dist/index.js` como proceso hijo: prueba el
+`tests/mcp.spec.ts` lanza `packages/titanio-mcp/dist/index.js` como proceso hijo: prueba el
 puente de punta a punta, y para eso el paquete tiene que estar compilado.
 
 Eso rompió el CI de entonces. `pnpm build` solo llamaba a `electron-vite build`, que compila la
@@ -109,7 +109,7 @@ Ahora `build` encadena `build:mcp`, y `test` llama a `build` en vez de a `electr
 directamente. Así cualquiera que compile obtiene un árbol coherente, sin que haya que saber un
 paso extra que solo viviera en un YAML.
 
-`packages/` **no es un workspace de pnpm** y `monper-mcp` no tiene `node_modules` propio: se
+`packages/` **no es un workspace de pnpm** y `titanio-mcp` no tiene `node_modules` propio: se
 compila con el `typescript` y los `@types/node` de la raíz. Si algún día se le añaden
 dependencias propias, hará falta un `pnpm-workspace.yaml`.
 

@@ -1,3 +1,4 @@
+import { t as tr, useLocale } from '@renderer/lib/i18n'
 import { createRoot } from 'react-dom/client'
 import { useEffect, useState, type JSX } from 'react'
 import type { SubmenuData } from '@shared/types'
@@ -36,6 +37,7 @@ const ICONS = {
 } as const
 
 function SubmenuWindow(): JSX.Element {
+  useLocale()
   const [data, setData] = useState<SubmenuData | null>(null)
   useEffect(() => sm.onData(setData), [])
 
@@ -83,13 +85,13 @@ function SubmenuWindow(): JSX.Element {
   }
 
   return (
-    <PopoverPanel onHeight={sm.reportHeight} measure={data}>
+    <PopoverPanel onHeight={sm.reportHeight} measure={data} className="profile-menu" animation="none">
       {principales.map(fila)}
       {!!principales.length && !!resto.length && <PopoverDivider />}
       {data.listLabel && !!resto.length && <PopoverLabel>{data.listLabel}</PopoverLabel>}
       {!!resto.length && <PopoverList max={280}>{resto.map(fila)}</PopoverList>}
       {!data.rows.length && (
-        <div className="px-3 py-4 text-center text-[13px] text-text-faint">Nada por aquí todavía</div>
+        <div className="px-3 py-4 text-center text-[13px] text-text-faint">{tr("Nada por aquí todavía")}</div>
       )}
     </PopoverPanel>
   )

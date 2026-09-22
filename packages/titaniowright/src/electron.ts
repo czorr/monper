@@ -5,7 +5,7 @@ import { Page, type PageOptions } from './page'
 /**
  * Adaptador para Electron: implementa el Transport sobre un `WebContents`,
  * reusando `executeJavaScript` + `sendInputEvent` + `capturePage`. Es el mismo
- * mecanismo probado del agente de Monper, ahora detrás de la API Playwright-like.
+ * mecanismo probado del agente de Titanio, ahora detrás de la API Playwright-like.
  */
 export function createElectronTransport(wc: WebContents): Transport {
   return {

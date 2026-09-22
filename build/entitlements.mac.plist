@@ -25,12 +25,16 @@
     Passkeys (WebAuthn con Touch ID / Secure Enclave).
     Debe coincidir EXACTAMENTE con el keychainAccessGroup que pasamos a
     session.configureWebAuthn() en src/main/index.ts:
-        <TEAM_ID>.com.monper.app.webauthn
+        <TEAM_ID>.com.titanio.app.webauthn
     Reemplaza $(AppIdentifierPrefix) o escribe tu Team ID literal.
-  -->
+
+    Desactivado temporalmente: sin un perfil de aprovisionamiento que autorice este
+    grupo, macOS impide abrir la app con "No matching profile found".
+    Reactivar cuando estén configurados la firma y el perfil correspondientes.
   <key>keychain-access-groups</key>
   <array>
-    <string>$(AppIdentifierPrefix)com.monper.app.webauthn</string>
+    <string>$(AppIdentifierPrefix)com.titanio.app.webauthn</string>
   </array>
+  -->
 </dict>
 </plist>

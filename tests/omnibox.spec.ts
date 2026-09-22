@@ -15,7 +15,7 @@ import { urlVisible, nombreDeUrl } from '../src/shared/url'
 
 test('la forma visible de una URL es lo que una persona escribiría', () => {
   expect(urlVisible('https://www.mediotiempo.com/')).toBe('mediotiempo.com')
-  expect(urlVisible('http://github.com/czorr/monper')).toBe('github.com/czorr/monper')
+  expect(urlVisible('http://github.com/czorr/titanio')).toBe('github.com/czorr/titanio')
   expect(urlVisible('https://www.google.com')).toBe('google.com')
   // `www` como parte del nombre, no como subdominio: no se toca.
   expect(urlVisible('https://wwwhatsnew.com')).toBe('wwwhatsnew.com')

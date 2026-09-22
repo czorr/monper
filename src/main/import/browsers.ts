@@ -1,3 +1,4 @@
+import { t as tr } from '../../shared/i18n'
 import { existsSync, readFileSync, copyFileSync, mkdtempSync, rmSync } from 'fs'
 import { join } from 'path'
 import { homedir, tmpdir } from 'os'
@@ -9,7 +10,7 @@ import { nombreDeUrl } from '../../shared/url'
  * Importar de tu navegador anterior.
  *
  * Es el feature que decide si alguien se queda: nadie se cambia de navegador si empieza sin
- * marcadores, sin historial y sin contraseñas. Y en Monper importa el doble — **el vault
+ * marcadores, sin historial y sin contraseñas. Y en Titanio importa el doble — **el vault
  * vacío desperdicia toda la tesis del producto**. Con las contraseñas dentro, el agente puede
  * entrar en tus sitios el primer día; sin ellas, el usuario tiene que reconstruir su vida
  * antes de ver para qué sirve.
@@ -71,7 +72,7 @@ export function navegadoresDisponibles(): Navegador[] {
   const out: Navegador[] = []
   for (const id of Object.keys(CHROMIUM) as Exclude<NavegadorId, 'safari'>[]) {
     const c = CHROMIUM[id]
-    out.push({ id, nombre: c.nombre, disponible: appInstalada(c.app) && existsSync(join(perfil(id), 'Bookmarks')) })
+    out.push({ id, nombre: c.nombre, disponible: appInstalada(c.app) && existsSync(join(perfil(id), tr("Bookmarks"))) })
   }
   out.push({
     id: 'safari',
@@ -119,8 +120,8 @@ function marcadoresSafari(): MarcadorImportado[] {
     // La carpeta de Safari está protegida por TCC: sin Acceso a Disco Completo, esto falla.
     // Es el caso normal, no una excepción, y hay que poder contarlo.
     throw new Error(
-      'macOS no deja leer los marcadores de Safari. Concede a Monper Acceso a Disco Completo ' +
-      `en Ajustes → Privacidad y seguridad, y reinícialo. (${e instanceof Error ? e.message.slice(0, 80) : e})`
+      'macOS no deja leer los marcadores de Safari. Concede a Titanio Acceso a Disco Completo ' +
+      tr("en Ajustes → Privacidad y seguridad, y reinícialo. ({0})", e instanceof Error ? e.message.slice(0, 80) : e)
     )
   }
   const out: MarcadorImportado[] = []
@@ -148,7 +149,7 @@ function marcadoresSafari(): MarcadorImportado[] {
 
 export function leerMarcadores(id: NavegadorId): MarcadorImportado[] {
   if (id === 'safari') return marcadoresSafari()
-  const p = join(perfil(id), 'Bookmarks')
+  const p = join(perfil(id), tr("Bookmarks"))
   if (!existsSync(p)) return []
   const raiz = JSON.parse(readFileSync(p, 'utf8')) as { roots?: Record<string, NodoChromium> }
   const out: MarcadorImportado[] = []
@@ -165,7 +166,7 @@ export function leerMarcadores(id: NavegadorId): MarcadorImportado[] {
  * medias— y se lee la copia.
  */
 function conCopia<T>(origen: string, fn: (ruta: string) => T): T {
-  const dir = mkdtempSync(join(tmpdir(), 'monper-import-'))
+  const dir = mkdtempSync(join(tmpdir(), 'titanio-import-'))
   try {
     const destino = join(dir, 'db')
     copyFileSync(origen, destino)
@@ -206,7 +207,7 @@ function aMilisegundos(texto: string): number {
 
 export function leerHistorial(id: NavegadorId, limite = 5000): VisitaImportada[] {
   if (id === 'safari') return [] // History.db de Safari está bajo TCC; ver marcadoresSafari
-  const p = join(perfil(id), 'History')
+  const p = join(perfil(id), tr("History"))
   if (!existsSync(p)) return []
   const filas = conCopia(p, (ruta) =>
     consultar(ruta, `SELECT url, title, CAST(last_visit_time AS TEXT) AS visitado FROM urls WHERE url LIKE 'http%' ORDER BY last_visit_time DESC LIMIT ${Math.min(50_000, limite)}`)
@@ -223,7 +224,7 @@ export function leerHistorial(id: NavegadorId, limite = 5000): VisitaImportada[]
 /**
  * La clave con la que Chromium cifra sus contraseñas vive en el Llavero de macOS.
  *
- * Pedirla dispara el diálogo del sistema ("Monper quiere acceder a…"), y eso **es lo
+ * Pedirla dispara el diálogo del sistema ("Titanio quiere acceder a…"), y eso **es lo
  * correcto**: importar contraseñas tiene que requerir un permiso explícito del usuario, no
  * pasar en silencio porque pulsó un botón nuestro.
  */
@@ -246,7 +247,7 @@ export function leerCredenciales(id: NavegadorId): CredencialImportada[] {
   if (id === 'safari') {
     // Safari guarda en el Llavero, y macOS NO deja leer esos items sin interacción del
     // usuario item por item. No es una limitación nuestra: es el diseño de macOS.
-    throw new Error('Safari guarda sus contraseñas en el Llavero y macOS no permite exportarlas. Usa el vault a mano.')
+    throw new Error(tr("Safari guarda sus contraseñas en el Llavero y macOS no permite exportarlas. Usa el vault a mano."))
   }
   const p = join(perfil(id), 'Login Data')
   if (!existsSync(p)) return []
@@ -256,8 +257,8 @@ export function leerCredenciales(id: NavegadorId): CredencialImportada[] {
     clave = claveLlavero(...SERVICIO[id])
   } catch (e) {
     throw new Error(
-      `No se pudo leer la clave de ${CHROMIUM[id].nombre} en el Llavero. ` +
-      `Si salió un diálogo del sistema, hay que permitirlo. (${e instanceof Error ? e.message.slice(0, 60) : e})`
+      tr("No se pudo leer la clave de {0} en el Llavero. ", CHROMIUM[id].nombre) +
+      tr("Si salió un diálogo del sistema, hay que permitirlo. ({0})", e instanceof Error ? e.message.slice(0, 60) : e)
     )
   }
 

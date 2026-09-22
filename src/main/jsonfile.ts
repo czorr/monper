@@ -23,9 +23,14 @@ export interface WriteResult {
  * (el vault sí, la última posición de la ventana no).
  */
 export function writeJson(file: string, data: unknown, label: string, pretty = true): WriteResult {
+  return writeText(file, JSON.stringify(data, null, pretty ? 2 : undefined), label)
+}
+
+/** También usado por JSONC: conserva comentarios y mantiene la escritura atómica. */
+export function writeText(file: string, text: string, label: string): WriteResult {
   const tmp = `${file}.tmp`
   try {
-    writeFileSync(tmp, JSON.stringify(data, null, pretty ? 2 : undefined))
+    writeFileSync(tmp, text)
     renameSync(tmp, file)
     return { ok: true }
   } catch (e) {

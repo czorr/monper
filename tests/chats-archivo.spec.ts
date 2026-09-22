@@ -27,12 +27,12 @@ test.beforeAll(async () => {
 })
 test.afterAll(async () => { await h?.close() })
 
-/** Llama a `window.monperTab.<metodo>` dentro de Settings, que es una página interna. */
+/** Llama a `window.titanioTab.<metodo>` dentro de Settings, que es una página interna. */
 async function enSettings<T>(metodo: string, ...args: unknown[]): Promise<T> {
   return h.app.evaluate(async ({ webContents }, { metodo, args }) => {
     const wc = webContents.getAllWebContents().find((w) => w.getURL().includes('settings.html'))
     if (!wc) throw new Error('Settings no está abierto')
-    return (await wc.executeJavaScript(`window.monperTab.${metodo}(${args.map((a) => JSON.stringify(a)).join(',')})`)) as T
+    return (await wc.executeJavaScript(`window.titanioTab.${metodo}(${args.map((a) => JSON.stringify(a)).join(',')})`)) as T
   }, { metodo, args }) as Promise<T>
 }
 
@@ -43,12 +43,12 @@ async function enSettings<T>(metodo: string, ...args: unknown[]): Promise<T> {
  */
 async function conversacion(primero: string, resto: string[] = []): Promise<string> {
   const id = await h.win.evaluate(async () => {
-    const m = (window as never as Record<string, Record<string, unknown>>)['monper']
+    const m = (window as never as Record<string, Record<string, unknown>>)['titanio']
     const s = await (m['chatsNew'] as () => Promise<{ id: string }>)()
     return s.id
   })
   await h.win.evaluate(({ id, primero, resto }) => {
-    const m = (window as never as Record<string, Record<string, unknown>>)['monper']
+    const m = (window as never as Record<string, Record<string, unknown>>)['titanio']
     const mensajes = [
       { role: 'user', text: primero },
       ...resto.map((t) => ({ role: 'assistant', parts: [{ type: 'text', text: t }] }))
@@ -80,7 +80,7 @@ test('archivar la saca del desplegable del panel, pero no la borra', async () =>
   await enSettings('chatsArchive', id, true)
 
   const enPanel = await h.win.evaluate(async () => {
-    const m = (window as never as Record<string, Record<string, unknown>>)['monper']
+    const m = (window as never as Record<string, Record<string, unknown>>)['titanio']
     return (await (m['chatsList'] as () => Promise<{ id: string }[]>)())
   })
   expect(enPanel.some((s) => s.id === id), 'archivada no debe salir en el desplegable del panel').toBe(false)

@@ -1,8 +1,10 @@
+import { t as tr, useLocale } from '@renderer/lib/i18n'
 import { useState, type JSX } from 'react'
 import type { BrowserState, Bookmark, Profile, UpdateState } from '@shared/types'
 import UpdatePill from './UpdatePill'
 import RemotePill from './RemotePill'
 import AccountPill from './AccountPill'
+import PinnedTitanio from './PinnedTitanio'
 import TabList from './TabList'
 import TabRow from './TabRow'
 import BookmarkRow from './BookmarkRow'
@@ -11,7 +13,7 @@ import IconFolderPlus from '~icons/tabler/folder-plus'
 import IconSpy from '~icons/tabler/spy'
 import { IconButton, SectionLabel } from '@renderer/components/ui'
 import { PlusIcon, SidebarIcon } from '@renderer/lib/icons'
-import monperPng from '@renderer/assets/monper.png' // el PNG a pelo: aquí el fondo es siempre oscuro
+import titanioLogo from '@renderer/assets/iso-white.svg' // aquí el fondo es siempre oscuro
 
 interface Props {
   state: BrowserState
@@ -41,6 +43,7 @@ const newRowClass =
   'min-h-[29px] hover:bg-bg-hover hover:text-text [&>svg]:opacity-80 [&>svg]:w-[16px] [&>svg]:h-[16px]'
 
 export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBookmark, onOpenMenu, onCollapse, onNewTab, onSelectTab, onCloseTab, onReorderTabs, floating = false, update, onDownloadUpdate, onInstallUpdate, remote, onDisableRemote }: Props): JSX.Element {
+  useLocale()
   const noop = (): void => {}
 
   /**
@@ -58,7 +61,7 @@ export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBo
   const hijosDe = (id: string): Bookmark[] => bookmarks.filter((b) => b.parentId === id)
 
   const nuevaCarpeta = async (): Promise<void> => {
-    const f = await window.monper.newBookmarkFolder('Nueva carpeta')
+    const f = await window.titanio.newBookmarkFolder(tr("Nueva carpeta"))
     setCarpetaNueva(f.id)
   }
 
@@ -71,7 +74,7 @@ export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBo
   const soltarEnCarpeta = (folderId: string): void => {
     if (arrastre?.tipo === 'bookmark' && arrastre.id !== folderId) {
       const b = bookmarks.find((x) => x.id === arrastre.id)
-      if (b && !b.folder) window.monper.moveBookmark(arrastre.id, folderId)
+      if (b && !b.folder) window.titanio.moveBookmark(arrastre.id, folderId)
       else soltarEnMarcador(folderId)
     } else if (arrastre?.tipo === 'tab') soltarTabEnMarcadores()
     limpiar()
@@ -86,12 +89,12 @@ export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBo
       const origen = bookmarks.find((b) => b.id === arrastre.id)
       const destino = bookmarks.find((b) => b.id === destinoId)
       if (origen && !origen.folder && (origen.parentId ?? null) !== (destino?.parentId ?? null)) {
-        window.monper.moveBookmark(arrastre.id, destino?.parentId ?? null)
+        window.titanio.moveBookmark(arrastre.id, destino?.parentId ?? null)
       }
       const ids = bookmarks.map((b) => b.id).filter((id) => id !== arrastre.id)
       const at = ids.indexOf(destinoId)
       ids.splice(at < 0 ? ids.length : at, 0, arrastre.id)
-      window.monper.reorderBookmarks(ids)
+      window.titanio.reorderBookmarks(ids)
     }
     limpiar()
   }
@@ -101,7 +104,7 @@ export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBo
     if (arrastre?.tipo === 'tab') return soltarTabEnMarcadores()
     if (arrastre?.tipo === 'bookmark') {
       const b = bookmarks.find((x) => x.id === arrastre.id)
-      if (b && !b.folder && b.parentId) window.monper.moveBookmark(arrastre.id, null)
+      if (b && !b.folder && b.parentId) window.titanio.moveBookmark(arrastre.id, null)
     }
     limpiar()
   }
@@ -111,7 +114,7 @@ export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBo
    * como marcar ata la pestaña a su marcador, la fila se mueve sola de una lista a la otra.
    */
   const soltarTabEnMarcadores = (): void => {
-    if (arrastre?.tipo === 'tab') window.monper.toggleBookmark()
+    if (arrastre?.tipo === 'tab') window.titanio.toggleBookmark()
     limpiar()
   }
 
@@ -124,8 +127,8 @@ export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBo
   const soltarMarcadorEnTabs = (): void => {
     if (arrastre?.tipo === 'bookmark') {
       const vivo = state.tabs.find((t) => t.bookmarkId === arrastre.id)
-      if (!vivo) window.monper.openBookmark(arrastre.id)
-      window.monper.detachBookmark(arrastre.id)
+      if (!vivo) window.titanio.openBookmark(arrastre.id)
+      window.titanio.detachBookmark(arrastre.id)
     }
     limpiar()
   }
@@ -156,14 +159,15 @@ export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBo
   const resaltado = (id: string): string =>
     sobre === id && arrastre ? 'shadow-[inset_0_2px_0_0_rgba(255,255,255,0.45)] ' : ''
   // Las pestañas ligadas a un bookmark se muestran en su slot de bookmarks, no en Tabs.
-  const userTabs = state.tabs.filter((t) => !t.agent && !t.bookmarkId)
-  const agentTabs = state.tabs.filter((t) => t.agent)
+  const userTabs = state.tabs.filter((t) => !t.agent && !t.bookmarkId && !t.pinnedTitanio)
+  const agentTabs = state.tabs.filter((t) => t.agent && !t.pinnedTitanio)
   const liveBookmark = (id: string): (typeof state.tabs)[number] | undefined =>
     state.tabs.find((t) => t.bookmarkId === id)
   const closeOthers = (): void => userTabs.forEach((t) => t.id !== state.activeId && onCloseTab(t.id))
 
   return (
     <aside
+      style={{ backgroundColor: state.tint ? `${state.tint}3d` : undefined }}
       className={
         'group flex flex-col pb-2.5 px-2 ' +
         (floating ? 'h-full w-full pt-2 ' : 'fixed inset-y-0 left-0 w-sidebar ') +
@@ -189,7 +193,7 @@ export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBo
               onInstall={onInstallUpdate ?? noop}
             />
           )}
-          <IconButton title="Colapsar sidebar (⌘S)" onClick={onCollapse}>
+          <IconButton title={tr("Colapsar sidebar (⌘S)")} onClick={onCollapse}>
             <SidebarIcon />
           </IconButton>
         </div>
@@ -200,15 +204,13 @@ export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBo
       {state.incognito && (
         <div className="flex items-center gap-2 h-8 px-2.5 mb-1 rounded-xl bg-white/[0.06] text-[12.5px] text-text-dim [-webkit-app-region:drag]">
           <IconSpy className="w-[15px] h-[15px] shrink-0 text-text-faint" />
-          <span className="truncate">Ventana de incógnito</span>
+          <span className="truncate">{tr("Ventana de incógnito")}</span>
         </div>
       )}
 
-      <div className="flex items-center justify-between gap-1 pr-1 [-webkit-app-region:drag]">
-        <AccountPill initials={profile.initials} name={profile.name} avatar={profile.avatar} onOpen={onOpenMenu} />
-        <IconButton title="Nueva pestaña (⌘T)" onClick={onNewTab}>
-          <PlusIcon />
-        </IconButton>
+      <div className="shrink-0">
+        <SectionLabel label="Titanio" />
+        <PinnedTitanio tab={state.tabs.find((t) => t.pinnedTitanio)} activeId={state.activeId} favicon={state.titanioFavicon} onClose={onCloseTab} />
       </div>
 
       {bookmarks.length > 0 && (
@@ -217,7 +219,7 @@ export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBo
           onDragOver={(e) => { if (arrastre) { e.preventDefault(); setSobre('__bookmarks__') } }}
           onDrop={soltarEnRaiz}
         >
-          <SectionLabel label="Bookmarks" action={{ label: <IconFolderPlus className="w-[15px] h-[15px]" />, title: 'Nueva carpeta', onClick: () => void nuevaCarpeta() }} />
+          <SectionLabel label={tr("Bookmarks")} action={{ label: <IconFolderPlus className="w-[15px] h-[15px]" />, title: tr("Nueva carpeta"), onClick: () => void nuevaCarpeta() }} />
           {/* pb-px: la fila pulsada baja 1px y, si es la última, sacaba scroll en este
               contenedor. Ese píxel de holgura evita la barra sin tocar el efecto. */}
           <div className="flex flex-col gap-px pb-px max-h-[35vh] overflow-y-auto [&::-webkit-scrollbar]:w-0">
@@ -239,7 +241,7 @@ export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBo
                         folder={b}
                         count={hijos.length}
                         collapsed={plegada}
-                        onToggle={() => window.monper.collapseBookmarkFolder(b.id, !plegada)}
+                        onToggle={() => window.titanio.collapseBookmarkFolder(b.id, !plegada)}
                         autoRename={carpetaNueva === b.id}
                         onRenamed={() => setCarpetaNueva(null)}
                       />
@@ -260,11 +262,11 @@ export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBo
         </div>
       )}
 
-      <SectionLabel label="Tabs" action={{ label: 'Clear', title: 'Cerrar todas menos la activa', onClick: closeOthers }} />
+      <SectionLabel label={tr("Tabs")} action={{ label: tr("Clear"), title: tr("Cerrar todas menos la activa"), onClick: closeOthers }} />
 
       <button className={newRowClass} onClick={onNewTab}>
         <PlusIcon />
-        <span>New tab</span>
+        <span>{tr("New tab")}</span>
       </button>
 
       <div
@@ -280,23 +282,26 @@ export default function Sidebar({ state, profile, bookmarks, collapsed, onOpenBo
           onReorder={onReorderTabs}
           onDragTab={(id) => setArrastre({ tipo: 'tab', id: String(id) })}
           onDragEnd={limpiar}
-          onTearOff={(id) => window.monper.tearOffTab(id)}
+          onTearOff={(id) => window.titanio.tearOffTab(id)}
         />
       </div>
 
       {agentTabs.length > 0 && (
         <div className="shrink-0 mt-1">
           <div className="flex items-center gap-1.5 px-2 pb-1 text-[12px] font-medium text-text-faint [&>img]:w-3.5 [&>img]:h-3.5 [&>img]:opacity-80">
-            <img src={monperPng} alt="" />
-            <span>Agent tabs</span>
+            <img src={titanioLogo} alt="" />
+            <span>{tr("Agent tabs")}</span>
           </div>
-          <div className="flex flex-col gap-px pb-px max-h-[40vh] overflow-y-auto [&::-webkit-scrollbar]:w-0">
+          <div className="flex flex-col gap-0.5 pb-px max-h-[40vh] overflow-y-auto [&::-webkit-scrollbar]:w-0">
             {agentTabs.map((t) => (
               <TabRow key={t.id} tab={t} active={t.id === state.activeId} onSelect={onSelectTab} onClose={onCloseTab} />
             ))}
           </div>
         </div>
       )}
+      <div className="shrink-0 flex items-center pt-2 [-webkit-app-region:drag]">
+        <AccountPill initials={profile.initials} name={profile.name} avatar={profile.avatar} color={profile.color} icon={profile.icon} onOpen={onOpenMenu} />
+      </div>
     </aside>
   )
 }

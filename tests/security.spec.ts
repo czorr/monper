@@ -40,7 +40,7 @@ test('las páginas se cargan sin node y con aislamiento de contexto', async () =
 
 test('el API del preload no expone nada que huela a secreto', async () => {
   const keys = await h.win.evaluate(() =>
-    Object.keys((window as never as Record<string, object>)['monper'] ?? {})
+    Object.keys((window as never as Record<string, object>)['titanio'] ?? {})
   )
   const sospechosos = keys.filter((k) => /secret|password|passwd|apikey|api_key|credential/i.test(k))
   expect(sospechosos, `el preload expone ${sospechosos.join(', ')}`).toEqual([])
@@ -65,13 +65,13 @@ test('el chrome no puede escribir datos privados por IPC', async () => {
   expect(after).toHaveLength(before.length)
 })
 
-test('una web no recibe el bridge de Monper', async () => {
-  // El preload de contenido expone su propio API acotado; `monper` (el del chrome, con
+test('una web no recibe el bridge de Titanio', async () => {
+  // El preload de contenido expone su propio API acotado; `titanio` (el del chrome, con
   // newTab, closeTab, chatSend…) no debe existir en una página cualquiera.
   const leaked = await h.app.evaluate(async ({ webContents }) => {
     const wc = webContents.getAllWebContents().find((w) => w.getURL().startsWith('http://127.0.0.1'))
     if (!wc) return 'sin pestaña'
-    return wc.executeJavaScript('typeof window.monper')
+    return wc.executeJavaScript('typeof window.titanio')
   })
   expect(leaked).toBe('undefined')
 })
@@ -91,7 +91,7 @@ test('una web no alcanza node ni el runtime de Electron', async () => {
 })
 
 test('una web no puede leer ni cambiar los permisos de los sitios', async () => {
-  // `monperTab` SÍ existe en una web: es el preload de contenido. Lo que la separa de
+  // `titanioTab` SÍ existe en una web: es el preload de contenido. Lo que la separa de
   // settings es `isInternalSender`, y esto es lo que lo fija. Sin ello, cualquier página
   // podría enumerar dónde has dado la cámara y concedérsela a sí misma.
   const origen = 'https://ejemplo-permisos.test'
@@ -102,12 +102,12 @@ test('una web no puede leer ni cambiar los permisos de los sitios', async () => 
       return wc.executeJavaScript(code)
     }, js)
 
-  expect(await wcEval('window.monperTab.listSitePermissions()'), 'una web no debe ver ningún sitio').toEqual([])
+  expect(await wcEval('window.titanioTab.listSitePermissions()'), 'una web no debe ver ningún sitio').toEqual([])
   expect(
-    await wcEval(`window.monperTab.setSitePermission(${JSON.stringify(origen)}, 'camera', 'granted')`),
+    await wcEval(`window.titanioTab.setSitePermission(${JSON.stringify(origen)}, 'camera', 'granted')`),
     'conceder desde una web tiene que ser rechazado'
   ).toBe(false)
-  expect(await wcEval('window.monperTab.clearSitePermissions(null)'), 'borrar todo desde una web también').toBe(false)
+  expect(await wcEval('window.titanioTab.clearSitePermissions(null)'), 'borrar todo desde una web también').toBe(false)
 })
 
 test('el control remoto arranca apagado y se ve cuando está encendido', async () => {
@@ -129,7 +129,7 @@ test('el control remoto arranca apagado y se ve cuando está encendido', async (
 })
 
 test('una web no puede encender el puente MCP', async () => {
-  // `monperTab` es el preload de CONTENIDO: existe en cualquier web. Sin `isInternalSender`,
+  // `titanioTab` es el preload de CONTENIDO: existe en cualquier web. Sin `isInternalSender`,
   // una página podría abrir el puente y quedarse conduciendo el navegador con tus sesiones.
   // Es la superficie más peligrosa del producto, así que se fija aquí y no en su propio spec.
   const wcEval = async (js: string): Promise<unknown> =>
@@ -139,8 +139,8 @@ test('una web no puede encender el puente MCP', async () => {
       return wc.executeJavaScript(code)
     }, js)
 
-  expect(await wcEval('window.monperTab.setMcpEnabled(true)'), 'encenderlo desde una web tiene que ser rechazado').toBe(false)
-  const estado = (await wcEval('window.monperTab.getMcpState()')) as { enabled: boolean; port: number }
+  expect(await wcEval('window.titanioTab.setMcpEnabled(true)'), 'encenderlo desde una web tiene que ser rechazado').toBe(false)
+  const estado = (await wcEval('window.titanioTab.getMcpState()')) as { enabled: boolean; port: number }
   expect(estado.enabled, 'y no debe poder ni leer si está encendido').toBe(false)
   expect(estado.port).toBe(0)
   // Y de verdad no se encendió: se comprueba contra el estado real, no contra lo que devolvió.

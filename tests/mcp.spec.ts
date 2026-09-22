@@ -6,7 +6,7 @@ import { launch, api, waitForState, serve, type Harness } from './helpers'
 
 /**
  * El puente MCP: cualquier cliente (Claude Code, Cursor, un script) opera sitios CON la sesión
- * del usuario. Esto recorre la cadena entera —cliente ⇢ stdio ⇢ HTTP local ⇢ Monper ⇢ página—
+ * del usuario. Esto recorre la cadena entera —cliente ⇢ stdio ⇢ HTTP local ⇢ Titanio ⇢ página—
  * porque cada tramo por separado puede estar bien y el conjunto no funcionar.
  *
  * La sesión se prueba con una cookie: el servidor de prueba solo entrega el contenido si la
@@ -72,12 +72,12 @@ test.beforeAll(async () => {
   await new Promise((r) => setTimeout(r, 600))
 
   await h.app.evaluate(({ ipcMain }) => ipcMain.emit('profilesubmenu:action', null, 'dev:remote'))
-  // El token lo genera Monper y vive en su carpeta de datos; se lee desde el test, no desde
+  // El token lo genera Titanio y vive en su carpeta de datos; se lee desde el test, no desde
   // el main (dentro de `app.evaluate` no hay `require`).
   const datos = await h.app.evaluate(({ app }) => app.getPath('userData'))
   const token = JSON.parse(readFileSync(join(datos, 'remote.json'), 'utf8')).token as string
 
-  mcp = spawn(process.execPath, [join(__dirname, '..', 'packages', 'monper-mcp', 'dist', 'index.js')], {
+  mcp = spawn(process.execPath, [join(__dirname, '..', 'packages', 'titanio-mcp', 'dist', 'index.js')], {
     env: { ...process.env, MONPER_TOKEN: token, MONPER_CLIENT_NAME: 'test' },
     stdio: 'pipe'
   })
@@ -94,7 +94,7 @@ test.afterAll(async () => {
 test('el servidor MCP se presenta y anuncia sus herramientas', async () => {
   const init = await llamar('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'test', version: '0' } })
   expect(init['protocolVersion'], 'debe hablar la versión que pide el cliente').toBe('2025-06-18')
-  expect((init['serverInfo'] as { name: string }).name).toBe('monper-mcp')
+  expect((init['serverInfo'] as { name: string }).name).toBe('titanio-mcp')
 
   const lista = await llamar('tools/list')
   const nombres = (lista['tools'] as { name: string }[]).map((t) => t.name)

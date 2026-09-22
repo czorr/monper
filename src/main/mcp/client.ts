@@ -1,18 +1,18 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'child_process'
-import { join } from 'path'
+import { rutaDePerfil } from '../perfiles'
 import { app } from 'electron'
 import { readJson, writeJson } from '../jsonfile'
 
 /**
- * Monper como CLIENTE MCP: el agente usa herramientas de servidores externos.
+ * Titanio como CLIENTE MCP: el agente usa herramientas de servidores externos.
  *
- * Es la mitad que faltaba. El puente (`remote.ts` + `monper-mcp`) da al mundo lo único que
- * Monper tiene y nadie más puede tener: tus sesiones. Esto trae lo contrario — lo que a un
+ * Es la mitad que faltaba. El puente (`remote.ts` + `titanio-mcp`) da al mundo lo único que
+ * Titanio tiene y nadie más puede tener: tus sesiones. Esto trae lo contrario — lo que a un
  * navegador le falta y no debería fabricar: ejecutar código, tocar el disco, hablar con una
  * base de datos.
  *
  * Nació de un problema concreto y medible: varias skills (docx, pptx, xlsx, tax, pdf) le
- * dicen al agente que ejecute `python scripts/…` o que use una tool `bash`. Monper no tiene
+ * dicen al agente que ejecute `python scripts/…` o que use una tool `bash`. Titanio no tiene
  * ninguna de las dos — `run_js` es JavaScript DENTRO de la página, no una shell— y esos
  * scripts ni siquiera están en el repo: vienen del entorno de Claude Code. El agente leía
  * instrucciones imposibles.
@@ -23,7 +23,7 @@ import { readJson, writeJson } from '../jsonfile'
  * Decisiones:
  * - **Solo stdio.** Es lo que usan todos los servidores MCP de escritorio y no abre puertos.
  * - **Arranque perezoso.** Un servidor se lanza la primera vez que hace falta, no al abrir
- *   Monper: arrancar cinco procesos de Node en el arranque es justo lo que se quitó del
+ *   Titanio: arrancar cinco procesos de Node en el arranque es justo lo que se quitó del
  *   pre-warm de popovers (344MB, ver docs/rendimiento.md).
  * - **Todo con techo de tiempo.** Un servidor que no contesta es la app colgada.
  * - **Nada se traga.** Si un servidor no arranca, se dice en el log y en Settings; el agente
@@ -89,7 +89,7 @@ const arrancando = new Map<string, Promise<Viva | null>>()
 export function configPath(): string { return file }
 
 export function initMcpClient(): void {
-  file = join(app.getPath('userData'), 'mcp-servers.json')
+  file = rutaDePerfil('mcp-servers.json')
   cfg = readJson<McpConfig>(file, { mcpServers: {} }, 'los servidores MCP')
   if (!cfg.mcpServers) cfg.mcpServers = {}
   // Se crea el fichero la primera vez para que el usuario tenga algo que abrir y editar.
@@ -199,7 +199,7 @@ async function arrancar(nombre: string, c: McpServerConfig): Promise<Viva | null
     await pedir(v, nombre, 'initialize', {
       protocolVersion: '2025-06-18',
       capabilities: {},
-      clientInfo: { name: 'Monper', version: app.getVersion() }
+      clientInfo: { name: 'Titanio', version: app.getVersion() }
     }, ARRANQUE_MS)
     notificar(v, 'notifications/initialized')
     const lista = (await pedir(v, nombre, 'tools/list', {}, ARRANQUE_MS)) as {
@@ -241,7 +241,7 @@ async function asegurar(nombre: string): Promise<Viva | null> {
 /**
  * Todas las herramientas disponibles. Arranca los servidores configurados que falten.
  *
- * Se llama al construir el agente, no al abrir Monper: si nunca hablas con el agente, no se
+ * Se llama al construir el agente, no al abrir Titanio: si nunca hablas con el agente, no se
  * lanza ni un proceso.
  */
 export async function mcpTools(): Promise<McpTool[]> {

@@ -1,6 +1,6 @@
 # Ventanas nativas (popovers)
 
-Los overlays de Monper **tienen** que ser ventanas nativas: la vista de la página
+Los overlays de Titanio **tienen** que ser ventanas nativas: la vista de la página
 (`WebContentsView`) se dibuja encima del DOM, así que un `div` posicionado queda debajo.
 
 Eran 9 ventanas hechas a mano, cada una con su propio posicionamiento, su auto-cierre, su

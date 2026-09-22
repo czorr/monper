@@ -17,12 +17,12 @@ let h: Harness
 test.beforeAll(async () => { h = await launch() })
 test.afterAll(async () => { await h?.close() })
 
-/** Ejecuta `window.monperTab.<metodo>` dentro de la página de Settings (que es interna). */
+/** Ejecuta `window.titanioTab.<metodo>` dentro de la página de Settings (que es interna). */
 async function enSettings<T>(metodo: string, ...args: unknown[]): Promise<T> {
   return h.app.evaluate(async ({ webContents }, { metodo, args }) => {
     const wc = webContents.getAllWebContents().find((w) => w.getURL().includes('settings.html'))
     if (!wc) throw new Error('Settings no está abierto')
-    const call = `window.monperTab.${metodo}(${args.map((a) => JSON.stringify(a)).join(',')})`
+    const call = `window.titanioTab.${metodo}(${args.map((a) => JSON.stringify(a)).join(',')})`
     return (await wc.executeJavaScript(call)) as T
   }, { metodo, args }) as Promise<T>
 }
@@ -81,7 +81,7 @@ test('el chrome NO puede gestionar el vault: solo las páginas internas', async 
   // `isInternalSender` es lo que impide que el sidebar —o una web— borre o lea secretos.
   // Se comprueba desde la ventana del chrome, que no es una página interna.
   const copiado = await h.win.evaluate(async () => {
-    const m = (window as never as Record<string, Record<string, unknown>>)['monper']
+    const m = (window as never as Record<string, Record<string, unknown>>)['titanio']
     return typeof m?.['vaultCopy']
   })
   expect(copiado, 'el chrome no debe tener siquiera el método de copiar').toBe('undefined')

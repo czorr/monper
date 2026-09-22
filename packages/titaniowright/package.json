@@ -1,5 +1,5 @@
 {
-  "name": "monperwright",
+  "name": "titaniowright",
   "version": "0.1.0",
   "description": "Token-efficient, Playwright-shaped browser automation over a pluggable transport (CDP / Electron WebContents). Built for LLM coding agents.",
   "keywords": [
@@ -13,7 +13,7 @@
     "accessibility"
   ],
   "license": "MIT",
-  "author": "Monper",
+  "author": "Titanio",
   "type": "commonjs",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

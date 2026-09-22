@@ -1,3 +1,4 @@
+import { t as tr, useLocale } from '@renderer/lib/i18n'
 import { useLayoutEffect, useRef, useState, type JSX, type KeyboardEvent, type ClipboardEvent } from 'react'
 import type { ChatContext, ChatAttachment, Effort } from '@shared/types'
 import IconArrowUp from '~icons/tabler/arrow-up'
@@ -15,13 +16,14 @@ interface Props {
   running: boolean
   onSend: (text: string, attachments: ChatAttachment[]) => void
   onCancel: () => void
-  onPickModel: (id: string) => void
+  onPickModel: (id: string, providerId?: string) => void
   onPickEffort: (e: Effort) => void
   onConnect: () => void
 }
 
 /** Caja de composición: adjuntos + textarea + enviar/detener + selectores de modelo y esfuerzo. */
 export default function Composer({ ctx, running, onSend, onCancel, onPickModel, onPickEffort, onConnect }: Props): JSX.Element {
+  useLocale()
   const [input, setInput] = useState('')
   const [attachments, setAttachments] = useState<ChatAttachment[]>([])
   const taRef = useRef<HTMLTextAreaElement>(null)
@@ -77,7 +79,7 @@ export default function Composer({ ctx, running, onSend, onCancel, onPickModel, 
                 <img src={a.dataUrl} alt={a.name ?? ''} className="w-full h-full object-cover" />
                 <button
                   onClick={() => removeAt(i)}
-                  title="Quitar"
+                  title={tr("Quitar")}
                   className="absolute top-0.5 right-0.5 w-4 h-4 grid place-items-center rounded-full bg-black/70 text-white opacity-0 group-hover/att:opacity-100 transition-opacity [&>svg]:w-2.5 [&>svg]:h-2.5"
                 >
                   <IconX />
@@ -95,11 +97,11 @@ export default function Composer({ ctx, running, onSend, onCancel, onPickModel, 
             onKeyDown={onKeyDown}
             onPaste={onPaste}
             rows={1}
-            placeholder="Ask Monper…"
+            placeholder={tr("Ask Titanio…")}
             className="flex-1 resize-none bg-transparent outline-none text-[13.5px] leading-6 placeholder:text-text-faint py-1"
           />
           {running ? (
-            <button onClick={onCancel} className="w-7 h-7 shrink-0 grid place-items-center rounded-full bg-white/15 text-text" title="Detener">
+            <button onClick={onCancel} className="w-7 h-7 shrink-0 grid place-items-center rounded-full bg-white/15 text-text" title={tr("Detener")}>
               <span className="w-2.5 h-2.5 rounded-[2px] bg-current" />
             </button>
           ) : (
@@ -121,7 +123,7 @@ export default function Composer({ ctx, running, onSend, onCancel, onPickModel, 
           */}
           <button
             onClick={() => fileRef.current?.click()}
-            title="Adjuntar imagen"
+            title={tr("Adjuntar imagen")}
             className="w-7 h-7 shrink-0 grid place-items-center rounded-lg text-text-dim hover:text-text hover:bg-white/[0.08] transition-colors"
           >
             <IconPaperclip className="w-4 h-4" />

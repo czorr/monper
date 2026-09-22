@@ -1,3 +1,4 @@
+import './language'
 import { contextBridge, ipcRenderer } from 'electron'
 import type { ExtensionsWinApi, ExtensionsData } from '../shared/types'
 

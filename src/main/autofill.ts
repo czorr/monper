@@ -1,6 +1,7 @@
 import type { WebContents } from 'electron'
 import * as vault from './vault/store'
 import { faviconFor } from './favicons'
+import { sameCredentialSite } from '../shared/vault'
 
 /**
  * Inyecta credenciales en la página desde el proceso main.
@@ -8,7 +9,9 @@ import { faviconFor } from './favicons'
  * NUNCA viaja al renderer del chrome ni al contexto del agente.
  */
 export async function injectFill(wc: WebContents, username: string, secret: string): Promise<string[]> {
+  const origin = new URL(wc.getURL()).origin
   const js = `(() => {
+    if (location.origin !== ${JSON.stringify(origin)}) return [];
     const set = (el, val) => {
       const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
       const setter = Object.getOwnPropertyDescriptor(proto, 'value').set;
@@ -34,7 +37,7 @@ export async function injectFill(wc: WebContents, username: string, secret: stri
 /** Rellena por id de ítem del vault. Devuelve qué campos se llenaron (nunca el secreto). */
 export async function fillFromVault(wc: WebContents, itemId: string): Promise<string[]> {
   const item = vault.get(itemId)
-  if (!item) return []
+  if (!item || item.type !== 'web-credential' || !sameCredentialSite(item.data.origin || '', wc.getURL())) return []
   const secret = vault.getSecret(itemId)
   if (secret == null) return []
   return injectFill(wc, item.data.username || '', secret)
@@ -42,11 +45,8 @@ export async function fillFromVault(wc: WebContents, itemId: string): Promise<st
 
 /** Credenciales guardadas que aplican a un origen (metadata, sin secretos). */
 export function credentialsFor(origin: string): { id: string; label: string; username: string; origin: string; favicon: string | null }[] {
-  const host = (u: string): string => { try { return new URL(u).hostname.replace(/^www\./, '') } catch { return u } }
-  const h = host(origin)
   return vault
-    .list()
-    .filter((i) => i.type === 'web-credential' && !!i.data.origin && host(i.data.origin) === h)
+    .credentialsForSite(origin)
     // El favicon sale de lo que ya vimos al visitar el sitio: pedírselo a Google delataría
     // en qué páginas guarda contraseñas el usuario.
     .map((i) => ({

@@ -28,7 +28,7 @@ export const MAX_CONTEXTO = 8 * 1024
 
 const SEMILLA_MEMORY = `# Memoria
 
-Lo que Monper recuerda entre sesiones. Este fichero entra en **todos** los turnos, así que
+Lo que Titanio recuerda entre sesiones. Este fichero entra en **todos** los turnos, así que
 mantenlo corto: un índice, no un archivo. Lo largo va en otros \`.md\` y aquí solo su enlace.
 
 ## Sobre el usuario
@@ -42,7 +42,7 @@ _(vacío)_
 
 const SEMILLA_USER = `# Usuario
 
-Lo que sabemos de la persona que usa Monper. Lo escribe el agente cuando se entera de algo que
+Lo que sabemos de la persona que usa Titanio. Lo escribe el agente cuando se entera de algo que
 le servirá otro día, y se puede editar a mano.
 
 _(vacío)_

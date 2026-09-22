@@ -129,7 +129,7 @@ test('el pill del header muestra la conversación y lista el historial', async (
     await api(h.win, 'chatsSave', s.id, turno('Resume este artículo'))
     // Se abre CLICANDO: `setChat` por IPC mueve la vista nativa pero no cambia el estado de
     // React, así que el panel se quedaba fuera de pantalla y el click caducaba.
-    await h.win.locator('button', { hasText: 'Ask Monper' }).click()
+    await h.win.locator('button', { hasText: 'Ask Titanio' }).click()
 
     // El pill muestra la conversación actual (o "New chat" si no hay ninguna).
     const pill = h.win.locator('header button', { hasText: /^New chat$|Resume este/ }).first()

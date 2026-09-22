@@ -1,3 +1,4 @@
+import { t as tr, useLocale } from '@renderer/lib/i18n'
 import { useState, type JSX } from 'react'
 import IconCopy from '~icons/tabler/copy'
 import IconCheck from '~icons/tabler/check'
@@ -14,15 +15,16 @@ interface Props {
 function relativeTime(at?: number): string {
   if (!at) return ''
   const s = Math.max(0, Math.round((Date.now() - at) / 1000))
-  if (s < 60) return 'justo ahora'
+  if (s < 60) return tr("justo ahora")
   const m = Math.round(s / 60)
-  if (m < 60) return `hace ${m} min`
+  if (m < 60) return tr("hace {0} min", m)
   const h = Math.round(m / 60)
-  if (h < 24) return `hace ${h} h`
-  return `hace ${Math.round(h / 24)} d`
+  if (h < 24) return tr("hace {0} h", h)
+  return tr("hace {0} d", Math.round(h / 24))
 }
 
 function ActionButton({ title, onClick, children }: { title: string; onClick: () => void; children: JSX.Element }): JSX.Element {
+  useLocale()
   return (
     <button
       onClick={onClick}
@@ -36,6 +38,7 @@ function ActionButton({ title, onClick, children }: { title: string; onClick: ()
 
 /** Barra de acciones bajo un mensaje del asistente. Aparece al hover del parent (group). */
 export default function MessageActions({ text, at }: Props): JSX.Element {
+  useLocale()
   const [copied, setCopied] = useState(false)
   const [speaking, setSpeaking] = useState(false)
 
@@ -59,10 +62,10 @@ export default function MessageActions({ text, at }: Props): JSX.Element {
 
   return (
     <div className="flex items-center gap-0.5 mt-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-      <ActionButton title={copied ? 'Copiado' : 'Copiar'} onClick={copy}>
+      <ActionButton title={copied ? tr("Copiado") : tr("Copiar")} onClick={copy}>
         {copied ? <IconCheck className="w-3.5 h-3.5 text-emerald-400" /> : <IconCopy className="w-3.5 h-3.5" />}
       </ActionButton>
-      <ActionButton title={speaking ? 'Detener lectura' : 'Leer en voz alta'} onClick={toggleSpeak}>
+      <ActionButton title={speaking ? tr("Detener lectura") : tr("Leer en voz alta")} onClick={toggleSpeak}>
         {speaking ? <IconVolumeOff className="w-3.5 h-3.5 text-text" /> : <IconVolume className="w-3.5 h-3.5" />}
       </ActionButton>
       {at && <span className="ml-1.5 text-[11.5px] text-text-faint select-none">{relativeTime(at)}</span>}

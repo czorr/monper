@@ -1,10 +1,11 @@
+import { t as tr } from '../../shared/i18n'
 import type { WebContents } from 'electron'
 import type { AIProvider, ChatMessage, Effort } from '../../shared/types'
 import * as page from './page'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-const SYSTEM = `Eres Monper, un agente que opera el navegador del usuario para cumplir su tarea.
+const SYSTEM = `Eres Titanio, un agente que opera el navegador del usuario para cumplir su tarea.
 Trabajas en bucle: observa la página con read_page, razona, y ejecuta UNA acción por paso.
 - Llama read_page antes de tu primer click/type y de nuevo tras cualquier navegación (los "ref" cambian).
 - Refiere los elementos por su número "ref" del último read_page.
@@ -62,7 +63,7 @@ export async function runAgent(opts: {
     }
     msgs.push({ role: 'user', content: results })
   }
-  emit.token('Alcancé el límite de pasos. Dime si continúo.')
+  emit.token(tr('Alcancé el límite de pasos. Dime si continúo.'))
 }
 
 function host(u: string): string {
@@ -71,11 +72,11 @@ function host(u: string): string {
 
 function describe(name: string, input: any): { state: string; label: string } {
   switch (name) {
-    case 'read_page': return { state: 'listening', label: 'Leyendo la página' }
-    case 'navigate': return { state: 'searching', label: `Navegando a ${host(input.url)}` }
-    case 'click': return { state: 'working', label: `Click en el elemento ${input.ref}` }
-    case 'type': return { state: 'composing', label: 'Escribiendo' }
-    case 'scroll': return { state: 'working', label: `Scroll ${input.direction}` }
+    case 'read_page': return { state: 'listening', label: tr("Leyendo la página") }
+    case 'navigate': return { state: 'searching', label: tr("Navegando a {0}", host(input.url)) }
+    case 'click': return { state: 'working', label: tr("Click en el elemento {0}", input.ref) }
+    case 'type': return { state: 'composing', label: tr("Escribiendo") }
+    case 'scroll': return { state: 'working', label: tr("Scroll {0}", input.direction) }
     default: return { state: 'working', label: name }
   }
 }

@@ -11,7 +11,7 @@ era el único que no lo exponía a nada. Por eso existe una industria entera con
 integraciones y apps OAuth para datos que ya están renderizados en una pestaña con tu sesión
 abierta. Toda la IA del mundo choca con el mismo muro: lee la web pública y se acabó.
 
-Monper ya cruza ese muro. El puente lo convierte en interfaz.
+Titanio ya cruza ese muro. El puente lo convierte en interfaz.
 
 **Y no compite con Chrome.** Chrome no puede hacer esto aunque quiera: exponer las sesiones del
 usuario a procesos locales es exactamente lo que su modelo de amenazas prohíbe, y sería
@@ -23,7 +23,7 @@ estructuralmente solo puede hacer un navegador pequeño y del lado del usuario.
 | Pieza | Dónde | Qué hace |
 |---|---|---|
 | `remote.ts` | main | El servidor local con token. Ya existía; se le añadió trabajar en pestañas **de fondo** (`tabId`, `background`), `waitLoad` y la autorización por cliente. |
-| `packages/monper-mcp` | paquete npm | Servidor MCP por stdio, **sin dependencias**. Traduce herramientas de alto nivel a los verbos del servidor local. |
+| `packages/titanio-mcp` | paquete npm | Servidor MCP por stdio, **sin dependencias**. Traduce herramientas de alto nivel a los verbos del servidor local. |
 | Settings → MCPs | renderer | El interruptor, lo que concede dicho sin adornos, y la config para pegar. |
 
 ## Decisiones que no hay que deshacer
@@ -45,14 +45,14 @@ estructuralmente solo puede hacer un navegador pequeño y del lado del usuario.
 - **Un "no" no se cachea.** Si rechazaste por sorpresa, tienes que poder decir que sí después.
 - **`fill` rechaza los campos de contraseña.** Los secretos son del usuario y del vault. Ni
   nuestra IA ni la de nadie los escribe. Ver [vault-architecture.md](vault-architecture.md).
-- **`mcp:enable` va por `isInternalSender`.** `monperTab` es el preload de **contenido**: existe
+- **`mcp:enable` va por `isInternalSender`.** `titanioTab` es el preload de **contenido**: existe
   también en cualquier web que cargues. Sin ese filtro, una página podría encender el puente y
   quedarse conduciendo tu navegador. Lo fija `tests/security.spec.ts`.
 
 ## Qué está probado
 
 [`tests/mcp.spec.ts`](../tests/mcp.spec.ts) recorre la cadena entera —cliente ⇢ stdio ⇢ HTTP
-local ⇢ Monper ⇢ página— porque cada tramo puede estar bien y el conjunto no funcionar. El test
+local ⇢ Titanio ⇢ página— porque cada tramo puede estar bien y el conjunto no funcionar. El test
 central monta un sitio que **solo entrega su contenido si la petición trae la cookie de
 sesión**: si el texto llega, llegó autenticado. Es exactamente lo que ningún agente en la nube
 puede hacer, y por eso es la prueba que importa.
@@ -70,9 +70,9 @@ vuelve como `isError`, y que `fill` nunca escribe en un campo de contraseña.
 
 ---
 
-# La otra dirección: Monper como CLIENTE MCP
+# La otra dirección: Titanio como CLIENTE MCP
 
-El puente de arriba da al mundo lo único que Monper tiene y nadie más puede tener: tus
+El puente de arriba da al mundo lo único que Titanio tiene y nadie más puede tener: tus
 sesiones. Esto trae lo contrario — lo que a un navegador le falta y **no debería fabricar**.
 
 ## El problema que lo destapó
@@ -81,8 +81,8 @@ Varias skills (docx, pptx, xlsx, pdf, tax) le dicen al agente que ejecute `pytho
 que use una tool `bash`. Medido: 13 menciones a `python` en docx, 8 en pptx, 8 en xlsx. El
 `pdf` es literal: *"Use `bash` tool with `node` + `pdf-lib`"*.
 
-**Monper no tiene ninguna de las dos.** `run_js` no es una shell: `runRepl(wc, code)` construye
-un `page` de monperwright sobre el webContents de la pestaña activa — es JavaScript *dentro de
+**Titanio no tiene ninguna de las dos.** `run_js` no es una shell: `runRepl(wc, code)` construye
+un `page` de titaniowright sobre el webContents de la pestaña activa — es JavaScript *dentro de
 la página*, sin sistema de archivos ni procesos. Y esos `scripts/*.py` **ni siquiera están en
 el repo**: vienen del entorno de Claude Code, del que se copiaron los `.md` y nada más.
 
@@ -96,13 +96,13 @@ invisible" con el agente como víctima.
 - **Empaquetar Python** convierte el navegador en otra cosa, y ya existe: se llama Claude Code.
 - **Cliente MCP** le da al agente *cualquier* herramienta que exista —sandbox de código,
   ficheros, bases de datos— sin que nosotros mantengamos ningún runtime. Y es simétrico con el
-  puente: **Monper cambia lo que solo él tiene por lo que le falta.**
+  puente: **Titanio cambia lo que solo él tiene por lo que le falta.**
 
 ## Decisiones
 
 - **Solo stdio**, que es lo que usan los servidores MCP de escritorio y no abre puertos.
 - **Arranque perezoso**: un servidor se lanza la primera vez que el agente lo necesita, no al
-  abrir Monper. Arrancar procesos en el arranque es lo que ya se quitó del pre-warm de
+  abrir Titanio. Arrancar procesos en el arranque es lo que ya se quitó del pre-warm de
   popovers (344MB, ver [rendimiento.md](rendimiento.md)).
 - **Todo con techo de tiempo** (20s arranque, 120s llamada: un sandbox puede tardar).
 - **El motivo del fallo se guarda aparte de los vivos.** Un servidor que no arranca NO está

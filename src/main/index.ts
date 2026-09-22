@@ -593,6 +593,8 @@ function crearVentana(opts: { sinPestanaInicial?: boolean; incognito?: boolean }
    */
   function layoutTabs(soloVisible = false) {
     if (!win || win.isDestroyed()) return
+    // Un layout definitivo invalida los frames pendientes de la pestaña o del tamaño anterior.
+    if (collapseAnim) { clearInterval(collapseAnim); collapseAnim = null }
     const cb = contentBounds()
     if (DEBUG_LAYOUT) {
       const [aw] = win.getContentSize()
@@ -620,7 +622,7 @@ function crearVentana(opts: { sinPestanaInicial?: boolean; incognito?: boolean }
        * nunca compró velocidad de pintado; solo hacía renderizar hasta 8 vistas a la vez.
        */
       const activa = id === activeId
-      t.view.setVisible(activa)
+      if (!activa) t.view.setVisible(false)
       /**
        * Una vista OCULTA no sigue el layout en vivo.
        *
@@ -637,6 +639,9 @@ function crearVentana(opts: { sinPestanaInicial?: boolean; incognito?: boolean }
       if (soloVisible && !activa) continue
       t.view.setBounds(cb)
       applyRadius(t)
+      // Al volver de segundo plano, la superficie debe nacer con el espacio de los paneles
+      // actuales, no con el ancho que tenía antes de ocultarse.
+      if (activa) t.view.setVisible(true)
     }
     // La activa al frente, pero SOLO si no lo está ya: `addChildView` sobre una vista que ya
     // cuelga del contentView la desengancha y la vuelve a enganchar, y esto se llama en cada

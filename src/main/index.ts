@@ -898,7 +898,9 @@ function crearVentana(opts: { sinPestanaInicial?: boolean; incognito?: boolean }
    * y video — que es lo que usan la mayoría de los hero de las páginas.
    */
   async function sampleTopStrip(t: Tab, motivo = 'directo'): Promise<void> {
+    if (t.view.webContents.isDestroyed() || t.view.webContents.id !== activeWc()?.id) return
     if (esTranslucida(t)) return // no hay color que muestrear: la página deja ver la ventana
+    const url = t.url
     const b = t.view.getBounds()
     if (b.width < 8 || b.height < 8) return
     try {
@@ -917,7 +919,7 @@ function crearVentana(opts: { sinPestanaInicial?: boolean; incognito?: boolean }
         const y = await t.view.webContents.executeJavaScript('window.scrollY').catch(() => '?')
         console.log(`[topcolor] ${motivo.padEnd(7)} scrollY=${String(y).padStart(6)}  ${hex}${t.pageBg === hex ? '' : '  ← cambia'}`)
       }
-      applyTopColor(t, hex)
+      if (t.url === url && !t.view.webContents.isDestroyed() && t.view.webContents.id === activeWc()?.id) applyTopColor(t, hex)
     } catch { /* la vista puede estar oculta o destruida */ }
   }
   /**
@@ -945,15 +947,22 @@ function crearVentana(opts: { sinPestanaInicial?: boolean; incognito?: boolean }
     // Siempre se re-arma la muestra de cierre: se toma cuando el scroll deja de moverse.
     const prev = topSettle.get(t)
     if (prev) clearTimeout(prev)
-    topSettle.set(t, setTimeout(() => { topSettle.delete(t); void sampleTopStrip(t, 'reposo') }, SETTLE_MS))
+    topSettle.set(t, setTimeout(async () => {
+      topSettle.delete(t)
+      if (topSamplePending.has(t)) { topSampleAgain.add(t); return }
+      topSamplePending.add(t)
+      await sampleTopStrip(t, 'reposo')
+      topSamplePending.delete(t)
+      if (topSampleAgain.delete(t)) scheduleTopSample(t)
+    }, SETTLE_MS))
 
     if (topSamplePending.has(t)) { topSampleAgain.add(t); return }
     const wait = Math.max(0, 100 - (Date.now() - (topSampleAt.get(t) ?? 0)))
     topSamplePending.add(t)
-    setTimeout(() => {
-      topSamplePending.delete(t)
+    setTimeout(async () => {
       topSampleAt.set(t, Date.now())
-      void sampleTopStrip(t, 'scroll')
+      await sampleTopStrip(t, 'scroll')
+      topSamplePending.delete(t)
       // Hubo eventos descartados mientras esta captura estaba pendiente: mira otra vez.
       if (topSampleAgain.delete(t)) scheduleTopSample(t)
     }, wait)

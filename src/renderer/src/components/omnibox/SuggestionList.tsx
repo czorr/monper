@@ -5,6 +5,7 @@ import IconWorld from '~icons/tabler/world'
 import IconClock from '~icons/tabler/clock'
 import IconStar from '~icons/tabler/star'
 import IconArrowRight from '~icons/tabler/corner-down-left'
+import IconX from '~icons/tabler/x'
 
 interface Props {
   items: Suggestion[]
@@ -12,21 +13,23 @@ interface Props {
   query: string
   onHover: (i: number) => void
   onChoose: (s: Suggestion) => void
+  onRemove?: (s: Suggestion) => void
 }
 
 const KIND_ICON = { search: IconSearch, url: IconWorld, history: IconClock, bookmark: IconStar }
 
 function Leading({ s }: { s: Suggestion }): JSX.Element {
-  const [broken, setBroken] = useState(false)
+  const [failedFavicon, setFailedFavicon] = useState<string | null>(null)
   // Una búsqueda normal lleva lupa, pero una ENTIDAD de Google (persona, empresa) sí trae
   // foto: por eso el icono depende de que HAYA imagen, no del kind.
-  if (s.favicon && !broken) {
+  if (s.favicon && s.favicon !== failedFavicon) {
     return (
       <img
+        key={s.favicon}
         src={s.favicon}
         alt=""
         className={'w-[18px] h-[18px] ' + (s.round ? 'rounded-sm object-cover' : 'rounded-[4px] object-contain')}
-        onError={() => setBroken(true)}
+        onError={() => setFailedFavicon(s.favicon ?? null)}
       />
     )
   }
@@ -51,17 +54,17 @@ function Highlight({ text, query }: { text: string; query: string }): JSX.Elemen
 }
 
 /** Lista desplegable de sugerencias del omnibox (estilo Arc: full-width, completado en negrita). */
-export default function SuggestionList({ items, active, query, onHover, onChoose }: Props): JSX.Element {
+export default function SuggestionList({ items, active, query, onHover, onChoose, onRemove }: Props): JSX.Element {
   return (
-    <ul className="py-2">
+    <ul className="p-1">
       {items.map((s, i) => (
-        <li key={s.kind + s.url}>
+        <li key={s.kind + s.url} className="group/suggestion relative">
           <button
             type="button"
             onMouseEnter={() => onHover(i)}
             onMouseDown={(e) => { e.preventDefault(); onChoose(s) }}
             className={
-              'flex items-center gap-3.5 w-full px-4 py-2.5 text-left ' +
+              'flex items-center gap-3.5 w-full pl-4 pr-10 py-2.5 rounded-2xl text-left ' +
               (i === active ? 'bg-white/[0.07]' : 'hover:bg-white/[0.04]')
             }
           >
@@ -70,8 +73,20 @@ export default function SuggestionList({ items, active, query, onHover, onChoose
               <Highlight text={s.title} query={query} />
               {s.detail && <span className="ml-2 text-[13px] text-text-faint">{s.detail}</span>}
             </span>
-            {i === active && <IconArrowRight className="w-4 h-4 text-text-faint shrink-0" />}
+            {i === active && !(onRemove && s.kind === 'history') && <IconArrowRight className="w-4 h-4 text-text-faint shrink-0" />}
           </button>
+          {onRemove && s.kind === 'history' && (
+            <button
+              type="button"
+              aria-label={`Eliminar ${s.title} del historial`}
+              title="Eliminar del historial"
+              className={'absolute right-1 top-1/2 -translate-y-1/2 w-8 h-8 grid place-items-center rounded-lg text-text-faint hover:text-text hover:bg-white/[0.08] focus-visible:outline focus-visible:outline-1 group-hover/suggestion:opacity-100 focus-visible:opacity-100 ' + (i === active ? 'opacity-100' : 'opacity-0')}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => onRemove(s)}
+            >
+              <IconX className="w-3.5 h-3.5" />
+            </button>
+          )}
         </li>
       ))}
     </ul>

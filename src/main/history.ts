@@ -80,11 +80,19 @@ export function recent(limit = 10): HistoryEntry[] {
 }
 
 /** Busca en el historial por url/título; devuelve los más relevantes. */
+export function searchTerm(url: string): string | null {
+  try {
+    const parsed = new URL(url)
+    return /^(www\.)?google\.com$/.test(parsed.hostname) && parsed.pathname === '/search'
+      ? parsed.searchParams.get('q') : null
+  } catch { return null }
+}
+
 export function search(query: string, limit = 6): HistoryEntry[] {
   const q = query.trim().toLowerCase()
   if (!q) return []
   return items
-    .filter((h) => h.url.toLowerCase().includes(q) || h.title.toLowerCase().includes(q))
+    .filter((h) => h.url.toLowerCase().includes(q) || h.title.toLowerCase().includes(q) || searchTerm(h.url)?.toLowerCase().includes(q))
     .sort((a, b) => frecency(b) - frecency(a))
     .slice(0, limit)
 }

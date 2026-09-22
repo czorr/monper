@@ -42,7 +42,7 @@ import { initRemote, remoteState, setRemoteEnabled, onRemoteState } from './remo
 import { initAdblock, adjuntarAdblock, adblockState, setAdblockEnabled, setAdblockAllowed, adblockCountFor } from './adblock'
 import { attachChromeHints } from './chromehints'
 import { initPip, attachPip, pipState, setPipEnabled } from './pip'
-import { initFavicons, rememberFavicon, faviconFor, resolveFavicon } from './favicons'
+import { initFavicons, rememberFavicon, faviconFor, resolveFavicon, cacheVisitedFavicon } from './favicons'
 import { initMcpClient, reloadMcpConfig, mcpServerStates, mcpTools, configPath as mcpConfigPath, stopAllMcp } from './mcp/client'
 import { initChats, listSessions, searchSessions, archiveSession, renameSession, resumeOrNew, startSession, openSession, sessionForNextMessage, saveSession, removeSession as removeChatSession } from './chats'
 import { writeJson } from './jsonfile'
@@ -1004,6 +1004,7 @@ function crearVentana(opts: { sinPestanaInicial?: boolean; incognito?: boolean }
     })
     wc.on('did-navigate', (_e, u) => { // sólo main-frame
       t.url = u; t.recording = false
+      t.favicon = faviconFor(u)
       // Una pestaña cruza la frontera en los dos sentidos (newtab → web → newtab), así que el
       // fondo se decide en cada navegación, no al crear la vista. Y hay que rehacer el layout:
       // volverse translúcida cambia QUÉ otras vistas pueden quedar visibles detrás (ver
@@ -1047,7 +1048,10 @@ function crearVentana(opts: { sinPestanaInicial?: boolean; incognito?: boolean }
       suya().pushState()
     })
     wc.on('page-favicon-updated', (_e, icons) => {
-      t.favicon = icons?.[0] || null
+      const url = t.url
+      const icon = icons?.[0]
+      if (!icon) return
+      t.favicon = faviconFor(url) || icon
       // Se recuerda por host: es el icono de verdad del sitio, y sirve para los marcadores sin
       // icono propio en vez de pedírselo a un tercero.
       if (!suya().incognito) {
@@ -1055,6 +1059,15 @@ function crearVentana(opts: { sinPestanaInicial?: boolean; incognito?: boolean }
         updateMeta(t.url, undefined, t.favicon)
       }
       suya().pushState()
+      void cacheVisitedFavicon(url, icon, wc.session).then((data) => {
+        if (!data || wc.isDestroyed() || t.url !== url) return
+        t.favicon = data
+        if (!suya().incognito) {
+          rememberFavicon(url, data)
+          updateMeta(url, undefined, data)
+        }
+        suya().pushState()
+      })
     })
     wc.on('did-change-theme-color', (_e, color) => { t.themeColor = color; suya().pushState() })
     wc.on('audio-state-changed', (e) => { t.audible = e.audible; suya().pushState() })

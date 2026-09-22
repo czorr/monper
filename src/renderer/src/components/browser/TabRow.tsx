@@ -3,6 +3,7 @@ import type { TabInfo } from '@shared/types'
 import { domainOf } from '@renderer/lib/dom'
 import { CloseIcon } from '@renderer/lib/icons'
 import IconVolumeOff from '~icons/tabler/volume-off'
+import IconWorld from '~icons/tabler/world'
 import titanioLogo from '@renderer/assets/iso-white.svg'
 
 interface Props {
@@ -27,6 +28,7 @@ const PRESSED = 'scale-[0.98] translate-y-[1px]'
 
 export default function TabRow({ tab, active, onSelect, onClose }: Props): JSX.Element {
   const [pressed, setPressed] = useState(false)
+  const [failedFavicon, setFailedFavicon] = useState<string | null>(null)
   const state = active
     ? 'bg-white/[0.07] border border-white/[0.07] text-text backdrop-blur-sm'
     // `border-transparent` para que la fila activa no mida 2px más y la lista no salte.
@@ -47,14 +49,16 @@ export default function TabRow({ tab, active, onSelect, onClose }: Props): JSX.E
         <img src={titanioLogo} alt="" className="w-[17px] h-[17px] p-[2px] shrink-0 object-contain opacity-80" />
       ) : tab.loading ? (
         <div className="w-[13px] h-[13px] m-0.5 shrink-0 rounded-full border-[1.5px] border-text-faint border-t-text animate-spin" />
-      ) : tab.favicon ? (
+      ) : tab.favicon && tab.favicon !== failedFavicon ? (
         <img
+          key={tab.favicon}
           className="w-[17px] h-[17px] shrink-0 rounded object-contain"
           src={tab.favicon}
-          onError={(e) => (e.currentTarget.style.visibility = 'hidden')}
+          alt=""
+          onError={() => setFailedFavicon(tab.favicon)}
         />
       ) : (
-        <span className="w-[17px] h-[17px] shrink-0 rounded bg-bg-elev" />
+        <IconWorld className="w-[17px] h-[17px] shrink-0 text-text-faint" />
       )}
 
       <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[15px] tracking-[-0.08px]">

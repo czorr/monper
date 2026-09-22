@@ -148,10 +148,16 @@ function googleEntities(query: string, signal?: AbortSignal): Promise<Map<string
 /** Combina historial + bookmarks + búsquedas de Google en una lista ordenada. */
 export async function suggest(query: string, signal?: AbortSignal): Promise<Suggestion[]> {
   const q = query.trim()
-  if (!q) return []
   const out: Suggestion[] = []
   const seen = new Set<string>()
-  const push = (s: Suggestion): void => { if (!seen.has(s.url)) { seen.add(s.url); out.push(s) } }
+  const push = (s: Suggestion): void => {
+    if (!seen.has(s.url)) { seen.add(s.url); out.push(s) }
+    else if (s.kind === 'history') {
+      // Un destino directo ya visitado también debe poder borrarse del historial.
+      const i = out.findIndex((entry) => entry.url === s.url)
+      if (i >= 0) out[i] = s
+    }
+  }
 
   // 1) Si parece URL, ofrécela como destino directo (primero).
   if (looksLikeUrl(q)) {
@@ -160,18 +166,22 @@ export async function suggest(query: string, signal?: AbortSignal): Promise<Sugg
   }
 
   // 2) Historial (frecency).
-  for (const h of history.search(q, 5)) {
+  for (const h of q ? history.search(q, 5) : history.recent(9)) {
     let detail = h.url
     // Sin dominio parseable la sugerencia se muestra sin subtexto, y ya está.
     try { detail = new URL(h.url).hostname.replace(/^www\./, '') } catch { /* sin subtexto */ }
-    push({ kind: 'history', title: h.title || h.url, url: h.url, detail, favicon: h.favicon ?? faviconOf(h.url) })
+    const term = history.searchTerm(h.url)
+    push({ kind: 'history', title: term || h.title || h.url, url: h.url,
+      detail: term ? 'Búsqueda anterior' : detail, favicon: term ? undefined : faviconOf(h.url) || h.favicon })
   }
+
+  if (!q) return out
 
   // 3) Bookmarks que hagan match.
   const ql = q.toLowerCase()
   for (const b of listBookmarks()) {
     if (b.title.toLowerCase().includes(ql) || b.url.toLowerCase().includes(ql)) {
-      push({ kind: 'bookmark', title: b.title, url: b.url, detail: 'Marcador', favicon: b.favicon ?? faviconOf(b.url) })
+      push({ kind: 'bookmark', title: b.title, url: b.url, detail: 'Marcador', favicon: faviconOf(b.url) || b.favicon })
     }
   }
 

@@ -68,6 +68,45 @@ const intentados = new Set<string>()
  */
 const MAX_ICONO = 96 * 1024
 
+const imagenesPorSesion = new WeakMap<Electron.Session, Map<string, Promise<string | null>>>()
+
+/** Conserva los bytes del icono visitado usando la misma sesión que la página. */
+export async function cacheVisitedFavicon(url: string, icon: string, ses: Electron.Session): Promise<string | null> {
+  if (icon.startsWith('data:image/')) return icon
+  if (!/^https?:\/\//i.test(icon)) return null
+  const cached = faviconFor(url)
+  if (cached?.startsWith('data:image/')) return cached
+  let imagenes = imagenesPorSesion.get(ses)
+  if (!imagenes) { imagenes = new Map(); imagenesPorSesion.set(ses, imagenes) }
+  const pending = imagenes.get(icon)
+  if (pending) return pending
+  const request = (async (): Promise<string | null> => {
+    const ctrl = new AbortController()
+    const timer = setTimeout(() => ctrl.abort(), 4000)
+    try {
+      const response = await ses.fetch(icon, { signal: ctrl.signal })
+      const tipo = response.headers.get('content-type')?.split(';')[0] ?? ''
+      if (!response.ok || !tipo.startsWith('image/') || !response.body) return null
+      const reader = response.body.getReader()
+      const chunks: Uint8Array[] = []
+      let size = 0
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        size += value.length
+        if (size > MAX_ICONO) { await reader.cancel(); return null }
+        chunks.push(value)
+      }
+      return size ? `data:${tipo};base64,${Buffer.concat(chunks).toString('base64')}` : null
+    } catch {
+      // La pestaña conserva la URL original y la UI muestra su fallback si tampoco carga.
+      return null
+    } finally { clearTimeout(timer) }
+  })()
+  imagenes.set(icon, request)
+  try { return await request } finally { imagenes.delete(icon) }
+}
+
 /**
  * Descarga el icono y lo convierte en `data:`.
  *

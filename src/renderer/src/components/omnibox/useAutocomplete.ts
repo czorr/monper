@@ -18,22 +18,25 @@ export interface Autocomplete {
   close: () => void
   /** Limpia todo (tras navegar) */
   reset: () => void
+  refresh: () => void
+  remove: (url: string) => void
 }
 
 /**
  * Autocompletado con debounce y guardia de respuestas obsoletas.
  * `suggestFn` es la API concreta (titanio.suggest o titanioTab.suggest).
  */
-export function useAutocomplete(suggestFn: SuggestFn, debounceMs = 110): Autocomplete {
+export function useAutocomplete(suggestFn: SuggestFn, debounceMs = 110, showRecent = false): Autocomplete {
   const [query, setQueryRaw] = useState('')
   const [items, setItems] = useState<Suggestion[]>([])
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(-1)
   const reqId = useRef(0)
+  const [revision, setRevision] = useState(0)
 
   useEffect(() => {
     const q = query.trim()
-    if (!q) { setItems([]); setOpen(false); setActive(-1); return }
+    if (!q && !showRecent) { setItems([]); setOpen(false); setActive(-1); return }
     const id = ++reqId.current
     const t = setTimeout(() => {
       // Sin catch, cualquier fallo del IPC dejaba el autocomplete muerto y en silencio.
@@ -51,8 +54,8 @@ export function useAutocomplete(suggestFn: SuggestFn, debounceMs = 110): Autocom
           setItems([]); setOpen(false); setActive(-1)
         })
     }, debounceMs)
-    return () => clearTimeout(t)
-  }, [query, suggestFn, debounceMs])
+    return () => { clearTimeout(t); reqId.current++ }
+  }, [query, suggestFn, debounceMs, showRecent, revision])
 
   const setQuery = (q: string): void => setQueryRaw(q)
   const move = (dir: 1 | -1): void => {
@@ -62,12 +65,18 @@ export function useAutocomplete(suggestFn: SuggestFn, debounceMs = 110): Autocom
       return n < 0 ? items.length - 1 : n >= items.length ? 0 : n
     })
   }
-  const close = (): void => setOpen(false)
+  const close = (): void => { reqId.current++; setOpen(false) }
+  const refresh = (): void => setRevision((r) => r + 1)
+  const remove = (url: string): void => {
+    reqId.current++
+    setItems((current) => current.filter((s) => s.url !== url))
+    setActive(-1)
+  }
   const reset = (): void => { setQueryRaw(''); setItems([]); setOpen(false); setActive(-1); reqId.current++ }
 
   return {
     query, setQuery, items, open, active, setActive, move,
     current: active >= 0 ? items[active] ?? null : null,
-    close, reset
+    close, reset, refresh, remove
   }
 }

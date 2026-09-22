@@ -44,8 +44,8 @@
   outline-offset: 2px;
 }
 
-/* Menú del perfil: medidas en puntos (la referencia es una captura Retina a 2×). */
-.profile-menu {
+/* Perfil e historial del chat comparten medidas y tipografía. */
+.profile-menu, .chat-sessions {
   --color-text: #d9d9dd;
   --color-text-dim: #c4c4ca;
   --color-text-faint: #a1a1a6;
@@ -57,7 +57,7 @@
   box-shadow: inset 0 0 0 1px rgb(255 255 255 / 10%), 0 8px 24px rgb(0 0 0 / 24%);
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
 }
-.profile-menu [data-popover-row] {
+:is(.profile-menu, .chat-sessions) [data-popover-row] {
   height: 32px;
   gap: 8px;
   padding-inline: 8px;
@@ -67,27 +67,29 @@
   font-weight: 400;
   line-height: 20px;
 }
-.profile-menu [data-popover-row]:hover { background: rgb(255 255 255 / 7%); }
-.profile-menu [data-popover-row] > svg,
-.profile-menu [data-popover-meta] svg {
+:is(.profile-menu, .chat-sessions) [data-popover-row]:hover { background: rgb(255 255 255 / 7%); }
+:is(.profile-menu, .chat-sessions) [data-popover-row] > svg,
+:is(.profile-menu, .chat-sessions) [data-popover-meta] svg {
   width: 16px;
   height: 16px;
   color: var(--color-text-faint);
 }
-.profile-menu [data-popover-meta] { color: var(--color-text-faint); font-size: 12px; }
-.profile-menu [data-popover-label] {
+:is(.profile-menu, .chat-sessions) [data-popover-meta] { color: var(--color-text-faint); font-size: 12px; }
+:is(.profile-menu, .chat-sessions) [data-popover-label] {
   padding: 3px 5px 4px;
   color: #929299;
   font-size: 12px;
   font-weight: 500;
   line-height: 16px;
 }
-.profile-menu [data-popover-divider] {
+:is(.profile-menu, .chat-sessions) [data-popover-divider] {
   height: 1px;
   margin: 4px -4px;
   background: #505056;
 }
 .profile-menu-avatar, .profile-menu-avatar > * { width: 16px; height: 16px; flex-shrink: 0; }
+/* Aquí sí hay contenido DOM detrás que desenfocar. */
+.chat-sessions { background: rgb(50 50 57 / 95%); }
 
 @theme {
   --color-bg: #111114;

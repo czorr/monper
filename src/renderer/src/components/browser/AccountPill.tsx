@@ -20,9 +20,9 @@ export default function AccountPill({ initials, name, avatar, onOpen }: Props): 
       onPointerEnter={() => window.titanio.warmProfileMenu()}
       onFocus={() => window.titanio.warmProfileMenu()}
       onClick={(e) => onOpen((e.currentTarget as HTMLElement).getBoundingClientRect())}
-      className="flex items-center gap-2 h-10 px-2 rounded-xl [corner-shape:superellipse(1.5)] hover:bg-bg-hover [-webkit-app-region:no-drag]"
+      className="flex items-center gap-2 h-10 px-2.5 rounded-[18px] [corner-shape:superellipse(1.5)] hover:bg-bg-hover [-webkit-app-region:no-drag]"
     >
-      <Avatar initials={initials} src={avatar} />
+      <Avatar initials={initials} src={avatar} size="xs" />
       <ChevronDown className="w-3.5 h-3.5 shrink-0 text-text-faint" />
     </button>
   )

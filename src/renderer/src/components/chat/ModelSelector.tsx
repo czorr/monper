@@ -28,7 +28,6 @@ export default function ModelSelector({ ctx, onPick, onConnect }: Props): JSX.El
   }
 
   const actual = ctx.models.find((m) => m.id === ctx.model)
-  const kind = actual?.providerKind ?? ctx.provider.kind
   const current = actual?.name ?? ctx.model
 
   return (
@@ -37,7 +36,7 @@ export default function ModelSelector({ ctx, onPick, onConnect }: Props): JSX.El
         onClick={() => setOpen((v) => !v)}
         className="flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-[12.5px] text-text-dim hover:text-text hover:bg-white/[0.06] transition-colors"
       >
-        <ProviderIcon kind={kind} className="w-3.5 h-3.5" />
+        <ProviderIcon provider={actual?.provider ?? ctx.provider} className="w-3.5 h-3.5" />
         {current}
         <IconChevronDown className="w-3.5 h-3.5 opacity-70" />
       </button>
@@ -55,7 +54,7 @@ export default function ModelSelector({ ctx, onPick, onConnect }: Props): JSX.El
                 onClick={() => { onPick(m.id); setOpen(false) }}
                 className="flex items-center gap-2 w-full h-8 px-2 rounded-lg text-[13px] text-text text-left hover:bg-white/[0.08]"
               >
-                <ProviderIcon kind={m.providerKind ?? kind} className="w-3.5 h-3.5 text-text-dim shrink-0" />
+                <ProviderIcon provider={m.provider ?? { id: m.providerId, kind: m.providerKind }} className="w-3.5 h-3.5 text-text-dim shrink-0" />
                 <span className="flex-1 truncate">{m.name}</span>
                 {m.id === ctx.model && <IconCheck className="w-4 h-4 text-text shrink-0" />}
               </button>

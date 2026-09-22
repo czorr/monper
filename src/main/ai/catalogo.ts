@@ -68,19 +68,22 @@ export function mezclarCatalogo(kind: ProviderKind, remotos: string[]): ModelOpt
  * gateway que no implementa /models— se devuelve el catálogo de fábrica: quedarse sin poder
  * elegir modelo por no poder listar sería peor que la lista vieja.
  */
-export async function catalogoDe(provider: AIProvider, key: string): Promise<ModelOption[]> {
+export async function catalogoDe(provider: AIProvider, key: string, strict = false): Promise<ModelOption[]> {
   try {
     const raw = provider.kind === 'anthropic'
-      ? await pedir(`${provider.baseUrl ?? 'https://api.anthropic.com'}/v1/models?limit=100`, {
+      ? await pedir(`${(provider.baseUrl ?? 'https://api.anthropic.com/v1').replace(/\/$/, '')}/models?limit=100`, {
           'x-api-key': key,
           'anthropic-version': '2023-06-01'
         })
       : await pedir(`${(provider.baseUrl ?? 'https://api.openai.com/v1').replace(/\/$/, '')}/models`, {
           Authorization: `Bearer ${key}`
         })
-    return mezclarCatalogo(provider.kind, idsDeRespuesta(raw))
+    const ids = idsDeRespuesta(raw)
+    if (strict || provider.baseUrl) return ids.filter((id) => !NO_CHAT.test(id)).map((id) => ({ id, name: id }))
+    return mezclarCatalogo(provider.kind, ids)
   } catch (e) {
+    if (strict) throw new Error(e instanceof Error && /^HTTP \d+$/.test(e.message) ? `El proveedor respondió ${e.message}. Revisa la clave y el endpoint.` : 'No se pudo consultar /models. Revisa la conexión o añade los modelos manualmente.')
     console.error('[modelos] no se pudo listar el catálogo de', provider.label, e instanceof Error ? e.message : e)
-    return MODELS[provider.kind]
+    return provider.baseUrl ? [] : MODELS[provider.kind]
   }
 }

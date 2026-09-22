@@ -14,6 +14,7 @@
     "dist:mac": "electron-vite build && electron-builder --mac",
     "test": "pnpm build && playwright test",
     "test:only": "playwright test",
+    "test:ai-config": "node --test tests/ai-config.node.mjs",
     "build:mcp": "tsc -p packages/titanio-mcp/tsconfig.json && chmod +x packages/titanio-mcp/dist/index.js"
   },
   "author": "",
@@ -34,6 +35,7 @@
     "electron": "^43.2.0",
     "electron-builder": "^26.15.3",
     "electron-vite": "^5.0.0",
+    "esbuild": "^0.28.2",
     "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2",
     "unplugin-icons": "^23.0.1",
@@ -54,6 +56,7 @@
     "@ghostery/adblocker-electron-preload": "^2.18.1",
     "@mastra/core": "^1.52.0",
     "electron-updater": "^6.8.9",
+    "jsonc-parser": "^3.3.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-markdown": "^10.1.0",

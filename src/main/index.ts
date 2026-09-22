@@ -9,7 +9,9 @@ import type { BrowserState, Bookmark, ChatFallo, ChatMessage, MenuAnchor, Provid
 import { internalPageOf, type DatosMenuPerfil } from '../shared/types'
 import { nombreDeUrl } from '../shared/url'
 import { initBookmarks, listBookmarks, isBookmarked, addBookmark, removeBookmark, toggleBookmark, reorderBookmarks, updateBookmark, createFolder, moveBookmark, setFolderCollapsed } from './bookmarks'
-import { initAI, listProviders, addProvider, removeProvider, setActive as setActiveProvider, setModel, setEffort, getChatContext, getActiveProvider, refrescarModelos } from './ai/store'
+import { initAI, listProviders, addProvider, removeProvider, setActive as setActiveProvider, setModel, setEffort, getChatContext, getActiveProvider, refrescarModelos, providerSettings, saveProvider, providerConfigPath } from './ai/store'
+import type { ProviderInput } from '../shared/types'
+import { discoverProvider } from './ai/store'
 import { runMastra, diagnosticar } from './agent/mastra'
 import { initUsage, anotarTurno, resumen as resumenUso, gastoDeHoy, borrarUso, limiteDiario, setLimiteDiario } from './usage'
 import { initHistory, recordVisit, updateMeta, recent as historyRecent, browse as historyBrowse, removeEntry as historyRemove, clearHistory as historyClear } from './history'
@@ -3699,7 +3701,7 @@ function notifyChatContext(): void { vActOpt()?.win?.webContents.send('chat:cont
 ipcMain.handle('providers:list', (e) => (isInternalSender(e.senderFrame?.url) ? listProviders() : []))
 ipcMain.handle('providers:add', (e, input: { label: string; kind: ProviderKind; baseUrl?: string }, apiKey: string) => {
   if (!isInternalSender(e.senderFrame?.url)) { console.warn('[providers:add] denegado, sender:', e.senderFrame?.url); return listProviders() }
-  try { addProvider(input, apiKey) } catch (err) { reportVaultError(err) }
+  addProvider(input, apiKey)
   notifyChatContext(); notifyVault()
   return listProviders()
 })
@@ -3708,6 +3710,34 @@ ipcMain.handle('providers:remove', (e, id: string) => {
   removeProvider(id)
   notifyChatContext(); notifyVault()
   return listProviders()
+})
+ipcMain.handle('providers:settings', (e) => {
+  if (!isInternalSender(e.senderFrame?.url)) throw new Error('Acceso denegado.')
+  return providerSettings()
+})
+ipcMain.handle('providers:discover', async (e, id: string) => {
+  if (!isInternalSender(e.senderFrame?.url)) throw new Error('Acceso denegado.')
+  const models = await discoverProvider(id)
+  notifyChatContext()
+  return models
+})
+ipcMain.handle('providers:save', (e, input: ProviderInput, apiKey: string, revision: string) => {
+  if (!isInternalSender(e.senderFrame?.url)) throw new Error('Acceso denegado.')
+  const state = saveProvider(input, apiKey, revision)
+  notifyChatContext(); notifyVault()
+  void refrescarModelos().then(notifyChatContext).catch(() => console.error('[providers] no se pudo actualizar el catálogo'))
+  return state
+})
+ipcMain.handle('providers:delete', (e, id: string, revision: string) => {
+  if (!isInternalSender(e.senderFrame?.url)) throw new Error('Acceso denegado.')
+  removeProvider(id, revision)
+  notifyChatContext(); notifyVault()
+  return providerSettings()
+})
+ipcMain.handle('providers:openConfig', async (e) => {
+  if (!isInternalSender(e.senderFrame?.url)) throw new Error('Acceso denegado.')
+  const error = await shell.openPath(providerConfigPath())
+  if (error) throw new Error('No se pudo abrir titanio.jsonc. Asocia los archivos .jsonc con tu editor.')
 })
 ipcMain.handle('providers:setActive', (e, id: string) => {
   if (!isInternalSender(e.senderFrame?.url)) return []
@@ -4048,7 +4078,10 @@ app.whenReady().then(() => {
   initWindowState()
   loadPanels()
   vault.initVault()
-  initAI()
+  initAI(() => {
+    notifyChatContext()
+    void refrescarModelos().then(notifyChatContext).catch(() => console.error('[providers] no se pudo actualizar el catálogo'))
+  })
   createWindow()
   // Catálogo de modelos al arrancar, con retraso y sin bloquear: es una petición de red y el
   // usuario no está esperándola. Si falla, se sigue con la lista de fábrica.

@@ -2,6 +2,7 @@ import { t as tr, useLocale } from '@renderer/lib/i18n'
 import { createRoot } from 'react-dom/client'
 import { useEffect, useMemo, useState, type JSX } from 'react'
 import type { Bookmark } from '@shared/types'
+import { Select } from '@renderer/components/ui'
 import IconSearch from '~icons/tabler/search'
 import IconTrash from '~icons/tabler/trash'
 import IconPencil from '~icons/tabler/pencil'
@@ -120,15 +121,17 @@ function BookmarksPage(): JSX.Element {
                     {/* Mover de carpeta con un select y no arrastrando: aquí la lista es larga y
                         arrastrar entre dos secciones lejanas con scroll es peor que elegir. */}
                     {carpetas.length > 0 && (
-                      <select
+                      <Select
+                        size="sm"
                         value={b.parentId ?? ''}
                         onChange={(e) => titanioTab.moveBookmark(b.id, e.target.value || null)}
                         title={tr("Mover a una carpeta")}
-                        className="shrink-0 h-7 max-w-[150px] px-1.5 rounded-md bg-white/[0.05] border border-white/[0.10] text-[12px] text-text-dim outline-none opacity-0 group-hover/b:opacity-100 focus:opacity-100 transition-opacity"
+                        aria-label={tr("Mover a una carpeta")}
+                        className="shrink-0 max-w-[150px] opacity-0 group-hover/b:opacity-100 focus:opacity-100 [&:open]:opacity-100 transition-opacity"
                       >
                         <option value="">{tr("Sin carpeta")}</option>
                         {carpetas.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
-                      </select>
+                      </Select>
                     )}
                     <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover/b:opacity-100 transition-opacity">
                       <button

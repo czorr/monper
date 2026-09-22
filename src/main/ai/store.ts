@@ -1,8 +1,10 @@
 import { join } from 'path'
-import { readFileSync, existsSync } from 'fs'
-import { writeJson } from '../jsonfile'
+import { readFileSync, existsSync, watchFile } from 'fs'
+import { createHash, randomUUID } from 'crypto'
+import { writeJson, writeText } from '../jsonfile'
 import { app, safeStorage } from 'electron'
-import type { AIProvider, ChatContext, Effort, ModelOption, ProviderInfo, ProviderKind } from '../../shared/types'
+import type { AIProvider, ChatContext, Effort, ModelOption, ProviderInfo, ProviderKind, ProviderInput, ProviderSettings } from '../../shared/types'
+import { parseConfig, editConfig, type ProviderDocument, type Connection } from './config'
 import { MODELS } from '../../shared/types'
 import { catalogoDe } from './catalogo'
 import * as vault from '../vault/store'
@@ -11,6 +13,71 @@ import * as vault from '../vault/store'
 interface ChatConfig { activeId: string | null; model: string | null; effort: Effort }
 let cfgFile = ''
 let cfg: ChatConfig = { activeId: null, model: null, effort: 'medium' }
+let providerFile = ''
+let document: ProviderDocument = { provider: {} }
+let configText = ''
+let configError: string | undefined
+
+function reloadConfig(): void {
+  try {
+    const text = readFileSync(providerFile, 'utf8')
+    const next = parseConfig(text)
+    if (text !== configText) catalogos.clear()
+    document = next
+    configText = text
+    configError = undefined
+  } catch (error) {
+    configError = error instanceof Error ? error.message : 'No se pudo leer titanio.jsonc.'
+  }
+}
+
+function revision(): string { return createHash('sha256').update(configText).digest('hex') }
+
+function assertEditable(expected?: string): void {
+  reloadConfig()
+  if (configError) throw new Error(configError)
+  if (expected !== undefined && revision() !== expected) throw new Error('La configuración cambió en otro lugar. Cierra el editor y vuelve a abrir la conexión para cargar los cambios.')
+}
+
+function saveConfig(text: string): void {
+  const next = parseConfig(text)
+  const result = writeText(providerFile, text, 'titanio.jsonc')
+  if (!result.ok) throw new Error('No se pudo guardar titanio.jsonc. Comprueba los permisos y el espacio disponible.')
+  document = next
+  configText = text
+  catalogos.clear()
+}
+
+function keyFor(id: string): string | null {
+  const ref = document.provider[id]?.options.apiKey
+  if (ref?.startsWith('{env:')) return process.env[ref.slice(5, -1)] || null
+  if (ref?.startsWith('{vault:')) return vault.getSecret(ref.slice(7, -1))
+  return null
+}
+
+function hasKey(id: string): boolean {
+  const ref = document.provider[id]?.options.apiKey
+  if (ref?.startsWith('{env:')) return !!process.env[ref.slice(5, -1)]
+  return !!ref?.startsWith('{vault:') && vault.hasSecret(ref.slice(7, -1))
+}
+
+export function providerConfigPath(): string { return providerFile }
+export function providerSettings(): ProviderSettings {
+  reloadConfig()
+  return { providers: providers(), path: providerFile, revision: revision(), error: configError }
+}
+
+export async function discoverProvider(id: string): Promise<ModelOption[]> {
+  reloadConfig()
+  if (configError) throw new Error(configError)
+  const p = providers().find((item) => item.id === id)
+  const key = keyFor(id)
+  if (!p || !key) throw new Error('Guarda una clave o configura la variable de entorno antes de buscar modelos.')
+  const before = configText
+  const models = await catalogoDe(p, key, true)
+  if (before === configText) catalogos.set(id, models)
+  return models
+}
 
 function persist(): void { writeJson(cfgFile, cfg, 'los proveedores de IA') }
 
@@ -52,23 +119,38 @@ function migrateLegacy(): void {
   } catch { /* si falla, arrancamos limpio */ }
 }
 
-export function initAI(): void {
+export function initAI(onChange?: () => void): void {
   cfgFile = join(app.getPath('userData'), 'chat.json')
   if (existsSync(cfgFile)) {
     try { cfg = { activeId: null, model: null, effort: 'medium', ...JSON.parse(readFileSync(cfgFile, 'utf-8')) } } catch { /* default */ }
   } else {
     migrateLegacy() // primer arranque tras el vault
   }
+  providerFile = join(app.getPath('userData'), 'titanio.jsonc')
+  if (!existsSync(providerFile)) {
+    const provider: Record<string, Connection> = Object.create(null)
+    for (const item of vault.itemsByType('ai-key')) {
+      provider[item.id] = {
+        name: item.label, kind: (item.data.kind as ProviderKind) || 'anthropic',
+        options: { baseURL: item.data.baseUrl || undefined, apiKey: `{vault:${item.id}}` }
+      }
+    }
+    const result = writeText(providerFile, '// Conexiones de IA. Edita aquí o desde Ajustes.\n// Claves: {env:NOMBRE} o referencias al vault cifrado.\n' + JSON.stringify({ provider }, null, 2) + '\n', 'titanio.jsonc')
+    if (!result.ok) console.error('[ai] no se pudo crear titanio.jsonc')
+  }
+  reloadConfig()
+  watchFile(providerFile, { interval: 750, persistent: false }, () => { reloadConfig(); onChange?.() })
 }
 
 function providers(): ProviderInfo[] {
-  return vault.itemsByType('ai-key').map((it) => ({
-    id: it.id,
-    label: it.label,
-    kind: (it.data.kind as ProviderKind) ?? 'anthropic',
-    baseUrl: it.data.baseUrl,
-    hasKey: vault.hasSecret(it.id),
-    active: it.id === cfg.activeId
+  const ids = Object.keys(document.provider)
+  const active = cfg.activeId && ids.includes(cfg.activeId) ? cfg.activeId : ids[0]
+  return Object.entries(document.provider).map(([id, p]) => ({
+    id, label: p.name, kind: p.kind, baseUrl: p.options.baseURL,
+    hasKey: hasKey(id), active: id === active,
+    keySource: p.options.apiKey?.startsWith('{env:') ? 'env' : p.options.apiKey ? 'vault' : 'none',
+    envVar: p.options.apiKey?.startsWith('{env:') ? p.options.apiKey.slice(5, -1) : undefined,
+    models: Object.entries(p.models ?? {}).map(([key, m]) => ({ id: m.id || key, name: m.name || key }))
   }))
 }
 
@@ -77,7 +159,7 @@ function activeInfo(): ProviderInfo | undefined {
 }
 
 function catalogoDeProveedor(p: ProviderInfo): ModelOption[] {
-  return catalogos.get(p.id) ?? MODELS[p.kind]
+  return p.models?.length ? p.models : catalogos.get(p.id) ?? (p.baseUrl ? [] : MODELS[p.kind])
 }
 
 /**
@@ -89,7 +171,7 @@ function catalogoDeProveedor(p: ProviderInfo): ModelOption[] {
  */
 export function todosLosModelos(): ModelOption[] {
   return providers().flatMap((p) =>
-    catalogoDeProveedor(p).map((m) => ({ ...m, providerId: p.id, providerKind: p.kind }))
+    catalogoDeProveedor(p).map((m) => ({ ...m, providerId: p.id, providerKind: p.kind, provider: { id: p.id, label: p.label, kind: p.kind, baseUrl: p.baseUrl } }))
   )
 }
 
@@ -101,18 +183,63 @@ function resolveModel(): string {
   return catalog[0]?.id ?? ''
 }
 
-export function listProviders(): ProviderInfo[] { return providers() }
+export function listProviders(): ProviderInfo[] { reloadConfig(); return providers() }
 
 export function addProvider(input: { label: string; kind: ProviderKind; baseUrl?: string }, apiKey: string): void {
-  const data: Record<string, string> = { kind: input.kind }
-  if (input.baseUrl) data.baseUrl = input.baseUrl
-  const label = input.label.trim() || (input.kind === 'anthropic' ? 'Claude' : 'OpenAI')
-  const item = vault.add('ai-key', label, data, apiKey)
-  if (!cfg.activeId) { cfg.activeId = item.id; cfg.model = MODELS[input.kind][0]?.id ?? null; persist() }
+  saveProvider({ ...input, label: input.label.trim() || (input.kind === 'anthropic' ? 'Claude' : 'OpenAI') }, apiKey)
 }
 
-export function removeProvider(id: string): void {
-  vault.remove(id)
+export function saveProvider(input: ProviderInput, apiKey: string, expected?: string): ProviderSettings {
+  assertEditable(expected)
+  const id = input.id || randomUUID()
+  const old = document.provider[id]
+  if (input.id && !old) throw new Error('Esta conexión ya no existe.')
+  if (input.envVar && !/^[A-Za-z_][A-Za-z0-9_]*$/.test(input.envVar)) throw new Error('El nombre de la variable de entorno no es válido.')
+  if (input.models && new Set(input.models.map((m) => m.id)).size !== input.models.length) throw new Error('Los IDs de modelo no pueden repetirse.')
+  const models: NonNullable<Connection['models']> = Object.create(null)
+  for (const m of input.models ?? []) {
+    if (!m.id.trim()) throw new Error('Cada modelo necesita un ID.')
+    const existing = Object.entries(old?.models ?? {}).find(([key, value]) => (value.id || key) === m.id)
+    models[existing?.[0] || m.id] = { ...existing?.[1], name: m.name.trim() || m.id }
+  }
+  const next: Connection = {
+    ...old, name: input.label.trim(), kind: input.kind,
+    options: { ...old?.options, baseURL: input.baseUrl?.trim() || undefined,
+      apiKey: input.envVar ? `{env:${input.envVar}}` : old?.options.apiKey },
+    models: input.models === undefined ? old?.models : models
+  }
+  // Valida antes de guardar la clave; ningún error de formulario debe dejar secretos huérfanos.
+  parseConfig(JSON.stringify({ provider: { [id]: next } }))
+  let created: string | undefined
+  if (apiKey.trim()) {
+    const item = vault.add('ai-key', next.name, { kind: next.kind, baseUrl: next.options.baseURL || '' }, apiKey.trim())
+    created = item.id
+    next.options.apiKey = `{vault:${item.id}}`
+  }
+  try {
+    let text = configText
+    if (!old) text = editConfig(text, ['provider', id], next)
+    else {
+      // Solo se cambian los campos editados, conservando comentarios y opciones avanzadas.
+      for (const field of ['name', 'kind', 'models'] as const) {
+        if (JSON.stringify(old[field]) !== JSON.stringify(next[field])) text = editConfig(text, ['provider', id, field], next[field])
+      }
+      for (const field of ['baseURL', 'apiKey'] as const) {
+        if (old.options[field] !== next.options[field]) text = editConfig(text, ['provider', id, 'options', field], next.options[field])
+      }
+    }
+    saveConfig(text)
+  } catch (error) {
+    if (created) vault.remove(created)
+    throw error
+  }
+  if (!cfg.activeId) { cfg.activeId = id; cfg.model = null; persist() }
+  return providerSettings()
+}
+
+export function removeProvider(id: string, expected?: string): void {
+  assertEditable(expected)
+  saveConfig(editConfig(configText, ['provider', id], undefined))
   if (cfg.activeId === id) {
     const next = providers()[0]
     cfg.activeId = next?.id ?? null
@@ -122,11 +249,11 @@ export function removeProvider(id: string): void {
 }
 
 export function setActive(id: string): void {
-  const item = vault.get(id)
-  if (!item || item.type !== 'ai-key') return
+  reloadConfig()
+  const item = providers().find((p) => p.id === id)
+  if (!item) return
   cfg.activeId = id
-  const kind = (item.data.kind as ProviderKind) ?? 'anthropic'
-  const catalogo = catalogos.get(item.id) ?? MODELS[kind]
+  const catalogo = catalogoDeProveedor(item)
   if (!catalogo.some((m) => m.id === cfg.model)) cfg.model = catalogo[0]?.id ?? null
   persist()
 }
@@ -156,11 +283,12 @@ const catalogos = new Map<string, ModelOption[]>()
 
 /** Refresca el catálogo de TODOS los proveedores conectados, no solo el del activo. */
 export async function refrescarModelos(): Promise<ModelOption[]> {
+  const before = configText
   await Promise.all(providers().map(async (p) => {
-    const key = vault.getSecret(p.id)
+    const key = keyFor(p.id)
     if (!key) return
     const lista = await catalogoDe({ id: p.id, label: p.label, kind: p.kind, baseUrl: p.baseUrl }, key)
-    catalogos.set(p.id, lista)
+    if (before === configText) catalogos.set(p.id, lista)
   }))
   const todos = todosLosModelos()
   // El modelo elegido puede haber desaparecido del catálogo (lo retiró el proveedor): se cae al
@@ -176,7 +304,7 @@ export async function refrescarModelos(): Promise<ModelOption[]> {
 export function getChatContext(): ChatContext {
   const p = activeInfo()
   return {
-    provider: p ? { id: p.id, label: p.label, kind: p.kind } : null,
+    provider: p ? { id: p.id, label: p.label, kind: p.kind, baseUrl: p.baseUrl } : null,
     models: todosLosModelos(),
     model: resolveModel(),
     effort: cfg.effort
@@ -187,7 +315,7 @@ export function getChatContext(): ChatContext {
 export function getActiveProvider(): { provider: AIProvider; key: string; model: string; effort: Effort } | null {
   const p = activeInfo()
   if (!p) return null
-  const key = vault.getSecret(p.id)
+  const key = keyFor(p.id)
   if (!key) return null
   return { provider: { id: p.id, label: p.label, kind: p.kind, baseUrl: p.baseUrl }, key, model: resolveModel(), effort: cfg.effort }
 }

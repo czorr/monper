@@ -4,12 +4,13 @@ interface Props {
   initials: string
   /** Imagen del avatar (data URL). Si está, se muestra en vez de las iniciales. */
   src?: string | null
-  /** 'md' = 24px (sidebar), 'sm' = 22px (dropdown), 'lg' = 56px (settings) */
-  size?: 'md' | 'sm' | 'lg'
+  /** 'xs' = 20px (sidebar), 'sm' = 22px, 'md' = 24px, 'lg' = 56px (settings) */
+  size?: 'xs' | 'md' | 'sm' | 'lg'
 }
 
-const sizeCls = { md: 'w-6 h-6', sm: 'w-[22px] h-[22px]', lg: 'w-14 h-14' }
+const sizeCls = { xs: 'w-5 h-5', md: 'w-6 h-6', sm: 'w-[22px] h-[22px]', lg: 'w-14 h-14' }
 const bgCls = {
+  xs: 'text-[9px] font-semibold tracking-[0.3px] bg-[linear-gradient(135deg,#4a4a52,#2c2c31)]',
   md: 'text-[10px] font-semibold tracking-[0.3px] bg-[linear-gradient(135deg,#4a4a52,#2c2c31)]',
   sm: 'text-[9px] font-bold bg-[linear-gradient(135deg,#6b5b4a,#3a2f27)]',
   lg: 'text-[18px] font-semibold bg-[linear-gradient(135deg,#4a4a52,#2c2c31)]'

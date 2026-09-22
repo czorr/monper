@@ -1,7 +1,7 @@
 import { t as tr, useLocale } from '@renderer/lib/i18n'
 import { useEffect, useRef, useState, type JSX } from 'react'
 import { NO_UPDATE, type AppearanceData, type Profile, type UpdateState } from '@shared/types'
-import { Avatar } from '@renderer/components/ui'
+import { Avatar, Select } from '@renderer/components/ui'
 import IconSparkles from '~icons/tabler/sparkles'
 import IconCamera from '~icons/tabler/camera'
 import IconSettings from '~icons/tabler/settings'
@@ -519,11 +519,11 @@ function LanguageSection(): JSX.Element {
     <Group title={tr('Idioma')}>
       <Card>
         <Row label={tr('Idioma del navegador')} desc={tr('El cambio se aplica a todas las ventanas.')}>
-          <select
+          <Select
             aria-label={tr('Idioma del navegador')}
             value={locale}
             disabled={saving}
-            className="h-9 rounded-lg border border-white/10 bg-surface px-3 text-[13px] text-text"
+            className="w-[140px]"
             onChange={async (event) => {
               const value = event.target.value
               if (value !== 'en' && value !== 'es') return
@@ -539,7 +539,7 @@ function LanguageSection(): JSX.Element {
           >
             <option value="en" lang="en">English</option>
             <option value="es" lang="es">Español</option>
-          </select>
+          </Select>
         </Row>
         {error && <p role="alert" className="px-4 pb-3 text-[13px] text-amber-400">{error}</p>}
       </Card>

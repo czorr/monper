@@ -1,6 +1,8 @@
 export { default as IconButton } from './IconButton'
 export { default as Button } from './Button'
 export { default as Avatar } from './Avatar'
+export { default as Select } from './Select'
+export type { SelectProps } from './Select'
 export { default as TitanioLogo } from './TitanioLogo'
 export { default as SectionLabel } from './SectionLabel'
 export { MenuLabel, MenuDivider, MenuItem } from './MenuItem'

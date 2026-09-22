@@ -151,6 +151,25 @@ export interface ResumenUso {
 export interface ProviderInfo extends AIProvider {
   hasKey: boolean
   active: boolean
+  models?: ModelOption[]
+  keySource?: 'vault' | 'env' | 'none'
+  envVar?: string
+}
+
+export interface ProviderInput {
+  id?: string
+  label: string
+  kind: ProviderKind
+  baseUrl?: string
+  models?: ModelOption[]
+  envVar?: string
+}
+
+export interface ProviderSettings {
+  providers: ProviderInfo[]
+  path: string
+  revision: string
+  error?: string
 }
 
 export interface ModelOption {
@@ -162,6 +181,7 @@ export interface ModelOption {
    */
   providerId?: string
   providerKind?: ProviderKind
+  provider?: AIProvider
 }
 
 /**
@@ -199,7 +219,7 @@ export const EFFORTS: { id: Effort; name: string }[] = [
 
 /** Contexto del chat que ve el composer: proveedor activo, modelos, modelo y effort */
 export interface ChatContext {
-  provider: { id: string; label: string; kind: ProviderKind } | null
+  provider: AIProvider | null
   /** TODOS los modelos de TODOS los proveedores conectados, no solo los del activo. */
   models: ModelOption[]
   model: string
@@ -977,6 +997,11 @@ export interface TitanioTabApi {
   // ---- Gestión de proveedores de IA (para la página de Settings) ----
   listProviders: () => Promise<ProviderInfo[]>
   addProvider: (input: { label: string; kind: ProviderKind; baseUrl?: string }, apiKey: string) => Promise<ProviderInfo[]>
+  providerSettings: () => Promise<ProviderSettings>
+  saveProvider: (input: ProviderInput, apiKey: string, revision: string) => Promise<ProviderSettings>
+  deleteProvider: (id: string, revision: string) => Promise<ProviderSettings>
+  openProviderConfig: () => Promise<void>
+  discoverProvider: (id: string) => Promise<ModelOption[]>
   removeProvider: (id: string) => Promise<ProviderInfo[]>
   setActiveProvider: (id: string) => Promise<ProviderInfo[]>
   /** Relee el catálogo de modelos del proveedor activo (se lo pregunta a su API). */

@@ -86,6 +86,7 @@ export interface SettingsControl {
 export const SYSTEM = `Eres Titanio, un agente que opera el navegador del usuario para cumplir su tarea.
 Tu herramienta principal es run_js: un REPL donde ESCRIBES CÓDIGO JavaScript para operar el navegador con la librería "titaniowright" (API con la forma de Playwright). Prefiérela para cualquier tarea no trivial; puedes leer, actuar y decidir en un solo bloque de código, lo que es más eficiente que muchas tools atómicas.
 En run_js tienes disponibles: 'page' (la pestaña activa), 'state' (objeto que PERSISTE entre llamadas a run_js del mismo turno: guarda ahí lo que quieras reusar), y 'log(...)' (para imprimir valores). El código es async: usa await y 'return' para devolver un valor.
+PROGRESO VISIBLE: cada llamada a run_js debe incluir 'summary', una sola frase breve en el idioma del usuario que describa QUÉ vas a hacer y sobre qué, no cómo lo implementas. Ejemplos: "Navegando a github.com", "Buscando vuelos a Lima", "Leyendo los precios del hotel", "Rellenando el formulario de contacto", "Comparando las tres opciones". Usa una acción en curso, sin afirmar resultados que todavía no has obtenido. Nunca "Ejecutando código", "Procesando" ni nombres de funciones, selectores o variables. No incluyas secretos. Indica 'action' según la acción principal y 'url' con la URL del sitio donde actúas (la de destino si navegas); omite url si no corresponde a un sitio. La frase se muestra como evento en el chat: no la repitas como mensaje de texto. Si cambias de objetivo, usa otra llamada con su propio resumen; agrupa las operaciones que sirven al mismo objetivo.
 Globals extra que usan las skills: 'googleSearch.search(q, opts)' (→[{title,url,snippet}]), 'imageSearch.search(q)', 'cua.getVisibleScreenshot()', 'youtube.search/getMetadata/getTranscript/getComments', 'twitter.search/getTimeline/getUser/getTweet' (read-only), 'gmail.search/getInbox/getThread/openComposer/openThreadDetailsPage' (openComposer solo ABRE el borrador, no envía), 'notion.getClient()' → cliente read-only (client.search/getBlock) + global 'blockToMarkdown(block)', 'slack.listWorkspaces()/getClient(teamId)' → WebClient de @slack/web-api (client.conversations.history/list, chat.postMessage, search.messages…; postMessage ENVÍA, confirma antes), 'googleAccounts.list()/print()', 'googleDocs.getDocumentHTML/getDocumentText(url)', 'googleSheets.readSheet(url) → {cells}'. Los de servicios con sesión requieren que el usuario esté logueado. 'passwordManager' (vault interno de Titanio): passwordManager.list() (metadata SIN secretos), passwordManager.fill()/fillAndSubmit() rellenan la credencial guardada del sitio actual. IMPORTANTE: NUNCA verás la contraseña — el relleno lo hace Titanio y solo te devuelve qué campos se llenaron; el usuario aprueba cada relleno. No intentes leer el valor del campo de contraseña ni pedirle al usuario que te la diga. Las escrituras/ediciones (googleDocs/googleSheets edit, notion, gmail.downloadAttachment…) aún no están portadas: úsalas con page: si los llamas lanzan un error que te indica operar ese servicio con 'page' (navegar la web y usar page.click/type/evaluate).
 API de 'page' (subset): await page.goto(url); page.snapshotText() (árbol de accesibilidad podado con [ref]); page.click(sel)/fill(sel,val)/type(sel,txt)/press(sel,key)/hover(sel)/selectOption(sel,val); page.clickRef(n)/fillRef(n,val) (usando un [ref] de snapshotText); page.locator(sel).nth(i).click(); page.waitForSelector(sel)/waitForText(txt); page.textContent(sel); page.$$text(sel) (textos de todos los que casan); page.evaluate(fn) (ejecuta una función en la página y devuelve su valor); page.keyboard/page.mouse. Ejemplo: const s = await page.snapshotText(); log(s); await page.clickRef(3); return await page.title();
 Red / APIs internas (para ir mucho más rápido que por la UI): page.resourceRequests({type:'fetch'}) descubre endpoints que la página ya llamó; page.installNetworkCapture() + luego page.capturedRequests() capturan método/URL/status de peticiones futuras; page.fetch(url, init) reproduce una petición DESDE la página (hereda cookies/origin del sitio, indistinguible de sus llamadas) y devuelve status/headers/body. Úsalo para leer datos directo de la API interna en vez de raspar el DOM.
@@ -242,7 +243,13 @@ function buildTools(ctrl: BrowserControl, settings: SettingsControl, skills: Ski
         'Globals: page (pestaña activa, API estilo Playwright), state (persiste entre llamadas de este turno), log(...). ' +
         'Usa await y return para devolver un valor. Es tu herramienta principal: prefiérela sobre las tools atómicas. ' +
         'Ej: const s = await page.snapshotText(); log(s); await page.clickRef(2); return await page.title();',
-      inputSchema: z.object({ code: z.string().describe('Código JS async. Tiene page, state y log.') }),
+      inputSchema: z.object({
+        summary: z.string().describe('Frase breve de progreso para el usuario: acción concreta y objetivo, en su idioma. Ej.: "Buscando vuelos a Lima". Sin código ni secretos.'),
+        action: z.enum(['navigate', 'search', 'read', 'click', 'type', 'scroll', 'wait', 'screenshot', 'generic'])
+          .describe('Acción principal de este bloque; generic solo para cálculo o comparación sin una acción de navegador predominante.'),
+        url: z.string().optional().describe('URL del sitio sobre el que actúas, o URL de destino al navegar. Omite si no hay un sitio asociado.'),
+        code: z.string().describe('Código JS async. Tiene page, state y log.')
+      }),
       execute: async ({ code }) => {
         const r = await safe(() => runRepl(wc(), code, replState))
         return typeof r === 'string' ? withEvents(r) : r
@@ -525,7 +532,26 @@ export function buildAgent(provider: AIProvider, key: string, model: string, ctr
 function describe(toolName: string, args: unknown): ChatStep {
   const a = (args ?? {}) as Record<string, unknown>
   switch (toolName) {
-    case 'run_js': return { state: 'solving', label: tr("Ejecutando código"), kind: 'generic' }
+    case 'run_js': {
+      const actions: Record<string, Pick<ChatStep, 'state' | 'kind'>> = {
+        navigate: { state: 'searching', kind: 'navigate' },
+        search: { state: 'searching', kind: 'navigate' },
+        read: { state: 'listening', kind: 'read' },
+        click: { state: 'working', kind: 'click' },
+        type: { state: 'composing', kind: 'type' },
+        scroll: { state: 'working', kind: 'scroll' },
+        wait: { state: 'searching', kind: 'wait' },
+        screenshot: { state: 'searching', kind: 'screenshot' },
+        generic: { state: 'solving', kind: 'generic' }
+      }
+      const action = typeof a.action === 'string' && Object.hasOwn(actions, a.action) ? actions[a.action] : actions.generic
+      const summary = typeof a.summary === 'string' ? a.summary.replace(/\s+/g, ' ').trim() : ''
+      return {
+        ...action,
+        label: summary ? Array.from(summary).slice(0, 160).join('') : tr("Trabajando en tu solicitud"),
+        favicon: typeof a.url === 'string' ? faviconDelPaso(host(a.url)) : undefined
+      }
+    }
     case 'read_page': return { state: 'listening', label: tr("Leyendo la página"), kind: 'read' }
     case 'navigate': {
       const h = host(String(a.url ?? ''))

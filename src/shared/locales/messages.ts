@@ -118,6 +118,8 @@ const spanish = {
   'El cambio se aplica a todas las ventanas.': 'Changes apply to all windows.',
   'No se pudo guardar el idioma.': 'Could not save the language.',
   'Ejecutando código': 'Running code',
+  'Trabajando en tu solicitud': 'Working on your request',
+  'Pensando…': 'Thinking…',
   'Esperando {0}': 'Waiting for {0}',
   'Tecla {0}': 'Key {0}',
   'Hover en el elemento {0}': 'Hovering over element {0}',

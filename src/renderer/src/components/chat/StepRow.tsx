@@ -1,8 +1,6 @@
 import { t as tr, useLocale } from '@renderer/lib/i18n'
 import { useState, type JSX } from 'react'
-import { ThinkingOrb } from 'thinking-orbs'
 import type { ChatStep, StepKind } from '@shared/types'
-import type { OrbState } from './types'
 import IconWorld from '~icons/tabler/world'
 import IconFileText from '~icons/tabler/file-text'
 import IconClick from '~icons/tabler/click'
@@ -33,40 +31,40 @@ const KIND_ICON: Record<StepKind, typeof IconWorld> = {
   generic: IconPointCheck
 }
 
-/** Icono de un paso completado: favicon (navegación) o icono tabler de la acción. */
-function StepIcon({ step }: { step: ChatStep }): JSX.Element {
-  useLocale()
-  const [broken, setBroken] = useState(false)
-  if (step.favicon && !broken) {
+/** El icono identifica la acción desde el inicio, también mientras se procesa. */
+function StepIcon({ step, active, onError }: { step: ChatStep; active: boolean; onError: () => void }): JSX.Element {
+  if (step.favicon) {
     return (
       <img
         src={step.favicon}
         alt=""
         className="w-3.5 h-3.5 rounded-[3px] object-contain"
-        onError={() => setBroken(true)}
+        onError={onError}
       />
     )
   }
   const Icon = KIND_ICON[step.kind ?? 'generic']
-  return <Icon className="w-3.5 h-3.5 text-text-faint" />
+  return <Icon className={`w-3.5 h-3.5 ${active ? 'text-text' : 'text-text-faint'}`} />
 }
 
-/** Una fila de paso: orb animado si está activo, icono/favicon si está completado. */
+/** Icono y texto comparten el barrido; los favicons conservan su aspecto original. */
 export default function StepRow({ step, active }: { step: ChatStep; active: boolean }): JSX.Element {
   useLocale()
+  const [failedFavicon, setFailedFavicon] = useState<string>()
+  const favicon = step.favicon !== failedFavicon ? step.favicon : undefined
   return (
     <div className="flex flex-col gap-1.5">
-      <div className="flex items-center gap-2.5">
+      <div className={`flex items-center gap-1 self-start ${active && !favicon ? 'chat-step-shimmer' : ''}`}>
         <span className="w-5 h-5 shrink-0 grid place-items-center">
-          {active ? <ThinkingOrb state={step.state as OrbState} size={20} theme="dark" /> : <StepIcon step={step} />}
+          <StepIcon step={{ ...step, favicon }} active={active} onError={() => setFailedFavicon(step.favicon)} />
         </span>
-        <span className={active ? 'text-[13px] text-text' : 'text-[13px] text-text-dim'}>{step.label}</span>
+        <span className={`text-[13px] ${active ? 'text-text' : 'text-text-dim'} ${active && favicon ? 'chat-step-shimmer' : ''}`}>{step.label}</span>
       </div>
       {step.image && (
         <img
           src={step.image}
           alt={tr("captura de pantalla")}
-          className="ml-[30px] max-w-full h-auto aspect-auto rounded-lg border border-white/10"
+          className="ml-6 max-w-full h-auto aspect-auto rounded-lg border border-white/10"
         />
       )}
     </div>

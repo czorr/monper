@@ -292,7 +292,7 @@ export type StepKind =
 
 /** Un paso del agente (acción con herramienta) mostrado en el chat */
 export interface ChatStep {
-  state: string // orb state: working | searching | listening | composing | solving | shaping
+  state: string // working | searching | listening | composing | solving | shaping
   label: string
   /** Acción que representa el paso (define el icono cuando está completado) */
   kind?: StepKind

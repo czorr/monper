@@ -1,6 +1,20 @@
 @import '@fontsource-variable/geist';
 @import "tailwindcss";
 
+/* Mismo barrido que los eventos de frontend/web-app; solo durante la actividad. */
+.chat-step-shimmer {
+  mask-image: linear-gradient(110deg, #0009 42%, #000 50%, #0009 58%);
+  mask-size: 220% 100%;
+  animation: chat-step-shimmer 2.2s linear infinite;
+}
+@keyframes chat-step-shimmer {
+  from { mask-position: 160% center; }
+  to { mask-position: -60% center; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-step-shimmer { animation: none; mask-image: none; }
+}
+
 .appearance-color {
   appearance: none;
   padding: 3px;
